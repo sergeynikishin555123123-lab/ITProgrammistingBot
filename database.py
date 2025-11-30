@@ -1,5 +1,5 @@
 # database.py
-import psycopg2
+import sqlite3
 import json
 from datetime import datetime
 from config import Config
@@ -7,9 +7,10 @@ from config import Config
 class Database:
     @staticmethod
     def get_connection():
-        """Возвращает соединение с PostgreSQL"""
+        """Возвращает соединение с SQLite"""
         try:
-            conn = psycopg2.connect(**Config.DB_CONFIG)
+            conn = sqlite3.connect(Config.DB_PATH)
+            conn.row_factory = sqlite3.Row
             return conn
         except Exception as e:
             print(f"❌ Ошибка подключения к БД: {e}")
@@ -17,7 +18,7 @@ class Database:
     
     @staticmethod
     def init_tables():
-        """Инициализирует таблицы в базе данных"""
+        """Инициализирует таблицы в SQLite"""
         conn = Database.get_connection()
         if not conn:
             return False
@@ -28,10 +29,10 @@ class Database:
             # Таблица пользователей
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    telegram_id BIGINT UNIQUE,
-                    username VARCHAR(100),
-                    full_name VARCHAR(200),
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER UNIQUE,
+                    username TEXT,
+                    full_name TEXT,
                     level INTEGER DEFAULT 1,
                     experience INTEGER DEFAULT 0,
                     coins INTEGER DEFAULT 100,
@@ -42,23 +43,23 @@ class Database:
             # Таблица уроков
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS lessons (
-                    id SERIAL PRIMARY KEY,
-                    title VARCHAR(200) NOT NULL,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
                     description TEXT,
                     theory TEXT,
                     task TEXT,
                     initial_code TEXT,
                     tests TEXT,
                     order_index INTEGER,
-                    farm_update JSONB
+                    farm_update TEXT
                 )
             ''')
             
             # Таблица прогресса
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_progress (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id),
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
                     lesson_id INTEGER,
                     code_solution TEXT,
                     completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -69,18 +70,18 @@ class Database:
             # Таблица фермы
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS farm_state (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER UNIQUE REFERENCES users(id),
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER UNIQUE,
                     level INTEGER DEFAULT 1,
-                    buildings JSONB DEFAULT '[]',
-                    fields JSONB DEFAULT '[]',
-                    decorations JSONB DEFAULT '[]',
+                    buildings TEXT DEFAULT '[]',
+                    fields TEXT DEFAULT '[]',
+                    decorations TEXT DEFAULT '[]',
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
             conn.commit()
-            print("✅ Таблицы базы данных инициализированы")
+            print("✅ Таблицы SQLite инициализированы")
             return True
             
         except Exception as e:
@@ -102,44 +103,29 @@ class User:
             cursor = conn.cursor()
             
             cursor.execute(
-                'SELECT * FROM users WHERE telegram_id = %s',
+                'SELECT * FROM users WHERE telegram_id = ?',
                 (telegram_id,)
             )
             user = cursor.fetchone()
             
             if user:
-                return {
-                    'id': user[0],
-                    'telegram_id': user[1],
-                    'username': user[2],
-                    'full_name': user[3],
-                    'level': user[4],
-                    'coins': user[6]
-                }
+                return dict(user)
             else:
                 cursor.execute(
                     '''INSERT INTO users (telegram_id, username, full_name) 
-                    VALUES (%s, %s, %s) RETURNING *''',
+                    VALUES (?, ?, ?) RETURNING *''',
                     (telegram_id, username, full_name)
                 )
                 new_user = cursor.fetchone()
                 
                 # Создаем начальное состояние фермы
                 cursor.execute(
-                    'INSERT INTO farm_state (user_id) VALUES (%s)',
-                    (new_user[0],)
+                    'INSERT INTO farm_state (user_id) VALUES (?)',
+                    (new_user['id'],)
                 )
                 
                 conn.commit()
-                
-                return {
-                    'id': new_user[0],
-                    'telegram_id': new_user[1],
-                    'username': new_user[2],
-                    'full_name': new_user[3],
-                    'level': new_user[4],
-                    'coins': new_user[6]
-                }
+                return dict(new_user)
                 
         except Exception as e:
             print(f"❌ Ошибка работы с пользователем: {e}")
@@ -159,8 +145,8 @@ class LessonProgress:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                '''INSERT INTO user_progress (user_id, lesson_id, code_solution) 
-                VALUES (%s, %s, %s)''',
+                '''INSERT OR REPLACE INTO user_progress (user_id, lesson_id, code_solution) 
+                VALUES (?, ?, ?)''',
                 (user_id, lesson_id, code_solution)
             )
             conn.commit()
@@ -182,7 +168,7 @@ class LessonProgress:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                'SELECT lesson_id FROM user_progress WHERE user_id = %s',
+                'SELECT lesson_id FROM user_progress WHERE user_id = ?',
                 (user_id,)
             )
             return [row[0] for row in cursor.fetchall()]
@@ -203,58 +189,21 @@ class FarmState:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                'SELECT * FROM farm_state WHERE user_id = %s',
+                'SELECT * FROM farm_state WHERE user_id = ?',
                 (user_id,)
             )
             farm = cursor.fetchone()
             
             if farm:
                 return {
-                    'level': farm[2],
-                    'buildings': farm[3] or [],
-                    'fields': farm[4] or [],
-                    'decorations': farm[5] or []
+                    'level': farm['level'],
+                    'buildings': json.loads(farm['buildings']) if farm['buildings'] else [],
+                    'fields': json.loads(farm['fields']) if farm['fields'] else [],
+                    'decorations': json.loads(farm['decorations']) if farm['decorations'] else []
                 }
             return None
         except Exception as e:
             print(f"❌ Ошибка получения состояния фермы: {e}")
             return None
-        finally:
-            conn.close()
-    
-    @staticmethod
-    def update(user_id, level=None, buildings=None, fields=None, decorations=None):
-        """Обновляет состояние фермы"""
-        conn = Database.get_connection()
-        if not conn:
-            return False
-        
-        try:
-            cursor = conn.cursor()
-            
-            # Получаем текущее состояние
-            current = FarmState.get_by_user(user_id)
-            if not current:
-                return False
-            
-            # Обновляем только переданные поля
-            new_level = level if level is not None else current['level']
-            new_buildings = json.dumps(buildings) if buildings is not None else current['buildings']
-            new_fields = json.dumps(fields) if fields is not None else current['fields']
-            new_decorations = json.dumps(decorations) if decorations is not None else current['decorations']
-            
-            cursor.execute(
-                '''UPDATE farm_state 
-                SET level = %s, buildings = %s, fields = %s, decorations = %s 
-                WHERE user_id = %s''',
-                (new_level, new_buildings, new_fields, new_decorations, user_id)
-            )
-            
-            conn.commit()
-            return True
-        except Exception as e:
-            print(f"❌ Ошибка обновления фермы: {e}")
-            conn.rollback()
-            return False
         finally:
             conn.close()
