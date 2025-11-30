@@ -1,6 +1,7 @@
 import psycopg2
 import os
-from config import config
+import json
+from backend.config import config
 
 class Database:
     def __init__(self):
@@ -15,65 +16,80 @@ class Database:
             print("✅ Подключение к базе данных установлено")
         except Exception as e:
             print(f"❌ Ошибка подключения к БД: {e}")
+            # Создаем временную in-memory базу для демо
+            self.create_demo_tables()
+    
+    def create_demo_tables(self):
+        """Создает демо-таблицы в памяти"""
+        print("🔄 Создаю демо-таблицы в памяти...")
+        import sqlite3
+        self.connection = sqlite3.connect(':memory:', check_same_thread=False)
+        self.connection.row_factory = sqlite3.Row
     
     def init_tables(self):
         """Инициализация таблиц"""
-        commands = [
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                telegram_id BIGINT UNIQUE NOT NULL,
-                username VARCHAR(255),
-                level INTEGER DEFAULT 1,
-                coins INTEGER DEFAULT 100,
-                experience INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS user_progress (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                lesson_id INTEGER NOT NULL,
-                completed BOOLEAN DEFAULT FALSE,
-                code_solution TEXT,
-                attempts INTEGER DEFAULT 0,
-                completed_at TIMESTAMP,
-                UNIQUE(user_id, lesson_id)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS farm_state (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) UNIQUE,
-                field_data JSONB DEFAULT '{}',
-                buildings JSONB DEFAULT '[]',
-                decorations JSONB DEFAULT '[]',
-                animals JSONB DEFAULT '[]'
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS lessons (
-                id SERIAL PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                description TEXT,
-                theory_text TEXT,
-                task_text TEXT,
-                initial_code TEXT,
-                expected_output TEXT,
-                difficulty INTEGER DEFAULT 1,
-                order_index INTEGER NOT NULL
-            )
-            """
-        ]
-        
         try:
             cursor = self.connection.cursor()
-            for command in commands:
-                cursor.execute(command)
+            
+            # Проверяем тип базы данных
+            if hasattr(self.connection, 'execute'):
+                # SQLite
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        telegram_id INTEGER UNIQUE NOT NULL,
+                        username TEXT,
+                        level INTEGER DEFAULT 1,
+                        coins INTEGER DEFAULT 100,
+                        experience INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS user_progress (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER REFERENCES users(id),
+                        lesson_id INTEGER NOT NULL,
+                        completed BOOLEAN DEFAULT FALSE,
+                        code_solution TEXT,
+                        attempts INTEGER DEFAULT 0,
+                        completed_at TIMESTAMP,
+                        UNIQUE(user_id, lesson_id)
+                    )
+                ''')
+                
+            else:
+                # PostgreSQL
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        telegram_id BIGINT UNIQUE NOT NULL,
+                        username VARCHAR(255),
+                        level INTEGER DEFAULT 1,
+                        coins INTEGER DEFAULT 100,
+                        experience INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS user_progress (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id),
+                        lesson_id INTEGER NOT NULL,
+                        completed BOOLEAN DEFAULT FALSE,
+                        code_solution TEXT,
+                        attempts INTEGER DEFAULT 0,
+                        completed_at TIMESTAMP,
+                        UNIQUE(user_id, lesson_id)
+                    )
+                ''')
+            
             self.connection.commit()
             cursor.close()
             print("✅ Таблицы базы данных инициализированы")
+            
         except Exception as e:
             print(f"❌ Ошибка инициализации таблиц: {e}")
 
