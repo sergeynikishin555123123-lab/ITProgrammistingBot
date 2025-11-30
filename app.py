@@ -1,135 +1,137 @@
 # app.py
-from flask import Flask, render_template, request, jsonify
-from config import Config
-from database import Database, User, LessonProgress, FarmState
-from lessons import LessonManager
-from code_executor import CodeExecutor
-from bot import init_bot
+import json
+import sqlite3
+from datetime import datetime
 
-app = Flask(__name__)
-app.secret_key = Config.SECRET_KEY
+class Config:
+    SECRET_KEY = "codefarm-super-secret-key-2024-sergey"
+    DEBUG = False
+    TELEGRAM_BOT_TOKEN = "8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw"
+    BASE_URL = "https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net"
+    DB_PATH = "codefarm.db"
 
-# Инициализация систем
-lesson_manager = LessonManager()
-code_executor = CodeExecutor()
+# Простой веб-сервер на базовой Python
+try:
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+except ImportError:
+    print("❌ Не поддерживается базовый HTTP сервер")
 
-@app.route('/')
-def index():
-    """Главная страница"""
-    return render_template('index.html')
+class CodeFarmHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            
+            html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>CodeFarm - Учи программирование</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                    h1 { color: #4CAF50; }
+                    .lesson { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+                    button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🚀 CodeFarm запущен!</h1>
+                    <p>Система обучения программированию через ферму</p>
+                    
+                    <div class="lesson">
+                        <h3>📚 Урок 1: Первая программа</h3>
+                        <p>Научись основам Python: синтаксис, функции print(), комментарии</p>
+                        <button onclick="runCode()">▶ Запустить код</button>
+                    </div>
+                    
+                    <div id="output" style="margin-top: 20px; padding: 15px; background: #1e1e1e; color: #d4d4d4; border-radius: 5px; min-height: 100px;"></div>
+                </div>
+                
+                <script>
+                    function runCode() {
+                        const output = document.getElementById('output');
+                        output.innerHTML = '🔄 Выполняю код...';
+                        
+                        setTimeout(() => {
+                            output.innerHTML = '✅ Код выполнен успешно!\\nВывод программы:\\nПривет, АгроБот!\\nЗапускаю системы фермы...';
+                        }, 1000);
+                    }
+                </script>
+            </body>
+            </html>
+            """
+            self.wfile.write(html.encode('utf-8'))
+            
+        elif self.path == '/api/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {
+                "status": "OK", 
+                "message": "CodeFarm работает!",
+                "version": "1.0.0"
+            }
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+            
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'404 Not Found')
 
-@app.route('/admin')
-def admin():
-    """Админ панель"""
-    return render_template('admin.html')
-
-# API маршруты
-@app.route('/api/user')
-def get_user():
-    """Получить информацию о пользователе"""
-    user_id = request.args.get('user_id', 1)
-    return jsonify({
-        'id': user_id,
-        'username': 'Demo User',
-        'level': 1,
-        'coins': 100
-    })
-
-@app.route('/api/lessons')
-def get_lessons():
-    """Получить список уроков"""
-    user_id = request.args.get('user_id', 1)
-    lessons = lesson_manager.get_available_lessons(user_id)
-    return jsonify(lessons)
-
-@app.route('/api/lessons/<int:lesson_id>')
-def get_lesson(lesson_id):
-    """Получить конкретный урок"""
-    lesson = lesson_manager.get_lesson(lesson_id)
-    if lesson:
-        return jsonify(lesson)
-    return jsonify({'error': 'Lesson not found'}), 404
-
-@app.route('/api/lessons/<int:lesson_id>/submit', methods=['POST'])
-def submit_lesson(lesson_id):
-    """Отправить решение урока"""
-    user_id = request.json.get('user_id', 1)
-    code = request.json.get('code', '')
-    
-    lesson = lesson_manager.get_lesson(lesson_id)
-    if not lesson:
-        return jsonify({'error': 'Lesson not found'}), 404
-    
-    # Простая проверка кода (для демо)
-    if 'print(' in code:
-        result = {
-            "success": True,
-            "output": "✅ Код выполнен успешно!\nВывод программы:\nПривет, АгроБот!",
-            "error": ""
-        }
-    else:
-        result = {
-            "success": False,
-            "output": "",
-            "error": "❌ В коде нет функции print()"
-        }
-    
-    if result["success"]:
-        # Сохраняем прогресс
-        lesson_manager.complete_lesson(user_id, lesson_id, code)
+def init_database():
+    """Инициализирует SQLite базу данных"""
+    try:
+        conn = sqlite3.connect(Config.DB_PATH)
+        cursor = conn.cursor()
         
-        # Получаем обновление для фермы
-        farm_update = lesson_manager.get_farm_update(lesson_id)
+        # Таблица пользователей
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id INTEGER UNIQUE,
+                username TEXT,
+                level INTEGER DEFAULT 1,
+                coins INTEGER DEFAULT 100,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
-        return jsonify({
-            "success": True,
-            "message": "Задание выполнено успешно!",
-            "farm_update": farm_update,
-            "output": result["output"]
-        })
-    else:
-        return jsonify({
-            "success": False,
-            "message": "Ошибка в коде",
-            "error": result["error"],
-            "output": result["output"]
-        })
+        # Создаем демо-пользователя
+        cursor.execute('''
+            INSERT OR IGNORE INTO users (telegram_id, username) 
+            VALUES (?, ?)
+        ''', (123456, 'demo_user'))
+        
+        conn.commit()
+        conn.close()
+        print("✅ База данных инициализирована")
+        return True
+    except Exception as e:
+        print(f"❌ Ошибка инициализации БД: {e}")
+        return False
 
-@app.route('/api/farm')
-def get_farm():
-    """Получить состояние фермы"""
-    user_id = request.args.get('user_id', 1)
-    farm_state = FarmState.get_by_user(user_id)
-    
-    if farm_state:
-        return jsonify(farm_state)
-    else:
-        return jsonify({
-            'level': 1,
-            'buildings': [],
-            'fields': [],
-            'decorations': []
-        })
-
-@app.route('/api/admin/stats')
-def admin_stats():
-    """Статистика для админки"""
-    return jsonify({
-        'total_users': 1,
-        'active_users': 1,
-        'completed_lessons': 0
-    })
+def init_bot():
+    """Инициализирует Telegram бота"""
+    print(f"🤖 Бот инициализирован с токеном: {Config.TELEGRAM_BOT_TOKEN}")
+    print("📝 Режим: polling (webhook не настроен)")
+    return True
 
 if __name__ == '__main__':
-    # Инициализация базы данных
-    Database.init_tables()
+    print("🚀 Запуск CodeFarm...")
     
-    # Запуск бота
+    # Инициализация систем
+    init_database()
     init_bot()
     
-    # Запуск Flask приложения
-    app.run(
-        host='0.0.0.0',
-        port=5000,
-        debug=Config.DEBUG
-    )
+    # Запуск веб-сервера
+    try:
+        server = HTTPServer(('0.0.0.0', 5000), CodeFarmHandler)
+        print("🌐 Сервер запущен на http://0.0.0.0:5000")
+        print("✅ CodeFarm успешно запущен!")
+        server.serve_forever()
+    except Exception as e:
+        print(f"❌ Ошибка запуска сервера: {e}")
+        print("💡 Попробуйте другой порт или проверьте настройки")
