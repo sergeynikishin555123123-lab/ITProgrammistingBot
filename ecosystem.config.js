@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: "codefarm",
-    script: "backend/main.py",
+    script: "app.py",
     interpreter: "python3",
     instances: 1,
     autorestart: true,
@@ -10,6 +10,9 @@ module.exports = {
     env: {
       NODE_ENV: "production",
       PORT: 8000
+    },
+    env_production: {
+      NODE_ENV: "production"
     },
     error_file: "logs/err.log",
     out_file: "logs/out.log",
