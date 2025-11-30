@@ -1,0 +1,16 @@
+{
+  "name": "codefarm",
+  "version": "1.0.0",
+  "description": "CodeFarm - игровая платформа для обучения программированию",
+  "scripts": {
+    "build": "echo 'No build step for Python'",
+    "start": "cd backend && python main.py",
+    "dev": "cd backend && python main.py"
+  },
+  "dependencies": {
+    "pm2": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
