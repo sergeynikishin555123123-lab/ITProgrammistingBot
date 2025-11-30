@@ -4,9 +4,11 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 import uvicorn
 import os
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import sys
 
-# Импорты из backend модулей
+# Добавляем путь к backend
+sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+
 from backend.config import config
 from backend.database import db
 from backend.lessons import lesson_system
@@ -22,16 +24,22 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Инициализация шаблонов
 templates = Jinja2Templates(directory="templates")
 
-# Инициализация бота
-bot_application = Application.builder().token(config.BOT_TOKEN).build()
+# Инициализация бота (если токен есть)
+bot_application = None
+bot_handlers = None
 
-# Инициализация обработчиков
-bot_handlers = BotHandlers(db, lesson_system, farm_engine)
-
-# Регистрация обработчиков бота
-bot_application.add_handler(CommandHandler("start", bot_handlers.start))
-bot_application.add_handler(MessageHandler(filters.Text(["📚 Уроки"]), bot_handlers.show_lessons))
-bot_application.add_handler(MessageHandler(filters.Text(["🏠 Моя ферма"]), bot_handlers.show_farm))
+if config.BOT_TOKEN and config.BOT_TOKEN != "YOUR_BOT_TOKEN":
+    try:
+        from telegram.ext import Application, CommandHandler, MessageHandler, filters
+        bot_application = Application.builder().token(config.BOT_TOKEN).build()
+        bot_handlers = BotHandlers(db, lesson_system, farm_engine)
+        
+        # Регистрация обработчиков бота
+        bot_application.add_handler(CommandHandler("start", bot_handlers.start))
+        bot_application.add_handler(MessageHandler(filters.Text(["📚 Уроки"]), bot_handlers.show_lessons))
+        bot_application.add_handler(MessageHandler(filters.Text(["🏠 Моя ферма"]), bot_handlers.show_farm))
+    except Exception as e:
+        print(f"⚠️ Бот не запущен: {e}")
 
 # 📊 API РОУТЫ
 @app.get("/", response_class=HTMLResponse)
@@ -90,24 +98,32 @@ async def admin_panel(request: Request):
         "completed_lessons": completed_lessons
     })
 
+@app.get("/health")
+async def health_check():
+    """Проверка здоровья приложения"""
+    return {"status": "ok", "message": "CodeFarm работает!"}
+
 # 🚀 ЗАПУСК СЕРВЕРА
 async def start_bot():
     """Запуск Telegram бота"""
-    await bot_application.initialize()
-    await bot_application.start()
-    await bot_application.updater.start_polling()
+    if bot_application:
+        await bot_application.initialize()
+        await bot_application.start()
+        await bot_application.updater.start_polling()
+        print("🤖 Telegram бот запущен!")
 
 @app.on_event("startup")
 async def startup_event():
     """Запуск при старте сервера"""
     await start_bot()
-    print("🚀 CodeFarm сервер запущен!")
+    print(f"🚀 CodeFarm сервер запущен на порту {config.PORT}!")
 
 @app.on_event("shutdown") 
 async def shutdown_event():
     """Остановка при завершении сервера"""
-    await bot_application.stop()
-    await bot_application.shutdown()
+    if bot_application:
+        await bot_application.stop()
+        await bot_application.shutdown()
     print("🛑 CodeFarm сервер остановлен")
 
 if __name__ == "__main__":
