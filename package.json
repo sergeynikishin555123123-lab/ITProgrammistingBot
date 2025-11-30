@@ -2,18 +2,15 @@
   "name": "codefarm",
   "version": "1.0.0",
   "description": "CodeFarm - игровая платформа для обучения программированию",
-  "main": "app.py",
   "scripts": {
-    "build": "pip install -r backend/requirements.txt",
+    "build": "echo 'Python project - no build step needed'",
     "start": "pm2 start ecosystem.config.js --no-daemon",
-    "dev": "python app.py"
+    "install-python-deps": "python -m pip install -r backend/requirements.txt"
   },
   "dependencies": {
     "pm2": "^5.3.0"
   },
   "engines": {
     "node": ">=18"
-  },
-  "author": "CodeFarm Team",
-  "license": "MIT"
+  }
 }
