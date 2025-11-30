@@ -1,87 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeFarm - Учи программирование, выращивая ферму</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>CodeFarm</title>
 </head>
 <body>
-    <div id="app">
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">🚀 CodeFarm</h1>
-                <div class="user-info">
-                    <span id="userName">Гость</span>
-                    <div class="stats">
-                        <span>💰 <span id="coins">0</span></span>
-                        <span>⭐ Ур. <span id="level">1</span></span>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <main class="main-content">
-            <aside class="farm-panel">
-                <div class="farm-container">
-                    <canvas id="farmCanvas" width="400" height="400"></canvas>
-                </div>
-                <div class="farm-info">
-                    <h3>🏠 Моя ферма</h3>
-                    <div class="farm-stats">
-                        <div>Уровень: <span id="farmLevel">1</span></div>
-                        <div>Построек: <span id="buildingCount">0</span></div>
-                        <div>Полей: <span id="fieldCount">0</span></div>
-                    </div>
-                </div>
-            </aside>
-
-            <section class="lesson-area">
-                <nav class="lesson-nav">
-                    <h3>📚 Уроки</h3>
-                    <div id="lessonList" class="lesson-list"></div>
-                </nav>
-
-                <div class="lesson-content">
-                    <div class="theory-section">
-                        <h2 id="lessonTitle">Выберите урок</h2>
-                        <div id="lessonTheory" class="theory-text">
-                            Выберите урок из списка слева чтобы начать обучение.
-                        </div>
-                    </div>
-
-                    <div class="task-section">
-                        <h3>🎯 Задание</h3>
-                        <div id="lessonTask" class="task-text">
-                            Задание появится здесь после выбора урока.
-                        </div>
-                    </div>
-
-                    <div class="code-editor-section">
-                        <h3>👨‍💻 Редактор кода</h3>
-                        <div class="editor-container">
-                            <textarea id="codeEditor" class="code-editor" placeholder="Напишите ваш код здесь..."></textarea>
-                            <div class="editor-actions">
-                                <button id="runCode" class="btn btn-primary">▶ Запустить</button>
-                                <button id="submitCode" class="btn btn-success">✅ Отправить</button>
-                                <button id="resetCode" class="btn btn-secondary">🔄 Сбросить</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="output-section">
-                        <h3>📊 Результат</h3>
-                        <div id="codeOutput" class="output-container">
-                            Результат выполнения кода появится здесь...
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/game_engine.js') }}"></script>
+    <h1>🚀 CodeFarm запущен!</h1>
+    <p>Система обучения программированию через ферму</p>
 </body>
 </html>
