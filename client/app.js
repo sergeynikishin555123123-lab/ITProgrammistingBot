@@ -8,6 +8,18 @@ class CodeFarmApp {
         this.currentLesson = null;
         this.codeEditor = null;
         
+        // Типы клеток фермы
+        this.CELL_TYPES = {
+            GRASS: 'grass',      // Трава (заросший участок) - начало
+            CLEARED: 'cleared',  // Расчищенная земля - урок 1
+            PLOWED: 'plowed',    // Вспаханная земля - урок 2
+            HOUSE: 'house',      // Дом - урок 3
+            BARN: 'barn',        // Сарай - урок 4
+            CROP: 'crop',        // Посев - урок 5
+            WATER: 'water',      // Вода - урок 6
+            ROAD: 'road'         // Дорога
+        };
+        
         console.log('🚀 CodeFarmApp инициализирован');
         this.init();
     }
@@ -60,7 +72,8 @@ class CodeFarmApp {
                     level: 1,
                     coins: 100,
                     experience: 0,
-                    lessonsCompleted: 0
+                    lessonsCompleted: 0,
+                    completedLessonIds: []
                 };
             }
         } else {
@@ -76,6 +89,7 @@ class CodeFarmApp {
                 coins: 100,
                 experience: 0,
                 lessonsCompleted: 0,
+                completedLessonIds: [],
                 streak: 1
             };
         }
@@ -118,6 +132,7 @@ class CodeFarmApp {
                 coins: 100,
                 experience: 0,
                 lessonsCompleted: 0,
+                completedLessonIds: [],
                 streak: 1,
                 createdAt: new Date().toISOString()
             };
@@ -180,15 +195,10 @@ class CodeFarmApp {
                 level: 1,
                 rewardCoins: 50,
                 rewardExp: 100,
-                theory: 'В этом уроке вы научитесь использовать функцию print() для вывода текста и давать команды вашему боту-помощнику.',
-                task: 'Напишите программу, которая поприветствует бота и скажет ему начать работу.',
-                initialCode: '# Напишите приветствие для бота\nprint("Привет, АгроБот!")\n\n# Скажите боту начать работу\nprint("Начинай работу!")',
-                exampleCode: 'print("Привет, АгроБот!")\nprint("Поработаем сегодня!")',
-                hints: [
-                    'Используйте функцию print() для вывода текста',
-                    'Текст в кавычках будет выведен на экран',
-                    'Каждая команда должна быть на новой строке'
-                ]
+                theory: 'В этом уроке вы научитесь использовать функцию print() для вывода текста.',
+                task: 'Напишите программу, которая выведет "Привет, АгроБот!" и "Начинаю работу!"',
+                testCode: 'print("Привет, АгроБот!")\nprint("Начинаю работу!")',
+                initialCode: '# Напишите приветствие для бота\nprint("Привет, АгроБот!")'
             },
             {
                 id: 'lesson_2',
@@ -197,15 +207,10 @@ class CodeFarmApp {
                 level: 1,
                 rewardCoins: 75,
                 rewardExp: 150,
-                theory: 'Переменные позволяют хранить данные и использовать их в программе. В этом уроке вы создадите проект своей фермы.',
-                task: 'Создайте переменные для названия фермы и её площади, затем выведите их.',
-                initialCode: '# Создайте переменные для фермы\nfarm_name = "Солнечная долина"\nfarm_area = 100  # гектаров\n\n# Выведите информацию о ферме\nprint("Название фермы:", farm_name)\nprint("Площадь фермы:", farm_area, "га")',
-                exampleCode: 'name = "Моя ферма"\nsize = 50\nprint("Ферма:", name)\nprint("Размер:", size, "га")',
-                hints: [
-                    'Используйте знак = для присвоения значения',
-                    'Текст заключайте в кавычки',
-                    'Числа пишите без кавычек'
-                ]
+                theory: 'Переменные хранят данные. Используйте знак = для присвоения значения.',
+                task: 'Создайте переменную farm_name со значением "Солнечная долина" и выведите её',
+                testCode: 'farm_name = "Солнечная долина"\nprint(farm_name)',
+                initialCode: '# Создайте переменную для названия фермы\nfarm_name = "Моя ферма"'
             },
             {
                 id: 'lesson_3',
@@ -214,15 +219,10 @@ class CodeFarmApp {
                 level: 1,
                 rewardCoins: 100,
                 rewardExp: 200,
-                theory: 'Функции позволяют группировать команды и выполнять их многократно. Создадим функции для управления техникой фермы.',
-                task: 'Создайте функцию для запуска трактора и функцию для расчистки участка.',
-                initialCode: '# Создайте функцию для запуска трактора\ndef start_tractor():\n    print("Запускаю трактор...")\n    print("Двигатель работает!")\n\n# Создайте функцию для расчистки\ndef clear_area(side):\n    print(f"Расчищаю {side} сторону...")\n    print("Участок расчищен!")\n\n# Вызовите функции\nstart_tractor()\nclear_area("северную")',
-                exampleCode: 'def my_function():\n    print("Выполняю команду")\n\nmy_function()',
-                hints: [
-                    'Используйте def для создания функции',
-                    'Команды внутри функции должны быть с отступом',
-                    'Вызовите функцию по её имени с круглыми скобками'
-                ]
+                theory: 'Функции создаются с помощью def. Команды внутри функции должны быть с отступом.',
+                task: 'Создайте функцию start_tractor(), которая выводит "Запускаю трактор"',
+                testCode: 'def start_tractor():\n    print("Запускаю трактор")\n\nstart_tractor()',
+                initialCode: '# Создайте функцию для запуска трактора\ndef start_tractor():\n    # Ваш код здесь\n    pass'
             },
             {
                 id: 'lesson_4',
@@ -231,15 +231,10 @@ class CodeFarmApp {
                 level: 2,
                 rewardCoins: 125,
                 rewardExp: 250,
-                theory: 'Аргументы функций позволяют передавать информацию внутрь функции. В этом уроке вы создадите функцию для постройки дома с разными параметрами.',
-                task: 'Создайте функцию постройки дома, которая принимает материал и количество этажей.',
-                initialCode: '# Создайте функцию постройки дома\ndef build_house(material, floors):\n    print(f"Строю дом из {material}")\n    print(f"Количество этажей: {floors}")\n    print("Дом построен!")\n\n# Постройте разные дома\nbuild_house("дерево", 2)\nbuild_house("кирпич", 3)',
-                exampleCode: 'def build_house(material, floors):\n    print(f"Строю {floors}-этажный дом из {material}")',
-                hints: [
-                    'Аргументы указываются в скобках после имени функции',
-                    'Функция может принимать несколько аргументов',
-                    'Используйте f-строки для форматирования текста'
-                ]
+                theory: 'Аргументы функции указываются в скобках после имени функции.',
+                task: 'Создайте функцию build_house(material), которая выводит "Строю дом из [material]"',
+                testCode: 'def build_house(material):\n    print(f"Строю дом из {material}")\n\nbuild_house("дерево")',
+                initialCode: '# Создайте функцию для постройки дома\ndef build_house(material):\n    # Ваш код здесь\n    pass'
             },
             {
                 id: 'lesson_5',
@@ -248,15 +243,10 @@ class CodeFarmApp {
                 level: 2,
                 rewardCoins: 150,
                 rewardExp: 300,
-                theory: 'Циклы позволяют выполнять одни и те же действия несколько раз. В этом уроке вы посадите несколько растений с помощью цикла.',
-                task: 'Используйте цикл for для посадки 5 растений пшеницы.',
-                initialCode: '# Используйте цикл для посадки растений\nprint("Начинаю посадку...")\n\nfor i in range(1, 6):\n    print(f"Сажаю растение пшеницы #{i}")\n    print("Растение посажено!")\n\nprint("Посадка завершена!")',
-                exampleCode: 'for i in range(3):\n    print(f"Сажаю растение {i+1}")',
-                hints: [
-                    'Используйте range() для создания последовательности чисел',
-                    'Переменная i будет принимать значения от 0 до 4',
-                    'Используйте f-строки для вывода номера растения'
-                ]
+                theory: 'Цикл for повторяет команды несколько раз. Используйте range() для создания последовательности.',
+                task: 'Используйте цикл for, чтобы вывести "Сажаю растение" 3 раза',
+                testCode: 'for i in range(3):\n    print("Сажаю растение")',
+                initialCode: '# Используйте цикл для посадки растений\nfor i in range(3):\n    # Ваш код здесь\n    pass'
             },
             {
                 id: 'lesson_6',
@@ -265,15 +255,10 @@ class CodeFarmApp {
                 level: 2,
                 rewardCoins: 175,
                 rewardExp: 350,
-                theory: 'Условные операторы позволяют выполнять код только при определенных условиях. В этом уроке вы будете решать, когда поливать растения.',
-                task: 'Создайте программу, которая проверяет влажность почвы и решает, нужно ли поливать растения.',
-                initialCode: '# Проверьте влажность и решите, поливать ли растения\nsoil_moisture = 30  # влажность почвы в процентах\n\nprint(f"Влажность почвы: {soil_moisture}%")\n\nif soil_moisture < 50:\n    print("Влажность низкая!")\n    print("Начинаю полив...")\n    print("Полив завершен!")\nelse:\n    print("Влажность в норме.")\n    print("Полив не требуется.")',
-                exampleCode: 'if condition:\n    print("Условие истинно")\nelse:\n    print("Условие ложно")',
-                hints: [
-                    'Используйте if для проверки условия',
-                    'else выполняется если условие ложно',
-                    'Операторы <, >, <=, >= для сравнения'
-                ]
+                theory: 'if проверяет условие. else выполняется, если условие ложно.',
+                task: 'Проверьте, если soil_moisture < 50, выведите "Поливаю растения"',
+                testCode: 'soil_moisture = 30\nif soil_moisture < 50:\n    print("Поливаю растения")\nelse:\n    print("Полив не нужен")',
+                initialCode: '# Проверьте влажность почвы\nsoil_moisture = 30\n\nif soil_moisture < 50:\n    # Ваш код здесь\n    pass'
             }
         ];
     }
@@ -298,94 +283,44 @@ class CodeFarmApp {
             }
             
         } catch (error) {
-            console.log('🔄 Создаем демо-ферму');
-            this.createDemoFarm();
+            console.log('🔄 Создаем начальную ферму (вся в траве)');
+            this.createInitialFarm();
         }
         
         this.renderFarm();
         this.updateFarmStats();
     }
     
-    createDemoFarm() {
-        console.log('🏗️ Создаем демо-ферму...');
+    createInitialFarm() {
+        console.log('🏗️ Создаем начальную ферму (вся в траве)...');
         
         this.farmData = {
             cells: [],
             width: 8,
             height: 8,
             stats: {
-                clearedLand: 16,
-                buildings: 2,
-                crops: 6,
-                water: 1
+                clearedLand: 0,  // Все в траве - 0 расчищено
+                buildings: 0,
+                crops: 0,
+                water: 0
             }
         };
         
-        // Создаем клетки фермы 8x8
+        // Создаем все клетки как траву
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {
-                let type = 'overgrown';
-                let emoji = '🌿';
-                let color = '#8BC34A';
-                let title = 'Заросший участок';
-                
-                // Центральная область - очищенная земля
-                if (x >= 2 && x <= 5 && y >= 2 && y <= 5) {
-                    type = 'cleared';
-                    emoji = '🟫';
-                    color = '#8D6E63';
-                    title = 'Очищенная земля';
-                }
-                
-                // Дом
-                if (x === 3 && y === 3) {
-                    type = 'house';
-                    emoji = '🏠';
-                    color = '#FF9800';
-                    title = 'Дом фермера';
-                }
-                
-                // Сарай
-                if (x === 4 && y === 3) {
-                    type = 'building';
-                    emoji = '🏚️';
-                    color = '#795548';
-                    title = 'Сарай';
-                }
-                
-                // Пшеница
-                if ((x === 2 && y === 2) || (x === 5 && y === 2)) {
-                    type = 'crop';
-                    emoji = '🌾';
-                    color = '#FFD54F';
-                    title = 'Пшеница (рост: 65%)';
-                }
-                
-                // Морковь
-                if ((x === 2 && y === 5) || (x === 5 && y === 5)) {
-                    type = 'crop';
-                    emoji = '🥕';
-                    color = '#FF9800';
-                    title = 'Морковь (рост: 45%)';
-                }
-                
-                // Водоём
-                if (x === 7 && y === 0) {
-                    type = 'water';
-                    emoji = '💧';
-                    color = '#2196F3';
-                    title = 'Водоём';
-                }
-                
                 this.farmData.cells.push({
-                    x, y, type, emoji, color, title,
-                    cropType: type === 'crop' ? (emoji === '🌾' ? 'wheat' : 'carrot') : null,
-                    growth: type === 'crop' ? (emoji === '🌾' ? 65 : 45) : null
+                    x, y,
+                    type: 'grass',
+                    emoji: '🌿',
+                    color: '#2E7D32',
+                    title: 'Заросший участок. Пройдите урок 1, чтобы расчистить!',
+                    canClear: true
                 });
             }
         }
         
-        console.log('✅ Демо-ферма создана');
+        console.log('✅ Начальная ферма создана (64 клетки травы)');
     }
     
     initUI() {
@@ -441,14 +376,8 @@ class CodeFarmApp {
             
             // Устанавливаем начальный код
             textarea.value = `# Добро пожаловать в CodeFarm!
-# Напишите свой первый код Python
+# Выберите урок слева, чтобы начать обучение`;
 
-print("Привет, фермер!")
-print("Добро пожаловать на вашу виртуальную ферму!")
-
-# Попробуйте написать команду для бота
-# bot_say("Начинаю работу")`;
-            
             // Подстраиваем высоту
             setTimeout(() => {
                 textarea.style.height = 'auto';
@@ -591,6 +520,40 @@ print("Добро пожаловать на вашу виртуальную фе
                 background: rgba(255,255,255,0.3);
                 padding: 1px 3px;
                 border-radius: 2px;
+            }
+            
+            /* Типы клеток фермы */
+            .farm-cell.grass { 
+                background: #2E7D32 !important; 
+                color: white;
+            }
+            .farm-cell.cleared { 
+                background: #8D6E63 !important; 
+                color: white;
+            }
+            .farm-cell.plowed { 
+                background: #FFD54F !important; 
+                color: #333;
+            }
+            .farm-cell.house { 
+                background: #FF9800 !important; 
+                color: white;
+            }
+            .farm-cell.barn { 
+                background: #795548 !important; 
+                color: white;
+            }
+            .farm-cell.crop { 
+                background: #8BC34A !important; 
+                color: #333;
+            }
+            .farm-cell.water { 
+                background: #2196F3 !important; 
+                color: white;
+            }
+            .farm-cell.road { 
+                background: #9E9E9E !important; 
+                color: white;
             }
             
             /* Уведомления */
@@ -864,7 +827,7 @@ print("Добро пожаловать на вашу виртуальную фе
         
         sortedCells.forEach((cell, index) => {
             const cellElement = document.createElement('div');
-            cellElement.className = 'farm-cell fade-in';
+            cellElement.className = `farm-cell ${cell.type} fade-in`;
             cellElement.style.animationDelay = `${index * 0.02}s`;
             cellElement.dataset.x = cell.x;
             cellElement.dataset.y = cell.y;
@@ -907,8 +870,9 @@ print("Добро пожаловать на вашу виртуальную фе
             card.style.animationDelay = `${index * 0.1}s`;
             
             // Определяем статус
-            const completed = lesson.completed || false;
-            const available = index === 0 || completed || (index > 0 && this.lessonsData[index - 1]?.completed);
+            const completed = this.userData?.completedLessonIds?.includes(lesson.id) || false;
+            const available = index === 0 || completed || 
+                (index > 0 && this.userData?.completedLessonIds?.includes(this.lessonsData[index-1].id));
             const status = completed ? 'completed' : available ? 'available' : 'locked';
             
             card.innerHTML = `
@@ -974,7 +938,7 @@ print("Добро пожаловать на вашу виртуальную фе
         // Обновляем прогресс-бар уроков
         const progressBar = document.getElementById('lessons-progress');
         if (progressBar) {
-            const totalLessons = this.lessonsData.length || 28;
+            const totalLessons = this.lessonsData.length || 6;
             const completed = this.userData.lessonsCompleted || 0;
             const progress = Math.min(100, (completed / totalLessons) * 100);
             progressBar.style.width = `${progress}%`;
@@ -1003,8 +967,9 @@ print("Добро пожаловать на вашу виртуальную фе
         if (progressBar) {
             const totalProgress = Math.min(100, 
                 (stats.clearedLand || 0) * 2 + 
-                (stats.buildings || 0) * 5 + 
-                (stats.crops || 0) * 3
+                (stats.buildings || 0) * 10 + 
+                (stats.crops || 0) * 5 +
+                (stats.water || 0) * 8
             );
             progressBar.style.width = `${totalProgress}%`;
         }
@@ -1063,23 +1028,23 @@ print("Добро пожаловать на вашу виртуальную фе
                     <span>Задание</span>
                 </h3>
                 <div style="background: #FFF3E0; padding: 20px; border-radius: 10px; border-left: 4px solid #FF9800; margin-bottom: 20px;">
-                    ${this.currentLesson.task || 'Задание будет добавлено позже.'}
+                    ${this.currentLesson.task}
                 </div>
                 
                 <div style="background: #E8F5E9; padding: 20px; border-radius: 10px;">
                     <h4 style="color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 20px;">📝</span>
-                        <span>Пример кода</span>
+                        <span>Пример правильного кода</span>
                     </h4>
                     <pre style="background: white; padding: 15px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: 'Consolas', monospace;">
-<code>${this.currentLesson.exampleCode || '# Пример кода будет здесь'}</code></pre>
+<code>${this.currentLesson.testCode || '# Пример кода будет здесь'}</code></pre>
                 </div>
             `;
         }
         
         // Обновляем код в редакторе
         if (this.codeEditor) {
-            this.codeEditor.value = this.currentLesson.initialCode || `# Код для урока: ${this.currentLesson.title}\n# Напишите свое решение здесь...`;
+            this.codeEditor.value = this.currentLesson.initialCode;
             this.codeEditor.style.height = 'auto';
             this.codeEditor.style.height = (this.codeEditor.scrollHeight) + 'px';
         }
@@ -1098,16 +1063,19 @@ print("Добро пожаловать на вашу виртуальную фе
             <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 <h3 style="color: #2E7D32; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 24px;">💡</span>
-                    <span>Подсказки</span>
+                    <span>Как правильно написать код</span>
                 </h3>
                 <ul style="margin: 0; padding-left: 20px; color: #666;">
-                    <li style="margin-bottom: 8px;">Используйте функцию print() для вывода текста</li>
-                    <li style="margin-bottom: 8px;">Проверьте правильность синтаксиса Python</li>
-                    <li style="margin-bottom: 8px;">Следуйте инструкциям в задании</li>
-                    ${this.currentLesson.hints ? this.currentLesson.hints.map(hint => 
-                        `<li style="margin-bottom: 8px;">${hint}</li>`
-                    ).join('') : ''}
+                    <li style="margin-bottom: 8px;">Следуйте <strong>точному</strong> тексту задания</li>
+                    <li style="margin-bottom: 8px;">Используйте <strong>двойные кавычки</strong> для текста: print("текст")</li>
+                    <li style="margin-bottom: 8px;">Каждая команда должна быть на <strong>новой строке</strong></li>
+                    <li style="margin-bottom: 8px;">Проверьте <strong>правильность синтаксиса</strong> Python</li>
+                    <li style="margin-bottom: 8px;">Используйте функции и команды из теории урока</li>
                 </ul>
+                
+                <div style="margin-top: 15px; padding: 10px; background: #FFF3E0; border-radius: 8px; border-left: 4px solid #FF9800;">
+                    <strong>🔥 Важно:</strong> Код проверяется автоматически. Он должен точно соответствовать заданию!
+                </div>
             </div>
         `;
     }
@@ -1129,7 +1097,7 @@ print("Добро пожаловать на вашу виртуальную фе
             return;
         }
         
-        outputEl.textContent = '🚀 Выполняю код...\n';
+        outputEl.textContent = '🚀 Выполняю код...\n\n';
         outputContainer.style.display = 'block';
         
         try {
@@ -1159,7 +1127,7 @@ print("Добро пожаловать на вашу виртуальную фе
                 }
             });
             
-            outputEl.textContent += '\n' + result + '\n✅ Код выполнен успешно!';
+            outputEl.textContent += result + '\n✅ Код выполнен успешно!';
             
             // Прокручиваем к результату
             outputContainer.scrollTop = outputContainer.scrollHeight;
@@ -1213,9 +1181,18 @@ print("Добро пожаловать на вашу виртуальную фе
                 
                 // Обновляем данные пользователя
                 if (this.userData) {
+                    userData = this.userData; // Для доступа в других функциях
                     this.userData.coins += result.reward || 50;
                     this.userData.experience += result.experience || 100;
                     this.userData.lessonsCompleted = (this.userData.lessonsCompleted || 0) + 1;
+                    
+                    // Добавляем урок в пройденные
+                    if (!this.userData.completedLessonIds) {
+                        this.userData.completedLessonIds = [];
+                    }
+                    if (!this.userData.completedLessonIds.includes(this.currentLesson.id)) {
+                        this.userData.completedLessonIds.push(this.currentLesson.id);
+                    }
                     
                     // Проверяем повышение уровня
                     if (this.userData.experience >= (this.userData.level || 1) * 1000) {
@@ -1233,10 +1210,8 @@ print("Добро пожаловать на вашу виртуальную фе
                     this.renderLessons();
                 }
                 
-                // Обновляем ферму
-                if (result.farmUpdate) {
-                    await this.applyFarmUpdate(result.farmUpdate);
-                }
+                // Применяем изменения на ферме
+                this.applyFarmChanges(this.currentLesson.id);
                 
                 // Анимация успеха
                 this.playSuccessAnimation();
@@ -1261,9 +1236,19 @@ print("Добро пожаловать на вашу виртуальную фе
             
             // Обновляем данные
             if (this.userData) {
+                userData = this.userData; // Для доступа в других функциях
                 this.userData.coins += 50;
                 this.userData.experience += 100;
                 this.userData.lessonsCompleted = (this.userData.lessonsCompleted || 0) + 1;
+                
+                // Добавляем урок в пройденные
+                if (!this.userData.completedLessonIds) {
+                    this.userData.completedLessonIds = [];
+                }
+                if (!this.userData.completedLessonIds.includes(this.currentLesson.id)) {
+                    this.userData.completedLessonIds.push(this.currentLesson.id);
+                }
+                
                 this.updateUserStats();
                 
                 // Помечаем урок как завершенный
@@ -1273,15 +1258,214 @@ print("Добро пожаловать на вашу виртуальную фе
                     this.renderLessons();
                 }
                 
-                // Обновляем ферму
-                this.applyFarmUpdate({
-                    action: 'demo_complete',
-                    message: 'Демо-обновление фермы'
-                });
+                // Применяем изменения на ферме (демо-режим)
+                this.applyFarmChanges(this.currentLesson.id);
                 
                 this.playSuccessAnimation();
             }
         }
+    }
+    
+    // Применение изменений на ферме после успешного прохождения урока
+    applyFarmChanges(lessonId) {
+        console.log(`🌾 Применяем изменения на ферме от урока: ${lessonId}`);
+        
+        if (!this.farmData || !this.farmData.cells) {
+            console.log('⚠️ Нет данных фермы для изменения');
+            return;
+        }
+        
+        // Определяем, какие изменения нужно внести
+        let cellsToUpdate = [];
+        let message = 'Ферма обновлена!';
+        let emoji = '✨';
+        
+        switch(lessonId) {
+            case 'lesson_1':
+                // Урок 1: расчистка 12 случайных участков травы
+                emoji = '🧹';
+                message = 'Расчищено 12 участков! Теперь можно строить.';
+                cellsToUpdate = this.getRandomCells('grass', 12)
+                    .map(cell => ({
+                        ...cell,
+                        type: 'cleared',
+                        emoji: '🟫',
+                        color: '#8D6E63',
+                        title: 'Расчищенная земля'
+                    }));
+                break;
+                
+            case 'lesson_2':
+                // Урок 2: вспашка 8 расчищенных участков
+                emoji = '🚜';
+                message = 'Вспахано 8 участков! Готово для посадки.';
+                cellsToUpdate = this.getRandomCells('cleared', 8)
+                    .map(cell => ({
+                        ...cell,
+                        type: 'plowed',
+                        emoji: '🟨',
+                        color: '#FFD54F',
+                        title: 'Вспаханное поле'
+                    }));
+                break;
+                
+            case 'lesson_3':
+                // Урок 3: строительство дома в центре
+                emoji = '🏠';
+                message = 'Построен дом! Теперь у вас есть жилье на ферме.';
+                const centerCell = this.farmData.cells.find(cell => 
+                    cell.x === 3 && cell.y === 3 && cell.type !== 'house'
+                );
+                if (centerCell) {
+                    cellsToUpdate.push({
+                        ...centerCell,
+                        type: 'house',
+                        emoji: '🏠',
+                        color: '#FF9800',
+                        title: 'Дом фермера'
+                    });
+                }
+                break;
+                
+            case 'lesson_4':
+                // Урок 4: строительство сарая рядом с домом
+                emoji = '🏚️';
+                message = 'Построен сарай! Можно хранить инструменты.';
+                
+                // Находим дом
+                const houseCell = this.farmData.cells.find(cell => cell.type === 'house');
+                if (houseCell) {
+                    // Ищем свободную клетку рядом с домом
+                    const nearbyCells = this.farmData.cells.filter(cell => 
+                        Math.abs(cell.x - houseCell.x) <= 1 &&
+                        Math.abs(cell.y - houseCell.y) <= 1 &&
+                        cell.type !== 'house' &&
+                        (cell.type === 'cleared' || cell.type === 'plowed')
+                    );
+                    
+                    if (nearbyCells.length > 0) {
+                        cellsToUpdate.push({
+                            ...nearbyCells[0],
+                            type: 'barn',
+                            emoji: '🏚️',
+                            color: '#795548',
+                            title: 'Сарай'
+                        });
+                    }
+                }
+                break;
+                
+            case 'lesson_5':
+                // Урок 5: посадка культур на вспаханных полях
+                emoji = '🌱';
+                message = 'Посажены первые культуры! Скоро будет урожай.';
+                cellsToUpdate = this.getRandomCells('plowed', 10)
+                    .map(cell => {
+                        const cropTypes = [
+                            { emoji: '🌾', color: '#FFD54F', title: 'Пшеница' },
+                            { emoji: '🥕', color: '#FF9800', title: 'Морковь' },
+                            { emoji: '🥔', color: '#8D6E63', title: 'Картофель' }
+                        ];
+                        const crop = cropTypes[Math.floor(Math.random() * cropTypes.length)];
+                        return {
+                            ...cell,
+                            type: 'crop',
+                            emoji: crop.emoji,
+                            color: crop.color,
+                            title: crop.title,
+                            growth: 30 // Начальный рост 30%
+                        };
+                    });
+                break;
+                
+            case 'lesson_6':
+                // Урок 6: добавление источника воды
+                emoji = '💧';
+                message = 'Добавлен источник воды! Можно поливать растения.';
+                
+                // Ищем клетку на краю карты
+                const edgeCells = this.farmData.cells.filter(cell => 
+                    (cell.x === 0 || cell.x === 7 || cell.y === 0 || cell.y === 7) &&
+                    cell.type === 'grass'
+                );
+                
+                if (edgeCells.length > 0) {
+                    cellsToUpdate.push({
+                        ...edgeCells[0],
+                        type: 'water',
+                        emoji: '💧',
+                        color: '#2196F3',
+                        title: 'Источник воды'
+                    });
+                }
+                break;
+        }
+        
+        // Применяем изменения
+        cellsToUpdate.forEach(updatedCell => {
+            const cellIndex = this.farmData.cells.findIndex(c => 
+                c.x === updatedCell.x && c.y === updatedCell.y
+            );
+            
+            if (cellIndex !== -1) {
+                this.farmData.cells[cellIndex] = updatedCell;
+                
+                // Анимация изменения клетки
+                const cellElement = document.querySelector(
+                    `.farm-cell[data-x="${updatedCell.x}"][data-y="${updatedCell.y}"]`
+                );
+                
+                if (cellElement) {
+                    // Визуальный эффект изменения
+                    cellElement.classList.add('grow-animation');
+                    cellElement.style.background = updatedCell.color;
+                    cellElement.innerHTML = updatedCell.emoji;
+                    
+                    // Добавляем координаты
+                    const coords = document.createElement('div');
+                    coords.className = 'farm-cell-coords';
+                    coords.textContent = `${updatedCell.x},${updatedCell.y}`;
+                    cellElement.appendChild(coords);
+                    
+                    // Обновляем title
+                    cellElement.title = updatedCell.title;
+                    
+                    // Обновляем класс
+                    cellElement.className = `farm-cell ${updatedCell.type} fade-in`;
+                    
+                    setTimeout(() => {
+                        cellElement.classList.remove('grow-animation');
+                    }, 500);
+                }
+            }
+        });
+        
+        // Обновляем статистику фермы
+        this.updateFarmStats();
+        
+        // Показываем уведомление
+        this.showNotification(emoji, message);
+        
+        // Анимация всей фермы
+        const farmGrid = document.getElementById('farm-grid');
+        if (farmGrid) {
+            farmGrid.classList.add('pulse');
+            setTimeout(() => {
+                farmGrid.classList.remove('pulse');
+            }, 1000);
+        }
+        
+        console.log(`✅ Применены изменения для урока ${lessonId}: ${cellsToUpdate.length} клеток обновлены`);
+    }
+    
+    // Вспомогательная функция для получения случайных клеток
+    getRandomCells(type, count) {
+        const filteredCells = this.farmData.cells.filter(cell => cell.type === type);
+        
+        // Перемешиваем массив и берем нужное количество
+        return [...filteredCells]
+            .sort(() => Math.random() - 0.5)
+            .slice(0, Math.min(count, filteredCells.length));
     }
     
     applyFarmUpdate(farmUpdate) {
@@ -1324,11 +1508,6 @@ print("Добро пожаловать на вашу виртуальную фе
             });
         }
         
-        // Перезагружаем ферму
-        setTimeout(() => {
-            this.loadFarm();
-        }, 1000);
-        
         console.log('✅ Обновление фермы применено');
     }
     
@@ -1340,24 +1519,37 @@ print("Добро пожаловать на вашу виртуальную фе
         
         if (cellData) {
             switch(cellData.type) {
-                case 'house':
-                    message += 'Ваш дом. Здесь вы планируете работу на ферме и отдыхаете.';
-                    break;
-                case 'building':
-                    message += 'Хозяйственная постройка. Хранилище для инструментов и урожая.';
-                    break;
-                case 'crop':
-                    message += `${this.getCropName(cellData.cropType)}. Рост: ${cellData.growth || 0}%. `;
-                    message += cellData.growth >= 80 ? 'Готов к сбору!' : 'Нужно полить.';
+                case 'grass':
+                    message += '🌿 Заросший участок.\n';
+                    message += 'Пройдите Урок 1: "Первые команды боту", чтобы расчистить землю!';
                     break;
                 case 'cleared':
-                    message += 'Очищенная земля. Можно построить дом или посадить растения.';
+                    message += '🟫 Расчищенная земля.\n';
+                    message += 'Готова для строительства или посадки растений. Пройдите Урок 2 для вспашки.';
+                    break;
+                case 'plowed':
+                    message += '🟨 Вспаханное поле.\n';
+                    message += 'Идеально подготовлено для посадки культур. Пройдите Урок 5 для посадки.';
+                    break;
+                case 'house':
+                    message += '🏠 Дом фермера.\n';
+                    message += 'Главное здание вашей фермы. Здесь вы планируете работу и отдыхаете.';
+                    break;
+                case 'barn':
+                    message += '🏚️ Сарай.\n';
+                    message += 'Хранилище для инструментов и урожая.';
+                    break;
+                case 'crop':
+                    message += `${cellData.emoji} ${cellData.title || 'Культура'}.\n`;
+                    message += `Рост: ${cellData.growth || 0}%.\n`;
+                    message += cellData.growth >= 80 ? 'Готов к сбору!' : 'Растет...';
                     break;
                 case 'water':
-                    message += 'Источник воды. Необходим для полива растений.';
+                    message += '💧 Источник воды.\n';
+                    message += 'Необходим для полива растений и содержания животных.';
                     break;
                 default:
-                    message += 'Заросший участок. Пройдите урок 1, чтобы расчистить.';
+                    message += 'Неизвестный тип клетки.';
             }
         } else {
             message += 'Заросший участок. Пройдите уроки, чтобы развивать ферму.';
@@ -1420,7 +1612,7 @@ print("Добро пожаловать на вашу виртуальную фе
             this.farmData.cells.forEach(cell => {
                 if (cell.type === 'crop' && cell.growth < 100) {
                     cell.growth = Math.min(100, (cell.growth || 0) + 20);
-                    cell.title = `${this.getCropName(cell.cropType)} (рост: ${cell.growth}%)`;
+                    cell.title = `${cell.title?.split('(')[0] || 'Культура'} (рост: ${cell.growth}%)`;
                 }
             });
             this.renderFarm();
@@ -1440,7 +1632,6 @@ print("Добро пожаловать на вашу виртуальную фе
                     cell.color = '#8D6E63';
                     cell.title = 'Очищенная земля';
                     cell.growth = null;
-                    cell.cropType = null;
                 }
             });
         }
@@ -1465,15 +1656,14 @@ print("Добро пожаловать на вашу виртуальную фе
     plantCrop() {
         console.log('🌱 Сажаем растения...');
         
-        // Находим первую очищенную клетку
+        // Находим первую вспаханную клетку
         if (this.farmData) {
             const emptyCell = this.farmData.cells.find(cell => 
-                cell.type === 'cleared'
+                cell.type === 'plowed'
             );
             
             if (emptyCell) {
                 emptyCell.type = 'crop';
-                emptyCell.cropType = 'wheat';
                 emptyCell.emoji = '🌾';
                 emptyCell.color = '#FFD54F';
                 emptyCell.growth = 10;
@@ -1488,7 +1678,7 @@ print("Добро пожаловать на вашу виртуальную фе
                 
                 this.renderFarm();
             } else {
-                this.showNotification('⚠️ Нет места', 'На ферме нет свободной земли для посадки!');
+                this.showNotification('⚠️ Нет места', 'Нет вспаханной земли для посадки! Пройдите уроки 2 и 5.');
             }
         }
     }
