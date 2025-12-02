@@ -843,23 +843,23 @@
     </div>
 </div>
 
-                    <div class="farm-controls">
-                        <button class="farm-btn" onclick="farmActions.waterAll()">
-                            <i class="fas fa-tint"></i> Полить все
-                        </button>
-                        <button class="farm-btn" onclick="farmActions.harvestAll()">
-                            <i class="fas fa-shopping-basket"></i> Собрать урожай
-                        </button>
-                        <button class="farm-btn" onclick="farmActions.plantCrop()">
-                            <i class="fas fa-seedling"></i> Посадить
-                        </button>
-                        <button class="farm-btn" onclick="farmActions.buildHouse()">
-                            <i class="fas fa-home"></i> Построить дом
-                        </button>
-                        <button class="farm-btn" onclick="farmActions.upgradeFarm()">
-                            <i class="fas fa-arrow-up"></i> Улучшить
-                        </button>
-                    </div>
+<div class="farm-controls">
+    <button class="farm-btn farm-action-btn" data-action="water">
+        <i class="fas fa-tint"></i> Полить все
+    </button>
+    <button class="farm-btn farm-action-btn" data-action="harvest">
+        <i class="fas fa-shopping-basket"></i> Собрать урожай
+    </button>
+    <button class="farm-btn farm-action-btn" data-action="plant">
+        <i class="fas fa-seedling"></i> Посадить
+    </button>
+    <button class="farm-btn farm-action-btn" data-action="build">
+        <i class="fas fa-home"></i> Построить дом
+    </button>
+    <button class="farm-btn farm-action-btn" data-action="upgrade">
+        <i class="fas fa-arrow-up"></i> Улучшить
+    </button>
+</div>
                 </div>
                 
                 <!-- Быстрые действия -->
@@ -869,20 +869,20 @@
                         Быстрые действия
                     </h2>
                     
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <button class="btn btn-primary" onclick="startLesson('lesson_1')">
-                            <i class="fas fa-code"></i> Урок 1: Первые команды
-                        </button>
-                        <button class="btn btn-secondary" onclick="showScreen('lessons')">
-                            <i class="fas fa-book-open"></i> Все уроки
-                        </button>
-                        <button class="btn btn-accent" onclick="farmActions.sellProduce()">
-                            <i class="fas fa-shopping-cart"></i> Продать урожай
-                        </button>
-                        <button class="btn btn-primary" onclick="showScreen('code')">
-                            <i class="fas fa-laptop-code"></i> Редактор кода
-                        </button>
-                    </div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+    <button class="btn btn-primary quick-action-btn" data-action="start_lesson_1">
+        <i class="fas fa-code"></i> Урок 1: Первые команды
+    </button>
+    <button class="btn btn-secondary" onclick="window.showScreen('lessons')">
+        <i class="fas fa-book-open"></i> Все уроки
+    </button>
+    <button class="btn btn-accent quick-action-btn" data-action="sell_produce">
+        <i class="fas fa-shopping-cart"></i> Продать урожай
+    </button>
+    <button class="btn btn-primary" onclick="window.showScreen('code')">
+        <i class="fas fa-laptop-code"></i> Редактор кода
+    </button>
+</div>
                 </div>
             </div>
             
@@ -946,13 +946,13 @@
                                 </p>
                             </div>
                             <div class="editor-actions">
-                                <button class="btn btn-secondary" onclick="runCode()">
-                                    <i class="fas fa-play"></i> Запустить
-                                </button>
-                                <button class="btn btn-primary" onclick="submitCode()">
-                                    <i class="fas fa-paper-plane"></i> Отправить
-                                </button>
-                            </div>
+    <button class="btn btn-secondary" id="run-code-btn">
+        <i class="fas fa-play"></i> Запустить
+    </button>
+    <button class="btn btn-primary" id="submit-code-btn">
+        <i class="fas fa-paper-plane"></i> Отправить
+    </button>
+</div>
                         </div>
                         
                         <div style="position: relative;">
@@ -965,9 +965,9 @@
                         <div class="output-container" id="output-container">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                                 <h4 style="margin: 0; color: #d4d4d4;">Результат выполнения:</h4>
-                                <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px; background: transparent; border: 1px solid #666; color: #999;" onclick="clearOutput()">
-                                    <i class="fas fa-trash"></i> Очистить
-                                </button>
+                                <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px; background: transparent; border: 1px solid #666; color: #999;" id="clear-output-btn">
+    <i class="fas fa-trash"></i> Очистить
+</button>
                             </div>
                             <pre id="output-text" style="margin: 0; white-space: pre-wrap; word-wrap: break-word;"></pre>
                         </div>
@@ -1042,24 +1042,24 @@
         </div>
         
         <!-- Навигация -->
-        <nav class="nav-bar">
-            <div class="nav-item active" onclick="showScreen('main')">
-                <div class="nav-icon">🏠</div>
-                <div class="nav-label">Главная</div>
-            </div>
-            <div class="nav-item" onclick="showScreen('lessons')">
-                <div class="nav-icon">📚</div>
-                <div class="nav-label">Уроки</div>
-            </div>
-            <div class="nav-item" onclick="showScreen('code')">
-                <div class="nav-icon">💻</div>
-                <div class="nav-label">Код</div>
-            </div>
-            <div class="nav-item" onclick="showScreen('profile')">
-                <div class="nav-icon">👤</div>
-                <div class="nav-label">Профиль</div>
-            </div>
-        </nav>
+<nav class="nav-bar">
+    <div class="nav-item active" data-screen="main" onclick="window.showScreen('main')">
+        <div class="nav-icon">🏠</div>
+        <div class="nav-label">Главная</div>
+    </div>
+    <div class="nav-item" data-screen="lessons" onclick="window.showScreen('lessons')">
+        <div class="nav-icon">📚</div>
+        <div class="nav-label">Уроки</div>
+    </div>
+    <div class="nav-item" data-screen="code" onclick="window.showScreen('code')">
+        <div class="nav-icon">💻</div>
+        <div class="nav-label">Код</div>
+    </div>
+    <div class="nav-item" data-screen="profile" onclick="window.showScreen('profile')">
+        <div class="nav-icon">👤</div>
+        <div class="nav-label">Профиль</div>
+    </div>
+</nav>
     </div>
 
     <!-- Уведомление -->
@@ -1079,9 +1079,9 @@
                 <p>Содержание урока...</p>
             </div>
             <div style="display: flex; gap: 10px; margin-top: 25px;">
-                <button class="btn btn-secondary" onclick="closeModal()" style="flex: 1;">Закрыть</button>
-                <button class="btn btn-primary" onclick="startSelectedLesson()" style="flex: 1;">Начать урок</button>
-            </div>
+    <button class="btn btn-secondary" id="close-modal-btn" style="flex: 1;">Закрыть</button>
+    <button class="btn btn-primary" id="start-selected-lesson-btn" style="flex: 1;">Начать урок</button>
+</div>
         </div>
     </div>
 
@@ -1664,14 +1664,14 @@
                         </div>
                     </div>
                     
-                    <button class="btn ${lesson.completed ? 'btn-secondary' : 'btn-primary'} btn-block" 
-                            onclick="openLesson('${lesson.id}')" 
-                            style="margin-top: 15px;">
-                        ${lesson.completed ? 'Повторить' : 
-                          index === 0 ? 'Продолжить' : 
-                          'Начать урок'}
-                    </button>
-                `;
+                    card.innerHTML = `
+    ...
+    <button class="start-lesson-btn" 
+            onclick="window.startLesson('${lesson.id}')"
+            ${!available ? 'disabled' : ''}>
+        ${completed ? 'Повторить урок' : available ? 'Начать урок' : 'Заблокировано'}
+    </button>
+`;
                 
                 container.appendChild(lessonElement);
             });
@@ -2281,6 +2281,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(loadFarmVisualization, 30000);
     }, 1000);
 });
-</script>
+document.getElementById('close-modal-btn')?.addEventListener('click', () => {
+        document.getElementById('lesson-modal').classList.remove('show');
+    });
+    
+    document.getElementById('start-selected-lesson-btn')?.addEventListener('click', () => {
+        if (window.codeFarmApp && window.codeFarmApp.currentLesson) {
+            window.startLesson(window.codeFarmApp.currentLesson.id);
+        }
+        document.getElementById('lesson-modal').classList.remove('show');
+    });
 </body>
 </html>
