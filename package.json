@@ -1,0 +1,23 @@
+{
+  "name": "codefarm-server",
+  "version": "1.0.0",
+  "description": "CodeFarm - игровая платформа для обучения программированию",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "backup": "node -e \"require('./storage.js').backupData()\"",
+    "stats": "node -e \"const s=require('./storage.js');console.log('Users:',Object.keys(s.users).length)\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-telegram-bot-api": "^0.64.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
