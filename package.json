@@ -2,11 +2,11 @@
   "name": "codefarm-server",
   "version": "1.0.0",
   "description": "CodeFarm - игровая платформа для обучения программированию",
-  "main": "app.js",
+  "main": "app/server.js",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "setup": "npm install && mkdir -p data && echo '{}' > data/users.json && echo '{}' > data/farms.json && echo '{}' > data/progress.json && echo '{}' > data/achievements.json",
+    "setup": "npm install && mkdir -p data assets && echo '{}' > data/users.json && echo '{}' > data/farms.json && echo '{}' > data/progress.json && echo '{}' > data/achievements.json",
     "test": "echo 'No tests yet'",
     "build": "echo 'No build needed'",
     "production": "NODE_ENV=production node app.js"
