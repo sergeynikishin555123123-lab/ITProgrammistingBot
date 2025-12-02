@@ -223,6 +223,57 @@ class CodeFarmApp {
                     'Команды внутри функции должны быть с отступом',
                     'Вызовите функцию по её имени с круглыми скобками'
                 ]
+            },
+            {
+                id: 'lesson_4',
+                title: 'Аргументы функций - Строительство дома',
+                description: 'Используйте аргументы функций для кастомизации построек',
+                level: 2,
+                rewardCoins: 125,
+                rewardExp: 250,
+                theory: 'Аргументы функций позволяют передавать информацию внутрь функции. В этом уроке вы создадите функцию для постройки дома с разными параметрами.',
+                task: 'Создайте функцию постройки дома, которая принимает материал и количество этажей.',
+                initialCode: '# Создайте функцию постройки дома\ndef build_house(material, floors):\n    print(f"Строю дом из {material}")\n    print(f"Количество этажей: {floors}")\n    print("Дом построен!")\n\n# Постройте разные дома\nbuild_house("дерево", 2)\nbuild_house("кирпич", 3)',
+                exampleCode: 'def build_house(material, floors):\n    print(f"Строю {floors}-этажный дом из {material}")',
+                hints: [
+                    'Аргументы указываются в скобках после имени функции',
+                    'Функция может принимать несколько аргументов',
+                    'Используйте f-строки для форматирования текста'
+                ]
+            },
+            {
+                id: 'lesson_5',
+                title: 'Циклы - Посадка растений',
+                description: 'Используйте циклы для автоматической посадки растений',
+                level: 2,
+                rewardCoins: 150,
+                rewardExp: 300,
+                theory: 'Циклы позволяют выполнять одни и те же действия несколько раз. В этом уроке вы посадите несколько растений с помощью цикла.',
+                task: 'Используйте цикл for для посадки 5 растений пшеницы.',
+                initialCode: '# Используйте цикл для посадки растений\nprint("Начинаю посадку...")\n\nfor i in range(1, 6):\n    print(f"Сажаю растение пшеницы #{i}")\n    print("Растение посажено!")\n\nprint("Посадка завершена!")',
+                exampleCode: 'for i in range(3):\n    print(f"Сажаю растение {i+1}")',
+                hints: [
+                    'Используйте range() для создания последовательности чисел',
+                    'Переменная i будет принимать значения от 0 до 4',
+                    'Используйте f-строки для вывода номера растения'
+                ]
+            },
+            {
+                id: 'lesson_6',
+                title: 'Условные операторы - Уход за растениями',
+                description: 'Используйте условия для принятия решений на ферме',
+                level: 2,
+                rewardCoins: 175,
+                rewardExp: 350,
+                theory: 'Условные операторы позволяют выполнять код только при определенных условиях. В этом уроке вы будете решать, когда поливать растения.',
+                task: 'Создайте программу, которая проверяет влажность почвы и решает, нужно ли поливать растения.',
+                initialCode: '# Проверьте влажность и решите, поливать ли растения\nsoil_moisture = 30  # влажность почвы в процентах\n\nprint(f"Влажность почвы: {soil_moisture}%")\n\nif soil_moisture < 50:\n    print("Влажность низкая!")\n    print("Начинаю полив...")\n    print("Полив завершен!")\nelse:\n    print("Влажность в норме.")\n    print("Полив не требуется.")',
+                exampleCode: 'if condition:\n    print("Условие истинно")\nelse:\n    print("Условие ложно")',
+                hints: [
+                    'Используйте if для проверки условия',
+                    'else выполняется если условие ложно',
+                    'Операторы <, >, <=, >= для сравнения'
+                ]
             }
         ];
     }
@@ -1583,8 +1634,36 @@ print("Добро пожаловать на вашу виртуальную фе
 // Создаем глобальный объект приложения
 window.codeFarmApp = null;
 
-// В конце app.js
-window.setAppInstance(new CodeFarmApp());
+// Делаем функции глобально доступными для HTML
+window.showScreen = (screenName) => {
+    if (window.codeFarmApp) {
+        window.codeFarmApp.showScreen(screenName);
+    }
+};
+
+window.runCode = () => {
+    if (window.codeFarmApp) {
+        window.codeFarmApp.runCode();
+    }
+};
+
+window.submitCode = () => {
+    if (window.codeFarmApp) {
+        window.codeFarmApp.submitSolution();
+    }
+};
+
+window.startLesson = (lessonId) => {
+    if (window.codeFarmApp) {
+        window.codeFarmApp.startLesson(lessonId);
+    }
+};
+
+window.clearOutput = () => {
+    if (window.codeFarmApp) {
+        window.codeFarmApp.clearOutput();
+    }
+};
 
 // Запускаем приложение при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
@@ -1598,37 +1677,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Запускаем приложение
     window.codeFarmApp = new CodeFarmApp();
-    
-    // Делаем функции глобальными для HTML
-    window.showScreen = (screenName) => {
-        if (window.codeFarmApp) {
-            window.codeFarmApp.showScreen(screenName);
-        }
-    };
-    
-    window.runCode = () => {
-        if (window.codeFarmApp) {
-            window.codeFarmApp.runCode();
-        }
-    };
-    
-    window.submitCode = () => {
-        if (window.codeFarmApp) {
-            window.codeFarmApp.submitSolution();
-        }
-    };
-    
-    window.startLesson = (lessonId) => {
-        if (window.codeFarmApp) {
-            window.codeFarmApp.startLesson(lessonId);
-        }
-    };
-    
-    window.clearOutput = () => {
-        if (window.codeFarmApp) {
-            window.codeFarmApp.clearOutput();
-        }
-    };
     
     console.log('✅ CodeFarm запущен и готов к работе!');
 });
