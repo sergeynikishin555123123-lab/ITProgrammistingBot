@@ -4,967 +4,690 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CodeFarm - Учим Python через фермерство</title>
-    <link rel="stylesheet" href="styles.css">
     <style>
-        /* Дополнительные стили для Web App */
-        body {
+        /* Базовые стили */
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            color: #333;
         }
         
+        /* Контейнер приложения */
         .app-container {
             max-width: 100%;
-            margin: 0 auto;
-            background: white;
             min-height: 100vh;
-            border-radius: 0;
-            box-shadow: none;
-            overflow-x: hidden;
+            background: white;
+            margin: 0 auto;
         }
         
-        /* Telegram Web App стили */
-        .tg-webapp {
-            display: none;
-        }
-        
-        /* Уведомление для не-Telegram браузеров */
-        .desktop-notice {
-            display: none;
-            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+        /* Шапка */
+        .header {
+            background: linear-gradient(to right, #4CAF50, #2E7D32);
             color: white;
-            padding: 20px;
-            text-align: center;
-            border-bottom: 3px solid #1B5E20;
-            font-weight: bold;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        
-        .desktop-notice a {
-            color: #FFEB3B;
-            text-decoration: underline;
-        }
-        
-        @media (min-width: 768px) {
-            .desktop-notice {
-                display: block;
-            }
-        }
-        
-        /* Адаптивные стили для Telegram */
-        .tg-main {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-        
-        .tg-header {
-            background: linear-gradient(to right, var(--primary-color), var(--dark-color));
             padding: 15px 20px;
-            color: white;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-shrink: 0;
         }
         
-        .tg-content {
-            flex: 1;
-            overflow-y: auto;
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo-icon {
+            font-size: 28px;
+        }
+        
+        .logo h1 {
+            font-size: 20px;
+            margin: 0;
+        }
+        
+        /* Контент */
+        .content {
             padding: 20px;
         }
         
-        /* Кнопки для Telegram */
-        .tg-btn {
-            background: var(--secondary-color);
+        /* Карточки */
+        .card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #4CAF50;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            color: #2E7D32;
+            margin-bottom: 15px;
+        }
+        
+        /* Кнопки */
+        .btn {
+            background: #2196F3;
             color: white;
             border: none;
             padding: 12px 24px;
             border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin: 10px auto;
-            width: 90%;
-            max-width: 300px;
-            transition: transform 0.2s, background 0.3s;
-        }
-        
-        .tg-btn:hover {
-            transform: translateY(-2px);
-            background: #1976D2;
-        }
-        
-        .tg-btn-primary {
-            background: linear-gradient(135deg, #4CAF50, #2E7D32);
-        }
-        
-        .tg-btn-secondary {
-            background: linear-gradient(135deg, #2196F3, #0D47A1);
-        }
-        
-        .tg-btn-accent {
-            background: linear-gradient(135deg, #FF9800, #EF6C00);
-        }
-        
-        /* Карточки для Telegram */
-        .tg-card {
-            background: var(--light-color);
-            border-radius: 15px;
-            padding: 20px;
-            margin: 15px 0;
-            border-left: 5px solid var(--primary-color);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        /* Прогресс бар */
-        .tg-progress {
-            height: 10px;
-            background: #e0e0e0;
-            border-radius: 5px;
+            display: block;
+            width: 100%;
             margin: 10px 0;
-            overflow: hidden;
-        }
-        
-        .tg-progress-bar {
-            height: 100%;
-            background: linear-gradient(to right, #4CAF50, #8BC34A);
-            border-radius: 5px;
-            transition: width 0.3s ease;
-        }
-        
-        /* Иконки */
-        .tg-icon {
-            font-size: 24px;
-            margin-right: 10px;
-        }
-        
-        .tg-stat {
-            display: flex;
-            align-items: center;
-            margin: 10px 0;
-            padding: 10px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        /* Навигация */
-        .tg-nav {
-            display: flex;
-            justify-content: space-around;
-            padding: 10px;
-            background: white;
-            border-top: 2px solid #eee;
-            position: sticky;
-            bottom: 0;
-            z-index: 100;
-        }
-        
-        .tg-nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 10px;
-            cursor: pointer;
-            border-radius: 10px;
-            transition: background 0.3s;
-        }
-        
-        .tg-nav-item.active {
-            background: var(--light-color);
-        }
-        
-        .tg-nav-icon {
-            font-size: 20px;
-            margin-bottom: 5px;
-        }
-        
-        /* Анимации */
-        @keyframes tgPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
-        .tg-pulse {
-            animation: tgPulse 2s infinite;
-        }
-        
-        /* Уроки в Telegram */
-        .tg-lesson-card {
-            background: white;
-            border-radius: 15px;
-            padding: 15px;
-            margin: 10px 0;
-            border: 2px solid #e0e0e0;
             transition: all 0.3s;
         }
         
-        .tg-lesson-card:hover {
-            border-color: var(--primary-color);
-            box-shadow: 0 4px 8px rgba(76, 175, 80, 0.2);
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
         }
         
-        .tg-lesson-status {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #2196F3, #0D47A1);
+        }
+        
+        /* Статистика */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        /* Уроки */
+        .lesson-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .lesson-status {
             display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
             margin-right: 10px;
         }
         
-        .tg-lesson-status.completed { background: #4CAF50; }
-        .tg-lesson-status.in-progress { background: #FFC107; }
-        .tg-lesson-status.locked { background: #9E9E9E; }
+        .completed { background: #4CAF50; }
+        .in-progress { background: #FFC107; }
+        .locked { background: #9E9E9E; }
         
-        /* Редактор кода для Telegram */
-        .tg-code-editor {
+        /* Редактор кода */
+        .code-editor {
             background: #1e1e1e;
             border-radius: 10px;
             padding: 15px;
             margin: 15px 0;
-            font-family: 'Consolas', 'Monaco', monospace;
         }
         
-        .tg-code-textarea {
+        textarea {
             width: 100%;
-            min-height: 200px;
+            min-height: 150px;
             background: #1e1e1e;
-            color: #d4d4d4;
+            color: #fff;
             border: none;
             padding: 10px;
-            font-family: 'Consolas', 'Monaco', monospace;
+            font-family: 'Courier New', monospace;
             font-size: 14px;
-            resize: vertical;
             border-radius: 5px;
+            resize: vertical;
         }
         
-        /* Скрыть обычные элементы в Telegram */
-        .telegram-only {
-            display: none;
+        /* Навигация */
+        .nav {
+            display: flex;
+            justify-content: space-around;
+            background: white;
+            border-top: 2px solid #eee;
+            padding: 10px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
         }
         
-        .not-telegram {
-            display: block;
+        .nav-item {
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 10px;
         }
         
-        /* Если в Telegram Web App - показываем Telegram-специфичные элементы */
-        .tg-webapp .telegram-only {
-            display: block;
+        .nav-item.active {
+            background: #f0f9ff;
         }
         
-        .tg-webapp .not-telegram {
-            display: none;
-        }
-        
-        .tg-webapp .desktop-notice {
-            display: none !important;
+        /* Уведомления */
+        .notice {
+            background: #FFF3CD;
+            border: 1px solid #FFEEBA;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            text-align: center;
         }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-    <!-- Уведомление для десктопа -->
-    <div class="desktop-notice">
-        ⚡ <b>Это приложение оптимизировано для Telegram Web App!</b><br>
-        Для лучшего опыта откройте его через Telegram бота @CodeFarm_Bot<br>
-        <small>Вы также можете продолжить в этом окне, но некоторые функции могут быть ограничены.</small>
-    </div>
-    
-    <div class="app-container tg-main" id="app-container">
-        <!-- Telegram Web App Header -->
-        <div class="telegram-only">
-            <header class="tg-header">
-                <div class="logo">
-                    <div class="logo-icon">🚜</div>
-                    <h1 style="font-size: 20px; margin: 0;">CodeFarm</h1>
-                </div>
-                <div class="user-info" id="tg-user-info">
-                    <div class="tg-stat">
-                        <span class="tg-icon">🪙</span>
-                        <span id="tg-coins">100</span>
-                    </div>
-                </div>
-            </header>
-        </div>
+    <div class="app-container" id="app-container">
+        <!-- Шапка -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">🚜</div>
+                <h1>CodeFarm</h1>
+            </div>
+            <div id="user-coins" style="font-weight: bold; font-size: 18px;">100 🪙</div>
+        </header>
         
         <!-- Основной контент -->
-        <div class="tg-content" id="tg-content">
+        <div class="content" id="content">
             <!-- Добро пожаловать -->
-            <section id="welcome-section" class="telegram-only">
-                <div class="tg-card">
-                    <h2 id="tg-welcome-title">👋 Добро пожаловать!</h2>
-                    <p id="tg-welcome-text">Загружаем вашу ферму...</p>
-                    
-                    <div class="tg-progress">
-                        <div class="tg-progress-bar" id="tg-loading-progress" style="width: 0%"></div>
-                    </div>
-                    
-                    <button class="tg-btn tg-btn-primary" onclick="tgApp.openFarm()" id="tg-open-farm-btn">
-                        🚜 Открыть ферму
-                    </button>
+            <div id="welcome-screen" class="card">
+                <h2>👋 Добро пожаловать!</h2>
+                <p id="welcome-text">Загружаем вашу ферму...</p>
+                <div style="height: 10px; background: #e0e0e0; border-radius: 5px; margin: 20px 0; overflow: hidden;">
+                    <div id="loading-bar" style="height: 100%; background: #4CAF50; width: 0%; transition: width 0.3s;"></div>
                 </div>
-            </section>
+                <button class="btn btn-primary" onclick="showSection('farm')">
+                    🚜 Открыть ферму
+                </button>
+            </div>
             
             <!-- Ферма -->
-            <section id="farm-section" style="display: none;">
-                <div class="tg-card">
-                    <h2>🌾 Ваша ферма</h2>
-                    
-                    <div id="tg-farm-stats">
-                        <div class="tg-stat">
-                            <span class="tg-icon">🏗️</span>
-                            <div>
-                                <div>Построек</div>
-                                <div id="tg-buildings-count">0</div>
-                            </div>
-                        </div>
-                        
-                        <div class="tg-stat">
-                            <span class="tg-icon">🌱</span>
-                            <div>
-                                <div>Посадок</div>
-                                <div id="tg-crops-count">0</div>
-                            </div>
-                        </div>
-                        
-                        <div class="tg-stat">
-                            <span class="tg-icon">💰</span>
-                            <div>
-                                <div>Ресурсы</div>
-                                <div id="tg-resources-count">0</div>
-                            </div>
-                        </div>
+            <div id="farm-screen" class="card" style="display: none;">
+                <h2>🌾 Ваша ферма</h2>
+                
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-icon">🏗️</div>
+                        <div>Построек</div>
+                        <div id="buildings-count">0</div>
                     </div>
-                    
-                    <button class="tg-btn tg-btn-secondary" onclick="tgApp.manageFarm()">
-                        🛠️ Управлять фермой
-                    </button>
-                </div>
-            </section>
-            
-            <!-- Уроки -->
-            <section id="lessons-section" style="display: none;">
-                <div class="tg-card">
-                    <h2>📚 Уроки Python</h2>
-                    <p>Изучайте программирование, развивая ферму!</p>
-                    
-                    <div id="tg-lessons-list">
-                        <!-- Уроки будут загружены через JS -->
-                        <div class="tg-lesson-card">
-                            <div class="tg-lesson-status locked"></div>
-                            <h3>Урок 1: Первые команды</h3>
-                            <p>Загружается...</p>
-                        </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">🌱</div>
+                        <div>Посадок</div>
+                        <div id="crops-count">0</div>
                     </div>
-                    
-                    <button class="tg-btn tg-btn-primary" onclick="tgApp.startLesson(1)">
-                        📝 Начать урок
-                    </button>
-                </div>
-            </section>
-            
-            <!-- Редактор кода -->
-            <section id="code-section" style="display: none;">
-                <div class="tg-card">
-                    <h2>💻 Редактор кода</h2>
-                    
-                    <div class="tg-code-editor">
-                        <textarea class="tg-code-textarea" id="tg-code-editor" 
-                                  placeholder="Напишите код Python здесь...">
-# Приветствие бота
-print("Привет, АгроБот!")
-bot_say("Начинаю работу")</textarea>
+                    <div class="stat-item">
+                        <div class="stat-icon">💰</div>
+                        <div>Монет</div>
+                        <div id="coins-count">100</div>
                     </div>
-                    
-                    <div style="display: flex; gap: 10px;">
-                        <button class="tg-btn tg-btn-secondary" onclick="tgApp.runCode()">
-                            ▶️ Запустить
-                        </button>
-                        <button class="tg-btn tg-btn-primary" onclick="tgApp.submitCode()">
-                            📤 Отправить
-                        </button>
-                    </div>
-                    
-                    <div id="tg-code-output" style="margin-top: 15px; padding: 10px; background: #f5f5f5; border-radius: 5px; display: none;">
-                        <h4>Результат:</h4>
-                        <pre id="tg-output-text"></pre>
-                    </div>
-                </div>
-            </section>
-            
-            <!-- Статистика -->
-            <section id="stats-section" style="display: none;">
-                <div class="tg-card">
-                    <h2>📊 Статистика</h2>
-                    
-                    <div id="tg-user-stats">
-                        <div class="tg-stat">
-                            <span class="tg-icon">⭐</span>
-                            <div>
-                                <div>Уровень</div>
-                                <div id="tg-user-level">1</div>
-                            </div>
-                        </div>
-                        
-                        <div class="tg-stat">
-                            <span class="tg-icon">✨</span>
-                            <div>
-                                <div>Опыт</div>
-                                <div id="tg-user-exp">0</div>
-                            </div>
-                        </div>
-                        
-                        <div class="tg-stat">
-                            <span class="tg-icon">🪙</span>
-                            <div>
-                                <div>Монеты</div>
-                                <div id="tg-user-coins">100</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="tg-progress">
-                        <div class="tg-progress-bar" id="tg-level-progress" style="width: 0%"></div>
-                    </div>
-                    
-                    <p id="tg-level-text">До следующего уровня: 1000 опыта</p>
-                </div>
-            </section>
-        </div>
-        
-        <!-- Навигация (только для Telegram) -->
-        <div class="telegram-only">
-            <nav class="tg-nav">
-                <div class="tg-nav-item active" onclick="tgApp.showSection('farm')">
-                    <div class="tg-nav-icon">🌾</div>
-                    <div>Ферма</div>
-                </div>
-                <div class="tg-nav-item" onclick="tgApp.showSection('lessons')">
-                    <div class="tg-nav-icon">📚</div>
-                    <div>Уроки</div>
-                </div>
-                <div class="tg-nav-item" onclick="tgApp.showSection('code')">
-                    <div class="tg-nav-icon">💻</div>
-                    <div>Код</div>
-                </div>
-                <div class="tg-nav-item" onclick="tgApp.showSection('stats')">
-                    <div class="tg-nav-icon">📊</div>
-                    <div>Статы</div>
-                </div>
-            </nav>
-        </div>
-        
-        <!-- Оригинальный интерфейс (для не-Telegram) -->
-        <div class="not-telegram">
-            <header class="header">
-                <div class="logo">
-                    <div class="logo-icon">🚜</div>
-                    <h1>CodeFarm</h1>
-                    <span class="logo-subtitle">Учим Python через фермерство</span>
                 </div>
                 
-                <div class="user-info" id="user-info">
-                    <div class="user-avatar">👨‍🌾</div>
-                    <div class="user-details">
-                        <div class="user-name" id="user-name">Гость</div>
-                        <div class="user-stats">
-                            <div class="stat-item">
-                                <span class="stat-icon">⭐</span>
-                                <span id="user-level">Уровень 1</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-icon">🪙</span>
-                                <span id="coins-count">100</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-icon">✨</span>
-                                <span id="user-exp">0 XP</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Main Content -->
-            <div class="main-content">
-                <!-- Farm Section -->
-                <section class="farm-section">
-                    <h2 class="section-title">🌾 Ваша ферма</h2>
-                    <div class="farm-container">
-                        <div id="farm-container" style="width: 100%; height: 500px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 10px;">
-                            <div style="text-align: center;">
-                                <div style="font-size: 48px;">🚜</div>
-                                <h3>CodeFarm 3D</h3>
-                                <p>Веб-приложение для обучения программированию</p>
-                                <button onclick="location.reload()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                                    Обновить
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="farm-controls">
-                        <button class="control-btn" onclick="app.waterField()">💧 Полить</button>
-                        <button class="control-btn" onclick="app.harvestCrops()">📦 Собрать урожай</button>
-                        <button class="control-btn" onclick="app.buildHouse()">🏠 Построить дом</button>
-                        <button class="control-btn" onclick="app.showMarket()">💰 Рынок</button>
-                    </div>
-                </section>
-
-                <!-- Lessons Section -->
-                <section class="lessons-section">
-                    <h2 class="section-title">📚 Уроки Python</h2>
-                    <div class="lessons-list" id="lessons-list">
-                        <!-- Уроки будут загружены через JS -->
-                        <div class="lesson-card">
-                            <div class="lesson-header">
-                                <span class="lesson-number">Урок 01</span>
-                                <span class="lesson-status" style="background: #4CAF50;"></span>
-                            </div>
-                            <h3>Первые команды боту-помощнику</h3>
-                            <p>Научись давать базовые команды боту для подготовки территории фермы</p>
-                            <button class="start-lesson-btn" onclick="app.startLesson('lesson_1')">
-                                Начать урок
-                            </button>
-                        </div>
-                    </div>
-                </section>
+                <button class="btn btn-primary" onclick="showSection('lessons')">
+                    📚 Пройти урок
+                </button>
             </div>
-
-            <!-- Code Editor Section -->
-            <section class="code-section">
-                <div class="editor-toolbar">
-                    <h3>📝 Редактор кода</h3>
-                    <div class="editor-actions">
-                        <button class="btn-run" onclick="app.runCode()">
-                            ▶️ Запустить код
-                        </button>
-                        <button class="btn-submit" onclick="app.submitSolution()">
-                            📤 Отправить решение
+            
+            <!-- Уроки -->
+            <div id="lessons-screen" class="card" style="display: none;">
+                <h2>📚 Уроки Python</h2>
+                <p>Изучайте программирование, развивая ферму!</p>
+                
+                <div id="lessons-list">
+                    <div class="lesson-card">
+                        <div class="lesson-status completed"></div>
+                        <h3>Урок 1: Первые команды</h3>
+                        <p>Научитесь давать команды боту</p>
+                        <button class="btn btn-secondary" onclick="startLesson(1)" style="margin-top: 10px; padding: 8px 16px;">
+                            Начать
                         </button>
                     </div>
                 </div>
-                <div class="editor-container">
-                    <textarea id="code-editor" placeholder="Напишите свой код Python здесь..." style="width: 100%; height: 350px; padding: 15px; font-family: 'Consolas', monospace; font-size: 14px; border: 1px solid #ddd; border-radius: 5px; resize: vertical;">
-# Пример кода для урока 1
+            </div>
+            
+            <!-- Редактор кода -->
+            <div id="code-screen" class="card" style="display: none;">
+                <h2>💻 Редактор кода</h2>
+                
+                <div class="code-editor">
+                    <textarea id="code-input" placeholder="Введите ваш код Python здесь...">
 print("Привет, АгроБот!")
 bot_say("Начинаю работу")
 clear_area("north")</textarea>
                 </div>
-                <div class="output-container" id="output">
-                    <h4>Вывод программы:</h4>
-                    <pre id="output-content">Здесь будет результат выполнения кода...</pre>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="runCode()">
+                        ▶️ Запустить
+                    </button>
+                    <button class="btn btn-primary" onclick="submitCode()">
+                        📤 Отправить
+                    </button>
                 </div>
-            </section>
-
-            <!-- Footer -->
-            <footer class="footer">
-                <p>CodeFarm © 2024 - Учим программированию через игры</p>
-                <div class="footer-links">
-                    <a href="https://t.me/CodeFarm_Bot" target="_blank">Telegram Bot</a>
-                    <a href="#">Поддержка</a>
-                    <a href="#">О проекте</a>
+                
+                <div id="output" style="margin-top: 15px; padding: 10px; background: #f5f5f5; border-radius: 5px; display: none;">
+                    <h4>Результат:</h4>
+                    <pre id="output-text"></pre>
                 </div>
-            </footer>
+            </div>
+            
+            <!-- Статистика -->
+            <div id="stats-screen" class="card" style="display: none;">
+                <h2>📊 Ваша статистика</h2>
+                
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-icon">⭐</div>
+                        <div>Уровень</div>
+                        <div id="user-level">1</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">✨</div>
+                        <div>Опыт</div>
+                        <div id="user-exp">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">📚</div>
+                        <div>Уроки</div>
+                        <div id="lessons-completed">0</div>
+                    </div>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>Прогресс уровня:</span>
+                        <span id="level-percent">0%</span>
+                    </div>
+                    <div style="height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;">
+                        <div id="level-bar" style="height: 100%; background: #4CAF50; width: 0%;"></div>
+                    </div>
+                </div>
+            </div>
         </div>
+        
+        <!-- Навигация -->
+        <nav class="nav">
+            <div class="nav-item active" onclick="showSection('farm')">
+                <div>🌾</div>
+                <div style="font-size: 12px;">Ферма</div>
+            </div>
+            <div class="nav-item" onclick="showSection('lessons')">
+                <div>📚</div>
+                <div style="font-size: 12px;">Уроки</div>
+            </div>
+            <div class="nav-item" onclick="showSection('code')">
+                <div>💻</div>
+                <div style="font-size: 12px;">Код</div>
+            </div>
+            <div class="nav-item" onclick="showSection('stats')">
+                <div>📊</div>
+                <div style="font-size: 12px;">Статы</div>
+            </div>
+        </nav>
     </div>
 
-    <!-- Telegram Web App JavaScript -->
     <script>
-        // Telegram Web App объект
-        window.TelegramWebApp = window.Telegram?.WebApp;
+        // Глобальные переменные
+        let currentUser = null;
+        let currentUserId = null;
+        let userData = null;
         
-        // Приложение для Telegram Web App
-        const tgApp = {
-            // Инициализация
-            init() {
-                // Проверяем, открыто ли в Telegram Web App
-                if (TelegramWebApp) {
-                    console.log('✅ Открыто в Telegram Web App');
-                    
-                    // Добавляем класс для Telegram-стилей
-                    document.body.classList.add('tg-webapp');
-                    
-                    // Расширяем на весь экран
-                    TelegramWebApp.expand();
-                    TelegramWebApp.ready();
-                    
-                    // Получаем данные пользователя
-                    const user = TelegramWebApp.initDataUnsafe?.user;
-                    if (user) {
-                        this.userId = user.id;
-                        this.userName = user.first_name || 'Фермер';
-                        this.userUsername = user.username;
-                        
-                        // Обновляем интерфейс
-                        this.updateWelcomeMessage();
-                        
-                        // Загружаем данные пользователя
-                        this.loadUserData();
-                        
-                        // Показываем прогресс загрузки
-                        this.showLoadingProgress();
-                    } else {
-                        // Пользователь не авторизован
-                        document.getElementById('tg-welcome-text').textContent = 
-                            'Для начала войдите через Telegram бота @CodeFarm_Bot';
-                    }
-                    
-                    // Настраиваем кнопки
-                    this.setupButtons();
-                } else {
-                    console.log('ℹ️ Открыто в обычном браузере');
-                }
-            },
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Страница загружена');
             
-            // Показать прогресс загрузки
-            showLoadingProgress() {
-                const progressBar = document.getElementById('tg-loading-progress');
-                let progress = 0;
-                
-                const interval = setInterval(() => {
-                    progress += 10;
-                    progressBar.style.width = `${progress}%`;
-                    
-                    if (progress >= 100) {
-                        clearInterval(interval);
-                        // После загрузки показываем ферму
-                        setTimeout(() => {
-                            this.showSection('farm');
-                        }, 500);
-                    }
-                }, 200);
-            },
-            
-            // Обновить приветственное сообщение
-            updateWelcomeMessage() {
-                document.getElementById('tg-welcome-title').textContent = 
-                    `👋 Привет, ${this.userName}!`;
-                document.getElementById('tg-welcome-text').textContent = 
-                    `Добро пожаловать в CodeFarm!`;
-            },
-            
-            // Загрузить данные пользователя
-            async loadUserData() {
-                if (!this.userId) return;
-                
-                try {
-                    // Загружаем данные с сервера
-                    const response = await fetch(`/api/user/${this.userId}`);
-                    const userData = await response.json();
-                    
-                    // Обновляем статистику
-                    this.updateStats(userData);
-                    
-                    // Загружаем уроки
-                    await this.loadLessons();
-                    
-                    // Загружаем ферму
-                    await this.loadFarm();
-                    
-                } catch (error) {
-                    console.error('Ошибка загрузки данных:', error);
-                }
-            },
-            
-            // Обновить статистику
-            updateStats(userData) {
-                if (!userData) return;
-                
-                // Обновляем элементы интерфейса
-                const elements = {
-                    'tg-user-level': userData.level || 1,
-                    'tg-user-exp': userData.experience || 0,
-                    'tg-user-coins': userData.coins || 100,
-                    'tg-coins': userData.coins || 100
-                };
-                
-                for (const [id, value] of Object.entries(elements)) {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.textContent = value;
-                    }
-                }
-                
-                // Обновляем прогресс уровня
-                const expToNextLevel = Math.max(0, 1000 - (userData.experience % 1000));
-                const levelProgress = ((userData.experience % 1000) / 1000) * 100;
-                
-                const progressBar = document.getElementById('tg-level-progress');
-                if (progressBar) {
-                    progressBar.style.width = `${levelProgress}%`;
-                }
-                
-                const levelText = document.getElementById('tg-level-text');
-                if (levelText) {
-                    levelText.textContent = `До следующего уровня: ${expToNextLevel} опыта`;
-                }
-            },
-            
-            // Загрузить уроки
-            async loadLessons() {
-                try {
-                    const response = await fetch('/api/lessons');
-                    this.lessons = await response.json();
-                    
-                    // Отображаем уроки
-                    this.renderLessons();
-                    
-                } catch (error) {
-                    console.error('Ошибка загрузки уроков:', error);
-                }
-            },
-            
-            // Отобразить уроки
-            renderLessons() {
-                const container = document.getElementById('tg-lessons-list');
-                if (!container || !this.lessons) return;
-                
-                container.innerHTML = '';
-                
-                // Показываем первые 5 уроков
-                this.lessons.slice(0, 5).forEach((lesson, index) => {
-                    const lessonElement = document.createElement('div');
-                    lessonElement.className = 'tg-lesson-card';
-                    lessonElement.innerHTML = `
-                        <div class="tg-lesson-status locked"></div>
-                        <h3>Урок ${index + 1}: ${lesson.title}</h3>
-                        <p>${lesson.description}</p>
-                        <small>Награда: ${lesson.coins} 🪙 | Опыт: ${lesson.experience} ✨</small>
-                        <button onclick="tgApp.startLesson('${lesson.id}')" 
-                                style="margin-top: 10px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                            Начать
-                        </button>
-                    `;
-                    container.appendChild(lessonElement);
-                });
-            },
-            
-            // Загрузить ферму
-            async loadFarm() {
-                if (!this.userId) return;
-                
-                try {
-                    const response = await fetch(`/api/farm/${this.userId}`);
-                    const farmData = await response.json();
-                    
-                    // Обновляем статистику фермы
-                    this.updateFarmStats(farmData);
-                    
-                } catch (error) {
-                    console.error('Ошибка загрузки фермы:', error);
-                }
-            },
-            
-            // Обновить статистику фермы
-            updateFarmStats(farmData) {
-                if (!farmData) return;
-                
-                const elements = {
-                    'tg-buildings-count': farmData.buildings?.length || 0,
-                    'tg-crops-count': farmData.crops?.length || 0,
-                    'tg-resources-count': Object.keys(farmData.resources || {}).length || 0
-                };
-                
-                for (const [id, value] of Object.entries(elements)) {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.textContent = value;
-                    }
-                }
-            },
-            
-            // Показать секцию
-            showSection(sectionName) {
-                // Скрыть все секции
-                const sections = ['welcome', 'farm', 'lessons', 'code', 'stats'];
-                sections.forEach(name => {
-                    const section = document.getElementById(`${name}-section`);
-                    if (section) {
-                        section.style.display = 'none';
-                    }
-                });
-                
-                // Показать выбранную секцию
-                const activeSection = document.getElementById(`${sectionName}-section`);
-                if (activeSection) {
-                    activeSection.style.display = 'block';
-                }
-                
-                // Обновить навигацию
-                this.updateNavigation(sectionName);
-            },
-            
-            // Обновить навигацию
-            updateNavigation(activeItem) {
-                const navItems = document.querySelectorAll('.tg-nav-item');
-                navItems.forEach(item => {
-                    item.classList.remove('active');
-                    if (item.onclick && item.onclick.toString().includes(activeItem)) {
-                        item.classList.add('active');
-                    }
-                });
-            },
-            
-            // Настроить кнопки
-            setupButtons() {
-                // Кнопка открытия фермы
-                const openFarmBtn = document.getElementById('tg-open-farm-btn');
-                if (openFarmBtn) {
-                    openFarmBtn.onclick = () => this.showSection('farm');
-                }
-            },
-            
-            // Открыть ферму
-            openFarm() {
-                this.showSection('farm');
-            },
-            
-            // Управлять фермой
-            manageFarm() {
-                alert('Управление фермой доступно в веб-версии!');
-                // Здесь можно добавить функционал управления
-            },
-            
-            // Начать урок
-            startLesson(lessonId) {
-                this.showSection('code');
-                
-                // Загружаем данные урока
-                const lesson = this.lessons?.find(l => l.id === lessonId);
-                if (lesson) {
-                    // Обновляем редактор кода
-                    const editor = document.getElementById('tg-code-editor');
-                    if (editor) {
-                        editor.value = lesson.initialCode || `# Код для урока: ${lesson.title}`;
-                    }
-                    
-                    // Показываем описание
-                    alert(`Начинаем урок: ${lesson.title}\n\n${lesson.task}`);
-                }
-            },
-            
-            // Запустить код
-            runCode() {
-                const code = document.getElementById('tg-code-editor').value;
-                const output = document.getElementById('tg-output-text');
-                const outputContainer = document.getElementById('tg-code-output');
-                
-                if (output && outputContainer) {
-                    output.textContent = `>>> Запускаю код...\n${code}\n>>> Код выполнен!`;
-                    outputContainer.style.display = 'block';
-                    
-                    // Прокручиваем к результату
-                    outputContainer.scrollIntoView({ behavior: 'smooth' });
-                }
-            },
-            
-            // Отправить код
-            async submitCode() {
-                if (!this.userId) {
-                    alert('Сначала войдите через Telegram бота!');
-                    return;
-                }
-                
-                const code = document.getElementById('tg-code-editor').value;
-                if (!code.trim()) {
-                    alert('Введите код для отправки!');
-                    return;
-                }
-                
-                try {
-                    // Ищем активный урок (упрощенная логика)
-                    const activeLesson = this.lessons?.[0]?.id || 'lesson_1';
-                    
-                    const response = await fetch(`/api/lessons/${activeLesson}/submit`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: this.userId,
-                            code: code
-                        })
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        alert(`🎉 Урок пройден!\nНаграда: ${result.reward} монет`);
-                        
-                        // Обновляем статистику
-                        if (result.coins) {
-                            document.getElementById('tg-user-coins').textContent = result.coins;
-                            document.getElementById('tg-coins').textContent = result.coins;
-                        }
-                        
-                        // Показываем анимацию
-                        this.showSuccessAnimation();
-                        
-                    } else {
-                        alert(`❌ Ошибка: ${result.message}\n${result.errors?.join('\n') || ''}`);
-                    }
-                    
-                } catch (error) {
-                    console.error('Ошибка отправки кода:', error);
-                    alert('Ошибка соединения с сервером');
-                }
-            },
-            
-            // Показать анимацию успеха
-            showSuccessAnimation() {
-                const btn = document.getElementById('tg-open-farm-btn');
-                if (btn) {
-                    btn.classList.add('tg-pulse');
-                    btn.innerHTML = '🎉 Урок пройден! 🎉';
-                    
-                    setTimeout(() => {
-                        btn.classList.remove('tg-pulse');
-                        btn.innerHTML = '🚜 Открыть ферму';
-                    }, 2000);
-                }
+            // Проверяем, открыто ли в Telegram Web App
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log('✅ Открыто в Telegram Web App');
+                initTelegramApp();
+            } else {
+                console.log('ℹ️ Открыто в обычном браузере');
+                initBrowserApp();
             }
-        };
-        
-        // Инициализация при загрузке страницы
-        document.addEventListener('DOMContentLoaded', () => {
-            // Инициализируем Telegram Web App
-            tgApp.init();
             
-            // Инициализируем обычное приложение (для не-Telegram)
-            if (!TelegramWebApp) {
-                // Инициализация обычного приложения
-                window.app = {
-                    waterField: function() {
-                        alert('Полив поля...');
-                    },
-                    harvestCrops: function() {
-                        alert('Сбор урожая...');
-                    },
-                    buildHouse: function() {
-                        alert('Строительство дома...');
-                    },
-                    showMarket: function() {
-                        alert('Открытие рынка...');
-                    },
-                    runCode: function() {
-                        const code = document.getElementById('code-editor').value;
-                        document.getElementById('output-content').textContent = 
-                            'Запускаю код...\n' + code.substring(0, 100) + '...';
-                    },
-                    submitSolution: function() {
-                        alert('Решение отправлено на проверку!');
-                    },
-                    startLesson: function(lessonId) {
-                        alert(`Начинаем урок: ${lessonId}\nОткройте в Telegram для полного функционала!`);
-                    }
-                };
-            }
+            // Запускаем анимацию загрузки
+            simulateLoading();
         });
+        
+        // Инициализация для Telegram Web App
+        function initTelegramApp() {
+            const tg = window.Telegram.WebApp;
+            
+            // Расширяем на весь экран
+            tg.expand();
+            
+            // Помечаем приложение как готовое
+            tg.ready();
+            
+            // Получаем данные пользователя
+            const user = tg.initDataUnsafe?.user;
+            if (user) {
+                currentUser = user;
+                currentUserId = user.id.toString();
+                
+                // Обновляем приветствие
+                document.getElementById('welcome-text').textContent = 
+                    `Привет, ${user.first_name || 'Фермер'}! Добро пожаловать в CodeFarm!`;
+                
+                // Регистрируем пользователя
+                registerUser();
+            } else {
+                document.getElementById('welcome-text').textContent = 
+                    'Для начала войдите через Telegram бота @CodeFarm_Bot';
+            }
+        }
+        
+        // Инициализация для обычного браузера
+        function initBrowserApp() {
+            currentUserId = 'demo-user';
+            currentUser = { first_name: 'Гость' };
+            
+            // Показываем уведомление
+            const notice = document.createElement('div');
+            notice.className = 'notice';
+            notice.innerHTML = 'Для полного опыта откройте через Telegram бота @CodeFarm_Bot';
+            document.getElementById('content').prepend(notice);
+        }
+        
+        // Регистрация пользователя
+        async function registerUser() {
+            if (!currentUserId) return;
+            
+            try {
+                const response = await fetch('/api/user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        telegramId: currentUserId,
+                        username: currentUser?.username,
+                        firstName: currentUser?.first_name,
+                        lastName: currentUser?.last_name
+                    })
+                });
+                
+                userData = await response.json();
+                console.log('Пользователь зарегистрирован:', userData);
+                
+                // Обновляем статистику
+                updateUserStats();
+                
+            } catch (error) {
+                console.error('Ошибка регистрации:', error);
+                // Используем демо-данные
+                userData = {
+                    level: 1,
+                    coins: 100,
+                    experience: 0
+                };
+            }
+        }
+        
+        // Обновление статистики пользователя
+        function updateUserStats() {
+            if (!userData) return;
+            
+            // Обновляем элементы
+            const elements = {
+                'user-level': userData.level || 1,
+                'user-exp': userData.experience || 0,
+                'coins-count': userData.coins || 100,
+                'user-coins': userData.coins || 100
+            };
+            
+            for (const [id, value] of Object.entries(elements)) {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = value;
+                }
+            }
+            
+            // Обновляем прогресс-бар уровня
+            const exp = userData.experience || 0;
+            const levelProgress = (exp % 1000) / 10;
+            const levelBar = document.getElementById('level-bar');
+            const levelPercent = document.getElementById('level-percent');
+            
+            if (levelBar) levelBar.style.width = levelProgress + '%';
+            if (levelPercent) levelPercent.textContent = levelProgress + '%';
+        }
+        
+        // Показать секцию
+        function showSection(sectionName) {
+            // Скрываем все экраны
+            const screens = ['welcome', 'farm', 'lessons', 'code', 'stats'];
+            screens.forEach(screen => {
+                const element = document.getElementById(screen + '-screen');
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+            
+            // Показываем нужный экран
+            const targetScreen = document.getElementById(sectionName + '-screen');
+            if (targetScreen) {
+                targetScreen.style.display = 'block';
+            }
+            
+            // Обновляем навигацию
+            updateNavigation(sectionName);
+            
+            // Если показываем ферму, загружаем данные
+            if (sectionName === 'farm') {
+                loadFarmData();
+            }
+            
+            // Если показываем уроки, загружаем их
+            if (sectionName === 'lessons') {
+                loadLessons();
+            }
+        }
+        
+        // Обновление навигации
+        function updateNavigation(activeSection) {
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.classList.remove('active');
+                // Проверяем, соответствует ли элемент активной секции
+                if (item.onclick && item.onclick.toString().includes(activeSection)) {
+                    item.classList.add('active');
+                }
+            });
+        }
+        
+        // Загрузка данных фермы
+        async function loadFarmData() {
+            if (!currentUserId) return;
+            
+            try {
+                const response = await fetch(`/api/farm/${currentUserId}`);
+                const farmData = await response.json();
+                
+                // Обновляем счетчики
+                document.getElementById('buildings-count').textContent = 
+                    farmData.buildings?.length || 0;
+                document.getElementById('crops-count').textContent = 
+                    farmData.crops?.length || 0;
+                    
+            } catch (error) {
+                console.error('Ошибка загрузки фермы:', error);
+                // Используем демо-данные
+                document.getElementById('buildings-count').textContent = '1';
+                document.getElementById('crops-count').textContent = '3';
+            }
+        }
+        
+        // Загрузка уроков
+        async function loadLessons() {
+            try {
+                const response = await fetch('/api/lessons');
+                const lessons = await response.json();
+                
+                const container = document.getElementById('lessons-list');
+                if (container && lessons.length > 0) {
+                    container.innerHTML = '';
+                    
+                    // Показываем первые 3 урока
+                    lessons.slice(0, 3).forEach((lesson, index) => {
+                        const lessonElement = document.createElement('div');
+                        lessonElement.className = 'lesson-card';
+                        lessonElement.innerHTML = `
+                            <div class="lesson-status ${index === 0 ? 'completed' : 'locked'}"></div>
+                            <h3>Урок ${index + 1}: ${lesson.title}</h3>
+                            <p>${lesson.description}</p>
+                            <button class="btn btn-secondary" onclick="startLesson('${lesson.id}')" 
+                                    style="margin-top: 10px; padding: 8px 16px;">
+                                ${index === 0 ? 'Продолжить' : 'Начать'}
+                            </button>
+                        `;
+                        container.appendChild(lessonElement);
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки уроков:', error);
+            }
+        }
+        
+        // Начать урок
+        function startLesson(lessonId) {
+            showSection('code');
+            
+            // Здесь можно загрузить конкретный урок
+            console.log('Начинаем урок:', lessonId);
+            
+            // Устанавливаем пример кода для урока
+            const codeInput = document.getElementById('code-input');
+            if (codeInput) {
+                codeInput.value = `# Код для урока\nprint("Привет, АгроБот!")\nbot_say("Начинаю урок ${lessonId}")`;
+            }
+        }
+        
+        // Запустить код
+        function runCode() {
+            const code = document.getElementById('code-input').value;
+            const output = document.getElementById('output-text');
+            const outputContainer = document.getElementById('output');
+            
+            if (output && outputContainer) {
+                output.textContent = `>>> Запускаю код...\n\n${code}\n\n>>> Код выполнен успешно!`;
+                outputContainer.style.display = 'block';
+                
+                // Прокручиваем к результату
+                outputContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        // Отправить код на проверку
+        async function submitCode() {
+            if (!currentUserId) {
+                alert('Сначала войдите в систему');
+                return;
+            }
+            
+            const code = document.getElementById('code-input').value;
+            if (!code.trim()) {
+                alert('Введите код для отправки');
+                return;
+            }
+            
+            try {
+                // Используем первый урок для демо
+                const lessonId = 'lesson_1';
+                
+                const response = await fetch(`/api/lessons/${lessonId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        code: code
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`🎉 Урок пройден!\nНаграда: ${result.reward} монет`);
+                    
+                    // Обновляем монеты
+                    if (result.coins) {
+                        document.getElementById('coins-count').textContent = result.coins;
+                        document.getElementById('user-coins').textContent = result.coins + ' 🪙';
+                    }
+                    
+                    // Показываем успех
+                    showSuccess();
+                    
+                } else {
+                    alert(`❌ Есть ошибки:\n${result.errors?.join('\n') || result.message}`);
+                }
+                
+            } catch (error) {
+                console.error('Ошибка отправки:', error);
+                alert('Ошибка соединения с сервером');
+            }
+        }
+        
+        // Показать успех
+        function showSuccess() {
+            const btn = document.querySelector('.btn-primary');
+            if (btn) {
+                const originalText = btn.textContent;
+                btn.textContent = '🎉 Успех! 🎉';
+                btn.style.background = 'linear-gradient(135deg, #FF9800, #FF5722)';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            }
+        }
+        
+        // Симуляция загрузки
+        function simulateLoading() {
+            const loadingBar = document.getElementById('loading-bar');
+            let width = 0;
+            
+            const interval = setInterval(() => {
+                width += 10;
+                loadingBar.style.width = width + '%';
+                
+                if (width >= 100) {
+                    clearInterval(interval);
+                    // Автоматически показываем ферму через 0.5 секунды
+                    setTimeout(() => {
+                        showSection('farm');
+                    }, 500);
+                }
+            }, 200);
+        }
     </script>
 </body>
 </html>
