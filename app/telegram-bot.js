@@ -4,44 +4,22 @@ class CodeFarmTelegramBot {
     constructor(storage, lessons) {
         this.token = process.env.TELEGRAM_BOT_TOKEN || '8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw';
         
-        // Используем polling если нет корректного домена для вебхука
-        const useWebhook = process.env.NODE_ENV === 'production' && process.env.WEBHOOK_DOMAIN;
-        
-        if (useWebhook) {
-            this.bot = new TelegramBot(this.token);
-            this.setupWebhook();
-        } else {
-            // Используем polling для разработки
-            console.log('🔧 Использую polling вместо webhook (режим разработки)');
-            this.bot = new TelegramBot(this.token, { polling: true });
-        }
+        // Всегда используем polling для простоты
+        console.log('🔧 Запускаю бота в режиме polling...');
+        this.bot = new TelegramBot(this.token, { 
+            polling: {
+                interval: 300,
+                autoStart: true,
+                params: {
+                    timeout: 10
+                }
+            }
+        });
         
         this.storage = storage;
         this.lessons = lessons;
         
         this.setupCommands();
-    }
-    
-    setupWebhook() {
-        if (!process.env.WEBHOOK_DOMAIN) {
-            console.log('⚠️ WEBHOOK_DOMAIN не задан, пропускаю настройку вебхука');
-            return;
-        }
-        
-        const webhookUrl = `${process.env.WEBHOOK_DOMAIN}/webhook`;
-        
-        this.bot.setWebHook(webhookUrl)
-            .then(() => {
-                console.log(`✅ Вебхук установлен: ${webhookUrl}`);
-            })
-            .catch(error => {
-                console.error('❌ Ошибка установки вебхука:', error.message);
-                console.log('🔄 Переключаюсь на polling...');
-                // Если вебхук не работает, переключаемся на polling
-                this.bot.stopPolling();
-                this.bot = new TelegramBot(this.token, { polling: true });
-                this.setupCommands();
-            });
     }
     
     setupCommands() {
@@ -57,8 +35,6 @@ class CodeFarmTelegramBot {
                 lastName: user.last_name
             });
             
-            const baseUrl = process.env.BASE_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net';
-            
             const welcomeMessage = `👋 Привет, ${user.first_name}! Добро пожаловать в CodeFarm! 🚜\n\n`
                 + `Я - твой помощник в изучении программирования через фермерство.\n`
                 + `Выращивай виртуальную ферму, изучая реальный Python!\n\n`
@@ -66,7 +42,9 @@ class CodeFarmTelegramBot {
                 + `• Уровень: ${userData.level}\n`
                 + `• Монеты: ${userData.coins}\n`
                 + `• Опыт: ${userData.experience}\n\n`
-                + `Нажми кнопку ниже чтобы начать!`;
+                + `Открой веб-приложение чтобы начать:`;
+            
+            const webAppUrl = `https://${process.env.HOSTNAME || 'localhost:3000'}`;
             
             const keyboard = {
                 inline_keyboard: [
@@ -74,13 +52,17 @@ class CodeFarmTelegramBot {
                         { 
                             text: '🎮 Открыть ферму', 
                             web_app: { 
-                                url: baseUrl 
+                                url: webAppUrl 
                             } 
                         }
                     ],
                     [
-                        { text: '📚 Уроки', callback_data: 'open_lessons' },
-                        { text: '🌾 Ферма', callback_data: 'open_farm' }
+                        { text: '📚 Уроки', callback_data: 'lessons' },
+                        { text: '🌾 Моя ферма', callback_data: 'my_farm' }
+                    ],
+                    [
+                        { text: '📊 Статистика', callback_data: 'stats' },
+                        { text: 'ℹ️ Помощь', callback_data: 'help' }
                     ]
                 ]
             };
@@ -99,6 +81,11 @@ class CodeFarmTelegramBot {
             const farm = this.storage.getFarm(userId);
             const user = this.storage.getUser(userId);
             
+            if (!user || !farm) {
+                this.bot.sendMessage(chatId, 'Сначала начните игру с /start');
+                return;
+            }
+            
             let farmMessage = `🌾 <b>Твоя ферма:</b>\n\n`;
             
             if (farm.buildings && farm.buildings.length > 0) {
@@ -107,13 +94,30 @@ class CodeFarmTelegramBot {
                     const emoji = this.getBuildingEmoji(building.type);
                     farmMessage += `  ${emoji} ${building.type} (уровень ${building.level || 1})\n`;
                 });
+            } else {
+                farmMessage += `🏗️ <b>Постройки:</b> Нет построек\n`;
+            }
+            
+            if (farm.crops && farm.crops.length > 0) {
+                farmMessage += `\n🌱 <b>Посадки (${farm.crops.length}):</b>\n`;
+                const cropTypes = {};
+                farm.crops.forEach(crop => {
+                    cropTypes[crop.type] = (cropTypes[crop.type] || 0) + 1;
+                });
+                
+                for (const [type, count] of Object.entries(cropTypes)) {
+                    farmMessage += `  ${this.getCropEmoji(type)} ${type}: ${count}\n`;
+                }
             }
             
             if (farm.resources) {
                 farmMessage += `\n💰 <b>Ресурсы:</b>\n`;
                 farmMessage += `  💧 Вода: ${farm.resources.water || 0}/200\n`;
                 farmMessage += `  ⚡ Энергия: ${farm.resources.energy || 0}/200\n`;
-                farmMessage += `  🪙 Монеты: ${user?.coins || 0}\n`;
+                farmMessage += `  🌱 Семена: ${farm.resources.seeds || 0}\n`;
+                farmMessage += `  🪵 Дерево: ${farm.resources.wood || 0}\n`;
+                farmMessage += `  🪨 Камень: ${farm.resources.stone || 0}\n`;
+                farmMessage += `  🪙 Монеты: ${user.coins || 0}\n`;
             }
             
             this.bot.sendMessage(chatId, farmMessage, {
@@ -138,9 +142,11 @@ class CodeFarmTelegramBot {
                               progress?.status === 'in-progress' ? '🔄' : '🔒';
                 
                 lessonsMessage += `${status} <b>Урок ${index + 1}:</b> ${lesson.title}\n`;
+                lessonsMessage += `   📖 ${lesson.description}\n`;
+                lessonsMessage += `   ⭐ Награда: ${lesson.coins} монет\n\n`;
             });
             
-            lessonsMessage += `\nВсего уроков: ${allLessons.length}\n`;
+            lessonsMessage += `Всего уроков: ${allLessons.length}\n`;
             lessonsMessage += `Пройдено: ${userProgress.completedLessons || 0}`;
             
             this.bot.sendMessage(chatId, lessonsMessage, {
@@ -161,9 +167,11 @@ class CodeFarmTelegramBot {
                 + `/help - Эта справка\n\n`
                 + `<b>Как играть:</b>\n`
                 + `1. Начни с урока 1\n`
-                + `2. Пиши код в редакторе\n`
+                + `2. Напиши код в редакторе\n`
                 + `3. Смотри как меняется ферма\n`
-                + `4. Зарабатывай монеты и опыт`;
+                + `4. Зарабатывай монеты и опыт\n\n`
+                + `<b>Для полного опыта:</b>\n`
+                + `Открой веб-приложение через кнопку "🎮 Открыть ферму"`;
             
             this.bot.sendMessage(chatId, helpText, {
                 parse_mode: 'HTML'
@@ -177,6 +185,7 @@ class CodeFarmTelegramBot {
             
             const user = this.storage.getUser(userId);
             const progress = this.storage.getUserProgress(userId);
+            const farm = this.storage.getFarm(userId);
             
             if (!user) {
                 this.bot.sendMessage(chatId, 'Сначала начните игру с /start');
@@ -190,7 +199,14 @@ class CodeFarmTelegramBot {
             statsMessage += `🪙 <b>Монеты:</b> ${user.coins || 0}\n\n`;
             statsMessage += `📚 <b>Прогресс обучения:</b>\n`;
             statsMessage += `   • Пройдено уроков: ${progress.completedLessons || 0}\n`;
-            statsMessage += `   • Общий счет: ${progress.totalScore || 0}\n`;
+            statsMessage += `   • Общий счет: ${progress.totalScore || 0}\n\n`;
+            
+            if (farm) {
+                statsMessage += `🌾 <b>Ферма:</b>\n`;
+                statsMessage += `   • Построек: ${farm.buildings?.length || 0}\n`;
+                statsMessage += `   • Посадок: ${farm.crops?.length || 0}\n`;
+                statsMessage += `   • Животных: ${farm.animals?.length || 0}\n`;
+            }
             
             this.bot.sendMessage(chatId, statsMessage, {
                 parse_mode: 'HTML'
@@ -204,35 +220,24 @@ class CodeFarmTelegramBot {
             const userId = callbackQuery.from.id.toString();
             
             switch (data) {
-                case 'open_farm':
-                    this.bot.sendMessage(msg.chat.id, 'Открываю ферму...', {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ 
-                                    text: '🚜 Управлять фермой', 
-                                    web_app: { 
-                                        url: `${process.env.WEBAPP_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net'}/farm` 
-                                    } 
-                                }]
-                            ]
-                        }
-                    });
+                case 'lessons':
+                    this.bot.sendMessage(msg.chat.id, '📚 Открываю список уроков...\nИспользуй /lessons для подробной информации.');
                     break;
                     
-                case 'open_lessons':
-                    this.bot.sendMessage(msg.chat.id, 'Открываю уроки...', {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ 
-                                    text: '📚 Изучать уроки', 
-                                    web_app: { 
-                                        url: `${process.env.WEBAPP_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net'}/lessons` 
-                                    } 
-                                }]
-                            ]
-                        }
-                    });
+                case 'my_farm':
+                    this.bot.sendMessage(msg.chat.id, '🌾 Открываю информацию о ферме...\nИспользуй /farm для просмотра.');
                     break;
+                    
+                case 'stats':
+                    this.bot.sendMessage(msg.chat.id, '📊 Открываю статистику...\nИспользуй /stats для подробностей.');
+                    break;
+                    
+                case 'help':
+                    this.bot.sendMessage(msg.chat.id, 'ℹ️ Открываю справку...\nИспользуй /help для подробной информации.');
+                    break;
+                    
+                default:
+                    this.bot.sendMessage(msg.chat.id, `Выбрано: ${data}`);
             }
             
             this.bot.answerCallbackQuery(callbackQuery.id);
@@ -244,28 +249,29 @@ class CodeFarmTelegramBot {
                 return; // Команды уже обработаны
             }
             
-            // Простые ответы на сообщения
             const text = msg.text?.toLowerCase() || '';
             let response = '';
             
             if (text.includes('привет') || text.includes('hello') || text.includes('hi')) {
-                response = `Привет, ${msg.from.first_name}! Как твоя ферма? 🚜`;
+                response = `Привет, ${msg.from.first_name}! 🚜\nИспользуй /start чтобы начать игру!`;
             } else if (text.includes('ферма') || text.includes('farm')) {
-                response = 'Открой ферму через веб-приложение для управления! 🌾\nИспользуй /farm для быстрого просмотра.';
-            } else if (text.includes('урок') || text.includes('lesson')) {
-                response = 'Уроки ждут тебя! Используй /lessons чтобы увидеть прогресс. 📚';
-            } else if (text.includes('python') || text.includes('код')) {
-                response = 'Python - отличный выбор! Начни обучение с урока 1. 🐍';
+                response = '🌾 Используй /farm чтобы посмотреть свою ферму!\nИли открой веб-приложение для полного управления.';
+            } else if (text.includes('урок') || text.includes('lesson') || text.includes('python')) {
+                response = '📚 Используй /lessons чтобы увидеть список уроков!\nНачни с урока 1 чтобы изучить основы.';
+            } else if (text.includes('код') || text.includes('программ')) {
+                response = '💻 CodeFarm учит программированию на Python через фермерство!\nНачни с /start чтобы попробовать.';
             } else if (text.includes('спасибо') || text.includes('thanks')) {
-                response = 'Всегда рад помочь! Удачи в обучении! 🌟';
+                response = 'Рад помочь! 🎯\nУдачи в изучении программирования!';
             } else if (text.trim()) {
-                response = 'Используй команды: /start, /farm, /lessons, /stats, /help\nДля полного опыта открой веб-приложение! 🎮';
+                response = '🤖 Я CodeFarm бот!\nИспользуй команды:\n/start - Начать игру\n/farm - Ферма\n/lessons - Уроки\n/stats - Статистика\n/help - Помощь';
             }
             
             if (response) {
                 this.bot.sendMessage(msg.chat.id, response);
             }
         });
+        
+        console.log('✅ Команды бота настроены');
     }
     
     getBuildingEmoji(type) {
@@ -274,20 +280,40 @@ class CodeFarmTelegramBot {
             'barn': '🏚️',
             'silo': '🗼',
             'greenhouse': '🌿',
-            'workshop': '🔨'
+            'workshop': '🔨',
+            'farmhouse': '🏡',
+            'stable': '🐴'
         };
         return emojis[type] || '🏗️';
     }
     
+    getCropEmoji(type) {
+        const emojis = {
+            'wheat': '🌾',
+            'carrot': '🥕',
+            'potato': '🥔',
+            'corn': '🌽',
+            'tomato': '🍅',
+            'cabbage': '🥬'
+        };
+        return emojis[type] || '🌱';
+    }
+    
     handleUpdate(update) {
+        // Для polling этот метод не нужен, но оставим для совместимости
         this.bot.processUpdate(update);
     }
     
     sendNotification(userId, message) {
-        // Отправка уведомления пользователю
-        this.bot.sendMessage(userId, message, {
-            parse_mode: 'HTML'
-        });
+        try {
+            this.bot.sendMessage(userId, message, {
+                parse_mode: 'HTML'
+            });
+            return true;
+        } catch (error) {
+            console.error('Ошибка отправки уведомления:', error.message);
+            return false;
+        }
     }
 }
 
