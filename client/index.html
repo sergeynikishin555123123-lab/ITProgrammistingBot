@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeFarm - Учим Python через фермерство</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">🚜</div>
+                <h1>CodeFarm</h1>
+                <span class="logo-subtitle">Учим Python через фермерство</span>
+            </div>
+            
+            <div class="user-info" id="user-info">
+                <div class="user-avatar">👨‍🌾</div>
+                <div class="user-details">
+                    <div class="user-name" id="user-name">Гость</div>
+                    <div class="user-stats">
+                        <div class="stat-item">
+                            <span class="stat-icon">⭐</span>
+                            <span id="user-level">Уровень 1</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-icon">🪙</span>
+                            <span id="coins-count">100</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-icon">✨</span>
+                            <span id="user-exp">0 XP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Farm Section -->
+            <section class="farm-section">
+                <h2 class="section-title">🌾 Ваша ферма</h2>
+                <div class="farm-container">
+                    <div id="farm-container" style="width: 100%; height: 500px;"></div>
+                </div>
+                <div class="farm-controls">
+                    <button class="control-btn" onclick="app.waterField()">💧 Полить</button>
+                    <button class="control-btn" onclick="app.harvestCrops()">📦 Собрать урожай</button>
+                    <button class="control-btn" onclick="app.buildHouse()">🏠 Построить дом</button>
+                    <button class="control-btn" onclick="app.showMarket()">💰 Рынок</button>
+                </div>
+            </section>
+
+            <!-- Lessons Section -->
+            <section class="lessons-section">
+                <h2 class="section-title">📚 Уроки Python</h2>
+                <div class="lessons-list" id="lessons-list">
+                    <!-- Уроки будут загружены через JS -->
+                    <div class="loading">Загрузка уроков...</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Code Editor Section -->
+        <section class="code-section">
+            <div class="editor-toolbar">
+                <h3>📝 Редактор кода</h3>
+                <div class="editor-actions">
+                    <button class="btn-run" onclick="app.runCode()">
+                        ▶️ Запустить код
+                    </button>
+                    <button class="btn-submit" onclick="app.submitSolution()">
+                        📤 Отправить решение
+                    </button>
+                </div>
+            </div>
+            <div class="editor-container">
+                <textarea id="code-editor" placeholder="Напишите свой код Python здесь..."></textarea>
+            </div>
+            <div class="output-container" id="output">
+                <h4>Вывод программы:</h4>
+                <pre id="output-content">Здесь будет результат выполнения кода...</pre>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>CodeFarm © 2024 - Учим программированию через игры</p>
+            <div class="footer-links">
+                <a href="#">Документация</a>
+                <a href="#">Поддержка</a>
+                <a href="#">О проекте</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+    <script src="farm-3d.js"></script>
+    
+    <script>
+        // Простой редактор кода
+        const codeEditor = document.getElementById('code-editor');
+        if (codeEditor) {
+            codeEditor.style.width = '100%';
+            codeEditor.style.height = '350px';
+            codeEditor.style.backgroundColor = '#1e1e1e';
+            codeEditor.style.color = '#d4d4d4';
+            codeEditor.style.padding = '15px';
+            codeEditor.style.fontFamily = 'Consolas, monospace';
+            codeEditor.style.fontSize = '14px';
+            codeEditor.style.border = 'none';
+            codeEditor.style.resize = 'none';
+        }
+        
+        // Инициализация приложения
+        window.app = {
+            waterField: function() {
+                alert('Полив поля...');
+            },
+            harvestCrops: function() {
+                alert('Сбор урожая...');
+            },
+            buildHouse: function() {
+                alert('Строительство дома...');
+            },
+            showMarket: function() {
+                alert('Открытие рынка...');
+            },
+            runCode: function() {
+                const code = codeEditor.value;
+                document.getElementById('output-content').textContent = 
+                    'Запускаю код...\n' + code.substring(0, 100) + '...';
+            },
+            submitSolution: function() {
+                alert('Решение отправлено на проверку!');
+            }
+        };
+    </script>
+</body>
+</html>
