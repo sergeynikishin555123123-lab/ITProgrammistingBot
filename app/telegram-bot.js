@@ -4,7 +4,7 @@ class CodeFarmTelegramBot {
     constructor(storage, lessons) {
         this.token = process.env.TELEGRAM_BOT_TOKEN || '8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw';
         
-        // Всегда используем polling для простоты
+        // Используем polling
         console.log('🔧 Запускаю бота в режиме polling...');
         this.bot = new TelegramBot(this.token, { 
             polling: {
@@ -42,31 +42,101 @@ class CodeFarmTelegramBot {
                 + `• Уровень: ${userData.level}\n`
                 + `• Монеты: ${userData.coins}\n`
                 + `• Опыт: ${userData.experience}\n\n`
-                + `<b>Основные команды:</b>\n`
-                + `/farm - Показать ферму\n`
-                + `/lessons - Список уроков\n`
-                + `/stats - Статистика\n`
-                + `/help - Помощь\n\n`
-                + `Для полного опыта открой веб-версию:\n`
-                + `https://${process.env.HOSTNAME || 'localhost:3000'}`;
+                + `Нажми кнопку ниже чтобы открыть ферму!`;
+            
+            // ВАЖНО: Для Web App URL должен начинаться с https://
+            const webAppUrl = 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net';
             
             const keyboard = {
                 inline_keyboard: [
                     [
-                        { text: '📚 Уроки', callback_data: 'lessons' },
-                        { text: '🌾 Моя ферма', callback_data: 'my_farm' }
+                        { 
+                            text: '🚜 Открыть ферму', 
+                            web_app: { 
+                                url: webAppUrl
+                            } 
+                        }
                     ],
                     [
-                        { text: '📊 Статистика', callback_data: 'stats' },
-                        { text: 'ℹ️ Помощь', callback_data: 'help' }
+                        { text: '📚 Уроки', callback_data: 'show_lessons' },
+                        { text: '🌾 Ферма', callback_data: 'show_farm' }
                     ]
                 ]
             };
             
             this.bot.sendMessage(chatId, welcomeMessage, {
                 reply_markup: keyboard,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true
+                parse_mode: 'HTML'
+            });
+        });
+        
+        // Команда /app - альтернативный способ открыть приложение
+        this.bot.onText(/\/app/, (msg) => {
+            const chatId = msg.chat.id;
+            const user = msg.from;
+            
+            // Регистрируем пользователя если еще не зарегистрирован
+            this.storage.getOrCreateUser(user.id.toString(), {
+                username: user.username,
+                firstName: user.first_name,
+                lastName: user.last_name
+            });
+            
+            const webAppUrl = 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net';
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        { 
+                            text: '📱 Открыть приложение', 
+                            web_app: { 
+                                url: webAppUrl
+                            } 
+                        }
+                    ]
+                ]
+            };
+            
+            this.bot.sendMessage(chatId, 'Нажми кнопку чтобы открыть CodeFarm:', {
+                reply_markup: keyboard
+            });
+        });
+        
+        // Команда /open - еще один способ
+        this.bot.onText(/\/open/, (msg) => {
+            const chatId = msg.chat.id;
+            const userId = msg.from.id.toString();
+            const user = msg.from;
+            
+            // Проверяем, зарегистрирован ли пользователь
+            const userData = this.storage.getOrCreateUser(userId, {
+                username: user.username,
+                firstName: user.first_name,
+                lastName: user.last_name
+            });
+            
+            const webAppUrl = `https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net?user=${userId}`;
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        { 
+                            text: '🎮 Открыть CodeFarm', 
+                            web_app: { 
+                                url: webAppUrl
+                            } 
+                        }
+                    ]
+                ]
+            };
+            
+            const message = `Добро пожаловать${userData.firstName ? `, ${userData.firstName}` : ''}!\n\n`
+                + `Уровень: ${userData.level}\n`
+                + `Монеты: ${userData.coins}\n\n`
+                + `Нажми кнопку чтобы открыть ферму!`;
+            
+            this.bot.sendMessage(chatId, message, {
+                reply_markup: keyboard
             });
         });
         
@@ -78,7 +148,7 @@ class CodeFarmTelegramBot {
             const farm = this.storage.getFarm(userId);
             const user = this.storage.getUser(userId);
             
-            if (!user || !farm) {
+            if (!user) {
                 this.bot.sendMessage(chatId, 'Сначала начните игру с /start');
                 return;
             }
@@ -119,12 +189,25 @@ class CodeFarmTelegramBot {
                 farmMessage += `  🪙 Монеты: ${user.coins || 0}\n`;
             }
             
-            farmMessage += `\n📈 <b>Весь функционал в веб-версии:</b>\n`;
-            farmMessage += `https://${process.env.HOSTNAME || 'localhost:3000'}`;
+            // Добавляем кнопку для открытия веб-приложения
+            const webAppUrl = 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net';
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        { 
+                            text: '🚜 Управлять фермой', 
+                            web_app: { 
+                                url: webAppUrl
+                            } 
+                        }
+                    ]
+                ]
+            };
             
             this.bot.sendMessage(chatId, farmMessage, {
                 parse_mode: 'HTML',
-                disable_web_page_preview: true
+                reply_markup: keyboard
             });
         });
         
@@ -138,14 +221,15 @@ class CodeFarmTelegramBot {
             
             let lessonsMessage = `📚 <b>Доступные уроки:</b>\n\n`;
             
-            // Показываем первые 5 уроков
-            allLessons.slice(0, 5).forEach((lesson, index) => {
+            // Показываем первые 3 урока
+            allLessons.slice(0, 3).forEach((lesson, index) => {
                 const progress = userProgress.progress?.[lesson.id];
                 const status = progress?.status === 'completed' ? '✅' : 
                               progress?.status === 'in-progress' ? '🔄' : '🔒';
                 
                 const lessonNumber = (index + 1).toString().padStart(2, '0');
                 lessonsMessage += `${status} <b>Урок ${lessonNumber}:</b> ${lesson.title}\n`;
+                lessonsMessage += `   📖 ${lesson.description}\n`;
                 if (progress?.score) {
                     lessonsMessage += `   ⭐ Оценка: ${progress.score}/100\n`;
                 }
@@ -157,12 +241,27 @@ class CodeFarmTelegramBot {
             const completionPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
             
             lessonsMessage += `📊 <b>Прогресс:</b> ${completedLessons}/${totalLessons} (${completionPercent}%)\n\n`;
-            lessonsMessage += `<b>Для прохождения уроков открой веб-версию:</b>\n`;
-            lessonsMessage += `https://${process.env.HOSTNAME || 'localhost:3000'}`;
+            lessonsMessage += `<b>Для прохождения уроков открой веб-приложение:</b>`;
+            
+            // Кнопка для открытия уроков в веб-приложении
+            const webAppUrl = 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net/lessons';
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        { 
+                            text: '📚 Пройти уроки', 
+                            web_app: { 
+                                url: webAppUrl
+                            } 
+                        }
+                    ]
+                ]
+            };
             
             this.bot.sendMessage(chatId, lessonsMessage, {
                 parse_mode: 'HTML',
-                disable_web_page_preview: true
+                reply_markup: keyboard
             });
         });
         
@@ -173,24 +272,35 @@ class CodeFarmTelegramBot {
             const helpText = `🤖 <b>CodeFarm Bot - Помощь</b>\n\n`
                 + `<b>Основные команды:</b>\n`
                 + `/start - Начать игру и показать прогресс\n`
+                + `/app или /open - Открыть веб-приложение\n`
                 + `/farm - Показать состояние фермы\n`
                 + `/lessons - Показать список уроков\n`
                 + `/stats - Показать статистику\n`
                 + `/help - Эта справка\n\n`
                 + `<b>Как играть:</b>\n`
-                + `1. Открой веб-версию по ссылке в /start\n`
-                + `2. Начни с урока 1\n`
+                + `1. Нажми кнопку "🚜 Открыть ферму"\n`
+                + `2. Начни с урока 1 в веб-приложении\n`
                 + `3. Напиши код в редакторе\n`
                 + `4. Смотри как меняется ферма\n`
                 + `5. Зарабатывай монеты и опыт\n\n`
-                + `<b>Веб-версия:</b>\n`
-                + `https://${process.env.HOSTNAME || 'localhost:3000'}\n\n`
-                + `<b>Поддержка:</b>\n`
-                + `По вопросам пиши: @support`;
+                + `<b>Веб-приложение открывается прямо в Telegram!</b>`;
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        { 
+                            text: '🚜 Открыть приложение', 
+                            web_app: { 
+                                url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                            } 
+                        }
+                    ]
+                ]
+            };
             
             this.bot.sendMessage(chatId, helpText, {
                 parse_mode: 'HTML',
-                disable_web_page_preview: true
+                reply_markup: keyboard
             });
         });
         
@@ -236,12 +346,23 @@ class CodeFarmTelegramBot {
                 }
             }
             
-            statsMessage += `\n🌐 <b>Веб-версия для полного функционала:</b>\n`;
-            statsMessage += `https://${process.env.HOSTNAME || 'localhost:3000'}`;
+            // Кнопка для продолжения в приложении
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        { 
+                            text: '🚜 Продолжить в приложении', 
+                            web_app: { 
+                                url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                            } 
+                        }
+                    ]
+                ]
+            };
             
             this.bot.sendMessage(chatId, statsMessage, {
                 parse_mode: 'HTML',
-                disable_web_page_preview: true
+                reply_markup: keyboard
             });
         });
         
@@ -253,10 +374,10 @@ class CodeFarmTelegramBot {
             const chatId = msg.chat.id;
             
             let response = '';
+            let keyboard = null;
             
             switch (data) {
-                case 'lessons':
-                    // Показываем короткую информацию о уроках
+                case 'show_lessons':
                     const allLessons = this.lessons.getAllLessons();
                     const progress = this.storage.getUserProgress(userId);
                     const completed = progress.completedLessons || 0;
@@ -265,12 +386,23 @@ class CodeFarmTelegramBot {
                         + `✅ Пройдено: ${completed}/${allLessons.length}\n`
                         + `💰 Доступно уроков: ${allLessons.length}\n\n`
                         + `Используй /lessons для полного списка\n`
-                        + `Или открой веб-версию для прохождения:\n`
-                        + `https://${process.env.HOSTNAME || 'localhost:3000'}`;
+                        + `Или открой приложение для прохождения:`;
+                    
+                    keyboard = {
+                        inline_keyboard: [
+                            [
+                                { 
+                                    text: '📚 Открыть уроки', 
+                                    web_app: { 
+                                        url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net/lessons'
+                                    } 
+                                }
+                            ]
+                        ]
+                    };
                     break;
                     
-                case 'my_farm':
-                    // Краткая информация о ферме
+                case 'show_farm':
                     const farm = this.storage.getFarm(userId);
                     const user = this.storage.getUser(userId);
                     
@@ -280,45 +412,39 @@ class CodeFarmTelegramBot {
                             + `🌱 Посадок: ${farm.crops?.length || 0}\n`
                             + `💰 Монет: ${user.coins || 0}\n\n`
                             + `Используй /farm для подробной информации\n`
-                            + `Или открой веб-версию для управления:\n`
-                            + `https://${process.env.HOSTNAME || 'localhost:3000'}`;
+                            + `Или открой приложение для управления:`;
+                        
+                        keyboard = {
+                            inline_keyboard: [
+                                [
+                                    { 
+                                        text: '🚜 Управлять фермой', 
+                                        web_app: { 
+                                            url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                                        } 
+                                    }
+                                ]
+                            ]
+                        };
                     } else {
                         response = '❌ Сначала начни игру с /start';
                     }
-                    break;
-                    
-                case 'stats':
-                    // Краткая статистика
-                    const userStats = this.storage.getUser(userId);
-                    if (userStats) {
-                        response = `📊 <b>Статистика</b>\n\n`
-                            + `⭐ Уровень: ${userStats.level || 1}\n`
-                            + `✨ Опыт: ${userStats.experience || 0}\n`
-                            + `🪙 Монеты: ${userStats.coins || 0}\n\n`
-                            + `Используй /stats для полной статистики`;
-                    } else {
-                        response = '❌ Сначала начни игру с /start';
-                    }
-                    break;
-                    
-                case 'help':
-                    response = `ℹ️ <b>Помощь</b>\n\n`
-                        + `Используй /help для полной справки\n\n`
-                        + `Основные команды:\n`
-                        + `/start - Начать\n`
-                        + `/farm - Ферма\n`
-                        + `/lessons - Уроки\n`
-                        + `/stats - Статистика`;
                     break;
                     
                 default:
-                    response = `Выбрано: ${data}\nИспользуй меню команд для навигации`;
+                    response = `Выбрано: ${data}`;
             }
             
-            this.bot.sendMessage(chatId, response, {
-                parse_mode: 'HTML',
-                disable_web_page_preview: true
-            });
+            if (keyboard) {
+                this.bot.sendMessage(chatId, response, {
+                    parse_mode: 'HTML',
+                    reply_markup: keyboard
+                });
+            } else {
+                this.bot.sendMessage(chatId, response, {
+                    parse_mode: 'HTML'
+                });
+            }
             
             this.bot.answerCallbackQuery(callbackQuery.id);
         });
@@ -331,32 +457,103 @@ class CodeFarmTelegramBot {
             
             const text = msg.text?.toLowerCase() || '';
             let response = '';
+            let keyboard = null;
             
             if (text.includes('привет') || text.includes('hello') || text.includes('hi')) {
-                response = `👋 Привет, ${msg.from.first_name}!\nЯ CodeFarm бот - твой помощник в изучении Python через фермерство!\n\nИспользуй /start чтобы начать.`;
+                response = `👋 Привет, ${msg.from.first_name}!\nЯ CodeFarm бот - твой помощник в изучении Python через фермерство!\n\nНажми кнопку чтобы открыть ферму:`;
+                
+                keyboard = {
+                    inline_keyboard: [
+                        [
+                            { 
+                                text: '🚜 Открыть CodeFarm', 
+                                web_app: { 
+                                    url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                                } 
+                            }
+                        ]
+                    ]
+                };
             } else if (text.includes('ферма') || text.includes('farm')) {
-                response = '🌾 Для управления фермой используй команду /farm\nИли открой веб-версию для полного контроля.';
+                response = '🌾 Для управления фермой используй команду /farm\nИли открой приложение для полного контроля:';
+                
+                keyboard = {
+                    inline_keyboard: [
+                        [
+                            { 
+                                text: '🌾 Открыть ферму', 
+                                web_app: { 
+                                    url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                                } 
+                            }
+                        ]
+                    ]
+                };
             } else if (text.includes('урок') || text.includes('lesson') || text.includes('python')) {
-                response = '📚 Уроки Python ждут тебя!\nИспользуй /lessons чтобы увидеть список.\nНачни с урока 1 чтобы изучить основы.';
+                response = '📚 Уроки Python ждут тебя!\nИспользуй /lessons чтобы увидеть список.\nИли открой приложение чтобы начать обучение:';
+                
+                keyboard = {
+                    inline_keyboard: [
+                        [
+                            { 
+                                text: '📚 Начать обучение', 
+                                web_app: { 
+                                    url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net/lessons'
+                                } 
+                            }
+                        ]
+                    ]
+                };
             } else if (text.includes('код') || text.includes('программ')) {
-                response = '💻 CodeFarm учит программированию на Python через фермерство!\nНачни с /start чтобы попробовать.';
+                response = '💻 CodeFarm учит программированию на Python через фермерство!\nНачни с урока 1 в нашем приложении:';
+                
+                keyboard = {
+                    inline_keyboard: [
+                        [
+                            { 
+                                text: '💻 Начать программировать', 
+                                web_app: { 
+                                    url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                                } 
+                            }
+                        ]
+                    ]
+                };
             } else if (text.includes('спасибо') || text.includes('thanks')) {
                 response = 'Рад помочь! 🎯\nУдачи в изучении программирования!';
             } else if (text.includes('монет') || text.includes('coin')) {
-                response = '💰 Зарабатывай монеты, проходя уроки!\nКаждый урок дает награду в монетах.\nИспользуй /stats чтобы посмотреть баланс.';
+                response = '💰 Зарабатывай монеты, проходя уроки!\nКаждый урок дает награду в монетах.\nИспользуй /stats чтобы посмотреть баланс.\nИли открой приложение чтобы заработать больше:';
+                
+                keyboard = {
+                    inline_keyboard: [
+                        [
+                            { 
+                                text: '💰 Заработать монеты', 
+                                web_app: { 
+                                    url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net/lessons'
+                                } 
+                            }
+                        ]
+                    ]
+                };
             } else if (text.trim()) {
-                response = '🤖 Я CodeFarm бот!\nИспользуй команды:\n/start - Начать игру\n/farm - Ферма\n/lessons - Уроки\n/stats - Статистика\n/help - Помощь';
+                response = '🤖 Я CodeFarm бот!\nИспользуй команды:\n/start - Начать игру\n/app - Открыть приложение\n/farm - Ферма\n/lessons - Уроки\n/stats - Статистика\n/help - Помощь';
             }
             
             if (response) {
-                this.bot.sendMessage(msg.chat.id, response);
+                if (keyboard) {
+                    this.bot.sendMessage(msg.chat.id, response, {
+                        reply_markup: keyboard
+                    });
+                } else {
+                    this.bot.sendMessage(msg.chat.id, response);
+                }
             }
         });
         
         // Обработка ошибок
         this.bot.on('polling_error', (error) => {
             console.error('❌ Ошибка polling:', error.message);
-            // Не паникуем, polling сам переподключится
         });
         
         this.bot.on('webhook_error', (error) => {
@@ -402,8 +599,7 @@ class CodeFarmTelegramBot {
     sendNotification(userId, message) {
         try {
             this.bot.sendMessage(userId, message, {
-                parse_mode: 'HTML',
-                disable_web_page_preview: true
+                parse_mode: 'HTML'
             });
             console.log(`✅ Уведомление отправлено пользователю ${userId}`);
             return true;
@@ -432,6 +628,32 @@ class CodeFarmTelegramBot {
             + `Поздравляю! 🎉`;
         
         return this.sendNotification(userId, message);
+    }
+    
+    // Метод для отправки кнопки открытия приложения
+    sendOpenAppButton(userId, message = 'Открой приложение чтобы продолжить:') {
+        const keyboard = {
+            inline_keyboard: [
+                [
+                    { 
+                        text: '🚜 Открыть CodeFarm', 
+                        web_app: { 
+                            url: 'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'
+                        } 
+                    }
+                ]
+            ]
+        };
+        
+        try {
+            this.bot.sendMessage(userId, message, {
+                reply_markup: keyboard
+            });
+            return true;
+        } catch (error) {
+            console.error('Ошибка отправки кнопки:', error.message);
+            return false;
+        }
     }
 }
 
