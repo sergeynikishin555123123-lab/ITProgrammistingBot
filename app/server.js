@@ -16,8 +16,9 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Важно: правильный путь к статическим файлам
+// Правильный путь к статическим файлам
 app.use(express.static(path.join(__dirname, '../client')));
+app.use('/assets', express.static(path.join(__dirname, '../assets')));
 
 // Инициализация
 const storage = new MemoryStorage();
@@ -30,8 +31,14 @@ app.get('/api/health', (req, res) => {
         status: 'OK', 
         timestamp: new Date().toISOString(),
         users: Object.keys(storage.users).length,
+        lessons: lessons.getLessonCount(),
         uptime: process.uptime()
     });
+});
+
+// Главная страница
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
 // Получить пользователя
@@ -153,12 +160,16 @@ app.post('/api/lessons/:id/submit', (req, res) => {
             }
             
             // Отправляем уведомление в Telegram
-            telegramBot.sendNotification(userId, 
-                `🎉 Урок "${lesson.title}" пройден!\n` +
-                `⭐ Оценка: ${score}/100\n` +
-                `💰 Награда: ${result.reward} монет\n` +
-                `🪙 Всего монет: ${result.coins}`
-            );
+            try {
+                telegramBot.sendNotification(userId, 
+                    `🎉 Урок "${lesson.title}" пройден!\n` +
+                    `⭐ Оценка: ${score}/100\n` +
+                    `💰 Награда: ${result.reward} монет\n` +
+                    `🪙 Всего монет: ${result.coins}`
+                );
+            } catch (botError) {
+                console.log('Не удалось отправить уведомление:', botError.message);
+            }
             
             res.json({
                 success: true,
@@ -190,6 +201,7 @@ app.post('/api/lessons/:id/submit', (req, res) => {
         }
         
     } catch (error) {
+        console.error('Ошибка отправки решения:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -204,12 +216,12 @@ app.post('/webhook', (req, res) => {
 app.get('/set-webhook', (req, res) => {
     res.json({ 
         success: true, 
-        message: 'Вебхук работает автоматически',
+        message: 'Используется polling или вебхук настроен автоматически',
         bot_token: process.env.TELEGRAM_BOT_TOKEN ? 'Настроен' : 'Не настроен'
     });
 });
 
-// Статические файлы фронтенда - исправленный путь
+// Статические файлы фронтенда
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/index.html'));
 });
