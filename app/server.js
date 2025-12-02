@@ -137,6 +137,74 @@ app.get('/api/farm/:userId/visual', (req, res) => {
     }
 });
 
+// app.post('/api/lessons/:id/submit', ...)
+app.post('/api/lessons/:id/submit', async (req, res) => {
+    try {
+        const { userId, code } = req.body;
+        const lessonId = req.params.id;
+        
+        // Получаем урок из базы
+        const lesson = await db.get('SELECT * FROM lessons WHERE id = ?', [lessonId]);
+        
+        if (!lesson) {
+            return res.json({ success: false, message: 'Урок не найден' });
+        }
+        
+        // Простая проверка кода (можно расширить)
+        const cleanCode = code.toLowerCase().replace(/\s+/g, ' ');
+        const testCode = lesson.test_code.toLowerCase().replace(/\s+/g, ' ');
+        
+        let passed = false;
+        
+        if (lessonId === 'lesson_1') {
+            passed = cleanCode.includes('print("привет, агробот!")') && 
+                     cleanCode.includes('print("начинаю работу!")');
+        } else if (lessonId === 'lesson_2') {
+            passed = cleanCode.includes('farm_name') && 
+                     cleanCode.includes('солнечная долина');
+        }
+        // ... остальные проверки
+        
+        if (passed) {
+            // Обновляем прогресс пользователя
+            await db.run(`
+                INSERT OR REPLACE INTO user_progress (user_id, lesson_id, completed, code) 
+                VALUES (?, ?, 1, ?)
+            `, [userId, lessonId, code]);
+            
+            // Обновляем статистику
+            await db.run(`
+                UPDATE users 
+                SET lessons_completed = lessons_completed + 1,
+                    coins = coins + ?,
+                    experience = experience + ?,
+                    last_lesson_date = datetime('now')
+                WHERE telegram_id = ?
+            `, [lesson.reward_coins, lesson.reward_exp, userId]);
+            
+            res.json({
+                success: true,
+                message: 'Урок успешно пройден!',
+                reward: lesson.reward_coins,
+                experience: lesson.reward_exp,
+                farmUpdate: {
+                    lessonId: lessonId,
+                    action: 'update_farm'
+                }
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'Код не соответствует заданию. Проверьте свой код и попробуйте снова.'
+            });
+        }
+        
+    } catch (error) {
+        console.error('Ошибка проверки урока:', error);
+        res.status(500).json({ success: false, message: 'Ошибка сервера' });
+    }
+});
+
 // Обновляем обработку отправки урока
 app.post('/api/lessons/:id/submit', async (req, res) => {
     try {
