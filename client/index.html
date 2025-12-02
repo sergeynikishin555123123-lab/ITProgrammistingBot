@@ -873,7 +873,7 @@
     <button class="btn btn-primary quick-action-btn" data-action="start_lesson_1">
         <i class="fas fa-code"></i> Урок 1: Первые команды
     </button>
-    <button class="btn btn-secondary" onclick="window.showScreen('lessons')">
+    <button class="btn btn-secondary nav-trigger" data-screen="lessons">
         <i class="fas fa-book-open"></i> Все уроки
     </button>
     <button class="btn btn-accent quick-action-btn" data-action="sell_produce">
@@ -1041,21 +1041,21 @@
             </div>
         </div>
         
-        <!-- Навигация -->
+<!-- Навигация -->
 <nav class="nav-bar">
-    <div class="nav-item active" data-screen="main" onclick="window.showScreen('main')">
+    <div class="nav-item active" data-screen="main">
         <div class="nav-icon">🏠</div>
         <div class="nav-label">Главная</div>
     </div>
-    <div class="nav-item" data-screen="lessons" onclick="window.showScreen('lessons')">
+    <div class="nav-item" data-screen="lessons">
         <div class="nav-icon">📚</div>
         <div class="nav-label">Уроки</div>
     </div>
-    <div class="nav-item" data-screen="code" onclick="window.showScreen('code')">
+    <div class="nav-item" data-screen="code">
         <div class="nav-icon">💻</div>
         <div class="nav-label">Код</div>
     </div>
-    <div class="nav-item" data-screen="profile" onclick="window.showScreen('profile')">
+    <div class="nav-item" data-screen="profile">
         <div class="nav-icon">👤</div>
         <div class="nav-label">Профиль</div>
     </div>
