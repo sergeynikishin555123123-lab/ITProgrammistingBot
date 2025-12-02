@@ -5,10 +5,10 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon server/server.js",
+    "dev": "nodemon app.js",
     "setup": "npm install && mkdir -p data && echo '{}' > data/users.json",
     "test": "echo 'No tests yet'",
-    "build": "echo 'No build needed for Express app'",
+    "build": "echo 'No build needed'",
     "production": "NODE_ENV=production node app.js"
   },
   "dependencies": {
