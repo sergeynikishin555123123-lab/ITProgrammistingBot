@@ -2269,27 +2269,48 @@ function showDemoFarm() {
     }
 }
 
-// Загружаем ферму при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-    // Инициализация...
+ // Временные функции пока не загрузится app.js
+    let app = null;
     
-    // После загрузки пользователя
-    setTimeout(() => {
-        loadFarmVisualization();
-        
-        // Обновляем ферму каждые 30 секунд
-        setInterval(loadFarmVisualization, 30000);
-    }, 1000);
-});
-document.getElementById('close-modal-btn')?.addEventListener('click', () => {
-        document.getElementById('lesson-modal').classList.remove('show');
-    });
-    
-    document.getElementById('start-selected-lesson-btn')?.addEventListener('click', () => {
-        if (window.codeFarmApp && window.codeFarmApp.currentLesson) {
-            window.startLesson(window.codeFarmApp.currentLesson.id);
+    function showScreen(screenName) {
+        console.log('showScreen вызван:', screenName);
+        if (app && app.showScreen) {
+            app.showScreen(screenName);
+        } else {
+            // Простая реализация пока приложение не загружено
+            document.querySelectorAll('[id$="-screen"]').forEach(el => {
+                el.style.display = 'none';
+            });
+            const target = document.getElementById(screenName + '-screen');
+            if (target) target.style.display = 'block';
         }
-        document.getElementById('lesson-modal').classList.remove('show');
-    });
+    }
+    
+    function runCode() {
+        console.log('Запуск кода');
+        if (app && app.runCode) app.runCode();
+    }
+    
+    function submitCode() {
+        console.log('Отправка кода');
+        if (app && app.submitSolution) app.submitSolution();
+    }
+    
+    function startLesson(lessonId) {
+        console.log('Начало урока:', lessonId);
+        if (app && app.startLesson) app.startLesson(lessonId);
+    }
+    
+    function clearOutput() {
+        console.log('Очистка вывода');
+        if (app && app.clearOutput) app.clearOutput();
+    }
+    
+    // Когда app.js загрузится, он обновит переменную app
+    window.setAppInstance = (instance) => {
+        app = instance;
+        console.log('Приложение загружено');
+    };
+</script>
 </body>
 </html>
