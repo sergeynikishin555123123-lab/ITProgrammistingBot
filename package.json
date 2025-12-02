@@ -1,15 +1,15 @@
 {
-  "name": "codefarm",
+  "name": "codefarm-server",
   "version": "1.0.0",
   "description": "CodeFarm - игровая платформа для обучения программированию",
-  "main": "server/server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server/server.js",
+    "start": "node app.js",
     "dev": "nodemon server/server.js",
     "setup": "npm install && mkdir -p data && echo '{}' > data/users.json",
     "test": "echo 'No tests yet'",
-    "backup": "node -e \"const s=require('./server/storage.js'); new s().backupData()\"",
-    "stats": "node -e \"const s=require('./server/storage.js'); const storage=new s(); console.log('Users:', Object.keys(storage.users).length)\""
+    "build": "echo 'No build needed for Express app'",
+    "production": "NODE_ENV=production node app.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -22,6 +22,9 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   },
   "keywords": ["education", "gaming", "python", "programming", "farm"],
   "author": "CodeFarm Team",
