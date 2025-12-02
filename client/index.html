@@ -2311,77 +2311,7 @@ function showDemoFarm() {
         app = instance;
         console.log('Приложение загружено');
     };
-    // Временный обработчик пока не загрузится app.js
-    document.addEventListener('DOMContentLoaded', function() {
-        // Назначаем обработчики для навигации
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const screen = this.getAttribute('data-screen');
-                if (window.codeFarmApp && window.codeFarmApp.showScreen) {
-                    window.codeFarmApp.showScreen(screen);
-                } else if (window.showScreen) {
-                    window.showScreen(screen);
-                } else {
-                    console.log('Приложение еще не загрузилось, пробуем снова...');
-                    setTimeout(() => {
-                        if (window.showScreen) {
-                            window.showScreen(screen);
-                        }
-                    }, 500);
-                }
-            });
-        });
-        
-        // Обработчики для быстрых действий
-        document.querySelectorAll('[data-action="show_lessons"]').forEach(btn => {
-            btn.addEventListener('click', function() {
-                if (window.codeFarmApp && window.codeFarmApp.showScreen) {
-                    window.codeFarmApp.showScreen('lessons');
-                } else if (window.showScreen) {
-                    window.showScreen('lessons');
-                }
-            });
-        });
-        
-        document.querySelectorAll('[data-action="start_lesson_1"]').forEach(btn => {
-            btn.addEventListener('click', function() {
-                if (window.codeFarmApp && window.codeFarmApp.startLesson) {
-                    window.codeFarmApp.startLesson('lesson_1');
-                } else if (window.startLesson) {
-                    window.startLesson('lesson_1');
-                }
-            });
-        });
-        
-        // Кнопка запуска кода
-        document.getElementById('run-code-btn')?.addEventListener('click', function() {
-            if (window.codeFarmApp && window.codeFarmApp.runCode) {
-                window.codeFarmApp.runCode();
-            } else if (window.runCode) {
-                window.runCode();
-            }
-        });
-        
-        // Кнопка отправки решения
-        document.getElementById('submit-code-btn')?.addEventListener('click', function() {
-            if (window.codeFarmApp && window.codeFarmApp.submitSolution) {
-                window.codeFarmApp.submitSolution();
-            } else if (window.submitCode) {
-                window.submitCode();
-            }
-        });
-        
-        // Кнопка очистки вывода
-        document.getElementById('clear-output-btn')?.addEventListener('click', function() {
-            if (window.codeFarmApp && window.codeFarmApp.clearOutput) {
-                window.codeFarmApp.clearOutput();
-            } else if (window.clearOutput) {
-                window.clearOutput();
-            }
-        });
-        
-        console.log('✅ HTML обработчики событий установлены');
-    });
+
 </script>
 </body>
 </html>
