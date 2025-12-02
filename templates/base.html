@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CodeFarm - Изучай Python, выращивая ферму{% endblock %}</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/farm.css') }}">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <i class="fas fa-tractor"></i>
+                <span>CodeFarm</span>
+            </a>
+            
+            <div class="nav-menu">
+                <a href="/" class="nav-item"><i class="fas fa-home"></i> Главная</a>
+                <a href="/farm" class="nav-item"><i class="fas fa-seedling"></i> Ферма</a>
+                <a href="/lessons" class="nav-item"><i class="fas fa-book"></i> Уроки</a>
+                <a href="/leaderboard" class="nav-item"><i class="fas fa-trophy"></i> Лидеры</a>
+                <a href="/profile" class="nav-item"><i class="fas fa-user"></i> Профиль</a>
+            </div>
+            
+            <div class="nav-stats">
+                <span class="stat"><i class="fas fa-coins"></i> <span id="coins">100</span></span>
+                <span class="stat"><i class="fas fa-chart-line"></i> Ур. <span id="level">1</span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <p>© 2024 CodeFarm. Изучай Python, выращивая ферму!</p>
+            <p class="footer-links">
+                <a href="#">Политика конфиденциальности</a> | 
+                <a href="#">Условия использования</a> | 
+                <a href="/admin">Админ панель</a>
+            </p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+    
+    <!-- Telegram Web App -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+    </script>
+</body>
+</html>
