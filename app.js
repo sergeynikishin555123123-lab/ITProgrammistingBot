@@ -1,15 +1,56 @@
-// app/app.js - точка входа для Timeweb Cloud
+// app.js - работает с текущей структурой
 const path = require('path');
+const fs = require('fs');
 
-// Загружаем .env файл
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+console.log('🚀 Запуск CodeFarm...');
+console.log('📁 Текущая директория:', __dirname);
 
-// Импортируем и запускаем наш сервер
-const server = require('./server/server.js');
+// Покажем структуру для отладки
+console.log('📋 Структура проекта:');
+try {
+    const files = fs.readdirSync(__dirname);
+    console.log('Корень:', files.filter(f => !f.startsWith('.')));
+    
+    if (fs.existsSync('client')) {
+        const clientFiles = fs.readdirSync('client');
+        console.log('client/:', clientFiles);
+    }
+    
+    if (fs.existsSync('data')) {
+        const dataFiles = fs.readdirSync('data');
+        console.log('data/:', dataFiles);
+    }
+} catch (err) {
+    console.log('Ошибка чтения структуры:', err.message);
+}
 
-// Сервер уже запускается сам в server.js
-// Этот файл просто обеспечивает совместимость
+// Загружаем .env
+require('dotenv').config();
 
-console.log('🚀 CodeFarm запущен через app.js');
-console.log(`📁 Корневая директория: ${__dirname}`);
-console.log(`🌐 Веб-приложение доступно по порту: ${process.env.PORT || 3000}`);
+// Пытаемся загрузить server.js из текущей директории
+try {
+    console.log('🔧 Загрузка server.js...');
+    
+    // Проверяем, где находится server.js
+    let serverPath;
+    if (fs.existsSync('server.js')) {
+        serverPath = './server.js';
+        console.log('✅ server.js найден в корне');
+    } else if (fs.existsSync('server/server.js')) {
+        serverPath = './server/server.js';
+        console.log('✅ server.js найден в server/');
+    } else {
+        console.log('❌ server.js не найден!');
+        process.exit(1);
+    }
+    
+    // Загружаем сервер
+    require(serverPath);
+    
+    console.log('✅ CodeFarm успешно запущен!');
+    
+} catch (error) {
+    console.error('❌ Ошибка запуска сервера:', error.message);
+    console.error(error.stack);
+    process.exit(1);
+}
