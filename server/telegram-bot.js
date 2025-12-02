@@ -1,33 +1,35 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-class CodeFarmBot {
+class CodeFarmTelegramBot {
     constructor(storage, lessons) {
-        this.token = process.env.TELEGRAM_BOT_TOKEN;
-        this.webhookUrl = process.env.WEBHOOK_URL || `http://localhost:${process.env.PORT || 3000}/webhook`;
-        this.bot = new TelegramBot(this.token);
+        this.token = process.env.TELEGRAM_BOT_TOKEN || '8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw';
+        this.bot = new TelegramBot(this.token, { polling: false });
         this.storage = storage;
         this.lessons = lessons;
         
+        this.setupWebhook();
         this.setupCommands();
     }
     
-    async setWebhook() {
-        try {
-            await this.bot.setWebHook(this.webhookUrl);
-            console.log(`✅ Вебхук установлен: ${this.webhookUrl}`);
-        } catch (error) {
-            console.error('❌ Ошибка установки вебхука:', error);
-        }
+    setupWebhook() {
+        const webhookUrl = process.env.WEBHOOK_URL || `https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net/webhook`;
+        this.bot.setWebHook(webhookUrl)
+            .then(() => {
+                console.log(`✅ Вебхук установлен: ${webhookUrl}`);
+            })
+            .catch(error => {
+                console.error('❌ Ошибка установки вебхука:', error);
+            });
     }
     
     setupCommands() {
         // Команда /start
-        this.bot.onText(/\/start/, async (msg) => {
+        this.bot.onText(/\/start/, (msg) => {
             const chatId = msg.chat.id;
             const user = msg.from;
             
             // Регистрируем пользователя
-            const userData = this.storage.getOrCreateUser(user.id, {
+            const userData = this.storage.getOrCreateUser(user.id.toString(), {
                 username: user.username,
                 firstName: user.first_name,
                 lastName: user.last_name
@@ -48,17 +50,9 @@ class CodeFarmBot {
                         { 
                             text: '🎮 Открыть ферму', 
                             web_app: { 
-                                url: process.env.WEBAPP_URL || `http://localhost:${process.env.PORT || 3000}?tg=${user.id}` 
+                                url: process.env.WEBAPP_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net' 
                             } 
                         }
-                    ],
-                    [
-                        { text: '📚 Мои уроки', callback_data: 'my_lessons' },
-                        { text: '🌾 Моя ферма', callback_data: 'my_farm' }
-                    ],
-                    [
-                        { text: '📊 Статистика', callback_data: 'stats' },
-                        { text: '❓ Помощь', callback_data: 'help' }
                     ]
                 ]
             };
@@ -70,61 +64,44 @@ class CodeFarmBot {
         });
         
         // Команда /farm
-        this.bot.onText(/\/farm/, async (msg) => {
+        this.bot.onText(/\/farm/, (msg) => {
             const chatId = msg.chat.id;
-            const userId = msg.from.id;
+            const userId = msg.from.id.toString();
             
-            const farm = this.storage.getFarm(userId.toString());
-            const user = this.storage.getUser(userId.toString());
+            const farm = this.storage.getFarm(userId);
+            const user = this.storage.getUser(userId);
             
             let farmMessage = `🌾 <b>Твоя ферма:</b>\n\n`;
             
-            if (farm.buildings.length > 0) {
+            if (farm.buildings && farm.buildings.length > 0) {
                 farmMessage += `🏗️ <b>Постройки (${farm.buildings.length}):</b>\n`;
                 farm.buildings.forEach(building => {
-                    farmMessage += `  • ${this.getBuildingEmoji(building.type)} ${building.type} (уровень ${building.level})\n`;
+                    const emoji = this.getBuildingEmoji(building.type);
+                    farmMessage += `  ${emoji} ${building.type} (уровень ${building.level || 1})\n`;
                 });
             }
             
-            if (farm.crops.length > 0) {
-                farmMessage += `\n🌱 <b>Посадки (${farm.crops.length}):</b>\n`;
-                farm.crops.slice(0, 5).forEach(crop => {
-                    const emoji = crop.growth >= 100 ? '✅' : '🌱';
-                    farmMessage += `  ${emoji} ${crop.type}: ${crop.growth}%\n`;
-                });
-                
-                if (farm.crops.length > 5) {
-                    farmMessage += `  ... и еще ${farm.crops.length - 5}\n`;
-                }
+            if (farm.resources) {
+                farmMessage += `\n💰 <b>Ресурсы:</b>\n`;
+                farmMessage += `  💧 Вода: ${farm.resources.water || 0}/200\n`;
+                farmMessage += `  ⚡ Энергия: ${farm.resources.energy || 0}/200\n`;
+                farmMessage += `  🪙 Монеты: ${user?.coins || 0}\n`;
             }
-            
-            farmMessage += `\n💰 <b>Ресурсы:</b>\n`;
-            farmMessage += `  • 💧 Вода: ${farm.resources.water}/200\n`;
-            farmMessage += `  • ⚡ Энергия: ${farm.resources.energy}/200\n`;
-            farmMessage += `  • 🌱 Семена: ${farm.resources.seeds}\n`;
-            farmMessage += `  • 🪵 Дерево: ${farm.resources.wood}\n`;
-            farmMessage += `  • 🪨 Камень: ${farm.resources.stone}\n`;
-            farmMessage += `  • 🪙 Монеты: ${user?.coins || 0}\n`;
             
             this.bot.sendMessage(chatId, farmMessage, {
-                parse_mode: 'HTML',
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🚜 Управлять фермой', web_app: { url: `${process.env.WEBAPP_URL || `http://localhost:${process.env.PORT || 3000}`}/farm?tg=${userId}` } }]
-                    ]
-                }
+                parse_mode: 'HTML'
             });
         });
         
         // Команда /lessons
-        this.bot.onText(/\/lessons/, async (msg) => {
+        this.bot.onText(/\/lessons/, (msg) => {
             const chatId = msg.chat.id;
             const userId = msg.from.id.toString();
             
             const allLessons = this.lessons.getAllLessons();
             const userProgress = this.storage.getUserProgress(userId);
             
-            let lessonsMessage = `📚 <b>Твои уроки:</b>\n\n`;
+            let lessonsMessage = `📚 <b>Доступные уроки:</b>\n\n`;
             
             // Показываем первые 5 уроков
             allLessons.slice(0, 5).forEach((lesson, index) => {
@@ -133,50 +110,14 @@ class CodeFarmBot {
                               progress?.status === 'in-progress' ? '🔄' : '🔒';
                 
                 lessonsMessage += `${status} <b>Урок ${index + 1}:</b> ${lesson.title}\n`;
-                if (progress?.status === 'completed') {
-                    lessonsMessage += `   ⭐ Оценка: ${progress.score}/100\n`;
-                }
-                lessonsMessage += '\n';
             });
             
-            lessonsMessage += `Всего уроков: ${allLessons.length}\n`;
-            lessonsMessage += `Пройдено: ${userProgress.completedLessons}`;
+            lessonsMessage += `\nВсего уроков: ${allLessons.length}\n`;
+            lessonsMessage += `Пройдено: ${userProgress.completedLessons || 0}`;
             
             this.bot.sendMessage(chatId, lessonsMessage, {
-                parse_mode: 'HTML',
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🎮 Продолжить обучение', web_app: { url: `${process.env.WEBAPP_URL || `http://localhost:${process.env.PORT || 3000}`}/lessons?tg=${userId}` } }]
-                    ]
-                }
+                parse_mode: 'HTML'
             });
-        });
-        
-        // Команда /stats
-        this.bot.onText(/\/stats/, async (msg) => {
-            const chatId = msg.chat.id;
-            const userId = msg.from.id.toString();
-            
-            const stats = this.storage.getUserStats(userId);
-            
-            let statsMessage = `📊 <b>Твоя статистика:</b>\n\n`;
-            statsMessage += `👤 <b>Игрок:</b> ${stats.user.firstName}\n`;
-            statsMessage += `⭐ <b>Уровень:</b> ${stats.user.level}\n`;
-            statsMessage += `✨ <b>Опыт:</b> ${stats.user.experience}\n`;
-            statsMessage += `🪙 <b>Монеты:</b> ${stats.user.coins}\n\n`;
-            
-            statsMessage += `📚 <b>Прогресс обучения:</b>\n`;
-            statsMessage += `   • Пройдено уроков: ${stats.progress.completedLessons}\n`;
-            statsMessage += `   • Общий счет: ${stats.progress.totalScore}\n\n`;
-            
-            statsMessage += `🌾 <b>Ферма:</b>\n`;
-            statsMessage += `   • Построек: ${stats.farmStats.buildings}\n`;
-            statsMessage += `   • Посадок: ${stats.farmStats.crops}\n`;
-            statsMessage += `   • Животных: ${stats.farmStats.animals}\n\n`;
-            
-            statsMessage += `🏆 <b>Достижения:</b> ${stats.achievements}`;
-            
-            this.bot.sendMessage(chatId, statsMessage, { parse_mode: 'HTML' });
         });
         
         // Команда /help
@@ -194,91 +135,83 @@ class CodeFarmBot {
                 + `1. Начни с урока 1\n`
                 + `2. Пиши код в редакторе\n`
                 + `3. Смотри как меняется ферма\n`
-                + `4. Зарабатывай монеты и опыт\n\n`
-                + `<b>Веб-приложение:</b>\n`
-                + `Для полного опыта открой веб-приложение через кнопку "Открыть ферму"`;
+                + `4. Зарабатывай монеты и опыт`;
             
-            this.bot.sendMessage(chatId, helpText, { parse_mode: 'HTML' });
+            this.bot.sendMessage(chatId, helpText, {
+                parse_mode: 'HTML'
+            });
+        });
+        
+        // Команда /stats
+        this.bot.onText(/\/stats/, (msg) => {
+            const chatId = msg.chat.id;
+            const userId = msg.from.id.toString();
+            
+            const user = this.storage.getUser(userId);
+            const progress = this.storage.getUserProgress(userId);
+            
+            if (!user) {
+                this.bot.sendMessage(chatId, 'Сначала начните игру с /start');
+                return;
+            }
+            
+            let statsMessage = `📊 <b>Твоя статистика:</b>\n\n`;
+            statsMessage += `👤 <b>Игрок:</b> ${user.firstName || 'Фермер'}\n`;
+            statsMessage += `⭐ <b>Уровень:</b> ${user.level || 1}\n`;
+            statsMessage += `✨ <b>Опыт:</b> ${user.experience || 0}\n`;
+            statsMessage += `🪙 <b>Монеты:</b> ${user.coins || 0}\n\n`;
+            statsMessage += `📚 <b>Прогресс обучения:</b>\n`;
+            statsMessage += `   • Пройдено уроков: ${progress.completedLessons || 0}\n`;
+            statsMessage += `   • Общий счет: ${progress.totalScore || 0}\n`;
+            
+            this.bot.sendMessage(chatId, statsMessage, {
+                parse_mode: 'HTML'
+            });
         });
         
         // Обработка callback-ов
-        this.bot.on('callback_query', async (callbackQuery) => {
+        this.bot.on('callback_query', (callbackQuery) => {
             const msg = callbackQuery.message;
             const data = callbackQuery.data;
             const userId = callbackQuery.from.id.toString();
             
             switch (data) {
-                case 'my_lessons':
-                    const allLessons = this.lessons.getAllLessons();
-                    const progress = this.storage.getUserProgress(userId);
-                    
-                    let lessonsList = '📚 <b>Твои уроки:</b>\n\n';
-                    
-                    allLessons.forEach((lesson, index) => {
-                        const lessonProgress = progress.progress?.[lesson.id];
-                        const status = lessonProgress?.status === 'completed' ? '✅' : 
-                                      lessonProgress?.status === 'in-progress' ? '🔄' : '🔒';
-                        
-                        lessonsList += `${status} Урок ${index + 1}: ${lesson.title}\n`;
-                    });
-                    
-                    this.bot.sendMessage(msg.chat.id, lessonsList, { 
-                        parse_mode: 'HTML',
+                case 'open_farm':
+                    this.bot.sendMessage(msg.chat.id, 'Открываю ферму...', {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🎮 Открыть уроки', web_app: { url: `${process.env.WEBAPP_URL || `http://localhost:${process.env.PORT || 3000}`}/lessons?tg=${userId}` } }]
+                                [{ 
+                                    text: '🚜 Управлять фермой', 
+                                    web_app: { 
+                                        url: `${process.env.WEBAPP_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net'}/farm` 
+                                    } 
+                                }]
                             ]
                         }
                     });
                     break;
                     
-                case 'my_farm':
-                    const farm = this.storage.getFarm(userId);
-                    
-                    let farmInfo = `🌾 <b>Твоя ферма:</b>\n\n`;
-                    farmInfo += `🏠 Домов: ${farm.buildings.filter(b => b.type === 'house').length}\n`;
-                    farmInfo += `🌱 Посадок: ${farm.crops.length}\n`;
-                    farmInfo += `🪙 Монеты: ${this.storage.getUser(userId)?.coins || 0}\n`;
-                    
-                    this.bot.sendMessage(msg.chat.id, farmInfo, { 
-                        parse_mode: 'HTML',
+                case 'open_lessons':
+                    this.bot.sendMessage(msg.chat.id, 'Открываю уроки...', {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: '🚜 Открыть ферму', web_app: { url: `${process.env.WEBAPP_URL || `http://localhost:${process.env.PORT || 3000}`}/farm?tg=${userId}` } }]
+                                [{ 
+                                    text: '📚 Изучать уроки', 
+                                    web_app: { 
+                                        url: `${process.env.WEBAPP_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net'}/lessons` 
+                                    } 
+                                }]
                             ]
                         }
                     });
-                    break;
-                    
-                case 'stats':
-                    const userStats = this.storage.getUserStats(userId);
-                    
-                    let statsMsg = `📊 <b>Статистика:</b>\n\n`;
-                    statsMsg += `Уровень: ${userStats.user.level}\n`;
-                    statsMsg += `Опыт: ${userStats.user.experience}\n`;
-                    statsMsg += `Монеты: ${userStats.user.coins}\n`;
-                    statsMsg += `Пройдено уроков: ${userStats.progress.completedLessons}\n`;
-                    statsMsg += `Достижений: ${userStats.achievements}`;
-                    
-                    this.bot.sendMessage(msg.chat.id, statsMsg, { parse_mode: 'HTML' });
-                    break;
-                    
-                case 'help':
-                    const helpMsg = `Нужна помощь? Вот что можно сделать:\n\n`
-                        + `🎮 <b>Открой веб-приложение</b> для полного опыта\n`
-                        + `📚 <b>Начни с первого урока</b> - основы Python\n`
-                        + `🌾 <b>Ухаживай за фермой</b> чтобы зарабатывать монеты\n\n`
-                        + `Используй команды /farm, /lessons, /stats`;
-                    
-                    this.bot.sendMessage(msg.chat.id, helpMsg, { parse_mode: 'HTML' });
                     break;
             }
             
             this.bot.answerCallbackQuery(callbackQuery.id);
         });
         
-        // Обработка текстовых сообщений
-        this.bot.on('message', async (msg) => {
+        // Обработка текстовых сообщений (не команд)
+        this.bot.on('message', (msg) => {
             if (msg.text && msg.text.startsWith('/')) {
                 return; // Команды уже обработаны
             }
@@ -290,15 +223,15 @@ class CodeFarmBot {
             if (text.includes('привет') || text.includes('hello') || text.includes('hi')) {
                 response = `Привет, ${msg.from.first_name}! Как твоя ферма? 🚜`;
             } else if (text.includes('ферма') || text.includes('farm')) {
-                response = 'Открой ферму через веб-приложение для управления! 🌾';
+                response = 'Открой ферму через веб-приложение для управления! 🌾\nИспользуй /farm для быстрого просмотра.';
             } else if (text.includes('урок') || text.includes('lesson')) {
-                response = 'Уроки ждут тебя в веб-приложении! Начни с первого урока Python. 📚';
+                response = 'Уроки ждут тебя! Используй /lessons чтобы увидеть прогресс. 📚';
             } else if (text.includes('python') || text.includes('код')) {
-                response = 'Python - отличный выбор! Начни обучение с урока 1 в CodeFarm. 🐍';
+                response = 'Python - отличный выбор! Начни обучение с урока 1. 🐍';
             } else if (text.includes('спасибо') || text.includes('thanks')) {
                 response = 'Всегда рад помочь! Удачи в обучении! 🌟';
             } else if (text.trim()) {
-                response = 'Я понимаю команды типа /start, /farm, /lessons. Для полного опыта открой веб-приложение! 🎮';
+                response = 'Используй команды: /start, /farm, /lessons, /stats, /help\nДля полного опыта открой веб-приложение! 🎮';
             }
             
             if (response) {
@@ -313,8 +246,7 @@ class CodeFarmBot {
             'barn': '🏚️',
             'silo': '🗼',
             'greenhouse': '🌿',
-            'workshop': '🔨',
-            'windmill': '⚡'
+            'workshop': '🔨'
         };
         return emojis[type] || '🏗️';
     }
@@ -322,6 +254,13 @@ class CodeFarmBot {
     handleUpdate(update) {
         this.bot.processUpdate(update);
     }
+    
+    sendNotification(userId, message) {
+        // Отправка уведомления пользователю
+        this.bot.sendMessage(userId, message, {
+            parse_mode: 'HTML'
+        });
+    }
 }
 
-module.exports = CodeFarmBot;
+module.exports = CodeFarmTelegramBot;
