@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "setup": "npm install && mkdir -p data && echo '{}' > data/users.json",
+    "setup": "npm install && mkdir -p data && echo '{}' > data/users.json && echo '{}' > data/farms.json && echo '{}' > data/progress.json && echo '{}' > data/achievements.json",
     "test": "echo 'No tests yet'",
     "build": "echo 'No build needed'",
     "production": "NODE_ENV=production node app.js"
