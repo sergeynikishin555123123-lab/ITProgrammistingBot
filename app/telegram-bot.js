@@ -3,22 +3,44 @@ const TelegramBot = require('node-telegram-bot-api');
 class CodeFarmTelegramBot {
     constructor(storage, lessons) {
         this.token = process.env.TELEGRAM_BOT_TOKEN || '8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw';
-        this.bot = new TelegramBot(this.token, { polling: false });
+        
+        // Используем polling если нет корректного домена для вебхука
+        const useWebhook = process.env.NODE_ENV === 'production' && process.env.WEBHOOK_DOMAIN;
+        
+        if (useWebhook) {
+            this.bot = new TelegramBot(this.token);
+            this.setupWebhook();
+        } else {
+            // Используем polling для разработки
+            console.log('🔧 Использую polling вместо webhook (режим разработки)');
+            this.bot = new TelegramBot(this.token, { polling: true });
+        }
+        
         this.storage = storage;
         this.lessons = lessons;
         
-        this.setupWebhook();
         this.setupCommands();
     }
     
     setupWebhook() {
-        const webhookUrl = process.env.WEBHOOK_URL || `https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net/webhook`;
+        if (!process.env.WEBHOOK_DOMAIN) {
+            console.log('⚠️ WEBHOOK_DOMAIN не задан, пропускаю настройку вебхука');
+            return;
+        }
+        
+        const webhookUrl = `${process.env.WEBHOOK_DOMAIN}/webhook`;
+        
         this.bot.setWebHook(webhookUrl)
             .then(() => {
                 console.log(`✅ Вебхук установлен: ${webhookUrl}`);
             })
             .catch(error => {
-                console.error('❌ Ошибка установки вебхука:', error);
+                console.error('❌ Ошибка установки вебхука:', error.message);
+                console.log('🔄 Переключаюсь на polling...');
+                // Если вебхук не работает, переключаемся на polling
+                this.bot.stopPolling();
+                this.bot = new TelegramBot(this.token, { polling: true });
+                this.setupCommands();
             });
     }
     
@@ -35,6 +57,8 @@ class CodeFarmTelegramBot {
                 lastName: user.last_name
             });
             
+            const baseUrl = process.env.BASE_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net';
+            
             const welcomeMessage = `👋 Привет, ${user.first_name}! Добро пожаловать в CodeFarm! 🚜\n\n`
                 + `Я - твой помощник в изучении программирования через фермерство.\n`
                 + `Выращивай виртуальную ферму, изучая реальный Python!\n\n`
@@ -50,9 +74,13 @@ class CodeFarmTelegramBot {
                         { 
                             text: '🎮 Открыть ферму', 
                             web_app: { 
-                                url: process.env.WEBAPP_URL || 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net' 
+                                url: baseUrl 
                             } 
                         }
+                    ],
+                    [
+                        { text: '📚 Уроки', callback_data: 'open_lessons' },
+                        { text: '🌾 Ферма', callback_data: 'open_farm' }
                     ]
                 ]
             };
