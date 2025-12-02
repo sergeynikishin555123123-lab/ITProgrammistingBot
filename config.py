@@ -5,12 +5,15 @@ load_dotenv()
 
 class Config:
     # Базовые настройки
+    NODE_ENV = os.getenv('NODE_ENV', 'production')
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    DEBUG = os.getenv('NODE_ENV', 'production') == 'development'
+    PORT = int(os.getenv('PORT', 8000))
     
     # Настройки Telegram Bot
-    TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw')
-    TELEGRAM_WEBHOOK_URL = os.getenv('TELEGRAM_WEBHOOK_URL', '')
+    TELEGRAM_TOKEN = os.getenv('BOT_TOKEN', '8048171645:AAEt4N2ivjIoTc1fEg4loPTcnaq_dZlWMfw')
+    DOMAIN = os.getenv('DOMAIN', 'sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net')
+    TELEGRAM_WEBHOOK_URL = f"https://{DOMAIN}/webhook"
     
     # Настройки базы данных PostgreSQL
     DB_HOST = os.getenv('DB_HOST', 'a164a4937320e318380ee513.twc1.net')
@@ -20,17 +23,18 @@ class Config:
     DB_PORT = os.getenv('DB_PORT', '5432')
     
     # Настройки приложения
-    APP_URL = os.getenv('APP_URL', 'https://sergeynikishin555123123-lab-itprogrammistingbot-52b2.twc1.net')
+    APP_URL = f"https://{DOMAIN}"
     API_PREFIX = '/api/v1'
     
     # Настройки безопасности
-    CODE_EXECUTION_TIMEOUT = int(os.getenv('CODE_EXECUTION_TIMEOUT', 5))
-    MAX_CODE_LENGTH = int(os.getenv('MAX_CODE_LENGTH', 1000))
+    CODE_EXECUTION_TIMEOUT = 5
+    MAX_CODE_LENGTH = 1000
     
     # Пути к файлам
-    LESSONS_DIR = os.path.join(os.path.dirname(__file__), 'lessons/lessons')
-    STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
-    TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    LESSONS_DIR = os.path.join(BASE_DIR, 'lessons/lessons')
+    STATIC_DIR = os.path.join(BASE_DIR, 'static')
+    TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
     
     # Настройки игры
     STARTING_COINS = 100
