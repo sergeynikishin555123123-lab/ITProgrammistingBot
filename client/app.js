@@ -1583,6 +1583,9 @@ print("Добро пожаловать на вашу виртуальную фе
 // Создаем глобальный объект приложения
 window.codeFarmApp = null;
 
+// В конце app.js
+window.setAppInstance(new CodeFarmApp());
+
 // Запускаем приложение при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 DOM загружен, запускаем CodeFarm...');
