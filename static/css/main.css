@@ -212,4 +212,86 @@ body {
 }
 
 /* Редактор кода */
-.code-editor
+.code-editor-container {
+    background: var(--gray-900);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.editor-header {
+    background: var(--gray-800);
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.editor-title {
+    font-family: 'Fira Code', monospace;
+    color: white;
+    font-weight: 500;
+}
+
+.code-editor {
+    width: 100%;
+    height: 400px;
+    background: var(--gray-900);
+    color: white;
+    font-family: 'Fira Code', monospace;
+    padding: 1rem;
+    border: none;
+    resize: vertical;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--gray-800);
+}
+
+/* Футер */
+.footer {
+    background: var(--gray-900);
+    color: white;
+    padding: 2rem 0;
+    margin-top: 3rem;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 0 1rem;
+}
+
+.footer-links {
+    margin-top: 1rem;
+}
+
+.footer-links a {
+    color: var(--light-green);
+    text-decoration: none;
+    margin: 0 0.5rem;
+}
+
+.footer-links a:hover {
+    text-decoration: underline;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .farm-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .nav-menu {
+        display: none;
+    }
+    
+    .nav-stats {
+        display: none;
+    }
+}
