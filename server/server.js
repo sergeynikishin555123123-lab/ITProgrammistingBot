@@ -15,6 +15,8 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Важно: правильный путь к статическим файлам
 app.use(express.static(path.join(__dirname, '../client')));
 
 // Инициализация
@@ -207,7 +209,7 @@ app.get('/set-webhook', (req, res) => {
     });
 });
 
-// Статические файлы фронтенда
+// Статические файлы фронтенда - исправленный путь
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/index.html'));
 });
