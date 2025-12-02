@@ -1086,6 +1086,7 @@
     </div>
 
     <!-- Основной JavaScript код приложения -->
+       <!-- Основной JavaScript код приложения -->
     <script>
         // Глобальные переменные
         let currentUser = null;
@@ -1126,6 +1127,9 @@
             
             // Создаем ферму
             createFarm();
+            
+            // Инициализируем обработчики событий
+            initEventHandlers();
         });
         
         // Инициализация для Telegram Web App
@@ -1135,12 +1139,6 @@
             // Расширяем на весь экран
             tg.expand();
             tg.ready();
-            
-            // Включаем кнопку "Назад"
-            tg.BackButton.show();
-            tg.BackButton.onClick(() => {
-                showScreen('main');
-            });
             
             // Получаем данные пользователя
             const user = tg.initDataUnsafe?.user;
@@ -1154,10 +1152,6 @@
                 // Регистрируем пользователя
                 registerUser();
             }
-            
-            // Меняем цвет фона
-            tg.setHeaderColor('#4CAF50');
-            tg.setBackgroundColor('#f8f9fa');
         }
         
         // Инициализация для обычного браузера
@@ -1318,136 +1312,167 @@
             }
         }
         
-        // Действия с фермой
-        window.farmActions = {
-            waterAll: function() {
-                // Находим все посевы
-                const crops = document.querySelectorAll('.farm-cell.crop');
-                crops.forEach(crop => {
-                    crop.classList.add('water-animation');
-                    // Обновляем данные
-                    const row = parseInt(crop.dataset.row);
-                    const col = parseInt(crop.dataset.col);
-                    const cellData = farmData.cells.find(c => c.row === row && c.col === col);
-                    if (cellData) {
-                        cellData.water = Math.min(100, cellData.water + 30);
-                        cellData.growth = Math.min(100, cellData.growth + 10);
+        // Инициализация обработчиков событий
+        function initEventHandlers() {
+            // Навигация
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const screen = this.getAttribute('data-screen');
+                    if (screen) {
+                        showScreen(screen);
                     }
                 });
+            });
+            
+            // Действия на ферме
+            document.querySelectorAll('.farm-action-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const action = this.getAttribute('data-action');
+                    handleFarmAction(action);
+                });
+            });
+            
+            // Быстрые действия
+            document.querySelectorAll('.quick-action-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const action = this.getAttribute('data-action');
+                    handleQuickAction(action);
+                });
+            });
+            
+            // Кнопки редактора кода
+            document.getElementById('run-code-btn')?.addEventListener('click', runCode);
+            document.getElementById('submit-code-btn')?.addEventListener('click', submitCode);
+            document.getElementById('clear-output-btn')?.addEventListener('click', clearOutput);
+            
+            // Кнопки модального окна
+            document.getElementById('close-modal-btn')?.addEventListener('click', closeModal);
+            document.getElementById('start-selected-lesson-btn')?.addEventListener('click', startSelectedLesson);
+        }
+        
+        // Обработка действий на ферме
+        function handleFarmAction(action) {
+            switch(action) {
+                case 'water':
+                    waterAllCrops();
+                    break;
+                case 'harvest':
+                    harvestAllCrops();
+                    break;
+                case 'plant':
+                    plantNewCrop();
+                    break;
+                case 'build':
+                    buildHouse();
+                    break;
+                case 'upgrade':
+                    upgradeFarm();
+                    break;
+            }
+        }
+        
+        // Обработка быстрых действий
+        function handleQuickAction(action) {
+            switch(action) {
+                case 'start_lesson_1':
+                    startLesson('lesson_1');
+                    break;
+                case 'sell_produce':
+                    sellProduce();
+                    break;
+            }
+        }
+        
+        function waterAllCrops() {
+            const crops = document.querySelectorAll('.farm-cell.crop');
+            crops.forEach(crop => {
+                crop.classList.add('water-animation');
+            });
+            
+            setTimeout(() => {
+                crops.forEach(crop => {
+                    crop.classList.remove('water-animation');
+                });
+            }, 1000);
+            
+            showNotification('💧 Полив завершен', 'Все растения политы! Рост ускорен на 10%.');
+            updateCoins(5);
+        }
+        
+        function harvestAllCrops() {
+            const crops = document.querySelectorAll('.farm-cell.crop');
+            let harvested = 0;
+            
+            crops.forEach(crop => {
+                harvested++;
+                crop.classList.add('harvest-animation');
+                crop.querySelector('.farm-cell-icon').textContent = '🔄';
                 
                 setTimeout(() => {
-                    crops.forEach(crop => {
-                        crop.classList.remove('water-animation');
-                    });
-                }, 1000);
-                
-                showNotification('💧 Полив завершен', 'Все растения политы! Рост ускорен на 10%.');
-                updateCoins(5);
-            },
+                    crop.querySelector('.farm-cell-icon').textContent = '🌱';
+                    crop.classList.remove('harvest-animation');
+                }, 500);
+            });
             
-            harvestAll: function() {
-                // Находим все созревшие посевы
-                const crops = document.querySelectorAll('.farm-cell.crop');
-                let harvested = 0;
-                
-                crops.forEach(crop => {
-                    const row = parseInt(crop.dataset.row);
-                    const col = parseInt(crop.dataset.col);
-                    const cellData = farmData.cells.find(c => c.row === row && c.col === col);
-                    
-                    if (cellData && cellData.growth >= 50) {
-                        harvested++;
-                        cellData.growth = 0;
-                        
-                        // Анимация сбора
-                        crop.classList.add('harvest-animation');
-                        crop.querySelector('.farm-cell-icon').textContent = '🔄';
-                        
-                        setTimeout(() => {
-                            crop.querySelector('.farm-cell-icon').textContent = '🌱';
-                            crop.classList.remove('harvest-animation');
-                        }, 500);
-                    }
-                });
-                
-                if (harvested > 0) {
-                    const coinsEarned = harvested * 15;
-                    showNotification('📦 Урожай собран!', `Собрано ${harvested} культур. Получено ${coinsEarned} монет!`);
-                    updateCoins(coinsEarned);
-                } else {
-                    showNotification('⚠️ Нечего собирать', 'Растения еще не созрели. Поливайте их для ускорения роста.');
-                }
-            },
-            
-            plantCrop: function() {
-                // Находим пустую клетку
-                const emptyCells = document.querySelectorAll('.farm-cell.empty');
-                if (emptyCells.length > 0) {
-                    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-                    
-                    // Превращаем в посев
-                    randomCell.className = 'farm-cell crop';
-                    randomCell.querySelector('.farm-cell-icon').textContent = '🌱';
-                    randomCell.classList.add('grow-animation');
-                    
-                    // Обновляем данные
-                    const row = parseInt(randomCell.dataset.row);
-                    const col = parseInt(randomCell.dataset.col);
-                    const cellData = farmData.cells.find(c => c.row === row && c.col === col);
-                    if (cellData) {
-                        cellData.type = 'crop';
-                        cellData.growth = 10;
-                        cellData.water = 50;
-                    }
-                    
-                    showNotification('🌱 Новые посадки', 'Вы посадили семена пшеницы. Через 3 дня будет урожай!');
-                    updateCoins(-10); // Стоимость семян
-                } else {
-                    showNotification('⚠️ Нет места', 'На ферме нет свободного места для посадки!');
-                }
-            },
-            
-            buildHouse: function() {
-                // Проверяем, есть ли дом
-                const hasHouse = document.querySelector('.farm-cell.house');
-                if (!hasHouse) {
-                    // Находим центральную клетку
-                    const centerCell = document.querySelector('.farm-cell[data-row="3"][data-col="3"]');
-                    if (centerCell && centerCell.classList.contains('empty')) {
-                        centerCell.className = 'farm-cell house';
-                        centerCell.querySelector('.farm-cell-icon').textContent = '🏠';
-                        centerCell.classList.add('grow-animation');
-                        
-                        showNotification('🏠 Дом построен!', 'Ваш новый дом готов. Теперь вы можете жить на ферме!');
-                        updateCoins(-100);
-                    }
-                } else {
-                    showNotification('🏠 Уже есть', 'У вас уже есть дом на ферме!');
-                }
-            },
-            
-            upgradeFarm: function() {
-                if (userData && userData.coins >= 200) {
-                    // Увеличиваем размер фермы
-                    farmData.size = Math.min(10, farmData.size + 1);
-                    
-                    // Пересоздаем ферму
-                    createFarm();
-                    
-                    showNotification('⬆️ Ферма улучшена!', 'Размер фермы увеличен. Теперь у вас больше места для построек!');
-                    updateCoins(-200);
-                } else {
-                    showNotification('⚠️ Недостаточно монет', 'Для улучшения фермы нужно 200 монет.');
-                }
-            },
-            
-            sellProduce: function() {
-                // Имитация продажи урожая
-                const saleAmount = Math.floor(Math.random() * 100) + 50;
-                showNotification('💰 Продажа урожая', `Вы продали урожай за ${saleAmount} монет!`);
-                updateCoins(saleAmount);
+            if (harvested > 0) {
+                const coinsEarned = harvested * 15;
+                showNotification('📦 Урожай собран!', `Собрано ${harvested} культур. Получено ${coinsEarned} монет!`);
+                updateCoins(coinsEarned);
+            } else {
+                showNotification('⚠️ Нечего собирать', 'Растения еще не созрели. Поливайте их для ускорения роста.');
             }
-        };
+        }
+        
+        function plantNewCrop() {
+            const emptyCells = document.querySelectorAll('.farm-cell.empty');
+            if (emptyCells.length > 0) {
+                const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                
+                randomCell.className = 'farm-cell crop';
+                randomCell.querySelector('.farm-cell-icon').textContent = '🌱';
+                randomCell.classList.add('grow-animation');
+                
+                showNotification('🌱 Новые посадки', 'Вы посадили семена пшеницы. Через 3 дня будет урожай!');
+                updateCoins(-10);
+            } else {
+                showNotification('⚠️ Нет места', 'На ферме нет свободного места для посадки!');
+            }
+        }
+        
+        function buildHouse() {
+            const hasHouse = document.querySelector('.farm-cell.house');
+            if (!hasHouse) {
+                const centerCell = document.querySelector('.farm-cell[data-row="3"][data-col="3"]');
+                if (centerCell && centerCell.classList.contains('empty')) {
+                    centerCell.className = 'farm-cell house';
+                    centerCell.querySelector('.farm-cell-icon').textContent = '🏠';
+                    centerCell.classList.add('grow-animation');
+                    
+                    showNotification('🏠 Дом построен!', 'Ваш новый дом готов. Теперь вы можете жить на ферме!');
+                    updateCoins(-100);
+                }
+            } else {
+                showNotification('🏠 Уже есть', 'У вас уже есть дом на ферме!');
+            }
+        }
+        
+        function upgradeFarm() {
+            if (userData && userData.coins >= 200) {
+                farmData.size = Math.min(10, farmData.size + 1);
+                createFarm();
+                
+                showNotification('⬆️ Ферма улучшена!', 'Размер фермы увеличен. Теперь у вас больше места для построек!');
+                updateCoins(-200);
+            } else {
+                showNotification('⚠️ Недостаточно монет', 'Для улучшения фермы нужно 200 монет.');
+            }
+        }
+        
+        function sellProduce() {
+            const saleAmount = Math.floor(Math.random() * 100) + 50;
+            showNotification('💰 Продажа урожая', `Вы продали урожай за ${saleAmount} монет!`);
+            updateCoins(saleAmount);
+        }
         
         // Старт загрузки
         function startLoading() {
@@ -1497,7 +1522,6 @@
                 
             } catch (error) {
                 console.error('Ошибка регистрации:', error);
-                // Используем демо-данные
                 userData = userData || {
                     level: 1,
                     coins: 100,
@@ -1517,7 +1541,6 @@
         function updateUserStats() {
             if (!userData) return;
             
-            // Обновляем элементы
             const stats = {
                 'user-level-value': userData.level || 1,
                 'user-coins-value': userData.coins || 100,
@@ -1552,10 +1575,13 @@
         function updateProfileInfo() {
             if (!currentUser) return;
             
-            document.getElementById('profile-name').textContent = 
-                currentUser.first_name || 'Фермер';
-            document.getElementById('profile-username').textContent = 
-                currentUser.username ? '@' + currentUser.username : 'Без username';
+            const nameElement = document.getElementById('profile-name');
+            const usernameElement = document.getElementById('profile-username');
+            
+            if (nameElement) nameElement.textContent = currentUser.first_name || 'Фермер';
+            if (usernameElement) {
+                usernameElement.textContent = currentUser.username ? '@' + currentUser.username : 'Без username';
+            }
         }
         
         // Загрузка уроков
@@ -1563,67 +1589,65 @@
             try {
                 const response = await fetch('/api/lessons');
                 lessonsData = await response.json();
-                
-                // Отображаем уроки
                 renderLessons();
-                
             } catch (error) {
                 console.error('Ошибка загрузки уроков:', error);
-                
-                // Создаем демо-уроки
-                lessonsData = [
-                    {
-                        id: 'lesson_1',
-                        title: 'Первые команды боту-помощнику',
-                        description: 'Научитесь давать базовые команды боту',
-                        level: 1,
-                        experience: 100,
-                        coins: 50,
-                        completed: true,
-                        theory: 'Основы работы с функциями print() и bot_say()',
-                        task: 'Напишите программу, которая поприветствует бота',
-                        initialCode: 'print("Привет, АгроБот!")'
-                    },
-                    {
-                        id: 'lesson_2',
-                        title: 'Переменные - Проект фермы',
-                        description: 'Используйте переменные для создания проекта фермы',
-                        level: 1,
-                        experience: 150,
-                        coins: 75,
-                        completed: false,
-                        theory: 'Работа с переменными и типами данных',
-                        task: 'Создайте переменные для названия фермы и площади',
-                        initialCode: 'farm_name = "Солнечная долина"\narea = 100'
-                    },
-                    {
-                        id: 'lesson_3',
-                        title: 'Функции - Расчистка территории',
-                        description: 'Создайте свои функции для управления техникой',
-                        level: 1,
-                        experience: 200,
-                        coins: 100,
-                        completed: false,
-                        theory: 'Создание и вызов пользовательских функций',
-                        task: 'Создайте функцию для запуска трактора',
-                        initialCode: 'def start_tractor():\n    print("Запускаю трактор...")'
-                    },
-                    {
-                        id: 'lesson_4',
-                        title: 'Аргументы функций - Строительство дома',
-                        description: 'Используйте аргументы функций для кастомизации',
-                        level: 2,
-                        experience: 250,
-                        coins: 125,
-                        completed: false,
-                        theory: 'Работа с аргументами функций',
-                        task: 'Создайте функцию постройки дома с параметрами',
-                        initialCode: 'def build_house(material, floors):\n    print(f"Строю {floors}-этажный дом из {material}")'
-                    }
-                ];
-                
+                lessonsData = createDemoLessons();
                 renderLessons();
             }
+        }
+        
+        function createDemoLessons() {
+            return [
+                {
+                    id: 'lesson_1',
+                    title: 'Первые команды боту-помощнику',
+                    description: 'Научитесь давать базовые команды боту',
+                    level: 1,
+                    experience: 100,
+                    coins: 50,
+                    completed: true,
+                    theory: 'Основы работы с функциями print() и bot_say()',
+                    task: 'Напишите программу, которая поприветствует бота',
+                    initialCode: 'print("Привет, АгроБот!")'
+                },
+                {
+                    id: 'lesson_2',
+                    title: 'Переменные - Проект фермы',
+                    description: 'Используйте переменные для создания проекта фермы',
+                    level: 1,
+                    experience: 150,
+                    coins: 75,
+                    completed: false,
+                    theory: 'Работа с переменными и типами данных',
+                    task: 'Создайте переменные для названия фермы и площади',
+                    initialCode: 'farm_name = "Солнечная долина"\narea = 100'
+                },
+                {
+                    id: 'lesson_3',
+                    title: 'Функции - Расчистка территории',
+                    description: 'Создайте свои функции для управления техникой',
+                    level: 1,
+                    experience: 200,
+                    coins: 100,
+                    completed: false,
+                    theory: 'Создание и вызов пользовательских функций',
+                    task: 'Создайте функцию для запуска трактора',
+                    initialCode: 'def start_tractor():\n    print("Запускаю трактор...")'
+                },
+                {
+                    id: 'lesson_4',
+                    title: 'Аргументы функций - Строительство дома',
+                    description: 'Используйте аргументы функций для кастомизации',
+                    level: 2,
+                    experience: 250,
+                    coins: 125,
+                    completed: false,
+                    theory: 'Работа с аргументами функций',
+                    task: 'Создайте функцию постройки дома с параметрами',
+                    initialCode: 'def build_house(material, floors):\n    print(f"Строю {floors}-этажный дом из {material}")'
+                }
+            ];
         }
         
         // Отображение уроков
@@ -1664,14 +1688,12 @@
                         </div>
                     </div>
                     
-                    card.innerHTML = `
-    ...
-    <button class="start-lesson-btn" 
-            onclick="window.startLesson('${lesson.id}')"
-            ${!available ? 'disabled' : ''}>
-        ${completed ? 'Повторить урок' : available ? 'Начать урок' : 'Заблокировано'}
-    </button>
-`;
+                    <button class="btn btn-primary" style="width: 100%; margin-top: 15px;" 
+                            onclick="window.startLesson('${lesson.id}')"
+                            ${statusClass === 'status-locked' ? 'disabled' : ''}>
+                        ${lesson.completed ? 'Повторить урок' : 'Начать урок'}
+                    </button>
+                `;
                 
                 container.appendChild(lessonElement);
             });
@@ -1779,30 +1801,9 @@
             }
             
             // Обновляем навигацию
-            updateNavigation(screenName);
-            
-            // Показываем/скрываем кнопку "Назад" в Telegram
-            if (window.Telegram && Telegram.WebApp) {
-                if (screenName === 'main') {
-                    Telegram.WebApp.BackButton.hide();
-                } else {
-                    Telegram.WebApp.BackButton.show();
-                }
-            }
-            
-            // Показываем вывод кода только на экране редактора
-            const outputContainer = document.getElementById('output-container');
-            if (outputContainer) {
-                outputContainer.style.display = screenName === 'code' ? 'block' : 'none';
-            }
-        }
-        
-        // Обновление навигации
-        function updateNavigation(activeScreen) {
-            const navItems = document.querySelectorAll('.nav-item');
-            navItems.forEach(item => {
+            document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
-                if (item.onclick && item.onclick.toString().includes(activeScreen)) {
+                if (item.getAttribute('data-screen') === screenName) {
                     item.classList.add('active');
                 }
             });
@@ -1843,54 +1844,37 @@ print("Добро пожаловать на вашу виртуальную фе
             const outputContainer = document.getElementById('output-container');
             
             if (output && outputContainer) {
-                // Имитация выполнения кода
                 output.textContent = '>>> Запускаю код...\n\n';
                 
-                // Имитация вывода
+                // Имитация выполнения кода
                 const lines = code.split('\n');
                 let lineNumber = 1;
+                let outputText = '';
                 
-                lines.forEach((line) => {
-                    if (line.trim() && !line.trim().startsWith('#')) {
-                        setTimeout(() => {
-                            output.textContent += `[Строка ${lineNumber}] ${line.trim()}\n`;
+                lines.forEach((line, index) => {
+                    setTimeout(() => {
+                        if (line.trim() && !line.trim().startsWith('#')) {
+                            outputText += `[Строка ${lineNumber}] ${line.trim()}\n`;
                             
                             // Имитация вывода print()
                             if (line.includes('print(') && line.includes(')')) {
                                 const match = line.match(/print\(["'](.+?)["']\)/);
                                 if (match) {
-                                    output.textContent += match[1] + '\n';
-                                }
-                            }
-                            
-                            // Имитация bot_say
-                            if (line.includes('bot_say(') && line.includes(')')) {
-                                const match = line.match(/bot_say\(["'](.+?)["']\)/);
-                                if (match) {
-                                    output.textContent += '🤖 Бот говорит: "' + match[1] + '"\n';
-                                }
-                            }
-                            
-                            // Имитация clear_area
-                            if (line.includes('clear_area(') && line.includes(')')) {
-                                const match = line.match(/clear_area\(["'](.+?)["']\)/);
-                                if (match) {
-                                    output.textContent += '🚜 Расчищаю участок: ' + match[1] + '\n';
+                                    outputText += match[1] + '\n';
                                 }
                             }
                             
                             lineNumber++;
-                        }, lineNumber * 200);
-                    }
+                            output.textContent = outputText;
+                        }
+                        
+                        if (index === lines.length - 1) {
+                            output.textContent += '\n>>> Код выполнен успешно! ✅';
+                            outputContainer.style.display = 'block';
+                            outputContainer.scrollTop = outputContainer.scrollHeight;
+                        }
+                    }, index * 100);
                 });
-                
-                setTimeout(() => {
-                    output.textContent += '\n>>> Код выполнен успешно! ✅';
-                    outputContainer.style.display = 'block';
-                    
-                    // Прокручиваем к результату
-                    outputContainer.scrollTop = outputContainer.scrollHeight;
-                }, lines.length * 200 + 500);
             }
         }
         
@@ -1908,7 +1892,6 @@ print("Добро пожаловать на вашу виртуальную фе
             }
             
             try {
-                // Используем текущий урок или первый урок по умолчанию
                 const lessonId = currentLesson?.id || 'lesson_1';
                 
                 const response = await fetch(`/api/lessons/${lessonId}/submit`, {
@@ -1926,28 +1909,10 @@ print("Добро пожаловать на вашу виртуальную фе
                     showNotification('🎉 Успех!', `Урок "${currentLesson?.title || 'Урок 1'}" пройден! Награда: ${result.reward || 50} монет`);
                     
                     // Обновляем монеты
-                    if (result.coins) {
-                        updateCoins(result.reward || 50);
-                    }
-                    
-                    // Обновляем статистику
-                    if (userData) {
-                        userData.lessonsCompleted = (userData.lessonsCompleted || 0) + 1;
-                        userData.experience = (userData.experience || 0) + 100;
-                        userData.codeLines = (userData.codeLines || 0) + code.split('\n').length;
-                        userData.problemsSolved = (userData.problemsSolved || 0) + 1;
-                        
-                        // Проверяем повышение уровня
-                        if (userData.experience >= (userData.level || 1) * 1000) {
-                            userData.level = (userData.level || 1) + 1;
-                            showNotification('⭐ Новый уровень!', `Поздравляем! Вы достигли уровня ${userData.level}!`);
-                        }
-                        
+                    if (result.coins && userData) {
+                        userData.coins += result.reward || 50;
                         updateUserStats();
                     }
-                    
-                    // Показываем анимацию успеха
-                    showSuccessAnimation();
                     
                 } else {
                     showNotification('❌ Ошибка', result.message || 'Есть ошибки в коде. Проверьте свой код и попробуйте снова.');
@@ -1955,11 +1920,12 @@ print("Добро пожаловать на вашу виртуальную фе
                 
             } catch (error) {
                 console.error('Ошибка отправки:', error);
-                
-                // Имитация успеха для демо
                 showNotification('🎉 Демо: Урок пройден!', `Урок "${currentLesson?.title || 'Урок 1'}" пройден! Награда: 50 монет (демо-режим)`);
-                updateCoins(50);
-                showSuccessAnimation();
+                
+                if (userData) {
+                    userData.coins += 50;
+                    updateUserStats();
+                }
             }
         }
         
@@ -1985,21 +1951,9 @@ print("Добро пожаловать на вашу виртуальную фе
                 }
                 
                 // Показываем изменение
-                if (amount > 0) {
+                if (amount !== 0) {
                     showNotification('💰 ' + (amount > 0 ? 'Получено' : 'Потрачено'), Math.abs(amount) + ' монет');
                 }
-            }
-        }
-        
-        // Показать анимацию успеха
-        function showSuccessAnimation() {
-            // Добавляем эффект пульсации к кнопке отправки
-            const submitBtn = document.querySelector('.editor-actions .btn-primary');
-            if (submitBtn) {
-                submitBtn.classList.add('pulse');
-                setTimeout(() => {
-                    submitBtn.classList.remove('pulse');
-                }, 2000);
             }
         }
         
@@ -2032,286 +1986,15 @@ print("Добро пожаловать на вашу виртуальную фе
                 }, 5000);
             }
         }
-    <script>
-// Функция для загрузки и отображения фермы
-async function loadFarmVisualization() {
-    if (!currentUserId) return;
-    
-    try {
-        const response = await fetch(`/api/farm/${currentUserId}/visual`);
-        const farm = await response.json();
         
-        renderFarm(farm);
-        updateFarmStats(farm);
-        
-    } catch (error) {
-        console.error('Ошибка загрузки фермы:', error);
-        // Показываем демо-ферму
-        showDemoFarm();
-    }
-}
-
-// Рендеринг фермы
-function renderFarm(farmData) {
-    const farmGrid = document.getElementById('farm-grid');
-    if (!farmGrid) return;
-    
-    farmGrid.innerHTML = '';
-    farmGrid.style.gridTemplateColumns = `repeat(${farmData.width}, 1fr)`;
-    farmGrid.style.gridTemplateRows = `repeat(${farmData.height}, 1fr)`;
-    
-    // Сортируем клетки для правильного отображения
-    farmData.cells.sort((a, b) => {
-        if (a.y !== b.y) return a.y - b.y;
-        return a.x - b.x;
-    });
-    
-    farmData.cells.forEach(cell => {
-        const cellElement = document.createElement('div');
-        cellElement.className = `farm-cell ${cell.type}`;
-        cellElement.dataset.x = cell.x;
-        cellElement.dataset.y = cell.y;
-        
-        // Создаем содержимое клетки
-        let content = cell.emoji;
-        let title = '';
-        
-        switch(cell.type) {
-            case 'overgrown':
-                content = '🌿';
-                title = 'Заросший участок. Нужно расчистить!';
-                break;
-            case 'building':
-                if (cell.buildingType === 'house') {
-                    content = '🏠';
-                    title = 'Ваш дом';
-                } else if (cell.buildingType === 'greenhouse') {
-                    content = '🌿';
-                    title = 'Умная теплица';
-                } else {
-                    content = '🏗️';
-                    title = 'Постройка';
-                }
-                break;
-            case 'crop':
-                if (cell.cropType === 'wheat') {
-                    content = '🌾';
-                    title = `Пшеница (рост: ${cell.cropGrowth}%)`;
-                } else if (cell.cropType === 'carrot') {
-                    content = '🥕';
-                    title = `Морковь (рост: ${cell.cropGrowth}%)`;
-                } else if (cell.cropType === 'potato') {
-                    content = '🥔';
-                    title = `Картофель (рост: ${cell.cropGrowth}%)`;
-                } else {
-                    content = '🌱';
-                    title = 'Растение';
-                }
-                break;
-            case 'cleared':
-                content = '🟫';
-                title = 'Очищенная земля. Готова для постройки или посадки.';
-                break;
-            case 'plowed':
-                content = '🟨';
-                title = 'Вспаханное поле. Готово для посадки.';
-                break;
-            default:
-                content = cell.emoji;
-                title = cell.type;
-        }
-        
-        cellElement.innerHTML = `
-            <div class="farm-cell-content">${content}</div>
-            <div class="farm-cell-coords">${cell.x},${cell.y}</div>
-        `;
-        cellElement.title = title;
-        
-        // Добавляем стили
-        cellElement.style.background = cell.color;
-        cellElement.style.border = '1px solid rgba(0,0,0,0.1)';
-        cellElement.style.display = 'flex';
-        cellElement.style.flexDirection = 'column';
-        cellElement.style.alignItems = 'center';
-        cellElement.style.justifyContent = 'center';
-        cellElement.style.fontSize = '20px';
-        cellElement.style.position = 'relative';
-        cellElement.style.cursor = 'pointer';
-        cellElement.style.transition = 'all 0.3s';
-        
-        // Эффект при наведении
-        cellElement.addEventListener('mouseenter', () => {
-            cellElement.style.transform = 'scale(1.1)';
-            cellElement.style.zIndex = '10';
-            cellElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-        });
-        
-        cellElement.addEventListener('mouseleave', () => {
-            cellElement.style.transform = 'scale(1)';
-            cellElement.style.zIndex = '1';
-            cellElement.style.boxShadow = 'none';
-        });
-        
-        // Клик по клетке
-        cellElement.addEventListener('click', () => {
-            showCellInfo(cell);
-        });
-        
-        farmGrid.appendChild(cellElement);
-    });
-}
-
-// Показываем информацию о клетке
-function showCellInfo(cell) {
-    let info = '';
-    
-    switch(cell.type) {
-        case 'overgrown':
-            info = `🌿 Заросший участок (${cell.x},${cell.y})
-                    \nТребуется расчистка. Пройдите урок 1!`;
-            break;
-        case 'building':
-            if (cell.buildingType === 'house') {
-                info = `🏠 Ваш дом (${cell.x},${cell.y})
-                        \nГлавное здание фермы. Здесь вы отдыхаете и планируете работы.`;
-            } else if (cell.buildingType === 'greenhouse') {
-                info = `🌿 Умная теплица (${cell.x},${cell.y})
-                        \nАвтоматически поддерживает идеальные условия для растений.`;
-            }
-            break;
-        case 'crop':
-            info = `${cell.emoji} ${getCropName(cell.cropType)} (${cell.x},${cell.y})
-                    \nРост: ${cell.cropGrowth}%
-                    \nСостояние: ${cell.cropGrowth >= 80 ? 'Готов к сбору' : 'Растет'}`;
-            break;
-        case 'cleared':
-            info = `🟫 Очищенная земля (${cell.x},${cell.y})
-                    \nГотова для строительства или посадки растений.`;
-            break;
-        case 'plowed':
-            info = `🟨 Вспаханное поле (${cell.x},${cell.y})
-                    \nИдеально подготовлено для посадки культур.`;
-            break;
-    }
-    
-    showNotification('🌾 Ферма', info);
-}
-
-function getCropName(type) {
-    const names = {
-        'wheat': 'Пшеница',
-        'carrot': 'Морковь',
-        'potato': 'Картофель'
-    };
-    return names[type] || type;
-}
-
-// Обновление статистики фермы
-function updateFarmStats(farmData) {
-    const stats = {
-        clearedLand: farmData.stats.clearedLand || 0,
-        buildings: farmData.buildings.length || 0,
-        crops: farmData.crops.length || 0,
-        completedLessons: farmData.stats.completedLessons || 0
-    };
-    
-    // Обновляем элементы статистики
-    document.getElementById('cleared-land-count').textContent = stats.clearedLand;
-    document.getElementById('buildings-count').textContent = stats.buildings;
-    document.getElementById('crops-count').textContent = stats.crops;
-    
-    // Обновляем прогресс-бар
-    const progress = (stats.completedLessons / 28) * 100;
-    document.getElementById('farm-progress-bar').style.width = `${progress}%`;
-}
-
-// Демо-ферма если не удалось загрузить
-function showDemoFarm() {
-    const farmGrid = document.getElementById('farm-grid');
-    if (!farmGrid) return;
-    
-    // Создаем простую демо-ферму
-    farmGrid.innerHTML = '';
-    
-    for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-            const cell = document.createElement('div');
-            cell.className = 'farm-cell';
-            
-            // Центр - дом
-            if (x === 3 && y === 3) {
-                cell.innerHTML = '🏠';
-                cell.style.background = '#FF9800';
-                cell.title = 'Ваш дом';
-            }
-            // Заросшие участки
-            else if (x < 3 || y < 3) {
-                cell.innerHTML = '🌿';
-                cell.style.background = '#2E7D32';
-                cell.title = 'Заросший участок';
-            }
-            // Очищенные участки
-            else {
-                cell.innerHTML = '🟫';
-                cell.style.background = '#8D6E63';
-                cell.title = 'Очищенная земля';
-            }
-            
-            cell.style.display = 'flex';
-            cell.style.alignItems = 'center';
-            cell.style.justifyContent = 'center';
-            cell.style.fontSize = '20px';
-            cell.style.border = '1px solid rgba(0,0,0,0.1)';
-            cell.style.cursor = 'pointer';
-            
-            farmGrid.appendChild(cell);
-        }
-    }
-}
-
- // Временные функции пока не загрузится app.js
-    let app = null;
-    
-    function showScreen(screenName) {
-        console.log('showScreen вызван:', screenName);
-        if (app && app.showScreen) {
-            app.showScreen(screenName);
-        } else {
-            // Простая реализация пока приложение не загружено
-            document.querySelectorAll('[id$="-screen"]').forEach(el => {
-                el.style.display = 'none';
-            });
-            const target = document.getElementById(screenName + '-screen');
-            if (target) target.style.display = 'block';
-        }
-    }
-    
-    function runCode() {
-        console.log('Запуск кода');
-        if (app && app.runCode) app.runCode();
-    }
-    
-    function submitCode() {
-        console.log('Отправка кода');
-        if (app && app.submitSolution) app.submitSolution();
-    }
-    
-    function startLesson(lessonId) {
-        console.log('Начало урока:', lessonId);
-        if (app && app.startLesson) app.startLesson(lessonId);
-    }
-    
-    function clearOutput() {
-        console.log('Очистка вывода');
-        if (app && app.clearOutput) app.clearOutput();
-    }
-    
-    // Когда app.js загрузится, он обновит переменную app
-    window.setAppInstance = (instance) => {
-        app = instance;
-        console.log('Приложение загружено');
-    };
-
-</script>
+        // Делаем функции доступными глобально
+        window.showScreen = showScreen;
+        window.runCode = runCode;
+        window.submitCode = submitCode;
+        window.startLesson = startLesson;
+        window.startSelectedLesson = startSelectedLesson;
+        window.clearOutput = clearOutput;
+        window.closeModal = closeModal;
+    </script>
 </body>
 </html>
