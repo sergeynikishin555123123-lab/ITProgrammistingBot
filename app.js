@@ -20,6 +20,11 @@ try {
         const dataFiles = fs.readdirSync('data');
         console.log('data/:', dataFiles);
     }
+    
+    if (fs.existsSync('app')) {
+        const appFiles = fs.readdirSync('app');
+        console.log('app/:', appFiles);
+    }
 } catch (err) {
     console.log('Ошибка чтения структуры:', err.message);
 }
@@ -33,12 +38,12 @@ try {
     
     // Проверяем, где находится server.js
     let serverPath;
-    if (fs.existsSync('server.js')) {
+    if (fs.existsSync('app/server.js')) {
+        serverPath = './app/server.js';
+        console.log('✅ server.js найден в app/');
+    } else if (fs.existsSync('server.js')) {
         serverPath = './server.js';
         console.log('✅ server.js найден в корне');
-    } else if (fs.existsSync('server/server.js')) {
-        serverPath = './server/server.js';
-        console.log('✅ server.js найден в server/');
     } else {
         console.log('❌ server.js не найден!');
         process.exit(1);
