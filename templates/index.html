@@ -1,30 +1,345 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="hero">
-    <div class="container">
-        <h2>🎮 Учи Python, выращивая ферму!</h2>
-        <p>Интерактивная платформа для обучения программированию через геймификацию</p>
-        
-        <div class="features">
-            <div class="feature">
-                <h3>🌱 Практические уроки</h3>
-                <p>50+ уроков от основ до продвинутого Python</p>
-            </div>
-            <div class="feature">
-                <h3>🏠 Визуальный прогресс</h3>
-                <p>Видишь результат кода на своей ферме в 2.5D</p>
-            </div>
-            <div class="feature">
-                <h3>🤖 Умный помощник</h3>
-                <p>Telegram бот помогает в обучении</p>
+<div class="telegram-app">
+    <div class="app-header">
+        <div class="user-info">
+            <div class="avatar">🚜</div>
+            <div class="user-details">
+                <h3 id="username">Фермер</h3>
+                <div class="stats">
+                    <span class="level">Уровень: <span id="userLevel">1</span></span>
+                    <span class="coins">💰 <span id="userCoins">100</span></span>
+                    <span class="exp">⭐ <span id="userExp">0/100</span></span>
+                </div>
             </div>
         </div>
+        
+        <div class="app-controls">
+            <button onclick="showLessons()" class="btn-lessons">📚 Уроки</button>
+            <button onclick="showFarm()" class="btn-farm">🏠 Ферма</button>
+        </div>
+    </div>
 
-        <div class="cta-buttons">
-            <a href="/lesson/1" class="btn btn-primary">Начать обучение</a>
-            <a href="https://t.me/{{ bot_username }}" class="btn btn-secondary">Открыть в Telegram</a>
+    <div class="app-content" id="appContent">
+        <!-- Контент будет меняться динамически -->
+        <div class="welcome-screen">
+            <h2>🚜 Добро пожаловать на CodeFarm!</h2>
+            <p>Твоя ферма ждет своего программиста!</p>
+            
+            <div class="quick-stats">
+                <div class="stat-card">
+                    <h4>📊 Прогресс</h4>
+                    <p>Пройдено уроков: <span id="completedCount">0</span>/<span id="totalLessons">50</span></p>
+                </div>
+                <div class="stat-card">
+                    <h4>🎯 Цель</h4>
+                    <p>Стать Junior Python разработчиком</p>
+                </div>
+            </div>
+            
+            <div class="start-buttons">
+                <button onclick="startLesson(1)" class="btn-start-lesson">
+                    🚀 Начать первый урок
+                </button>
+                <button onclick="showFarm()" class="btn-view-farm">
+                    🏠 Посмотреть ферму
+                </button>
+            </div>
+            
+            <div class="recent-lessons">
+                <h4>📚 Недавние уроки</h4>
+                <div class="lessons-list" id="recentLessons">
+                    <!-- Уроки будут загружены через JS -->
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+// Получаем session_token из URL или localStorage
+const urlParams = new URLSearchParams(window.location.search);
+const sessionToken = urlParams.get('startapp') || localStorage.getItem('codefarm_session');
+
+if (sessionToken) {
+    localStorage.setItem('codefarm_session', sessionToken);
+    loadUserProgress();
+}
+
+async function loadUserProgress() {
+    try {
+        const response = await fetch(`/api/user_progress?session_token=${sessionToken}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('username').textContent = data.user.username;
+            document.getElementById('userLevel').textContent = data.user.level;
+            document.getElementById('userCoins').textContent = data.user.coins;
+            document.getElementById('userExp').textContent = `${data.user.experience}/100`;
+            document.getElementById('completedCount').textContent = data.progress.completed_lessons.length;
+            document.getElementById('totalLessons').textContent = data.progress.total_lessons;
+            
+            // Показываем недавние уроки
+            showRecentLessons(data.progress.completed_lessons);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки прогресса:', error);
+    }
+}
+
+function showRecentLessons(completedLessons) {
+    const lessonsContainer = document.getElementById('recentLessons');
+    lessonsContainer.innerHTML = '';
+    
+    // Показываем последние 3 пройденных урока
+    const recent = completedLessons.slice(-3).reverse();
+    
+    recent.forEach(lessonId => {
+        const lessonDiv = document.createElement('div');
+        lessonDiv.className = 'lesson-item completed';
+        lessonDiv.innerHTML = `
+            <span>✅ Урок ${lessonId}</span>
+            <button onclick="startLesson(${lessonId})" class="btn-review">Повторить</button>
+        `;
+        lessonsContainer.appendChild(lessonDiv);
+    });
+    
+    // Добавляем следующий урок
+    const nextLesson = completedLessons.length + 1;
+    const nextDiv = document.createElement('div');
+    nextDiv.className = 'lesson-item next';
+    nextDiv.innerHTML = `
+        <span>🎯 Урок ${nextLesson} (Следующий)</span>
+        <button onclick="startLesson(${nextLesson})" class="btn-start">Начать</button>
+    `;
+    lessonsContainer.appendChild(nextDiv);
+}
+
+function startLesson(lessonId) {
+    window.location.href = `/lesson/${lessonId}?session_token=${sessionToken}`;
+}
+
+function showLessons() {
+    window.location.href = `/lessons?session_token=${sessionToken}`;
+}
+
+function showFarm() {
+    // В будущем будет страница фермы
+    alert('Ферма будет доступна в следующем обновлении! Пока что учись программировать! 🚀');
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    if (!sessionToken) {
+        document.getElementById('appContent').innerHTML = `
+            <div class="error-screen">
+                <h2>❌ Ошибка доступа</h2>
+                <p>Чтобы использовать CodeFarm, начни с Telegram бота:</p>
+                <ol>
+                    <li>Найди @CodeFarmBot в Telegram</li>
+                    <li>Нажми /start</li>
+                    <li>Нажми кнопку "🚀 Открыть CodeFarm"</li>
+                </ol>
+                <p>Или перейди напрямую: <a href="https://t.me/CodeFarmBot" target="_blank">@CodeFarmBot</a></p>
+            </div>
+        `;
+    }
+});
+</script>
+
+<style>
+.telegram-app {
+    max-width: 100%;
+    margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: white;
+}
+
+.app-header {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.avatar {
+    font-size: 2.5rem;
+    background: rgba(255, 255, 255, 0.2);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-details h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2rem;
+}
+
+.stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.app-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-lessons, .btn-farm {
+    flex: 1;
+    padding: 0.75rem;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.btn-lessons:hover, .btn-farm:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.app-content {
+    padding: 1rem;
+}
+
+.welcome-screen h2 {
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.welcome-screen > p {
+    text-align: center;
+    opacity: 0.9;
+    margin-bottom: 2rem;
+}
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1rem;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.stat-card h4 {
+    margin: 0 0 0.5rem 0;
+}
+
+.start-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.btn-start-lesson, .btn-view-farm {
+    padding: 1rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: transform 0.3s;
+}
+
+.btn-start-lesson {
+    background: #2ecc71;
+    color: white;
+}
+
+.btn-view-farm {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.btn-start-lesson:hover, .btn-view-farm:hover {
+    transform: translateY(-2px);
+}
+
+.recent-lessons h4 {
+    margin-bottom: 1rem;
+}
+
+.lessons-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.lesson-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.75rem;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.lesson-item.completed {
+    border-left: 4px solid #2ecc71;
+}
+
+.lesson-item.next {
+    border-left: 4px solid #f39c12;
+}
+
+.btn-review, .btn-start {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.btn-review {
+    background: rgba(46, 204, 113, 0.3);
+    color: white;
+}
+
+.btn-start {
+    background: #f39c12;
+    color: white;
+}
+
+.error-screen {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    margin-top: 2rem;
+}
+
+.error-screen ol {
+    text-align: left;
+    display: inline-block;
+    margin: 1rem 0;
+}
+
+.error-screen a {
+    color: #2ecc71;
+    text-decoration: none;
+}
+</style>
 {% endblock %}
