@@ -1,9 +1,17 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram.ext import ContextTypes, Application, CommandHandler, MessageHandler, filters
 import json
+import logging
+
+# Настройка логирования
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 class BotHandlers:
-    """Обработчики Telegram бота"""
+    """Обработчики Telegram бота - ТОЛЬКО ПРИВЕТСТВИЕ И ПЕРЕХОД В WEB APP"""
     
     def __init__(self, db, lesson_system, farm_engine):
         self.db = db
@@ -11,100 +19,124 @@ class BotHandlers:
         self.farm_engine = farm_engine
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /start"""
+        """Обработчик команды /start - ПРИВЕТСТВИЕ И КНОПКА В WEB APP"""
         user = update.effective_user
         telegram_id = user.id
         
-        # Регистрируем пользователя
-        cursor = self.db.connection.cursor()
-        cursor.execute(
-            "INSERT INTO users (telegram_id, username) VALUES (%s, %s) ON CONFLICT (telegram_id) DO NOTHING RETURNING id",
-            (telegram_id, user.username)
-        )
+        logger.info(f"Получена команда /start от пользователя {user.username} (ID: {telegram_id})")
         
-        result = cursor.fetchone()
-        if result:
-            user_id = result[0]
-            # Создаем начальную ферму
-            farm_data = self.farm_engine.create_new_farm(user_id)
-            cursor.execute(
-                "INSERT INTO farm_state (user_id, field_data) VALUES (%s, %s)",
-                (user_id, json.dumps(farm_data))
-            )
+        try:
+            # Регистрируем пользователя в базе (простая версия)
+            cursor = self.db.connection.cursor()
+            
+            if hasattr(self.db.connection, 'execute'):  # SQLite
+                cursor.execute(
+                    "INSERT OR IGNORE INTO users (telegram_id, username, first_name) VALUES (?, ?, ?)",
+                    (telegram_id, user.username, user.first_name)
+                )
+            else:  # PostgreSQL
+                cursor.execute(
+                    """
+                    INSERT INTO users (telegram_id, username, first_name) 
+                    VALUES (%s, %s, %s) 
+                    ON CONFLICT (telegram_id) 
+                    DO UPDATE SET username = EXCLUDED.username, first_name = EXCLUDED.first_name
+                    """,
+                    (telegram_id, user.username, user.first_name)
+                )
+            
             self.db.connection.commit()
-        
-        cursor.close()
+            cursor.close()
+            
+        except Exception as e:
+            logger.error(f"Ошибка при регистрации пользователя: {e}")
+            # Продолжаем даже если ошибка
         
         # Приветственное сообщение
-        welcome_text = """
-        🚜 Добро пожаловать на CodeFarm! 🎮
+        welcome_text = f"""
+        🚜 *Добро пожаловать на CodeFarm, {user.first_name}!* 🎮
 
-        Ты стал владельцем собственной фермы, где будешь учиться программированию на Python!
+        *Ты стал владельцем собственной фермы, где будешь учиться программированию на Python!*
 
-        🌱 Начни с первого урока - научись давать команды боту-помощнику
-        🏠 Строй здания, выращивай урожай, автоматизируй процессы
-        💻 Изучай реальный Python код, видя результат на своей ферме
+        🎯 *Что такое CodeFarm?*
+        • Интерактивная платформа для обучения Python
+        • Игровая механика - твоя ферма развивается с каждым уроком
+        • 50+ практических уроков от нуля до Junior разработчика
+        • Визуальный результат кода в реальном времени
 
-        Используй кнопки ниже для навигации:
+        🌱 *Попробуй прямо сейчас:*
+        Нажми кнопку ниже чтобы открыть CodeFarm в мини-приложении Telegram!
+        
+        Там тебя ждут:
+        • Первый урок - "Первые команды боту-помощнику"
+        • Твоя первая ферма
+        • Интерактивный редактор кода
+        • И многое другое!
+
+        Удачи в обучении! 🚀
         """
         
+        # Создаем кнопку для открытия Web App
+        # URL замени на свой домен Timeweb
+        web_app_url = f"https://{config.DOMAIN}/?startapp={telegram_id}"
+        
         keyboard = [
-            ["📚 Уроки", "🏠 Моя ферма"],
-            ["📊 Прогресс", "🆘 Помощь"]
+            [InlineKeyboardButton(
+                text="🚀 Открыть CodeFarm", 
+                web_app=WebAppInfo(url=web_app_url)
+            )],
+            [InlineKeyboardButton(
+                text="📱 Открыть в браузере", 
+                url=web_app_url
+            )]
         ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         
-        await update.message.reply_text(welcome_text, reply_markup=reply_markup)
-    
-    async def show_lessons(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Показывает список уроков"""
-        user = update.effective_user
-        telegram_id = user.id
+        reply_markup = InlineKeyboardMarkup(keyboard)
         
-        cursor = self.db.connection.cursor()
-        cursor.execute(
-            "SELECT lesson_id FROM user_progress up JOIN users u ON up.user_id = u.id WHERE u.telegram_id = %s AND completed = TRUE",
-            (telegram_id,)
-        )
-        completed_lessons = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        
-        lessons_text = "📚 Доступные уроки:\n\n"
-        
-        for i, lesson in enumerate(self.lesson_system.lessons, 1):
-            status = "✅" if lesson["id"] in completed_lessons else "🔒"
-            lessons_text += f"{status} Урок {i}: {lesson['title']}\n"
-        
-        lessons_text += "\nВыбери урок чтобы начать обучение!"
-        
-        await update.message.reply_text(lessons_text)
-    
-    async def show_farm(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Показывает текущее состояние фермы"""
-        user = update.effective_user
-        telegram_id = user.id
-        
-        cursor = self.db.connection.cursor()
-        cursor.execute(
-            "SELECT fs.field_data FROM farm_state fs JOIN users u ON fs.user_id = u.id WHERE u.telegram_id = %s",
-            (telegram_id,)
+        await update.message.reply_text(
+            welcome_text, 
+            reply_markup=reply_markup, 
+            parse_mode='Markdown',
+            disable_web_page_preview=True
         )
         
-        result = cursor.fetchone()
-        if result:
-            farm_data = json.loads(result[0])
-            farm_html = self.farm_engine.render_farm_html(farm_data)
-            
-            farm_text = "🏠 Твоя ферма:\n\n"
-            for row in farm_data["field"]:
-                farm_text += "".join(row) + "\n"
-            
-            farm_text += "\nИспользуй /lessons чтобы продолжить обучение!"
-            
-            await update.message.reply_text(farm_text)
-        else:
-            await update.message.reply_text("❌ Ферма не найдена. Используй /start чтобы начать.")
+        logger.info(f"Приветственное сообщение с Web App кнопкой отправлено пользователю {user.username}")
+    
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда помощи"""
+        help_text = """
+        🆘 *Помощь по CodeFarm*
+
+        🤖 *Основная команда:*
+        /start - Начать работу и открыть CodeFarm
+
+        🌐 *Как начать обучение:*
+        1. Нажми /start
+        2. Нажми кнопку "🚀 Открыть CodeFarm"
+        3. В мини-приложении выбери первый урок
+        4. Начни писать код и смотри как меняется твоя ферма!
+
+        🎮 *Возможности:*
+        • 50+ уроков программирования
+        • 2.5D визуализация фермы
+        • Реальный Python код
+        • Прогресс и достижения
+
+        ❓ *Проблемы с открытием?*
+        Попробуй кнопку "📱 Открыть в браузере" или перейди напрямую:
+        https://твой-домен.herokuapp.com/
+
+        📞 *Поддержка:*
+        По всем вопросам пиши: @твой_username
+        """
         
-        cursor.close()
+        await update.message.reply_text(help_text, parse_mode='Markdown')
+    
+    async def unknown_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик неизвестных команд"""
+        await update.message.reply_text(
+            "🤔 Я не понимаю эту команду. Используй /start чтобы открыть CodeFarm!\n\n"
+            "Если хочешь начать обучение программированию, просто нажми /start и открой мини-приложение! 🚀"
+        )
 
 bot_handlers = None  # Инициализируется в main.py
