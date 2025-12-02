@@ -6,9 +6,6 @@
     <title>CodeFarm - Учим Python через фермерство</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
     <style>
         /* Базовые стили */
         * {
@@ -82,11 +79,6 @@
             font-weight: 700;
         }
         
-        .logo-subtitle {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-        
         /* Статистика в шапке */
         .header-stats {
             display: flex;
@@ -158,23 +150,6 @@
             transition: all 0.3s;
             text-decoration: none;
             text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .btn:before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-        
-        .btn:hover:before {
-            left: 100%;
         }
         
         .btn-primary {
@@ -190,12 +165,6 @@
         .btn-accent {
             background: linear-gradient(135deg, var(--accent-color), #EF6C00);
             color: white;
-        }
-        
-        .btn-outline {
-            background: transparent;
-            border: 2px solid var(--primary-color);
-            color: var(--primary-color);
         }
         
         .btn-block {
@@ -237,51 +206,122 @@
             margin-top: 5px;
         }
         
-        /* 3D Визуализация фермы */
+        /* 2D Визуализация фермы */
         .farm-visualization {
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
             border-radius: var(--border-radius);
-            padding: 0;
-            overflow: hidden;
-            height: 400px;
-            position: relative;
+            padding: 20px;
             margin: 25px 0;
+            border: 3px solid var(--primary-color);
+            position: relative;
+            overflow: hidden;
+            min-height: 300px;
         }
         
-        #farm-canvas {
+        .farm-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 5px;
             width: 100%;
-            height: 100%;
-            border-radius: var(--border-radius);
+            height: 300px;
+            margin: 0 auto;
+        }
+        
+        .farm-cell {
+            background: #8BC34A;
+            border: 1px solid #7CB342;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .farm-cell:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        
+        .farm-cell.house { background: #FF9800; }
+        .farm-cell.barn { background: #795548; }
+        .farm-cell.greenhouse { background: #4CAF50; }
+        .farm-cell.crop { background: #FFEB3B; }
+        .farm-cell.tree { background: #8BC34A; }
+        .farm-cell.water { background: #2196F3; }
+        .farm-cell.empty { background: #C8E6C9; }
+        
+        .farm-cell-label {
+            position: absolute;
+            bottom: 2px;
+            font-size: 10px;
+            color: rgba(0,0,0,0.7);
+            font-weight: bold;
         }
         
         .farm-controls {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
             display: flex;
             gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
             justify-content: center;
         }
         
         .farm-btn {
-            background: rgba(255, 255, 255, 0.9);
-            border: none;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 10px 20px;
+            border-radius: 50px;
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 8px;
             cursor: pointer;
-            font-size: 20px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-weight: 600;
             transition: all 0.3s;
         }
         
         .farm-btn:hover {
-            transform: scale(1.1);
-            background: white;
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-3px);
+        }
+        
+        /* Анимации фермы */
+        @keyframes grow {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @keyframes water {
+            0% { transform: translateY(-20px); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(20px); opacity: 0; }
+        }
+        
+        @keyframes harvest {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .grow-animation {
+            animation: grow 0.5s ease-out;
+        }
+        
+        .water-animation::after {
+            content: '💧';
+            position: absolute;
+            animation: water 1s linear;
+        }
+        
+        .harvest-animation {
+            animation: harvest 0.5s ease-in-out;
         }
         
         /* Уроки */
@@ -406,6 +446,7 @@
             border-top: 1px solid #333;
             max-height: 200px;
             overflow-y: auto;
+            display: none;
         }
         
         /* Навигация */
@@ -469,24 +510,6 @@
             background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
             border-radius: 6px;
             transition: width 0.5s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .progress-fill:after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-            animation: shimmer 2s infinite;
-        }
-        
-        @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
         }
         
         /* Анимации */
@@ -572,8 +595,10 @@
                 grid-template-columns: 1fr;
             }
             
-            .farm-visualization {
-                height: 300px;
+            .farm-grid {
+                grid-template-columns: repeat(6, 1fr);
+                grid-template-rows: repeat(6, 1fr);
+                height: 250px;
             }
             
             .editor-toolbar {
@@ -584,10 +609,6 @@
         }
         
         /* Дополнительные эффекты */
-        .glow {
-            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
-        }
-        
         .pulse {
             animation: pulse 2s infinite;
         }
@@ -607,7 +628,7 @@
                 <div class="logo-icon">🚜</div>
                 <div>
                     <h1>CodeFarm</h1>
-                    <div class="logo-subtitle">Учим Python через фермерство</div>
+                    <div style="font-size: 12px; opacity: 0.9;">Учим Python через фермерство</div>
                 </div>
             </div>
             
@@ -672,7 +693,7 @@
                     </div>
                 </div>
                 
-                <!-- 3D Визуализация фермы -->
+                <!-- 2D Визуализация фермы -->
                 <div class="section">
                     <h2 class="section-title">
                         <i class="fas fa-tractor"></i>
@@ -680,60 +701,50 @@
                     </h2>
                     
                     <div class="farm-visualization">
-                        <canvas id="farm-canvas"></canvas>
-                        <div class="farm-controls">
-                            <button class="farm-btn" onclick="farmControls.zoomIn()">
-                                <i class="fas fa-search-plus"></i>
-                            </button>
-                            <button class="farm-btn" onclick="farmControls.zoomOut()">
-                                <i class="fas fa-search-minus"></i>
-                            </button>
-                            <button class="farm-btn" onclick="farmControls.rotateLeft()">
-                                <i class="fas fa-undo"></i>
-                            </button>
-                            <button class="farm-btn" onclick="farmControls.rotateRight()">
-                                <i class="fas fa-redo"></i>
-                            </button>
-                            <button class="farm-btn" onclick="farmControls.resetView()">
-                                <i class="fas fa-home"></i>
-                            </button>
+                        <div class="farm-grid" id="farm-grid">
+                            <!-- Ферма будет сгенерирована через JS -->
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 15px; margin-top: 20px;">
-                        <button class="btn btn-primary" onclick="farmActions.waterAll()">
+                    <div class="farm-controls">
+                        <button class="farm-btn" onclick="farmActions.waterAll()">
                             <i class="fas fa-tint"></i> Полить все
                         </button>
-                        <button class="btn btn-secondary" onclick="farmActions.harvestAll()">
+                        <button class="farm-btn" onclick="farmActions.harvestAll()">
                             <i class="fas fa-shopping-basket"></i> Собрать урожай
                         </button>
-                        <button class="btn btn-accent" onclick="farmActions.plantCrop()">
+                        <button class="farm-btn" onclick="farmActions.plantCrop()">
                             <i class="fas fa-seedling"></i> Посадить
+                        </button>
+                        <button class="farm-btn" onclick="farmActions.buildHouse()">
+                            <i class="fas fa-home"></i> Построить дом
+                        </button>
+                        <button class="farm-btn" onclick="farmActions.upgradeFarm()">
+                            <i class="fas fa-arrow-up"></i> Улучшить
                         </button>
                     </div>
                 </div>
                 
-                <!-- Последние достижения -->
+                <!-- Быстрые действия -->
                 <div class="section">
                     <h2 class="section-title">
-                        <i class="fas fa-trophy"></i>
-                        Последние достижения
+                        <i class="fas fa-bolt"></i>
+                        Быстрые действия
                     </h2>
                     
-                    <div class="card">
-                        <div style="display: flex; gap: 15px; align-items: center;">
-                            <div style="font-size: 48px;">🏆</div>
-                            <div>
-                                <h3 style="margin-bottom: 5px;">Начинающий фермер</h3>
-                                <p style="color: #666; margin-bottom: 10px;">Пройдите первый урок программирования</p>
-                                <div class="progress-container">
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" style="width: 30%"></div>
-                                    </div>
-                                    <div style="text-align: right; font-size: 14px; color: #666;">30% завершено</div>
-                                </div>
-                            </div>
-                        </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <button class="btn btn-primary" onclick="startLesson('lesson_1')">
+                            <i class="fas fa-code"></i> Урок 1: Первые команды
+                        </button>
+                        <button class="btn btn-secondary" onclick="showScreen('lessons')">
+                            <i class="fas fa-book-open"></i> Все уроки
+                        </button>
+                        <button class="btn btn-accent" onclick="farmActions.sellProduce()">
+                            <i class="fas fa-shopping-cart"></i> Продать урожай
+                        </button>
+                        <button class="btn btn-primary" onclick="showScreen('code')">
+                            <i class="fas fa-laptop-code"></i> Редактор кода
+                        </button>
                     </div>
                 </div>
             </div>
@@ -814,10 +825,10 @@
                             </div>
                         </div>
                         
-                        <div class="output-container" id="output-container" style="display: none;">
+                        <div class="output-container" id="output-container">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                                 <h4 style="margin: 0; color: #d4d4d4;">Результат выполнения:</h4>
-                                <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" onclick="clearOutput()">
+                                <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px; background: transparent; border: 1px solid #666; color: #999;" onclick="clearOutput()">
                                     <i class="fas fa-trash"></i> Очистить
                                 </button>
                             </div>
@@ -937,489 +948,6 @@
         </div>
     </div>
 
-    <!-- Three.js сцена фермы -->
-    <script>
-        // Инициализация Three.js сцены
-        let farmScene = null;
-        let farmCamera = null;
-        let farmRenderer = null;
-        let farmControls = null;
-        
-        class FarmVisualization {
-            constructor() {
-                this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('farm-canvas'), antialias: true, alpha: true });
-                this.controls = null;
-                this.objects = [];
-                
-                this.init();
-            }
-            
-            init() {
-                // Настройка рендерера
-                this.renderer.setSize(document.getElementById('farm-canvas').offsetWidth, document.getElementById('farm-canvas').offsetHeight);
-                this.renderer.setClearColor(0x000000, 0);
-                this.renderer.shadowMap.enabled = true;
-                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                
-                // Настройка камеры
-                this.camera.position.set(15, 10, 15);
-                this.camera.lookAt(0, 0, 0);
-                
-                // Настройка освещения
-                this.setupLighting();
-                
-                // Создание земли
-                this.createGround();
-                
-                // Создание объектов фермы
-                this.createFarmObjects();
-                
-                // Настройка OrbitControls
-                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-                this.controls.enableDamping = true;
-                this.controls.dampingFactor = 0.05;
-                this.controls.minDistance = 5;
-                this.controls.maxDistance = 50;
-                
-                // Обработка изменения размера окна
-                window.addEventListener('resize', () => this.onWindowResize());
-                
-                // Запуск анимации
-                this.animate();
-            }
-            
-            setupLighting() {
-                // Солнечный свет
-                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-                directionalLight.position.set(50, 100, 50);
-                directionalLight.castShadow = true;
-                this.scene.add(directionalLight);
-                
-                // Заполняющий свет
-                const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-                this.scene.add(ambientLight);
-            }
-            
-            createGround() {
-                // Текстура травы
-                const grassGeometry = new THREE.PlaneGeometry(40, 40);
-                const grassMaterial = new THREE.MeshLambertMaterial({ 
-                    color: 0x7cfc00,
-                    side: THREE.DoubleSide
-                });
-                const grass = new THREE.Mesh(grassGeometry, grassMaterial);
-                grass.rotation.x = -Math.PI / 2;
-                grass.receiveShadow = true;
-                this.scene.add(grass);
-                
-                // Сетка для ориентации
-                const gridHelper = new THREE.GridHelper(40, 40, 0x000000, 0x000000);
-                gridHelper.material.opacity = 0.1;
-                gridHelper.material.transparent = true;
-                this.scene.add(gridHelper);
-            }
-            
-            createFarmObjects() {
-                // Создаем случайную ферму
-                this.objects = [];
-                
-                // Дом (основное здание)
-                const house = this.createHouse(0, 0, 0);
-                this.objects.push(house);
-                
-                // Амбар
-                const barn = this.createBarn(8, 0, 8);
-                this.objects.push(barn);
-                
-                // Теплица
-                const greenhouse = this.createGreenhouse(-8, 0, 8);
-                this.objects.push(greenhouse);
-                
-                // Поля с посевами
-                for (let i = 0; i < 5; i++) {
-                    const crop = this.createCropField(-15 + i * 6, 0, -5);
-                    this.objects.push(crop);
-                }
-                
-                // Деревья по периметру
-                for (let i = 0; i < 8; i++) {
-                    const angle = (i / 8) * Math.PI * 2;
-                    const radius = 18;
-                    const tree = this.createTree(
-                        Math.cos(angle) * radius,
-                        0,
-                        Math.sin(angle) * radius
-                    );
-                    this.objects.push(tree);
-                }
-                
-                // Трактор
-                const tractor = this.createTractor(5, 0, -8);
-                this.objects.push(tractor);
-            }
-            
-            createHouse(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Основание дома
-                const baseGeometry = new THREE.BoxGeometry(4, 2, 4);
-                const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-                const base = new THREE.Mesh(baseGeometry, baseMaterial);
-                base.position.set(0, 1, 0);
-                base.castShadow = true;
-                group.add(base);
-                
-                // Крыша
-                const roofGeometry = new THREE.ConeGeometry(3, 2, 4);
-                const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8B0000 });
-                const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-                roof.position.set(0, 3, 0);
-                roof.rotation.y = Math.PI / 4;
-                roof.castShadow = true;
-                group.add(roof);
-                
-                // Дверь
-                const doorGeometry = new THREE.BoxGeometry(0.8, 1.5, 0.1);
-                const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 });
-                const door = new THREE.Mesh(doorGeometry, doorMaterial);
-                door.position.set(0, 0.75, 2.01);
-                group.add(door);
-                
-                group.position.set(x, y, z);
-                this.scene.add(group);
-                
-                return { type: 'house', object: group };
-            }
-            
-            createBarn(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Основание амбара
-                const baseGeometry = new THREE.BoxGeometry(6, 3, 4);
-                const baseMaterial = new THREE.MeshLambertMaterial({ color: 0xD2691E });
-                const base = new THREE.Mesh(baseGeometry, baseMaterial);
-                base.position.set(0, 1.5, 0);
-                base.castShadow = true;
-                group.add(base);
-                
-                // Крыша амбара
-                const roofGeometry = new THREE.ConeGeometry(4, 2, 4);
-                const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-                const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-                roof.position.set(0, 4, 0);
-                roof.rotation.y = Math.PI / 4;
-                roof.castShadow = true;
-                group.add(roof);
-                
-                group.position.set(x, y, z);
-                this.scene.add(group);
-                
-                return { type: 'barn', object: group };
-            }
-            
-            createGreenhouse(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Основание теплицы
-                const baseGeometry = new THREE.BoxGeometry(5, 2, 3);
-                const baseMaterial = new THREE.MeshLambertMaterial({ 
-                    color: 0x90EE90,
-                    transparent: true,
-                    opacity: 0.7
-                });
-                const base = new THREE.Mesh(baseGeometry, baseMaterial);
-                base.position.set(0, 1, 0);
-                base.castShadow = true;
-                group.add(base);
-                
-                // Крыша теплицы
-                const roofGeometry = new THREE.ConeGeometry(3, 1.5, 4);
-                const roofMaterial = new THREE.MeshLambertMaterial({ 
-                    color: 0x90EE90,
-                    transparent: true,
-                    opacity: 0.5
-                });
-                const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-                roof.position.set(0, 2.75, 0);
-                roof.rotation.y = Math.PI / 4;
-                roof.castShadow = true;
-                group.add(roof);
-                
-                group.position.set(x, y, z);
-                this.scene.add(group);
-                
-                return { type: 'greenhouse', object: group };
-            }
-            
-            createCropField(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Земля под посевы
-                const groundGeometry = new THREE.PlaneGeometry(4, 4);
-                const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-                ground.rotation.x = -Math.PI / 2;
-                ground.position.set(0, 0.1, 0);
-                ground.receiveShadow = true;
-                group.add(ground);
-                
-                // Растения (пшеница)
-                for (let i = 0; i < 9; i++) {
-                    const plant = this.createWheatPlant(
-                        -1.5 + (i % 3) * 1.5,
-                        0,
-                        -1.5 + Math.floor(i / 3) * 1.5
-                    );
-                    group.add(plant);
-                }
-                
-                group.position.set(x, y, z);
-                this.scene.add(group);
-                
-                return { type: 'crop_field', object: group };
-            }
-            
-            createWheatPlant(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Стебель
-                const stemGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8);
-                const stemMaterial = new THREE.MeshLambertMaterial({ color: 0x556B2F });
-                const stem = new THREE.Mesh(stemGeometry, stemMaterial);
-                stem.position.set(0, 0.4, 0);
-                group.add(stem);
-                
-                // Колос
-                const headGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-                const headMaterial = new THREE.MeshLambertMaterial({ color: 0xDAA520 });
-                const head = new THREE.Mesh(headGeometry, headMaterial);
-                head.position.set(0, 0.8, 0);
-                group.add(head);
-                
-                group.position.set(x, y, z);
-                return group;
-            }
-            
-            createTree(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Ствол
-                const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 2);
-                const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-                trunk.position.set(0, 1, 0);
-                trunk.castShadow = true;
-                group.add(trunk);
-                
-                // Крона
-                const crownGeometry = new THREE.SphereGeometry(1.5, 8, 8);
-                const crownMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
-                const crown = new THREE.Mesh(crownGeometry, crownMaterial);
-                crown.position.set(0, 2.5, 0);
-                crown.castShadow = true;
-                group.add(crown);
-                
-                group.position.set(x, y, z);
-                return { type: 'tree', object: group };
-            }
-            
-            createTractor(x, y, z) {
-                const group = new THREE.Group();
-                
-                // Кузов
-                const bodyGeometry = new THREE.BoxGeometry(2, 1, 1.5);
-                const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
-                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-                body.position.set(0, 0.5, 0);
-                body.castShadow = true;
-                group.add(body);
-                
-                // Кабина
-                const cabinGeometry = new THREE.BoxGeometry(1, 1, 1);
-                const cabinMaterial = new THREE.MeshLambertMaterial({ color: 0x0000FF });
-                const cabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
-                cabin.position.set(0.6, 1.5, 0);
-                cabin.castShadow = true;
-                group.add(cabin);
-                
-                // Колеса
-                const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
-                const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x2F4F4F });
-                
-                for (let i = 0; i < 4; i++) {
-                    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-                    const xPos = i < 2 ? -0.8 : 0.8;
-                    const zPos = i % 2 === 0 ? -0.8 : 0.8;
-                    wheel.position.set(xPos, 0.4, zPos);
-                    wheel.rotation.z = Math.PI / 2;
-                    wheel.castShadow = true;
-                    group.add(wheel);
-                }
-                
-                group.position.set(x, y, z);
-                return { type: 'tractor', object: group };
-            }
-            
-            animate() {
-                requestAnimationFrame(() => this.animate());
-                
-                // Анимация трактора
-                const tractor = this.objects.find(obj => obj.type === 'tractor');
-                if (tractor) {
-                    tractor.object.rotation.y += 0.01;
-                }
-                
-                // Анимация растений (легкое покачивание)
-                this.objects.forEach(obj => {
-                    if (obj.type === 'crop_field') {
-                        obj.object.children.forEach(child => {
-                            if (child.type === 'Group') {
-                                child.rotation.x = Math.sin(Date.now() * 0.001) * 0.1;
-                            }
-                        });
-                    }
-                });
-                
-                if (this.controls) {
-                    this.controls.update();
-                }
-                
-                this.renderer.render(this.scene, this.camera);
-            }
-            
-            onWindowResize() {
-                const canvas = document.getElementById('farm-canvas');
-                this.camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
-            }
-            
-            zoomIn() {
-                this.camera.position.multiplyScalar(0.9);
-            }
-            
-            zoomOut() {
-                this.camera.position.multiplyScalar(1.1);
-            }
-            
-            rotateLeft() {
-                this.controls.autoRotate = true;
-                this.controls.autoRotateSpeed = 2;
-            }
-            
-            rotateRight() {
-                this.controls.autoRotate = true;
-                this.controls.autoRotateSpeed = -2;
-            }
-            
-            resetView() {
-                this.camera.position.set(15, 10, 15);
-                this.camera.lookAt(0, 0, 0);
-                this.controls.autoRotate = false;
-                this.controls.reset();
-            }
-            
-            // Добавить эффект полива
-            waterEffect() {
-                // Создаем частицы воды
-                for (let i = 0; i < 50; i++) {
-                    const waterDrop = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.1, 8, 8),
-                        new THREE.MeshBasicMaterial({ color: 0x6495ED })
-                    );
-                    
-                    waterDrop.position.set(
-                        Math.random() * 30 - 15,
-                        Math.random() * 10 + 10,
-                        Math.random() * 30 - 15
-                    );
-                    
-                    this.scene.add(waterDrop);
-                    
-                    // Анимация падения
-                    const animateDrop = () => {
-                        waterDrop.position.y -= 0.5;
-                        if (waterDrop.position.y < 0) {
-                            this.scene.remove(waterDrop);
-                        } else {
-                            requestAnimationFrame(animateDrop);
-                        }
-                    };
-                    
-                    animateDrop();
-                }
-            }
-            
-            // Добавить эффект сбора урожая
-            harvestEffect() {
-                // Золотые частицы при сборе урожая
-                for (let i = 0; i < 30; i++) {
-                    const goldParticle = new THREE.Mesh(
-                        new THREE.SphereGeometry(0.15, 8, 8),
-                        new THREE.MeshBasicMaterial({ color: 0xFFD700 })
-                    );
-                    
-                    goldParticle.position.set(
-                        Math.random() * 20 - 10,
-                        Math.random() * 5,
-                        Math.random() * 20 - 10
-                    );
-                    
-                    this.scene.add(goldParticle);
-                    
-                    // Анимация взлета
-                    const animateParticle = () => {
-                        goldParticle.position.y += 0.3;
-                        goldParticle.scale.multiplyScalar(0.95);
-                        
-                        if (goldParticle.position.y > 20 || goldParticle.scale.x < 0.1) {
-                            this.scene.remove(goldParticle);
-                        } else {
-                            requestAnimationFrame(animateParticle);
-                        }
-                    };
-                    
-                    animateParticle();
-                }
-            }
-        }
-        
-        // Глобальные объекты для управления фермой
-        window.farmControls = {
-            zoomIn: () => farmScene?.zoomIn(),
-            zoomOut: () => farmScene?.zoomOut(),
-            rotateLeft: () => farmScene?.rotateLeft(),
-            rotateRight: () => farmScene?.rotateRight(),
-            resetView: () => farmScene?.resetView()
-        };
-        
-        window.farmActions = {
-            waterAll: () => {
-                farmScene?.waterEffect();
-                showNotification('💧 Все растения политы!', 'Поля получили достаточно воды для роста.');
-            },
-            harvestAll: () => {
-                farmScene?.harvestEffect();
-                showNotification('📦 Урожай собран!', 'Вы получили +50 монет за собранный урожай.');
-                updateCoins(50);
-            },
-            plantCrop: () => {
-                showNotification('🌱 Новые посадки', 'Вы посадили семена пшеницы. Через 3 дня будет урожай!');
-            }
-        };
-        
-        // Инициализация фермы после загрузки страницы
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                if (document.getElementById('farm-canvas')) {
-                    farmScene = new FarmVisualization();
-                }
-            }, 1000);
-        });
-    </script>
-
     <!-- Основной JavaScript код приложения -->
     <script>
         // Глобальные переменные
@@ -1428,6 +956,14 @@
         let userData = null;
         let lessonsData = [];
         let currentLesson = null;
+        let farmData = {
+            cells: [],
+            size: 8,
+            buildings: 3,
+            crops: 5,
+            trees: 4,
+            water: 2
+        };
         
         // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', function() {
@@ -1450,6 +986,9 @@
             
             // Инициализируем редактор кода
             initCodeEditor();
+            
+            // Создаем ферму
+            createFarm();
         });
         
         // Инициализация для Telegram Web App
@@ -1500,12 +1039,278 @@
                 lessonsCompleted: 1,
                 streak: 3,
                 codeLines: 150,
-                problemsSolved: 5
+                problemsSolved: 5,
+                rank: '#42'
             };
             
             updateUserStats();
             updateProfileInfo();
         }
+        
+        // Создание 2D фермы
+        function createFarm() {
+            const grid = document.getElementById('farm-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            
+            // Создаем клетки фермы
+            for (let row = 0; row < farmData.size; row++) {
+                for (let col = 0; col < farmData.size; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'farm-cell empty';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    // Определяем тип клетки
+                    let cellType = 'empty';
+                    let cellIcon = '';
+                    
+                    // Центр фермы - дом
+                    if (row === 3 && col === 3) {
+                        cellType = 'house';
+                        cellIcon = '🏠';
+                    }
+                    // Амбар
+                    else if (row === 3 && col === 4) {
+                        cellType = 'barn';
+                        cellIcon = '🏚️';
+                    }
+                    // Теплица
+                    else if (row === 4 && col === 3) {
+                        cellType = 'greenhouse';
+                        cellIcon = '🌿';
+                    }
+                    // Посевы
+                    else if (
+                        (row === 1 && col === 1) ||
+                        (row === 1 && col === 6) ||
+                        (row === 6 && col === 1) ||
+                        (row === 6 && col === 6) ||
+                        (row === 2 && col === 2)
+                    ) {
+                        cellType = 'crop';
+                        cellIcon = '🌱';
+                    }
+                    // Деревья
+                    else if (
+                        (row === 0 && col === 0) ||
+                        (row === 0 && col === 7) ||
+                        (row === 7 && col === 0) ||
+                        (row === 7 && col === 7)
+                    ) {
+                        cellType = 'tree';
+                        cellIcon = '🌳';
+                    }
+                    // Вода
+                    else if (
+                        (row === 0 && col === 3) ||
+                        (row === 7 && col === 4)
+                    ) {
+                        cellType = 'water';
+                        cellIcon = '💧';
+                    }
+                    
+                    cell.className = `farm-cell ${cellType} fade-in`;
+                    cell.innerHTML = `
+                        <div class="farm-cell-icon">${cellIcon}</div>
+                        <div class="farm-cell-label">${row},${col}</div>
+                    `;
+                    
+                    // Добавляем обработчик клика
+                    cell.addEventListener('click', () => {
+                        handleFarmCellClick(row, col, cellType);
+                    });
+                    
+                    grid.appendChild(cell);
+                    
+                    // Сохраняем данные клетки
+                    farmData.cells.push({
+                        row, col, type: cellType,
+                        growth: cellType === 'crop' ? Math.floor(Math.random() * 100) : 0,
+                        water: cellType === 'crop' ? Math.floor(Math.random() * 100) : 100
+                    });
+                }
+            }
+        }
+        
+        // Обработка клика по клетке фермы
+        function handleFarmCellClick(row, col, type) {
+            let message = '';
+            let action = '';
+            
+            switch(type) {
+                case 'house':
+                    message = '🏠 Ваш дом. Здесь вы можете отдохнуть и посмотреть статистику фермы.';
+                    action = 'house';
+                    break;
+                case 'barn':
+                    message = '🏚️ Амбар. Хранилище для инструментов и урожая.';
+                    action = 'barn';
+                    break;
+                case 'greenhouse':
+                    message = '🌿 Теплица. Здесь растут теплолюбивые растения круглый год.';
+                    action = 'greenhouse';
+                    break;
+                case 'crop':
+                    message = '🌱 Поле с посевами. Нажмите "Полить" чтобы ускорить рост.';
+                    action = 'crop';
+                    break;
+                case 'tree':
+                    message = '🌳 Фруктовое дерево. Дает урожай каждый сезон.';
+                    action = 'tree';
+                    break;
+                case 'water':
+                    message = '💧 Источник воды. Необходим для полива растений.';
+                    action = 'water';
+                    break;
+                default:
+                    message = `Пустой участок земли (${row},${col}). Можно построить что-нибудь!`;
+                    action = 'empty';
+            }
+            
+            showNotification('🌾 ' + action.charAt(0).toUpperCase() + action.slice(1), message);
+            
+            // Анимация при клике
+            const cell = document.querySelector(`.farm-cell[data-row="${row}"][data-col="${col}"]`);
+            if (cell) {
+                cell.classList.add('grow-animation');
+                setTimeout(() => {
+                    cell.classList.remove('grow-animation');
+                }, 500);
+            }
+        }
+        
+        // Действия с фермой
+        window.farmActions = {
+            waterAll: function() {
+                // Находим все посевы
+                const crops = document.querySelectorAll('.farm-cell.crop');
+                crops.forEach(crop => {
+                    crop.classList.add('water-animation');
+                    // Обновляем данные
+                    const row = parseInt(crop.dataset.row);
+                    const col = parseInt(crop.dataset.col);
+                    const cellData = farmData.cells.find(c => c.row === row && c.col === col);
+                    if (cellData) {
+                        cellData.water = Math.min(100, cellData.water + 30);
+                        cellData.growth = Math.min(100, cellData.growth + 10);
+                    }
+                });
+                
+                setTimeout(() => {
+                    crops.forEach(crop => {
+                        crop.classList.remove('water-animation');
+                    });
+                }, 1000);
+                
+                showNotification('💧 Полив завершен', 'Все растения политы! Рост ускорен на 10%.');
+                updateCoins(5);
+            },
+            
+            harvestAll: function() {
+                // Находим все созревшие посевы
+                const crops = document.querySelectorAll('.farm-cell.crop');
+                let harvested = 0;
+                
+                crops.forEach(crop => {
+                    const row = parseInt(crop.dataset.row);
+                    const col = parseInt(crop.dataset.col);
+                    const cellData = farmData.cells.find(c => c.row === row && c.col === col);
+                    
+                    if (cellData && cellData.growth >= 50) {
+                        harvested++;
+                        cellData.growth = 0;
+                        
+                        // Анимация сбора
+                        crop.classList.add('harvest-animation');
+                        crop.querySelector('.farm-cell-icon').textContent = '🔄';
+                        
+                        setTimeout(() => {
+                            crop.querySelector('.farm-cell-icon').textContent = '🌱';
+                            crop.classList.remove('harvest-animation');
+                        }, 500);
+                    }
+                });
+                
+                if (harvested > 0) {
+                    const coinsEarned = harvested * 15;
+                    showNotification('📦 Урожай собран!', `Собрано ${harvested} культур. Получено ${coinsEarned} монет!`);
+                    updateCoins(coinsEarned);
+                } else {
+                    showNotification('⚠️ Нечего собирать', 'Растения еще не созрели. Поливайте их для ускорения роста.');
+                }
+            },
+            
+            plantCrop: function() {
+                // Находим пустую клетку
+                const emptyCells = document.querySelectorAll('.farm-cell.empty');
+                if (emptyCells.length > 0) {
+                    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                    
+                    // Превращаем в посев
+                    randomCell.className = 'farm-cell crop';
+                    randomCell.querySelector('.farm-cell-icon').textContent = '🌱';
+                    randomCell.classList.add('grow-animation');
+                    
+                    // Обновляем данные
+                    const row = parseInt(randomCell.dataset.row);
+                    const col = parseInt(randomCell.dataset.col);
+                    const cellData = farmData.cells.find(c => c.row === row && c.col === col);
+                    if (cellData) {
+                        cellData.type = 'crop';
+                        cellData.growth = 10;
+                        cellData.water = 50;
+                    }
+                    
+                    showNotification('🌱 Новые посадки', 'Вы посадили семена пшеницы. Через 3 дня будет урожай!');
+                    updateCoins(-10); // Стоимость семян
+                } else {
+                    showNotification('⚠️ Нет места', 'На ферме нет свободного места для посадки!');
+                }
+            },
+            
+            buildHouse: function() {
+                // Проверяем, есть ли дом
+                const hasHouse = document.querySelector('.farm-cell.house');
+                if (!hasHouse) {
+                    // Находим центральную клетку
+                    const centerCell = document.querySelector('.farm-cell[data-row="3"][data-col="3"]');
+                    if (centerCell && centerCell.classList.contains('empty')) {
+                        centerCell.className = 'farm-cell house';
+                        centerCell.querySelector('.farm-cell-icon').textContent = '🏠';
+                        centerCell.classList.add('grow-animation');
+                        
+                        showNotification('🏠 Дом построен!', 'Ваш новый дом готов. Теперь вы можете жить на ферме!');
+                        updateCoins(-100);
+                    }
+                } else {
+                    showNotification('🏠 Уже есть', 'У вас уже есть дом на ферме!');
+                }
+            },
+            
+            upgradeFarm: function() {
+                if (userData && userData.coins >= 200) {
+                    // Увеличиваем размер фермы
+                    farmData.size = Math.min(10, farmData.size + 1);
+                    
+                    // Пересоздаем ферму
+                    createFarm();
+                    
+                    showNotification('⬆️ Ферма улучшена!', 'Размер фермы увеличен. Теперь у вас больше места для построек!');
+                    updateCoins(-200);
+                } else {
+                    showNotification('⚠️ Недостаточно монет', 'Для улучшения фермы нужно 200 монет.');
+                }
+            },
+            
+            sellProduce: function() {
+                // Имитация продажи урожая
+                const saleAmount = Math.floor(Math.random() * 100) + 50;
+                showNotification('💰 Продажа урожая', `Вы продали урожай за ${saleAmount} монет!`);
+                updateCoins(saleAmount);
+            }
+        };
         
         // Старт загрузки
         function startLoading() {
@@ -1563,7 +1368,8 @@
                     lessonsCompleted: 0,
                     streak: 1,
                     codeLines: 0,
-                    problemsSolved: 0
+                    problemsSolved: 0,
+                    rank: '#999'
                 };
                 
                 updateUserStats();
@@ -1603,15 +1409,6 @@
                 const progress = ((userData.lessonsCompleted || 0) / 28) * 100;
                 lessonsProgress.style.width = progress + '%';
             }
-            
-            // Обновляем прогресс уровня
-            const exp = userData.experience || 0;
-            const levelProgress = (exp % 1000) / 10;
-            const levelBar = document.getElementById('level-progress');
-            const levelPercent = document.getElementById('level-percent');
-            
-            if (levelBar) levelBar.style.width = levelProgress + '%';
-            if (levelPercent) levelPercent.textContent = Math.round(levelProgress) + '%';
         }
         
         // Обновление информации профиля
@@ -1645,7 +1442,10 @@
                         level: 1,
                         experience: 100,
                         coins: 50,
-                        completed: true
+                        completed: true,
+                        theory: 'Основы работы с функциями print() и bot_say()',
+                        task: 'Напишите программу, которая поприветствует бота',
+                        initialCode: 'print("Привет, АгроБот!")'
                     },
                     {
                         id: 'lesson_2',
@@ -1654,7 +1454,10 @@
                         level: 1,
                         experience: 150,
                         coins: 75,
-                        completed: false
+                        completed: false,
+                        theory: 'Работа с переменными и типами данных',
+                        task: 'Создайте переменные для названия фермы и площади',
+                        initialCode: 'farm_name = "Солнечная долина"\narea = 100'
                     },
                     {
                         id: 'lesson_3',
@@ -1663,7 +1466,10 @@
                         level: 1,
                         experience: 200,
                         coins: 100,
-                        completed: false
+                        completed: false,
+                        theory: 'Создание и вызов пользовательских функций',
+                        task: 'Создайте функцию для запуска трактора',
+                        initialCode: 'def start_tractor():\n    print("Запускаю трактор...")'
                     },
                     {
                         id: 'lesson_4',
@@ -1672,7 +1478,10 @@
                         level: 2,
                         experience: 250,
                         coins: 125,
-                        completed: false
+                        completed: false,
+                        theory: 'Работа с аргументами функций',
+                        task: 'Создайте функцию постройки дома с параметрами',
+                        initialCode: 'def build_house(material, floors):\n    print(f"Строю {floors}-этажный дом из {material}")'
                     }
                 ];
                 
@@ -1740,18 +1549,14 @@
             
             // Обновляем модальное окно
             document.getElementById('modal-lesson-title').textContent = 
-                `Урок: ${lesson.title}`;
+                `Урок ${lessonId.split('_')[1]}: ${lesson.title}`;
             document.getElementById('modal-lesson-content').innerHTML = `
                 <p><strong>Описание:</strong> ${lesson.description}</p>
                 <p><strong>Уровень сложности:</strong> ${lesson.level}</p>
                 <p><strong>Награда:</strong> ${lesson.coins} 🪙 монет и ${lesson.experience} ✨ опыта</p>
                 <div style="background: #f0f9ff; padding: 15px; border-radius: 10px; margin-top: 15px;">
-                    <strong>Что вы узнаете:</strong>
-                    <ul style="margin: 10px 0 0 20px;">
-                        <li>Основные команды Python</li>
-                        <li>Управление виртуальной фермой</li>
-                        <li>Практическое применение знаний</li>
-                    </ul>
+                    <strong>Задание:</strong>
+                    <p style="margin-top: 5px;">${lesson.task}</p>
                 </div>
             `;
             
@@ -1764,37 +1569,30 @@
             document.getElementById('lesson-modal').classList.remove('show');
         }
         
-        // Начать выбранный урок
-        function startSelectedLesson() {
-            if (!currentLesson) return;
+        // Начать урок
+        function startLesson(lessonId) {
+            const lesson = lessonsData.find(l => l.id === lessonId);
+            if (!lesson) return;
             
-            closeModal();
+            currentLesson = lesson;
             showScreen('code');
             
             // Обновляем информацию о уроке в редакторе
             document.getElementById('current-lesson-title').textContent = 
-                `Урок: ${currentLesson.title}`;
+                `Урок ${lessonId.split('_')[1]}: ${lesson.title}`;
             document.getElementById('current-lesson-desc').textContent = 
-                currentLesson.description;
+                lesson.description;
             
             // Устанавливаем начальный код
             const codeEditor = document.getElementById('code-editor');
             if (codeEditor) {
-                if (currentLesson.id === 'lesson_1') {
-                    codeEditor.value = `# Напишите код здесь
-print("Привет, АгроБот!")
-bot_say("Начинаю работу")
-clear_area("north")`;
-                } else if (currentLesson.id === 'lesson_2') {
-                    codeEditor.value = `# Создайте проект фермы
-farm_name = "Солнечная долина"
-area = 100  # гектаров
-animals = 10
-build_house("деревянный", 2)`;
-                } else {
-                    codeEditor.value = `# Код для урока: ${currentLesson.title}
-# Начните писать свой код здесь...`;
-                }
+                codeEditor.value = lesson.initialCode || `# Код для урока: ${lesson.title}\n# Начните писать свой код здесь...`;
+                
+                // Автоматически подстраиваем высоту
+                setTimeout(() => {
+                    codeEditor.style.height = 'auto';
+                    codeEditor.style.height = (codeEditor.scrollHeight) + 'px';
+                }, 100);
             }
             
             // Показываем подсказки
@@ -1804,19 +1602,26 @@ build_house("деревянный", 2)`;
                     <div style="display: flex; gap: 15px; margin-bottom: 15px;">
                         <div style="font-size: 24px; color: var(--accent-color);">💡</div>
                         <div>
-                            <h4 style="margin-bottom: 5px;">Подсказка к уроку</h4>
-                            <p style="color: #666; margin: 0;">Используйте функцию print() для вывода информации на экран. Все команды Python чувствительны к регистру!</p>
+                            <h4 style="margin-bottom: 5px;">Теория урока</h4>
+                            <p style="color: #666; margin: 0;">${lesson.theory || 'Используйте полученные знания для решения задания.'}</p>
                         </div>
                     </div>
                     <div style="display: flex; gap: 15px;">
-                        <div style="font-size: 24px; color: var(--secondary-color);">📖</div>
+                        <div style="font-size: 24px; color: var(--secondary-color);">🎯</div>
                         <div>
-                            <h4 style="margin-bottom: 5px;">Теория</h4>
-                            <p style="color: #666; margin: 0;">Функции в Python вызываются с круглыми скобками. Пример: <code>function_name()</code></p>
+                            <h4 style="margin-bottom: 5px;">Задание</h4>
+                            <p style="color: #666; margin: 0;">${lesson.task}</p>
                         </div>
                     </div>
                 `;
             }
+        }
+        
+        // Начать выбранный урок
+        function startSelectedLesson() {
+            if (!currentLesson) return;
+            closeModal();
+            startLesson(currentLesson.id);
         }
         
         // Показать экран
@@ -1846,6 +1651,12 @@ build_house("деревянный", 2)`;
                 } else {
                     Telegram.WebApp.BackButton.show();
                 }
+            }
+            
+            // Показываем вывод кода только на экране редактора
+            const outputContainer = document.getElementById('output-container');
+            if (outputContainer) {
+                outputContainer.style.display = screenName === 'code' ? 'block' : 'none';
             }
         }
         
@@ -1900,10 +1711,12 @@ print("Добро пожаловать на вашу виртуальную фе
                 
                 // Имитация вывода
                 const lines = code.split('\n');
-                lines.forEach((line, index) => {
-                    setTimeout(() => {
-                        if (line.trim() && !line.trim().startsWith('#')) {
-                            output.textContent += `[Строка ${index + 1}] Выполнено: ${line.trim()}\n`;
+                let lineNumber = 1;
+                
+                lines.forEach((line) => {
+                    if (line.trim() && !line.trim().startsWith('#')) {
+                        setTimeout(() => {
+                            output.textContent += `[Строка ${lineNumber}] ${line.trim()}\n`;
                             
                             // Имитация вывода print()
                             if (line.includes('print(') && line.includes(')')) {
@@ -1912,8 +1725,26 @@ print("Добро пожаловать на вашу виртуальную фе
                                     output.textContent += match[1] + '\n';
                                 }
                             }
-                        }
-                    }, index * 200);
+                            
+                            // Имитация bot_say
+                            if (line.includes('bot_say(') && line.includes(')')) {
+                                const match = line.match(/bot_say\(["'](.+?)["']\)/);
+                                if (match) {
+                                    output.textContent += '🤖 Бот говорит: "' + match[1] + '"\n';
+                                }
+                            }
+                            
+                            // Имитация clear_area
+                            if (line.includes('clear_area(') && line.includes(')')) {
+                                const match = line.match(/clear_area\(["'](.+?)["']\)/);
+                                if (match) {
+                                    output.textContent += '🚜 Расчищаю участок: ' + match[1] + '\n';
+                                }
+                            }
+                            
+                            lineNumber++;
+                        }, lineNumber * 200);
+                    }
                 });
                 
                 setTimeout(() => {
@@ -1921,7 +1752,7 @@ print("Добро пожаловать на вашу виртуальную фе
                     outputContainer.style.display = 'block';
                     
                     // Прокручиваем к результату
-                    outputContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    outputContainer.scrollTop = outputContainer.scrollHeight;
                 }, lines.length * 200 + 500);
             }
         }
@@ -1955,17 +1786,16 @@ print("Добро пожаловать на вашу виртуальную фе
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification('🎉 Успех!', `Урок пройден! Награда: ${result.reward} монет`);
+                    showNotification('🎉 Успех!', `Урок "${currentLesson?.title || 'Урок 1'}" пройден! Награда: ${result.reward || 50} монет`);
                     
                     // Обновляем монеты
                     if (result.coins) {
-                        userData.coins = result.coins;
-                        updateCoins(result.reward);
+                        updateCoins(result.reward || 50);
                     }
                     
                     // Обновляем статистику
-                    if (userData.lessonsCompleted !== undefined) {
-                        userData.lessonsCompleted += 1;
+                    if (userData) {
+                        userData.lessonsCompleted = (userData.lessonsCompleted || 0) + 1;
                         userData.experience = (userData.experience || 0) + 100;
                         userData.codeLines = (userData.codeLines || 0) + code.split('\n').length;
                         userData.problemsSolved = (userData.problemsSolved || 0) + 1;
@@ -1983,14 +1813,14 @@ print("Добро пожаловать на вашу виртуальную фе
                     showSuccessAnimation();
                     
                 } else {
-                    showNotification('❌ Ошибка', result.message || 'Есть ошибки в коде');
+                    showNotification('❌ Ошибка', result.message || 'Есть ошибки в коде. Проверьте свой код и попробуйте снова.');
                 }
                 
             } catch (error) {
                 console.error('Ошибка отправки:', error);
                 
                 // Имитация успеха для демо
-                showNotification('🎉 Демо: Урок пройден!', 'Награда: 50 монет (демо-режим)');
+                showNotification('🎉 Демо: Урок пройден!', `Урок "${currentLesson?.title || 'Урок 1'}" пройден! Награда: 50 монет (демо-режим)`);
                 updateCoins(50);
                 showSuccessAnimation();
             }
@@ -1999,10 +1829,7 @@ print("Добро пожаловать на вашу виртуальную фе
         // Очистить вывод
         function clearOutput() {
             const output = document.getElementById('output-text');
-            const outputContainer = document.getElementById('output-container');
-            
             if (output) output.textContent = '';
-            if (outputContainer) outputContainer.style.display = 'none';
         }
         
         // Обновить количество монет
@@ -2019,23 +1846,23 @@ print("Добро пожаловать на вашу виртуальную фе
                         coinElement.classList.remove('pulse');
                     }, 1000);
                 }
+                
+                // Показываем изменение
+                if (amount > 0) {
+                    showNotification('💰 ' + (amount > 0 ? 'Получено' : 'Потрачено'), Math.abs(amount) + ' монет');
+                }
             }
         }
         
         // Показать анимацию успеха
         function showSuccessAnimation() {
-            // Добавляем эффект свечения к кнопке отправки
+            // Добавляем эффект пульсации к кнопке отправки
             const submitBtn = document.querySelector('.editor-actions .btn-primary');
             if (submitBtn) {
-                submitBtn.classList.add('glow');
+                submitBtn.classList.add('pulse');
                 setTimeout(() => {
-                    submitBtn.classList.remove('glow');
+                    submitBtn.classList.remove('pulse');
                 }, 2000);
-            }
-            
-            // Запускаем эффект на ферме
-            if (farmScene) {
-                farmScene.harvestEffect();
             }
         }
         
