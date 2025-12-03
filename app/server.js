@@ -100,8 +100,25 @@ app.get('/api/farm/:userId', (req, res) => {
 
 // Получить уроки
 app.get('/api/lessons', (req, res) => {
-    const allLessons = lessons.getAllLessons();
-    res.json(allLessons);
+    try {
+        const allLessons = lessons.getAllLessons();
+        // Форматируем уроки для фронтенда
+        const formattedLessons = allLessons.map(lesson => ({
+            id: lesson.id,
+            title: lesson.title,
+            description: lesson.description,
+            level: lesson.level || 1,
+            rewardCoins: lesson.coins || 50,
+            rewardExp: lesson.experience || 100,
+            theory: lesson.theory || 'Теория будет добавлена позже',
+            task: lesson.task || 'Задание будет добавлено',
+            testCode: lesson.exampleCode || '# Пример кода',
+            initialCode: lesson.initialCode || '# Начни писать код здесь'
+        }));
+        res.json(formattedLessons);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Получить конкретный урок
