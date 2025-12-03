@@ -1924,6 +1924,43 @@ clear_area()  # Не указан аргумент</pre>
     
     updateFarmStats();
 }
+
+async function startLesson(lessonId) {
+    console.log(`🎯 Начинаем урок: ${lessonId}`);
+    
+    try {
+        // Находим урок в данных
+        const lesson = this.lessonsData.find(l => l.id === lessonId);
+        if (!lesson) {
+            console.error('❌ Урок не найден:', lessonId);
+            this.showNotification('❌ Ошибка', 'Урок не найден');
+            return;
+        }
+        
+        console.log('✅ Найден урок:', lesson.title);
+        
+        // Сохраняем текущий урок
+        this.currentLesson = lesson;
+        
+        // Показываем экран кода
+        this.showScreen('code');
+        
+        // Ждем немного, чтобы DOM обновился
+        setTimeout(() => {
+            // Обновляем интерфейс урока
+            this.updateLessonInterface();
+            
+            // Показываем уведомление
+            this.showNotification('📚 Начало урока', `Вы начали "${lesson.title}"`);
+            
+            console.log(`✅ Урок "${lesson.title}" начат и интерфейс обновлен`);
+        }, 100);
+        
+    } catch (error) {
+        console.error('❌ Ошибка начала урока:', error);
+        this.showNotification('❌ Ошибка', 'Не удалось начать урок: ' + error.message);
+    }
+}
         
         // Обновление статистики фермы
         function updateFarmStats() {
@@ -2458,25 +2495,49 @@ function initQuickLessonButtons() {
             }
         }
         
-        // Загрузка уроков
-async function loadLessonsData() {
+async function loadLessons() {
+    console.log('📚 Загружаем уроки...');
+    
     try {
+        // Пытаемся загрузить с сервера
         const response = await fetch('/api/lessons');
         if (response.ok) {
-            lessonsData = await response.json();
-            console.log(`✅ Загружено ${lessonsData.length} уроков из сервера`);
+            this.lessonsData = await response.json();
+            console.log(`✅ Загружено ${this.lessonsData.length} уроков с сервера`);
+            
+            // Проверяем структуру данных
+            this.lessonsData.forEach((lesson, index) => {
+                console.log(`Урок ${index + 1}:`, {
+                    id: lesson.id,
+                    title: lesson.title,
+                    hasTask: !!lesson.task,
+                    hasTheory: !!lesson.theory,
+                    hasTestCode: !!lesson.testCode
+                });
+            });
         } else {
             throw new Error('API не доступен');
         }
+        
     } catch (error) {
-        console.error('Ошибка загрузки уроков:', error);
-        // Используем базовые уроки если API не доступно
-        lessonsData = createBasicLessons();
+        console.error('❌ Ошибка загрузки уроков:', error);
+        
+        // Используем локальные уроки
+        this.lessonsData = this.createBasicLessons();
+        console.log(`🔄 Используем ${this.lessonsData.length} локальных уроков`);
     }
     
-    renderLessons();
+    // Рендерим уроки на экране
+    this.renderLessons();
+    
+    // Проверяем, есть ли текущий урок
+    if (this.currentLesson) {
+        console.log('🔄 Обновляем интерфейс текущего урока...');
+        setTimeout(() => this.updateLessonInterface(), 500);
+    }
 }
 
+// Создание базовых уроков с правильной структурой
 function createBasicLessons() {
     return [
         {
@@ -2830,105 +2891,251 @@ function createBasicLessons() {
 
 // Функция для обновления интерфейса урока
 function updateLessonInterface() {
-    if (!this.currentLesson) return;
+    if (!this.currentLesson) {
+        console.error('❌ Нет текущего урока для обновления интерфейса');
+        return;
+    }
     
-    console.log('🔄 Обновляем интерфейс урока...');
+    console.log('🔄 Обновляем интерфейс урока:', this.currentLesson.id);
+    console.log('📝 Данные урока:', {
+        title: this.currentLesson.title,
+        description: this.currentLesson.description,
+        task: this.currentLesson.task,
+        testCode: this.currentLesson.testCode
+    });
     
     const lesson = this.currentLesson;
     const lessonNumber = parseInt(lesson.id.split('_')[1]);
     
-    // Обновляем заголовок
-    document.getElementById('current-lesson-title').textContent = lesson.title;
+    // 1. Обновляем заголовок
+    const titleElement = document.getElementById('current-lesson-title');
+    if (titleElement) {
+        titleElement.textContent = lesson.title;
+        console.log('✅ Заголовок обновлен:', lesson.title);
+    }
+    
+    // 2. Обновляем номер урока
     document.getElementById('current-lesson-number').textContent = `Урок ${lessonNumber}`;
     document.getElementById('total-lessons').textContent = this.lessonsData.length;
     
-    // Обновляем теорию
+    // 3. ОБНОВЛЯЕМ ТЕОРИЮ (ВАЖНО!)
     const theoryEl = document.getElementById('lesson-theory');
     if (theoryEl) {
         theoryEl.innerHTML = `
             <div style="line-height: 1.5; font-size: 14px;">
-                <p><strong>В этом уроке вы научитесь:</strong></p>
-                <ul style="margin: 10px 0 10px 20px;">
-                    ${lesson.theory ? lesson.theory.split('\n').map(line => `<li>${line}</li>`).join('') : 
-                    '<li>Основным концепциям программирования</li>' +
-                    '<li>Работе с функциями и переменными</li>' +
-                    '<li>Автоматизации задач на ферме</li>'}
-                </ul>
-                
-                <div style="background: #E3F2FD; padding: 12px; border-radius: 6px; margin-top: 15px;">
-                    <strong>📚 Основные концепции:</strong>
-                    <p style="margin: 8px 0 0 0; font-size: 13px;">
-                        ${lesson.description || 'Изучение базовых конструкций Python для управления фермой.'}
+                <p><strong>📚 В этом уроке вы научитесь:</strong></p>
+                <div style="background: #E3F2FD; padding: 12px; border-radius: 6px; margin: 10px 0;">
+                    <p style="margin: 0; font-size: 14px; color: #1565C0;">
+                        ${lesson.description || 'Освоите новые концепции программирования для управления фермой.'}
                     </p>
                 </div>
-            </div>
-        `;
-    }
-    
-    // Обновляем задание
-    const taskEl = document.getElementById('lesson-task');
-    if (taskEl) {
-        taskEl.innerHTML = `
-            <div style="line-height: 1.5; font-size: 14px;">
-                <p><strong>🎯 Цель урока:</strong> ${lesson.task ? lesson.task.split('\n')[0] : 'Выполнить задание по программированию'}</p>
                 
-                <div style="background: #FFF3E0; padding: 12px; border-radius: 6px; margin: 10px 0;">
-                    <strong>📝 Что нужно сделать:</strong>
-                    <div style="white-space: pre-line; margin: 8px 0; font-size: 13px;">
-                        ${lesson.task || 'Написать код согласно инструкциям урока'}
-                    </div>
+                ${lesson.theory ? `
+                <p><strong>🎓 Теория:</strong></p>
+                <div style="background: #f5f5f5; padding: 12px; border-radius: 6px; margin: 10px 0; border-left: 3px solid #2196F3;">
+                    ${lesson.theory.replace(/\n/g, '<br>')}
                 </div>
+                ` : ''}
                 
-                <p><strong>✅ Критерии проверки:</strong></p>
-                <ul style="margin: 8px 0 8px 20px; font-size: 13px;">
-                    <li>Код должен соответствовать заданию</li>
-                    <li>Использовать правильный синтаксис Python</li>
-                    <li>Код должен запускаться без ошибок</li>
-                    <li>Все функции должны быть вызваны правильно</li>
-                </ul>
-            </div>
-        `;
-    }
-    
-    // Обновляем примеры кода
-    const examplesEl = document.getElementById('lesson-examples');
-    if (examplesEl) {
-        examplesEl.innerHTML = `
-            <div style="line-height: 1.5; font-size: 14px;">
-                <p><strong>📋 Пример правильного решения:</strong></p>
-                <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-size: 13px; border-left: 3px solid #4CAF50;">
-${lesson.testCode || '# Пример кода будет здесь\nprint("Пример кода")'}</pre>
-                
-                <div style="background: #E8F5E9; padding: 10px; border-radius: 6px; margin-top: 15px;">
-                    <strong>🚀 Советы по выполнению:</strong>
-                    <ul style="margin: 8px 0 0 20px; font-size: 13px;">
-                        <li>Сначала изучите пример кода выше</li>
-                        <li>Не копируйте код, а понимайте его</li>
-                        <li>Проверяйте каждую строчку на ошибки</li>
-                        <li>Используйте кнопку "Запустить" для проверки</li>
-                        <li>Не бойтесь экспериментировать!</li>
+                <div style="background: #F3E5F5; padding: 10px; border-radius: 6px; margin-top: 15px;">
+                    <strong>💪 Навыки, которые вы получите:</strong>
+                    <ul style="margin: 8px 0 0 20px; font-size: 13px; color: #6A1B9A;">
+                        ${this.getLessonSkills(lessonNumber).map(skill => `<li>${skill}</li>`).join('')}
                     </ul>
                 </div>
             </div>
         `;
+        console.log('✅ Теория обновлена');
     }
     
-    // Обновляем код в редакторе
-    if (this.codeEditor) {
-        this.codeEditor.value = lesson.initialCode || `# Урок ${lessonNumber}: ${lesson.title}\n# ${lesson.description}\n\n# Начните писать код здесь:\n`;
-        this.updateCodeStats();
+    // 4. ОБНОВЛЯЕМ ЗАДАНИЕ (ОСНОВНОЕ!)
+    const taskEl = document.getElementById('lesson-task');
+    if (taskEl) {
+        // Форматируем задание с подзадачами
+        const taskText = lesson.task || 'Выполните задание по программированию согласно инструкциям.';
+        const taskLines = taskText.split('\n');
         
-        // Подстраиваем высоту
+        let formattedTask = '';
+        taskLines.forEach(line => {
+            if (line.trim().startsWith('Требуется:') || line.trim().startsWith('1.')) {
+                formattedTask += `<div style="margin: 5px 0; padding-left: 15px; border-left: 2px solid #FF9800;">${line}</div>`;
+            } else if (line.trim()) {
+                formattedTask += `<p style="margin: 8px 0;">${line}</p>`;
+            }
+        });
+        
+        taskEl.innerHTML = `
+            <div style="line-height: 1.5; font-size: 14px;">
+                <div style="background: linear-gradient(135deg, #FFF3E0, #FFE0B2); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <strong style="color: #EF6C00; font-size: 15px;">🎯 Задание урока ${lessonNumber}</strong>
+                    <div style="margin-top: 10px; color: #5D4037;">
+                        ${formattedTask || 'Напишите код, который решит поставленную задачу.'}
+                    </div>
+                </div>
+                
+                <div style="background: #E8F5E9; padding: 12px; border-radius: 6px;">
+                    <strong style="color: #2E7D32;">✅ Критерии проверки:</strong>
+                    <ul style="margin: 8px 0 0 20px; font-size: 13px; color: #1B5E20;">
+                        ${this.getLessonRequirements(lessonNumber).map(req => `<li>${req}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+        `;
+        console.log('✅ Задание обновлено:', taskText.substring(0, 100) + '...');
+    }
+    
+    // 5. ОБНОВЛЯЕМ ПРИМЕРЫ КОДА
+    const examplesEl = document.getElementById('lesson-examples');
+    if (examplesEl) {
+        const exampleCode = lesson.testCode || lesson.exampleCode || '# Пример кода будет здесь\nprint("Пример кода")';
+        
+        examplesEl.innerHTML = `
+            <div style="line-height: 1.5; font-size: 14px;">
+                <p><strong>📋 Пример правильного решения:</strong></p>
+                <div style="position: relative;">
+                    <pre style="background: #2b2b2b; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-family: 'Consolas', monospace; font-size: 13px; border-left: 3px solid #4CAF50; max-height: 250px; overflow-y: auto;">
+<code>${this.escapeHtml(exampleCode)}</code></pre>
+                    <div style="position: absolute; top: 10px; right: 10px; background: rgba(76, 175, 80, 0.9); color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px;">
+                        ПРИМЕР
+                    </div>
+                </div>
+                
+                <div style="background: #FFFDE7; padding: 12px; border-radius: 6px; margin-top: 15px;">
+                    <strong style="color: #F57C00;">💡 Советы по выполнению:</strong>
+                    <ul style="margin: 8px 0 0 20px; font-size: 13px; color: #E65100;">
+                        <li>Изучите пример кода, но не копируйте его слепо</li>
+                        <li>Пишите код самостоятельно для лучшего понимания</li>
+                        <li>Используйте кнопку "Запустить" для проверки работы кода</li>
+                        <li>Если есть ошибки - читайте сообщения в выводе</li>
+                        <li>Не бойтесь экспериментировать и пробовать разные варианты</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        console.log('✅ Примеры кода обновлены');
+    }
+    
+    // 6. Обновляем код в редакторе
+    if (this.codeEditor) {
+        const initialCode = lesson.initialCode || this.getDefaultInitialCode(lessonNumber);
+        this.codeEditor.value = initialCode;
+        
         setTimeout(() => {
             this.codeEditor.style.height = 'auto';
             this.codeEditor.style.height = Math.min(500, this.codeEditor.scrollHeight) + 'px';
+            this.updateCodeStats();
         }, 100);
+        
+        console.log('✅ Код в редакторе обновлен');
     }
     
-    // Обновляем кнопки навигации
+    // 7. Обновляем кнопки навигации
     this.updateNavigationButtons();
     
-    console.log('✅ Интерфейс урока обновлен');
+    // 8. Прокручиваем вверх
+    window.scrollTo(0, 0);
+    
+    console.log('✅ Интерфейс урока полностью обновлен для:', lesson.title);
+}
+
+// Вспомогательные функции
+function getLessonSkills(lessonNumber) {
+    const skills = {
+        1: ['Использовать функцию print()', 'Давать команды боту', 'Писать простые программы'],
+        2: ['Работать с переменными', 'Использовать функции с аргументами', 'Проектировать структуры фермы'],
+        3: ['Создавать классы', 'Определять методы', 'Работать с объектами'],
+        4: ['Передавать параметры в функции', 'Управлять техникой фермы', 'Автоматизировать задачи'],
+        5: ['Работать со списками', 'Использовать циклы for', 'Автоматизировать повторяющиеся задачи'],
+        6: ['Использовать условия if/else', 'Принимать решения в программе', 'Создавать умные системы'],
+        7: ['Работать со словарями', 'Создавать базы данных', 'Искать информацию в структурах данных'],
+        8: ['Использовать циклы while', 'Обрабатывать неизвестное количество данных', 'Создавать автоматические системы'],
+        9: ['Возвращать значения из функций', 'Использовать результаты вычислений', 'Создавать полезные функции'],
+        10: ['Обрабатывать ошибки', 'Делать программы надежными', 'Предоставлять пользователю информацию об ошибках']
+    };
+    
+    return skills[lessonNumber] || [
+        'Новым концепциям программирования',
+        'Практическим навыкам для фермы',
+        'Решение реальных задач'
+    ];
+}
+
+function getLessonRequirements(lessonNumber) {
+    const requirements = {
+        1: ['Использовать функцию print() минимум один раз', 'Использовать clear_area() для очистки фермы', 'Код должен запускаться без ошибок'],
+        2: ['Создать переменные для координат', 'Использовать функцию build_house() с аргументами', 'Вывести результат работы'],
+        3: ['Создать класс Tractor', 'Добавить методы start(), drive(), stop()', 'Создать экземпляр класса и вызвать методы'],
+        4: ['Добавить метод plow() в класс Tractor', 'Метод должен принимать аргументы', 'Вызвать метод с конкретными координатами'],
+        5: ['Создать список культур', 'Использовать цикл for для перебора', 'Вызвать plant() для каждой культуры'],
+        6: ['Создать переменную для влажности', 'Использовать условия if/elif/else', 'Вызывать water_plants() в зависимости от условий'],
+        7: ['Создать словарь с данными растений', 'Реализовать функцию поиска', 'Выводить информацию по запросу'],
+        8: ['Использовать цикл while', 'Уменьшать счетчик в цикле', 'Вызывать harvest() пока есть урожай'],
+        9: ['Создать функцию calculate_profit()', 'Функция должна возвращать значение', 'Протестировать на разных данных'],
+        10: ['Использовать try-except блок', 'Обработать конкретные ошибки', 'Предоставить информативные сообщения']
+    };
+    
+    return requirements[lessonNumber] || [
+        'Код должен соответствовать заданию',
+        'Использовать правильный синтаксис Python',
+        'Решить поставленную задачу'
+    ];
+}
+
+function getDefaultInitialCode(lessonNumber) {
+    const codes = {
+        1: `# Урок 1: Расчистка фермы
+# Ваша задача: расчистить ферму от травы
+
+# 1. Поприветствуйте бота командой print()
+# Пример: print("Привет, бот!")
+
+# 2. Расчистите ферму командой clear_area()
+# Пример: clear_area("вся ферма")
+
+# 3. Подтвердите завершение работы
+# Пример: print("Работа выполнена!")
+
+# Напишите ваш код ниже:`,
+        
+        2: `# Урок 2: Постройка дома
+# Ваша задача: построить дом в центре фермы
+
+# 1. Определите координаты для дома (центр 8x8 сетки)
+# Пример: x = 3, y = 3
+
+# 2. Постройте дом с помощью функции build_house()
+# Пример: build_house(x, y)
+
+# 3. Выведите сообщение о завершении
+
+# Напишите ваш код ниже:`,
+        
+        3: `# Урок 3: Создание трактора-бота
+# Ваша задача: создать класс трактора с методами
+
+# 1. Создайте класс Tractor
+# Пример: class Tractor:
+
+# 2. Добавьте методы:
+#    - start() - запуск трактора
+#    - drive() - движение трактора  
+#    - stop() - остановка трактора
+
+# 3. Создайте экземпляр класса и вызовите методы
+
+# Напишите ваш код ниже:`
+    };
+    
+    return codes[lessonNumber] || `# Урок ${lessonNumber}
+# Выполните задание согласно инструкциям выше
+
+# Напишите ваш код ниже:`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Функция обновления кнопок навигации
