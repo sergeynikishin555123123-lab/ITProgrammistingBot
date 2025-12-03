@@ -1284,7 +1284,7 @@
         }
         
         // Применение изменений на ферме после урока
-      function applyFarmChanges(lessonId) {
+function applyFarmChanges(lessonId) {
     console.log(`🌾 Применяем изменения на ферме для урока: ${lessonId}`);
     
     if (!farmData || !farmData.cells) {
@@ -1453,14 +1453,6 @@
     
     console.log(`✅ Изменения применены: ${cellsToUpdate.length} клеток обновлены`);
 }
-            
-            // Анимация всей фермы
-            const farmGrid = document.getElementById('farm-grid');
-            if (farmGrid) {
-                farmGrid.classList.add('pulse');
-                setTimeout(() => farmGrid.classList.remove('pulse'), 1000);
-            }
-        }
         
         // Инициализация обработчиков событий
         function initEventHandlers() {
