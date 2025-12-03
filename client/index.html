@@ -737,6 +737,277 @@
             }
         }
 
+/* Адаптивный дизайн для экрана кода */
+.code-screen-container {
+    display: grid;
+    gap: 15px;
+    height: calc(100vh - 180px);
+}
+
+/* Карточки информации */
+.info-card {
+    background: white;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e0e0e0;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.info-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.info-card-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid;
+}
+
+.info-card-content {
+    line-height: 1.5;
+    font-size: 14px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Цвета для разных карточек */
+.theory-card .info-card-header { border-color: #2196F3; }
+.task-card .info-card-header { border-color: #FF9800; }
+.example-card .info-card-header { border-color: #4CAF50; }
+.hint-card .info-card-header { border-color: #9C27B0; }
+
+/* Прокрутка с кастомным скроллбаром */
+.info-card-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.info-card-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.info-card-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.info-card-content::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Кнопки */
+.btn {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+.btn-outline {
+    background: white;
+    border: 1px solid #ddd;
+    color: #333;
+}
+
+.btn-outline:hover {
+    background: #f8f9fa;
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #FF9800, #EF6C00);
+    color: white;
+}
+
+.btn-light {
+    background: white;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+/* Редактор кода */
+#code-editor {
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border: none;
+    padding: 20px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+    tab-size: 4;
+}
+
+#code-editor:focus {
+    box-shadow: inset 0 0 0 2px #4CAF50;
+}
+
+/* Окно вывода */
+#output-area {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    font-family: 'Consolas', monospace;
+    font-size: 14px;
+    overflow-y: auto;
+    min-height: 150px;
+}
+
+#output-text {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.5;
+}
+
+/* Адаптивность */
+@media (max-width: 1200px) {
+    .code-screen-container {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    
+    .lesson-info-sidebar {
+        max-height: 60vh;
+        order: 2;
+    }
+    
+    .code-editor-sidebar {
+        order: 1;
+    }
+    
+    .info-card {
+        margin-bottom: 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    .section-title {
+        font-size: 20px;
+    }
+    
+    #code-screen .section {
+        padding: 10px;
+    }
+    
+    .info-card-content {
+        font-size: 13px;
+    }
+    
+    #code-editor {
+        font-size: 13px;
+        padding: 15px;
+    }
+    
+    .btn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .code-screen-container {
+        gap: 10px;
+    }
+    
+    .info-card {
+        padding: 12px;
+    }
+    
+    .info-card-header h3 {
+        font-size: 16px;
+    }
+    
+    .editor-container > div:first-child,
+    .output-container > div:first-child {
+        padding: 10px;
+    }
+    
+    #code-stats, #execution-status {
+        font-size: 11px;
+    }
+}
+
+/* Улучшенные состояния */
+#next-lesson-btn:disabled,
+#prev-lesson-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+#run-code-btn.running {
+    background: linear-gradient(135deg, #2196F3, #0D47A1);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Подсветка кода в примерах */
+pre code {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+}
+
+pre {
+    background: #f5f5f5;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 10px 0;
+    border-left: 3px solid;
+}
+
+pre.success {
+    border-left-color: #4CAF50;
+    background: #E8F5E9;
+}
+
+pre.error {
+    border-left-color: #f44336;
+    background: #FFEBEE;
+}
+
+pre.info {
+    border-left-color: #2196F3;
+    background: #E3F2FD;
+}
+        
 /* Добавить в существующие стили */
 @media (min-width: 1200px) {
     .code-screen-grid {
@@ -1154,120 +1425,264 @@
                 </div>
             </div>
             
-<!-- Экран редактора кода с новой компоновкой -->
+<!-- Экран редактора кода с адаптивным дизайном -->
 <div id="code-screen" style="display: none;">
-    <div class="section" style="max-width: 1400px; margin: 0 auto;">
-        <h2 class="section-title">
-            <i class="fas fa-laptop-code"></i>
-            Редактор кода - <span id="current-lesson-title">Урок 1: Первые команды</span>
-        </h2>
+    <div class="section" style="max-width: 100%; padding: 10px;">
+        <!-- Заголовок и кнопки управления -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+            <h2 class="section-title" style="margin: 0; flex: 1; min-width: 250px;">
+                <i class="fas fa-laptop-code"></i>
+                <span id="current-lesson-title">Урок 1: Первые команды</span>
+            </h2>
+            
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-outline" onclick="window.showScreen('lessons')" style="padding: 8px 15px;">
+                    <i class="fas fa-list"></i> Все уроки
+                </button>
+                <button class="btn btn-outline" onclick="window.showScreen('main')" style="padding: 8px 15px;">
+                    <i class="fas fa-home"></i> Ферма
+                </button>
+                <button class="btn btn-success" id="submit-code-btn" style="padding: 8px 20px;">
+                    <i class="fas fa-check-circle"></i> Проверить решение
+                </button>
+            </div>
+        </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: 70vh;">
-            <!-- ЛЕВАЯ ПАНЕЛЬ: Информация об уроке -->
-            <div style="display: flex; flex-direction: column; gap: 20px;">
+        <!-- Основной контейнер с двумя колонками -->
+        <div class="code-screen-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; height: calc(100vh - 180px);">
+            
+            <!-- ЛЕВАЯ КОЛОНКА: Информация -->
+            <div class="lesson-info-sidebar" style="display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px;">
+                
                 <!-- Карточка теории -->
-                <div class="card" style="flex: 1; overflow-y: auto;">
-                    <h3 style="color: var(--primary-dark); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">📖</span>
-                        Теория урока
-                    </h3>
-                    <div id="lesson-theory" style="line-height: 1.6;">
-                        <!-- Теория будет загружена динамически -->
+                <div class="info-card theory-card">
+                    <div class="info-card-header">
+                        <i class="fas fa-book" style="color: #2196F3; margin-right: 8px;"></i>
+                        <h3 style="margin: 0; color: #2196F3;">Теория урока</h3>
+                    </div>
+                    <div class="info-card-content" id="lesson-theory">
+                        <div style="line-height: 1.5; font-size: 14px;">
+                            <p><strong>В этом уроке вы научитесь:</strong></p>
+                            <ul style="margin: 10px 0 10px 20px;">
+                                <li>Использовать функцию print() для вывода текста</li>
+                                <li>Давать команды боту с помощью специальных функций</li>
+                                <li>Писать простые программы на Python</li>
+                            </ul>
+                            <p><strong>Основные концепции:</strong></p>
+                            <p>Функции в Python — это блоки кода, которые выполняют определенные действия. Например, <code>print()</code> выводит текст на экран.</p>
+                            <p>Каждая команда должна быть на отдельной строке. Python читает код сверху вниз.</p>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Карточка задания -->
-                <div class="card" style="flex: 1; overflow-y: auto; background: #FFF3E0;">
-                    <h3 style="color: #EF6C00; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">🎯</span>
-                        Задание
-                    </h3>
-                    <div id="lesson-task" style="line-height: 1.6;">
-                        <!-- Задание будет загружено динамически -->
+                <div class="info-card task-card">
+                    <div class="info-card-header">
+                        <i class="fas fa-tasks" style="color: #FF9800; margin-right: 8px;"></i>
+                        <h3 style="margin: 0; color: #FF9800;">Задание</h3>
+                    </div>
+                    <div class="info-card-content" id="lesson-task">
+                        <div style="line-height: 1.5; font-size: 14px;">
+                            <p><strong>🎯 Цель урока:</strong> Написать программу, которая расчистит ферму от травы.</p>
+                            
+                            <div style="background: #FFF3E0; padding: 12px; border-radius: 6px; margin: 10px 0;">
+                                <strong>📝 Что нужно сделать:</strong>
+                                <ol style="margin: 8px 0 8px 20px;">
+                                    <li>Поприветствуйте бота командой <code>print()</code></li>
+                                    <li>Попросите бота расчистить ферму командой <code>clear_area()</code></li>
+                                    <li>Подтвердите завершение работы</li>
+                                </ol>
+                            </div>
+                            
+                            <p><strong>✅ Критерии проверки:</strong></p>
+                            <ul style="margin: 8px 0 8px 20px; font-size: 13px;">
+                                <li>Использована функция <code>print()</code></li>
+                                <li>Использована функция <code>clear_area()</code></li>
+                                <li>Код запускается без ошибок</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Карточка примеров -->
-                <div class="card" style="flex: 1; overflow-y: auto;">
-                    <h3 style="color: var(--primary-dark); margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">💡</span>
-                        Примеры кода
-                    </h3>
-                    <div id="lesson-examples" style="line-height: 1.6;">
-                        <!-- Примеры будут загружены динамически -->
+                <div class="info-card example-card">
+                    <div class="info-card-header">
+                        <i class="fas fa-code" style="color: #4CAF50; margin-right: 8px;"></i>
+                        <h3 style="margin: 0; color: #4CAF50;">Примеры кода</h3>
                     </div>
-                </div>
-            </div>
-            
-            <!-- ПРАВАЯ ПАНЕЛЬ: Редактор кода -->
-            <div style="display: flex; flex-direction: column; gap: 20px;">
-                <!-- Редактор кода -->
-                <div class="card" style="flex: 2; display: flex; flex-direction: column;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h3 style="color: var(--primary-dark); margin: 0;">Ваш код</h3>
-                        <div style="display: flex; gap: 10px;">
-                            <button class="btn btn-secondary" id="reset-code-btn">
-                                <i class="fas fa-redo"></i> Сбросить
-                            </button>
-                            <button class="btn btn-primary" id="run-code-btn">
-                                <i class="fas fa-play"></i> Запустить
-                            </button>
-                            <button class="btn btn-success" id="submit-code-btn">
-                                <i class="fas fa-paper-plane"></i> Отправить решение
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div style="flex: 1; position: relative;">
-                        <textarea id="code-editor" placeholder="Напишите ваш код Python здесь..."></textarea>
-                        <div style="position: absolute; top: 10px; right: 10px; background: rgba(30, 30, 30, 0.8); padding: 5px 10px; border-radius: 5px; color: #999; font-size: 12px;">
-                            Python 3.9
-                        </div>
-                    </div>
-                    
-                    <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-size: 12px; color: #666;">
-                            <i class="fas fa-lightbulb"></i> Нажмите Ctrl+Enter для быстрого запуска
-                        </div>
-                        <div style="font-size: 12px; color: #666;" id="code-stats">
-                            Символов: 0 | Строк: 0
+                    <div class="info-card-content" id="lesson-examples">
+                        <div style="line-height: 1.5; font-size: 14px;">
+                            <p><strong>📋 Пример правильного решения:</strong></p>
+                            <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-size: 13px; border-left: 3px solid #4CAF50;">
+print("Привет, фермерский бот!")
+print("Начинаю расчистку фермы")
+clear_area("вся ферма")
+print("Ферма полностью расчищена!")</pre>
+                            
+                            <p><strong>💡 Другие варианты:</strong></p>
+                            <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 5px 0; font-size: 13px;">
+# Вариант 1: Короткая версия
+print("Начинаю работу")
+clear_area("все")
+
+# Вариант 2: С комментариями
+# Приветствие бота
+print("Здравствуй, бот!")
+# Расчистка территории
+clear_area("ферма")</pre>
+                            
+                            <p><strong>🚀 Советы:</strong></p>
+                            <ul style="margin: 8px 0 8px 20px; font-size: 13px;">
+                                <li>Текст в кавычках может быть любым</li>
+                                <li>Команды выполняются последовательно</li>
+                                <li>Комментарии начинаются с # и игнорируются</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Результаты выполнения -->
-                <div class="card" style="flex: 1; display: flex; flex-direction: column;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h3 style="color: var(--primary-dark); margin: 0;">Результат выполнения</h3>
-                        <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;" id="clear-output-btn">
-                            <i class="fas fa-trash"></i> Очистить
+                <!-- Карточка подсказок -->
+                <div class="info-card hint-card">
+                    <div class="info-card-header">
+                        <i class="fas fa-lightbulb" style="color: #9C27B0; margin-right: 8px;"></i>
+                        <h3 style="margin: 0; color: #9C27B0;">Подсказки</h3>
+                    </div>
+                    <div class="info-card-content">
+                        <div style="line-height: 1.5; font-size: 14px;">
+                            <p><strong>❓ Частые ошибки:</strong></p>
+                            <ul style="margin: 8px 0 8px 20px; font-size: 13px;">
+                                <li>Забыли кавычки: <code>print(Привет)</code> ❌</li>
+                                <li>Нет скобок: <code>print "Привет"</code> ❌</li>
+                                <li>Опечатки: <code>prnt()</code> или <code>cler_area()</code> ❌</li>
+                            </ul>
+                            
+                            <p><strong>✅ Правильный синтаксис:</strong></p>
+                            <pre style="background: #f5f5f5; padding: 8px; border-radius: 6px; margin: 5px 0; font-size: 12px;">
+# Правильно:
+print("Текст в двойных кавычках")
+print('Текст в одинарных кавычках')
+clear_area("аргумент в кавычках")
+
+# Неправильно:
+print(Текст без кавычек)  # Ошибка!
+prnt("Опечатка в названии")  # Ошибка!
+clear_area()  # Не указан аргумент</pre>
+                            
+                            <div style="background: #E8F5E9; padding: 10px; border-radius: 6px; margin-top: 10px;">
+                                <strong>💪 Как проверить:</strong>
+                                <p style="margin: 5px 0 0 0; font-size: 13px;">Нажмите "Запустить код", чтобы увидеть результат вашей программы. Если есть ошибки — они появятся в окне вывода.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- ПРАВАЯ КОЛОНКА: Редактор -->
+            <div class="code-editor-sidebar" style="display: flex; flex-direction: column; gap: 15px;">
+                
+                <!-- Панель редактора -->
+                <div class="editor-container" style="flex: 2; display: flex; flex-direction: column; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                    <!-- Заголовок редактора -->
+                    <div style="background: #2E7D32; color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-keyboard"></i>
+                            <span style="font-weight: bold;">Редактор кода Python</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-light" id="reset-code-btn" style="padding: 4px 10px; font-size: 12px;">
+                                <i class="fas fa-redo"></i> Сброс
+                            </button>
+                            <button class="btn btn-sm btn-warning" id="run-code-btn" style="padding: 4px 12px; font-size: 12px;">
+                                <i class="fas fa-play"></i> Запустить
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Текстовое поле для кода -->
+                    <div style="flex: 1; position: relative; background: #1e1e1e;">
+                        <textarea id="code-editor" style="width: 100%; height: 100%; min-height: 300px; background: #1e1e1e; color: #d4d4d4; border: none; padding: 20px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; resize: none; outline: none;"># Урок 1: Расчистка фермы
+# Напишите код для расчистки всей фермы
+
+# 1. Поприветствуйте бота командой print()
+# Пример: print("Привет, бот!")
+
+# 2. Расчистите ферму командой clear_area()
+# Пример: clear_area("вся ферма")
+
+# 3. Подтвердите завершение работы
+# Пример: print("Работа завершена!")
+
+# Начните писать код ниже:</textarea>
+                        
+                        <!-- Подсказка в углу -->
+                        <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #ccc; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                            <i class="fas fa-mouse-pointer"></i> Ctrl+Enter для запуска
+                        </div>
+                    </div>
+                    
+                    <!-- Статистика кода -->
+                    <div style="background: #252526; color: #ccc; padding: 8px 15px; font-size: 12px; display: flex; justify-content: space-between; border-top: 1px solid #333;">
+                        <div id="code-stats">
+                            <i class="fas fa-font"></i> Символов: 0 | 
+                            <i class="fas fa-bars"></i> Строк: 0 | 
+                            <i class="fas fa-file-code"></i> Python 3.9
+                        </div>
+                        <div>
+                            <i class="fas fa-exclamation-triangle" style="color: #FF9800;"></i> Проверьте код перед отправкой
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Панель результатов -->
+                <div class="output-container" style="flex: 1; display: flex; flex-direction: column; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                    <!-- Заголовок результатов -->
+                    <div style="background: #1976D2; color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-terminal"></i>
+                            <span style="font-weight: bold;">Результат выполнения</span>
+                        </div>
+                        <button class="btn btn-sm btn-light" id="clear-output-btn" style="padding: 4px 10px; font-size: 12px;">
+                            <i class="fas fa-trash-alt"></i> Очистить
                         </button>
                     </div>
                     
-                    <div id="output-container" style="flex: 1; background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 14px;">
-                        <pre id="output-text" style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">Запустите код, чтобы увидеть результат...</pre>
+                    <!-- Окно вывода -->
+                    <div id="output-area" style="flex: 1; background: #1e1e1e; color: #d4d4d4; padding: 15px; font-family: 'Consolas', monospace; font-size: 14px; overflow-y: auto; min-height: 150px;">
+                        <pre id="output-text" style="margin: 0; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">🚀 Готов к выполнению кода...
+                        
+Нажмите кнопку "Запустить" или Ctrl+Enter чтобы выполнить ваш код.
+
+Здесь будут появляться:
+• Результаты выполнения команд print()
+• Сообщения об ошибках
+• Подтверждения от бота
+• Статус выполнения уроков</pre>
                     </div>
                     
-                    <div style="margin-top: 10px; display: flex; gap: 10px;">
-                        <div style="font-size: 12px; color: #666;">
-                            <i class="fas fa-info-circle"></i> Результаты обновляются после каждого запуска
+                    <!-- Статус выполнения -->
+                    <div style="background: #252526; color: #ccc; padding: 8px 15px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #333;">
+                        <div id="execution-status">
+                            <i class="fas fa-clock" style="color: #4CAF50;"></i> Ожидание запуска...
+                        </div>
+                        <div id="lesson-progress">
+                            <span id="current-lesson-number">Урок 1</span> из <span id="total-lessons">22</span>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Быстрые действия -->
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                    <button class="btn btn-outline" onclick="window.showScreen('lessons')">
-                        <i class="fas fa-arrow-left"></i> К списку уроков
+                <!-- Кнопки навигации -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-outline" id="prev-lesson-btn" style="padding: 10px; text-align: center;">
+                        <i class="fas fa-arrow-left"></i> Предыдущий урок
                     </button>
-                    <button class="btn btn-outline" onclick="window.showScreen('main')">
-                        <i class="fas fa-home"></i> На главную
-                    </button>
-                    <button class="btn btn-outline" id="next-lesson-btn" disabled>
-                        <i class="fas fa-arrow-right"></i> Следующий урок
+                    <button class="btn btn-primary" id="next-lesson-btn" style="padding: 10px; text-align: center;">
+                        Следующий урок <i class="fas fa-arrow-right"></i>
                     </button>
                 </div>
+                
             </div>
+            
         </div>
     </div>
 </div>
@@ -1921,7 +2336,6 @@ function initQuickLessonButtons() {
             }
         }
 
-
         
         // Обработка быстрых действий
         function handleQuickAction(action) {
@@ -2414,38 +2828,39 @@ function createBasicLessons() {
             updateHints(lesson);
         }
 
-// Функция обновления интерфейса урока
+// Функция для обновления интерфейса урока
 function updateLessonInterface() {
     if (!this.currentLesson) return;
     
     console.log('🔄 Обновляем интерфейс урока...');
     
     const lesson = this.currentLesson;
+    const lessonNumber = parseInt(lesson.id.split('_')[1]);
     
     // Обновляем заголовок
     document.getElementById('current-lesson-title').textContent = lesson.title;
+    document.getElementById('current-lesson-number').textContent = `Урок ${lessonNumber}`;
+    document.getElementById('total-lessons').textContent = this.lessonsData.length;
     
     // Обновляем теорию
     const theoryEl = document.getElementById('lesson-theory');
     if (theoryEl) {
         theoryEl.innerHTML = `
-            <div style="margin-bottom: 15px;">
-                <strong>📝 Описание:</strong>
-                <p style="margin-top: 5px; color: #666;">${lesson.description}</p>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <strong>🎯 Что изучаем:</strong>
-                <p style="margin-top: 5px;">${lesson.theory || 'Теория будет добавлена позже.'}</p>
-            </div>
-            
-            <div style="background: #E8F5E9; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                <strong>💪 Навыки, которые получите:</strong>
-                <ul style="margin: 10px 0 0 20px; color: #666;">
-                    <li>Основы синтаксиса Python</li>
-                    <li>Работа с функциями и переменными</li>
-                    <li>Автоматизация задач на ферме</li>
+            <div style="line-height: 1.5; font-size: 14px;">
+                <p><strong>В этом уроке вы научитесь:</strong></p>
+                <ul style="margin: 10px 0 10px 20px;">
+                    ${lesson.theory ? lesson.theory.split('\n').map(line => `<li>${line}</li>`).join('') : 
+                    '<li>Основным концепциям программирования</li>' +
+                    '<li>Работе с функциями и переменными</li>' +
+                    '<li>Автоматизации задач на ферме</li>'}
                 </ul>
+                
+                <div style="background: #E3F2FD; padding: 12px; border-radius: 6px; margin-top: 15px;">
+                    <strong>📚 Основные концепции:</strong>
+                    <p style="margin: 8px 0 0 0; font-size: 13px;">
+                        ${lesson.description || 'Изучение базовых конструкций Python для управления фермой.'}
+                    </p>
+                </div>
             </div>
         `;
     }
@@ -2454,17 +2869,22 @@ function updateLessonInterface() {
     const taskEl = document.getElementById('lesson-task');
     if (taskEl) {
         taskEl.innerHTML = `
-            <div style="margin-bottom: 15px;">
-                <strong>🎯 Задание:</strong>
-                <p style="margin-top: 5px; white-space: pre-line; background: #FFF9C4; padding: 10px; border-radius: 5px;">${lesson.task}</p>
-            </div>
-            
-            <div style="margin-top: 15px;">
-                <strong>✅ Критерии проверки:</strong>
-                <ul style="margin: 10px 0 0 20px; color: #666;">
+            <div style="line-height: 1.5; font-size: 14px;">
+                <p><strong>🎯 Цель урока:</strong> ${lesson.task ? lesson.task.split('\n')[0] : 'Выполнить задание по программированию'}</p>
+                
+                <div style="background: #FFF3E0; padding: 12px; border-radius: 6px; margin: 10px 0;">
+                    <strong>📝 Что нужно сделать:</strong>
+                    <div style="white-space: pre-line; margin: 8px 0; font-size: 13px;">
+                        ${lesson.task || 'Написать код согласно инструкциям урока'}
+                    </div>
+                </div>
+                
+                <p><strong>✅ Критерии проверки:</strong></p>
+                <ul style="margin: 8px 0 8px 20px; font-size: 13px;">
                     <li>Код должен соответствовать заданию</li>
                     <li>Использовать правильный синтаксис Python</li>
                     <li>Код должен запускаться без ошибок</li>
+                    <li>Все функции должны быть вызваны правильно</li>
                 </ul>
             </div>
         `;
@@ -2474,53 +2894,170 @@ function updateLessonInterface() {
     const examplesEl = document.getElementById('lesson-examples');
     if (examplesEl) {
         examplesEl.innerHTML = `
-            <div style="margin-bottom: 15px;">
-                <strong>📋 Пример правильного кода:</strong>
-                <pre style="background: #f5f5f5; padding: 15px; border-radius: 8px; overflow-x: auto; margin: 10px 0; border-left: 4px solid #4CAF50;"><code>${lesson.testCode || '# Пример кода будет здесь'}</code></pre>
-            </div>
-            
-            <div style="margin-top: 15px;">
-                <strong>🚀 Советы по выполнению:</strong>
-                <ul style="margin: 10px 0 0 20px; color: #666;">
-                    <li>Сначала напишите код в блокноте</li>
-                    <li>Проверьте каждую строчку на ошибки</li>
-                    <li>Используйте кнопку "Запустить" для проверки</li>
-                    <li>Не бойтесь экспериментировать!</li>
-                </ul>
+            <div style="line-height: 1.5; font-size: 14px;">
+                <p><strong>📋 Пример правильного решения:</strong></p>
+                <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-size: 13px; border-left: 3px solid #4CAF50;">
+${lesson.testCode || '# Пример кода будет здесь\nprint("Пример кода")'}</pre>
+                
+                <div style="background: #E8F5E9; padding: 10px; border-radius: 6px; margin-top: 15px;">
+                    <strong>🚀 Советы по выполнению:</strong>
+                    <ul style="margin: 8px 0 0 20px; font-size: 13px;">
+                        <li>Сначала изучите пример кода выше</li>
+                        <li>Не копируйте код, а понимайте его</li>
+                        <li>Проверяйте каждую строчку на ошибки</li>
+                        <li>Используйте кнопку "Запустить" для проверки</li>
+                        <li>Не бойтесь экспериментировать!</li>
+                    </ul>
+                </div>
             </div>
         `;
     }
     
     // Обновляем код в редакторе
     if (this.codeEditor) {
-        this.codeEditor.value = lesson.initialCode;
+        this.codeEditor.value = lesson.initialCode || `# Урок ${lessonNumber}: ${lesson.title}\n# ${lesson.description}\n\n# Начните писать код здесь:\n`;
         this.updateCodeStats();
         
         // Подстраиваем высоту
         setTimeout(() => {
             this.codeEditor.style.height = 'auto';
-            this.codeEditor.style.height = (this.codeEditor.scrollHeight) + 'px';
+            this.codeEditor.style.height = Math.min(500, this.codeEditor.scrollHeight) + 'px';
         }, 100);
     }
     
-    // Обновляем кнопку следующего урока
-    const nextLessonBtn = document.getElementById('next-lesson-btn');
-    if (nextLessonBtn) {
-        const lessonIndex = this.lessonsData.findIndex(l => l.id === lesson.id);
-        const hasNextLesson = lessonIndex < this.lessonsData.length - 1;
-        
-        if (hasNextLesson && this.userData?.completedLessonIds?.includes(lesson.id)) {
-            const nextLesson = this.lessonsData[lessonIndex + 1];
-            nextLessonBtn.disabled = false;
-            nextLessonBtn.onclick = () => this.startLesson(nextLesson.id);
-            nextLessonBtn.innerHTML = `<i class="fas fa-arrow-right"></i> Урок ${lessonIndex + 2}: ${nextLesson.title.substring(0, 30)}...`;
+    // Обновляем кнопки навигации
+    this.updateNavigationButtons();
+    
+    console.log('✅ Интерфейс урока обновлен');
+}
+
+// Функция обновления кнопок навигации
+function updateNavigationButtons() {
+    if (!this.currentLesson) return;
+    
+    const lessonId = this.currentLesson.id;
+    const lessonIndex = this.lessonsData.findIndex(l => l.id === lessonId);
+    
+    // Кнопка предыдущего урока
+    const prevBtn = document.getElementById('prev-lesson-btn');
+    if (prevBtn) {
+        if (lessonIndex > 0) {
+            const prevLesson = this.lessonsData[lessonIndex - 1];
+            prevBtn.disabled = false;
+            prevBtn.onclick = () => this.startLesson(prevLesson.id);
+            prevBtn.innerHTML = `<i class="fas fa-arrow-left"></i> Урок ${lessonIndex}: ${prevLesson.title.substring(0, 20)}...`;
         } else {
-            nextLessonBtn.disabled = true;
-            nextLessonBtn.innerHTML = `<i class="fas fa-lock"></i> Следующий урок`;
+            prevBtn.disabled = true;
+            prevBtn.innerHTML = `<i class="fas fa-ban"></i> Нет предыдущего урока`;
         }
     }
     
-    console.log('✅ Интерфейс урока обновлен');
+    // Кнопка следующего урока
+    const nextBtn = document.getElementById('next-lesson-btn');
+    if (nextBtn) {
+        if (lessonIndex < this.lessonsData.length - 1) {
+            const nextLesson = this.lessonsData[lessonIndex + 1];
+            const isCompleted = this.userData?.completedLessonIds?.includes(lessonId);
+            const isUnlocked = isCompleted || lessonIndex === 0 || 
+                (lessonIndex > 0 && this.userData?.completedLessonIds?.includes(this.lessonsData[lessonIndex].id));
+            
+            if (isUnlocked) {
+                nextBtn.disabled = false;
+                nextBtn.onclick = () => this.startLesson(nextLesson.id);
+                nextBtn.innerHTML = `Урок ${lessonIndex + 2}: ${nextLesson.title.substring(0, 20)}... <i class="fas fa-arrow-right"></i>`;
+                nextBtn.className = 'btn btn-primary';
+            } else {
+                nextBtn.disabled = true;
+                nextBtn.innerHTML = `<i class="fas fa-lock"></i> Следующий урок заблокирован`;
+                nextBtn.className = 'btn btn-outline';
+            }
+        } else {
+            nextBtn.disabled = false;
+            nextBtn.innerHTML = `<i class="fas fa-flag-checkered"></i> Завершить обучение`;
+            nextBtn.onclick = () => {
+                this.showNotification('🎓', 'Поздравляем! Вы прошли все уроки!');
+                this.showScreen('main');
+            };
+            nextBtn.className = 'btn btn-success';
+        }
+    }
+}
+
+// Функция для обновления статистики кода
+function updateCodeStats() {
+    if (!this.codeEditor) return;
+    
+    const code = this.codeEditor.value;
+    const chars = code.length;
+    const lines = code.split('\n').length;
+    const words = code.split(/\s+/).filter(w => w.length > 0).length;
+    
+    const statsEl = document.getElementById('code-stats');
+    if (statsEl) {
+        statsEl.innerHTML = `
+            <i class="fas fa-font"></i> Символов: ${chars.toLocaleString()} | 
+            <i class="fas fa-bars"></i> Строк: ${lines} | 
+            <i class="fas fa-file-code"></i> Python 3.9
+        `;
+    }
+}
+
+// Инициализация улучшенного интерфейса
+function initEnhancedCodeInterface() {
+    console.log('🎨 Инициализируем улучшенный интерфейс редактора...');
+    
+    const textarea = document.getElementById('code-editor');
+    if (textarea) {
+        this.codeEditor = textarea;
+        
+        // Автоподстройка высоты
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(500, textarea.scrollHeight) + 'px';
+            this.updateCodeStats();
+        });
+        
+        // Горячие клавиши
+        textarea.addEventListener('keydown', (e) => {
+            // Ctrl+Enter для запуска кода
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                this.runCode();
+            }
+            
+            // Tab для отступов
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                
+                // Вставляем 4 пробела
+                textarea.value = textarea.value.substring(0, start) + 
+                                '    ' + 
+                                textarea.value.substring(end);
+                
+                // Устанавливаем курсор после отступа
+                textarea.selectionStart = textarea.selectionEnd = start + 4;
+                
+                // Обновляем статистику
+                this.updateCodeStats();
+            }
+        });
+        
+        // Кнопки управления
+        document.getElementById('reset-code-btn')?.addEventListener('click', () => this.resetCode());
+        document.getElementById('run-code-btn')?.addEventListener('click', () => this.runCode());
+        document.getElementById('submit-code-btn')?.addEventListener('click', () => this.submitSolution());
+        document.getElementById('clear-output-btn')?.addEventListener('click', () => this.clearOutput());
+        
+        // Инициализируем статистику
+        this.updateCodeStats();
+        
+        // Обновляем навигацию
+        this.updateNavigationButtons();
+        
+        console.log('✅ Улучшенный интерфейс редактора готов');
+    }
 }
 
 // Функция для обновления статистики кода
