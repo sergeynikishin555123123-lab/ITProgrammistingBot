@@ -732,6 +732,28 @@ class CodeFarmApp {
                 margin-bottom: 20px;
                 animation: bounce 2s infinite;
             }
+
+            /* Анимация успеха */
+@keyframes zoomInOut {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+@keyframes confetti {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}
+
+.confetti {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    background: var(--color);
+    top: -10px;
+    animation: confetti 3s linear forwards;
+    z-index: 1000;
+}
         `;
         
         document.head.appendChild(style);
@@ -947,35 +969,44 @@ class CodeFarmApp {
         console.log('✅ Статистика обновлена');
     }
     
-    updateFarmStats() {
-        if (!this.farmData || !this.farmData.stats) {
-            console.log('⚠️ Нет farmData для обновления статистики фермы');
-            return;
-        }
-        
-        console.log('📈 Обновляем статистику фермы...');
-        
-        const stats = this.farmData.stats;
-        
-        // Обновляем элементы
-        document.getElementById('cleared-land-count').textContent = stats.clearedLand || 0;
-        document.getElementById('buildings-count').textContent = stats.buildings || 0;
-        document.getElementById('crops-count').textContent = stats.crops || 0;
-        
-        // Обновляем прогресс-бар фермы
-        const progressBar = document.getElementById('farm-progress-bar');
-        if (progressBar) {
-            const totalProgress = Math.min(100, 
-                (stats.clearedLand || 0) * 2 + 
-                (stats.buildings || 0) * 10 + 
-                (stats.crops || 0) * 5 +
-                (stats.water || 0) * 8
-            );
-            progressBar.style.width = `${totalProgress}%`;
-        }
-        
-        console.log('✅ Статистика фермы обновлена');
+   updateFarmStats() {
+    if (!this.farmData || !this.farmData.cells) {
+        console.log('⚠️ Нет farmData для обновления статистики фермы');
+        return;
     }
+    
+    console.log('📈 Обновляем статистику фермы...');
+    
+    // Пересчитываем статистику
+    const stats = {
+        clearedLand: this.farmData.cells.filter(cell => 
+            cell.type === 'cleared' || cell.type === 'plowed' || 
+            cell.type === 'house' || cell.type === 'barn' || 
+            cell.type === 'crop' || cell.type === 'water').length,
+        buildings: this.farmData.cells.filter(cell => 
+            cell.type === 'house' || cell.type === 'barn').length,
+        crops: this.farmData.cells.filter(cell => cell.type === 'crop').length,
+        water: this.farmData.cells.filter(cell => cell.type === 'water').length
+    };
+    
+    // Сохраняем статистику
+    this.farmData.stats = stats;
+    
+    // Обновляем элементы на странице
+    document.getElementById('cleared-land-count').textContent = stats.clearedLand;
+    document.getElementById('buildings-count').textContent = stats.buildings;
+    document.getElementById('crops-count').textContent = stats.crops;
+    
+    // Обновляем прогресс-бар фермы
+    const progressBar = document.getElementById('farm-progress-bar');
+    if (progressBar) {
+        // Рассчитываем общий прогресс (максимум 64 клетки)
+        const totalProgress = Math.min(100, (stats.clearedLand / 64) * 100);
+        progressBar.style.width = `${totalProgress}%`;
+    }
+    
+    console.log('✅ Статистика фермы обновлена:', stats);
+}
     
     async startLesson(lessonId) {
         console.log(`🎯 Начинаем урок: ${lessonId}`);
@@ -1140,105 +1171,50 @@ class CodeFarmApp {
         }
     }
     
-    async submitSolution() {
-        if (!this.currentLesson || !this.userId) {
-            this.showNotification('❌ Ошибка', 'Сначала выберите урок');
-            return;
+async submitSolution() {
+    if (!this.currentLesson || !this.userId) {
+        this.showNotification('❌ Ошибка', 'Сначала выберите урок');
+        return;
+    }
+    
+    const code = this.codeEditor?.value;
+    if (!code?.trim()) {
+        this.showNotification('⚠️ Внимание', 'Введите решение задания');
+        return;
+    }
+    
+    console.log(`📤 Отправляем решение для урока: ${this.currentLesson.id}`);
+    
+    try {
+        // Отправляем решение
+        const response = await fetch(`/api/lessons/${this.currentLesson.id}/submit`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: this.userId,
+                code: code
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const code = this.codeEditor?.value;
-        if (!code?.trim()) {
-            this.showNotification('⚠️ Внимание', 'Введите решение задания');
-            return;
-        }
+        const result = await response.json();
         
-        console.log(`📤 Отправляем решение для урока: ${this.currentLesson.id}`);
-        
-        try {
-            // Отправляем решение
-            const response = await fetch(`/api/lessons/${this.currentLesson.id}/submit`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    userId: this.userId,
-                    code: code
-                })
-            });
+        if (result.success) {
+            this.showNotification('🎉 Урок пройден!', 
+                `Награда: ${result.reward || 50} монет\n` +
+                `Опыт: +${result.experience || 100}`);
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                this.showNotification('🎉 Урок пройден!', 
-                    `Награда: ${result.reward || 50} монет\n` +
-                    `Опыт: +${result.experience || 100}`);
-                
-                // Обновляем данные пользователя
-                if (this.userData) {
-                    userData = this.userData; // Для доступа в других функциях
-                    this.userData.coins += result.reward || 50;
-                    this.userData.experience += result.experience || 100;
-                    this.userData.lessonsCompleted = (this.userData.lessonsCompleted || 0) + 1;
-                    
-                    // Добавляем урок в пройденные
-                    if (!this.userData.completedLessonIds) {
-                        this.userData.completedLessonIds = [];
-                    }
-                    if (!this.userData.completedLessonIds.includes(this.currentLesson.id)) {
-                        this.userData.completedLessonIds.push(this.currentLesson.id);
-                    }
-                    
-                    // Проверяем повышение уровня
-                    if (this.userData.experience >= (this.userData.level || 1) * 1000) {
-                        this.userData.level = (this.userData.level || 1) + 1;
-                        this.showNotification('⭐ Новый уровень!', `Поздравляем! Вы достигли уровня ${this.userData.level}!`);
-                    }
-                    
-                    this.updateUserStats();
-                }
-                
-                // Помечаем урок как завершенный
-                const lessonIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
-                if (lessonIndex !== -1) {
-                    this.lessonsData[lessonIndex].completed = true;
-                    this.renderLessons();
-                }
-                
-                // Применяем изменения на ферме
-                this.applyFarmChanges(this.currentLesson.id);
-                
-                // Анимация успеха
-                this.playSuccessAnimation();
-                
-                console.log('✅ Урок успешно пройден');
-                
-            } else {
-                this.showNotification('❌ Ошибка', result.message || 'Проверьте ваш код');
-                
-                if (result.errors) {
-                    this.showCodeErrors(result.errors);
-                }
-            }
-            
-        } catch (error) {
-            console.error('❌ Ошибка отправки решения:', error);
-            
-            // Демо-режим: имитация успеха
-            this.showNotification('🎉 Демо: Урок пройден!', 
-                `Урок "${this.currentLesson.title}" пройден!\n` +
-                `Награда: 50 монет (демо-режим)`);
-            
-            // Обновляем данные
+            // Обновляем данные пользователя
             if (this.userData) {
                 userData = this.userData; // Для доступа в других функциях
-                this.userData.coins += 50;
-                this.userData.experience += 100;
+                this.userData.coins += result.reward || 50;
+                this.userData.experience += result.experience || 100;
                 this.userData.lessonsCompleted = (this.userData.lessonsCompleted || 0) + 1;
                 
                 // Добавляем урок в пройденные
@@ -1249,214 +1225,485 @@ class CodeFarmApp {
                     this.userData.completedLessonIds.push(this.currentLesson.id);
                 }
                 
-                this.updateUserStats();
-                
-                // Помечаем урок как завершенный
-                const lessonIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
-                if (lessonIndex !== -1) {
-                    this.lessonsData[lessonIndex].completed = true;
-                    this.renderLessons();
+                // Проверяем повышение уровня
+                if (this.userData.experience >= (this.userData.level || 1) * 1000) {
+                    this.userData.level = (this.userData.level || 1) + 1;
+                    this.showNotification('⭐ Новый уровень!', `Поздравляем! Вы достигли уровня ${this.userData.level}!`);
                 }
                 
-                // Применяем изменения на ферме (демо-режим)
-                this.applyFarmChanges(this.currentLesson.id);
-                
-                this.playSuccessAnimation();
+                this.updateUserStats();
+            }
+            
+            // Помечаем урок как завершенный
+            const lessonIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+            if (lessonIndex !== -1) {
+                this.lessonsData[lessonIndex].completed = true;
+                this.renderLessons();
+            }
+            
+            // Применяем изменения на ферме
+            this.applyFarmChanges(this.currentLesson.id);
+            
+            // Анимация успеха
+            this.playSuccessAnimation();
+            
+            console.log('✅ Урок успешно пройден');
+            
+        } else {
+            this.showNotification('❌ Ошибка', result.message || 'Проверьте ваш код');
+            
+            if (result.errors) {
+                this.showCodeErrors(result.errors);
             }
         }
+        
+    } catch (error) {
+        console.error('❌ Ошибка отправки решения:', error);
+        
+        // Демо-режим: имитация успеха
+        this.showNotification('🎉 Демо: Урок пройден!', 
+            `Урок "${this.currentLesson.title}" пройден!\n` +
+            `Награда: 50 монет (демо-режим)`);
+        
+        // Обновляем данные
+        if (this.userData) {
+            userData = this.userData; // Для доступа в других функциях
+            this.userData.coins += 50;
+            this.userData.experience += 100;
+            this.userData.lessonsCompleted = (this.userData.lessonsCompleted || 0) + 1;
+            
+            // Добавляем урок в пройденные
+            if (!this.userData.completedLessonIds) {
+                this.userData.completedLessonIds = [];
+            }
+            if (!this.userData.completedLessonIds.includes(this.currentLesson.id)) {
+                this.userData.completedLessonIds.push(this.currentLesson.id);
+            }
+            
+            this.updateUserStats();
+            
+            // Помечаем урок как завершенный
+            const lessonIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+            if (lessonIndex !== -1) {
+                this.lessonsData[lessonIndex].completed = true;
+                this.renderLessons();
+            }
+            
+            // Применяем изменения на ферме (демо-режим)
+            this.applyFarmChanges(this.currentLesson.id);
+            
+            this.playSuccessAnimation();
+        }
+    }
+}
+    
+  // Новая функция для проверки кода локально
+checkCodeLocally(code, lessonId) {
+    console.log(`🔍 Проверяем код для урока: ${lessonId}`);
+    
+    // Убираем комментарии и лишние пробелы
+    const cleanCode = code
+        .replace(/#[^\n]*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    
+    // Простые проверки для каждого урока
+    switch(lessonId) {
+        case 'lesson_1':
+            // Проверка для урока 1: должны быть обе команды print
+            const hasHello = code.includes('"Привет, АгроБот!"') || code.includes("'Привет, АгроБот!'");
+            const hasStart = code.includes('"Начинаю работу!"') || code.includes("'Начинаю работу!'");
+            return hasHello && hasStart;
+            
+        case 'lesson_2':
+            // Проверка для урока 2: создание переменной и вывод
+            return cleanCode.includes('farm_name') && 
+                   (cleanCode.includes('солнечная долина') || cleanCode.includes('"солнечная долина"'));
+            
+        case 'lesson_3':
+            // Проверка для урока 3: функция start_tractor с print
+            return cleanCode.includes('def start_tractor') && 
+                   cleanCode.includes('print') &&
+                   code.includes('start_tractor()');
+            
+        case 'lesson_4':
+            // Проверка для урока 4: функция с аргументом material
+            return cleanCode.includes('def build_house') && 
+                   cleanCode.includes('material') &&
+                   cleanCode.includes('print');
+            
+        case 'lesson_5':
+            // Проверка для урока 5: цикл for с range(3) и print
+            return cleanCode.includes('for ') && 
+                   cleanCode.includes('range(3)') &&
+                   cleanCode.includes('print') &&
+                   cleanCode.includes('сажаю растение');
+            
+        case 'lesson_6':
+            // Проверка для урока 6: условие if с проверкой soil_moisture
+            return cleanCode.includes('if ') && 
+                   cleanCode.includes('soil_moisture') &&
+                   cleanCode.includes('< 50') &&
+                   cleanCode.includes('print');
+            
+        default:
+            // Для остальных уроков - более простая проверка
+            return code.length > 10 && code.includes('print');
+    }
+}
+
+// Новая функция для завершения урока
+async completeLesson(lessonId, code) {
+    console.log(`✅ Урок ${lessonId} пройден успешно!`);
+    
+    // Показываем уведомление об успехе
+    const lesson = this.lessonsData.find(l => l.id === lessonId);
+    const rewardCoins = lesson?.rewardCoins || 50;
+    const rewardExp = lesson?.rewardExp || 100;
+    
+    this.showNotification('🎉 Урок пройден!', 
+        `"${lesson?.title || 'Урок'}" пройден!\n` +
+        `Награда: ${rewardCoins} монет\n` +
+        `Опыт: +${rewardExp}`);
+
+    // Обновляем данные пользователя
+    if (this.userData) {
+        // Увеличиваем счетчики
+        this.userData.coins += rewardCoins;
+        this.userData.experience += rewardExp;
+        this.userData.lessonsCompleted = (this.userData.lessonsCompleted || 0) + 1;
+        
+        // Добавляем урок в пройденные
+        if (!this.userData.completedLessonIds) {
+            this.userData.completedLessonIds = [];
+        }
+        if (!this.userData.completedLessonIds.includes(lessonId)) {
+            this.userData.completedLessonIds.push(lessonId);
+        }
+        
+        // Проверяем повышение уровня (каждые 1000 опыта)
+        const oldLevel = this.userData.level || 1;
+        const newLevel = Math.max(1, Math.floor((this.userData.experience || 0) / 1000) + 1);
+        
+        if (newLevel > oldLevel) {
+            this.userData.level = newLevel;
+            this.showNotification('⭐ Новый уровень!', `Поздравляем! Вы достигли уровня ${newLevel}!`);
+        }
+        
+        // Обновляем статистику на экране
+        this.updateUserStats();
+    }
+
+    // Помечаем урок как завершенный в списке
+    const lessonIndex = this.lessonsData.findIndex(l => l.id === lessonId);
+    if (lessonIndex !== -1) {
+        if (!this.lessonsData[lessonIndex].completed) {
+            this.lessonsData[lessonIndex].completed = true;
+            this.renderLessons(); // Перерисовываем список уроков
+        }
+    }
+
+    // Применяем изменения на ферме
+    await this.applyFarmChanges(lessonId);
+    
+    // Анимация успеха
+    this.playSuccessAnimation();
+    
+    // Сохраняем прогресс (если есть API)
+    await this.saveProgress(lessonId, code);
+}
+
+// Новая функция для применения изменений на ферме
+async applyFarmChanges(lessonId) {
+    console.log(`🌾 Применяем изменения на ферме от урока: ${lessonId}`);
+    
+    if (!this.farmData || !this.farmData.cells) {
+        console.log('⚠️ Нет данных фермы для изменения');
+        return;
     }
     
-    // Применение изменений на ферме после успешного прохождения урока
-    applyFarmChanges(lessonId) {
-        console.log(`🌾 Применяем изменения на ферме от урока: ${lessonId}`);
-        
-        if (!this.farmData || !this.farmData.cells) {
-            console.log('⚠️ Нет данных фермы для изменения');
-            return;
-        }
-        
-        // Определяем, какие изменения нужно внести
-        let cellsToUpdate = [];
-        let message = 'Ферма обновлена!';
-        let emoji = '✨';
-        
-        switch(lessonId) {
-            case 'lesson_1':
-                // Урок 1: расчистка 12 случайных участков травы
-                emoji = '🧹';
-                message = 'Расчищено 12 участков! Теперь можно строить.';
-                cellsToUpdate = this.getRandomCells('grass', 12)
-                    .map(cell => ({
-                        ...cell,
-                        type: 'cleared',
-                        emoji: '🟫',
-                        color: '#8D6E63',
-                        title: 'Расчищенная земля'
-                    }));
-                break;
-                
-            case 'lesson_2':
-                // Урок 2: вспашка 8 расчищенных участков
-                emoji = '🚜';
-                message = 'Вспахано 8 участков! Готово для посадки.';
-                cellsToUpdate = this.getRandomCells('cleared', 8)
-                    .map(cell => ({
-                        ...cell,
-                        type: 'plowed',
-                        emoji: '🟨',
-                        color: '#FFD54F',
-                        title: 'Вспаханное поле'
-                    }));
-                break;
-                
-            case 'lesson_3':
-                // Урок 3: строительство дома в центре
-                emoji = '🏠';
-                message = 'Построен дом! Теперь у вас есть жилье на ферме.';
-                const centerCell = this.farmData.cells.find(cell => 
-                    cell.x === 3 && cell.y === 3 && cell.type !== 'house'
-                );
-                if (centerCell) {
-                    cellsToUpdate.push({
-                        ...centerCell,
-                        type: 'house',
-                        emoji: '🏠',
-                        color: '#FF9800',
-                        title: 'Дом фермера'
-                    });
-                }
-                break;
-                
-            case 'lesson_4':
-                // Урок 4: строительство сарая рядом с домом
-                emoji = '🏚️';
-                message = 'Построен сарай! Можно хранить инструменты.';
-                
-                // Находим дом
-                const houseCell = this.farmData.cells.find(cell => cell.type === 'house');
-                if (houseCell) {
-                    // Ищем свободную клетку рядом с домом
-                    const nearbyCells = this.farmData.cells.filter(cell => 
-                        Math.abs(cell.x - houseCell.x) <= 1 &&
-                        Math.abs(cell.y - houseCell.y) <= 1 &&
-                        cell.type !== 'house' &&
-                        (cell.type === 'cleared' || cell.type === 'plowed')
-                    );
-                    
-                    if (nearbyCells.length > 0) {
-                        cellsToUpdate.push({
-                            ...nearbyCells[0],
-                            type: 'barn',
-                            emoji: '🏚️',
-                            color: '#795548',
-                            title: 'Сарай'
-                        });
-                    }
-                }
-                break;
-                
-            case 'lesson_5':
-                // Урок 5: посадка культур на вспаханных полях
-                emoji = '🌱';
-                message = 'Посажены первые культуры! Скоро будет урожай.';
-                cellsToUpdate = this.getRandomCells('plowed', 10)
-                    .map(cell => {
-                        const cropTypes = [
-                            { emoji: '🌾', color: '#FFD54F', title: 'Пшеница' },
-                            { emoji: '🥕', color: '#FF9800', title: 'Морковь' },
-                            { emoji: '🥔', color: '#8D6E63', title: 'Картофель' }
-                        ];
-                        const crop = cropTypes[Math.floor(Math.random() * cropTypes.length)];
-                        return {
-                            ...cell,
-                            type: 'crop',
-                            emoji: crop.emoji,
-                            color: crop.color,
-                            title: crop.title,
-                            growth: 30 // Начальный рост 30%
-                        };
-                    });
-                break;
-                
-            case 'lesson_6':
-                // Урок 6: добавление источника воды
-                emoji = '💧';
-                message = 'Добавлен источник воды! Можно поливать растения.';
-                
-                // Ищем клетку на краю карты
-                const edgeCells = this.farmData.cells.filter(cell => 
-                    (cell.x === 0 || cell.x === 7 || cell.y === 0 || cell.y === 7) &&
-                    cell.type === 'grass'
-                );
-                
-                if (edgeCells.length > 0) {
-                    cellsToUpdate.push({
-                        ...edgeCells[0],
-                        type: 'water',
-                        emoji: '💧',
-                        color: '#2196F3',
-                        title: 'Источник воды'
-                    });
-                }
-                break;
-        }
-        
-        // Применяем изменения
-        cellsToUpdate.forEach(updatedCell => {
-            const cellIndex = this.farmData.cells.findIndex(c => 
-                c.x === updatedCell.x && c.y === updatedCell.y
+    let cellsToUpdate = [];
+    let message = '';
+    let emoji = '✨';
+    
+    // Определяем изменения в зависимости от урока
+    switch(lessonId) {
+        case 'lesson_1':
+            // Урок 1: расчистка 10 случайных участков травы
+            emoji = '🧹';
+            message = 'Расчищено 10 участков! Теперь можно строить.';
+            
+            // Находим 10 случайных участков травы
+            const grassCells = this.farmData.cells.filter(cell => cell.type === 'grass');
+            // Перемешиваем массив
+            const shuffledGrass = [...grassCells].sort(() => Math.random() - 0.5);
+            const cellsToClear = shuffledGrass.slice(0, Math.min(10, grassCells.length));
+            
+            cellsToUpdate = cellsToClear.map(cell => ({
+                ...cell,
+                type: 'cleared',
+                emoji: '🟫',
+                color: '#8D6E63',
+                title: 'Расчищенная земля'
+            }));
+            break;
+            
+        case 'lesson_2':
+            // Урок 2: вспашка 8 расчищенных участков
+            emoji = '🚜';
+            message = 'Вспахано 8 участков! Готово для посадки.';
+            
+            // Находим расчищенные участки
+            const clearedCells = this.farmData.cells.filter(cell => cell.type === 'cleared');
+            // Перемешиваем массив
+            const shuffledCleared = [...clearedCells].sort(() => Math.random() - 0.5);
+            const cellsToPlow = shuffledCleared.slice(0, Math.min(8, clearedCells.length));
+            
+            cellsToUpdate = cellsToPlow.map(cell => ({
+                ...cell,
+                type: 'plowed',
+                emoji: '🟨',
+                color: '#FFD54F',
+                title: 'Вспаханное поле'
+            }));
+            break;
+            
+        case 'lesson_3':
+            // Урок 3: строительство дома в центре
+            emoji = '🏠';
+            message = 'Построен дом! Теперь у вас есть жилье на ферме.';
+            
+            // Находим центральную клетку (примерно в центре 8x8)
+            const centerX = Math.floor(this.farmData.width / 2);
+            const centerY = Math.floor(this.farmData.height / 2);
+            
+            const centerCell = this.farmData.cells.find(cell => 
+                cell.x === centerX && cell.y === centerY
             );
             
-            if (cellIndex !== -1) {
-                this.farmData.cells[cellIndex] = updatedCell;
-                
-                // Анимация изменения клетки
-                const cellElement = document.querySelector(
-                    `.farm-cell[data-x="${updatedCell.x}"][data-y="${updatedCell.y}"]`
+            if (centerCell && (centerCell.type === 'cleared' || centerCell.type === 'plowed')) {
+                cellsToUpdate.push({
+                    ...centerCell,
+                    type: 'house',
+                    emoji: '🏠',
+                    color: '#FF9800',
+                    title: 'Дом фермера'
+                });
+            }
+            break;
+            
+        case 'lesson_4':
+            // Урок 4: строительство сарая рядом с домом
+            emoji = '🏚️';
+            message = 'Построен сарай! Можно хранить инструменты.';
+            
+            // Находим дом
+            const houseCell = this.farmData.cells.find(cell => cell.type === 'house');
+            if (houseCell) {
+                // Ищем свободную клетку рядом с домом (в радиусе 1 клетки)
+                const nearbyCells = this.farmData.cells.filter(cell => 
+                    Math.abs(cell.x - houseCell.x) <= 1 &&
+                    Math.abs(cell.y - houseCell.y) <= 1 &&
+                    cell.type !== 'house' &&
+                    (cell.type === 'cleared' || cell.type === 'plowed')
                 );
                 
-                if (cellElement) {
-                    // Визуальный эффект изменения
-                    cellElement.classList.add('grow-animation');
-                    cellElement.style.background = updatedCell.color;
-                    cellElement.innerHTML = updatedCell.emoji;
-                    
-                    // Добавляем координаты
-                    const coords = document.createElement('div');
-                    coords.className = 'farm-cell-coords';
-                    coords.textContent = `${updatedCell.x},${updatedCell.y}`;
-                    cellElement.appendChild(coords);
-                    
-                    // Обновляем title
-                    cellElement.title = updatedCell.title;
-                    
-                    // Обновляем класс
-                    cellElement.className = `farm-cell ${updatedCell.type} fade-in`;
-                    
-                    setTimeout(() => {
-                        cellElement.classList.remove('grow-animation');
-                    }, 500);
+                if (nearbyCells.length > 0) {
+                    // Берем первую подходящую клетку
+                    cellsToUpdate.push({
+                        ...nearbyCells[0],
+                        type: 'barn',
+                        emoji: '🏚️',
+                        color: '#795548',
+                        title: 'Сарай'
+                    });
                 }
+            }
+            break;
+            
+        case 'lesson_5':
+            // Урок 5: посадка культур на вспаханных полях
+            emoji = '🌱';
+            message = 'Посадены первые культуры! Скоро будет урожай.';
+            
+            // Находим вспаханные поля
+            const plowedCells = this.farmData.cells.filter(cell => cell.type === 'plowed');
+            // Перемешиваем массив
+            const shuffledPlowed = [...plowedCells].sort(() => Math.random() - 0.5);
+            const cellsToPlant = shuffledPlowed.slice(0, Math.min(10, plowedCells.length));
+            
+            // Выбираем случайные культуры для посадки
+            const cropTypes = [
+                { emoji: '🌾', color: '#FFD54F', title: 'Пшеница' },
+                { emoji: '🥕', color: '#FF9800', title: 'Морковь' },
+                { emoji: '🥔', color: '#8D6E63', title: 'Картофель' }
+            ];
+            
+            cellsToUpdate = cellsToPlant.map(cell => {
+                const crop = cropTypes[Math.floor(Math.random() * cropTypes.length)];
+                return {
+                    ...cell,
+                    type: 'crop',
+                    emoji: crop.emoji,
+                    color: crop.color,
+                    title: crop.title,
+                    growth: 30 // Начальный рост 30%
+                };
+            });
+            break;
+            
+        case 'lesson_6':
+            // Урок 6: добавление источника воды
+            emoji = '💧';
+            message = 'Добавлен источник воды! Можно поливать растения.';
+            
+            // Ищем клетку на краю карты для воды
+            const edgeCells = this.farmData.cells.filter(cell => 
+                (cell.x === 0 || cell.x === this.farmData.width - 1 || 
+                 cell.y === 0 || cell.y === this.farmData.height - 1) &&
+                (cell.type === 'grass' || cell.type === 'cleared')
+            );
+            
+            if (edgeCells.length > 0) {
+                // Берем первую подходящую клетку на краю
+                cellsToUpdate.push({
+                    ...edgeCells[0],
+                    type: 'water',
+                    emoji: '💧',
+                    color: '#2196F3',
+                    title: 'Источник воды'
+                });
+            }
+            break;
+            
+        default:
+            // Для других уроков - минимальные изменения
+            emoji = '✨';
+            message = 'Ферма немного улучшилась!';
+            break;
+    }
+    
+    // Применяем изменения к данным фермы
+    cellsToUpdate.forEach(updatedCell => {
+        const cellIndex = this.farmData.cells.findIndex(c => 
+            c.x === updatedCell.x && c.y === updatedCell.y
+        );
+        
+        if (cellIndex !== -1) {
+            this.farmData.cells[cellIndex] = updatedCell;
+        }
+    });
+    
+    // Обновляем статистику фермы
+    this.updateFarmStats();
+    
+    // Перерисовываем ферму с анимацией
+    this.renderFarmWithAnimation(cellsToUpdate);
+    
+    // Показываем уведомление
+    if (message) {
+        this.showNotification(emoji, message);
+    }
+    
+    console.log(`✅ Применены изменения для урока ${lessonId}: ${cellsToUpdate.length} клеток обновлены`);
+}
+
+// Новая функция для перерисовки фермы с анимацией
+renderFarmWithAnimation(updatedCells = []) {
+    const farmGrid = document.getElementById('farm-grid');
+    if (!farmGrid || !this.farmData) {
+        console.log('⚠️ Не найден farm-grid или farmData');
+        return;
+    }
+    
+    // Обновляем статистику перед перерисовкой
+    this.updateFarmStats();
+    
+    // Перерисовываем всю ферму
+    this.renderFarm();
+    
+    // Добавляем анимацию к обновленным клеткам
+    setTimeout(() => {
+        updatedCells.forEach(cell => {
+            const cellElement = document.querySelector(
+                `.farm-cell[data-x="${cell.x}"][data-y="${cell.y}"]`
+            );
+            
+            if (cellElement) {
+                // Анимация выделения измененной клетки
+                cellElement.classList.add('grow');
+                
+                // Через некоторое время убираем анимацию
+                setTimeout(() => {
+                    cellElement.classList.remove('grow');
+                }, 1000);
             }
         });
         
-        // Обновляем статистику фермы
-        this.updateFarmStats();
+        // Анимация для всей фермы
+        farmGrid.classList.add('pulse');
+        setTimeout(() => {
+            farmGrid.classList.remove('pulse');
+        }, 2000);
         
-        // Показываем уведомление
-        this.showNotification(emoji, message);
-        
-        // Анимация всей фермы
-        const farmGrid = document.getElementById('farm-grid');
-        if (farmGrid) {
-            farmGrid.classList.add('pulse');
-            setTimeout(() => {
-                farmGrid.classList.remove('pulse');
-            }, 1000);
+    }, 500);
+}
+
+// Новая функция для сохранения прогресса (демо-версия)
+async saveProgress(lessonId, code) {
+    try {
+        // В демо-режиме просто сохраняем в localStorage
+        if (this.userData) {
+            const progress = {
+                userId: this.userId,
+                lessonId: lessonId,
+                code: code,
+                completedAt: new Date().toISOString(),
+                userData: this.userData
+            };
+            
+            // Сохраняем в localStorage
+            localStorage.setItem(`codefarm_progress_${this.userId}_${lessonId}`, JSON.stringify(progress));
+            
+            // Сохраняем общий прогресс пользователя
+            let userProgress = JSON.parse(localStorage.getItem(`codefarm_user_${this.userId}`) || '{}');
+            userProgress.completedLessons = userProgress.completedLessons || [];
+            if (!userProgress.completedLessons.includes(lessonId)) {
+                userProgress.completedLessons.push(lessonId);
+            }
+            userProgress.lastActivity = new Date().toISOString();
+            localStorage.setItem(`codefarm_user_${this.userId}`, JSON.stringify(userProgress));
+            
+            console.log('💾 Прогресс сохранен в localStorage');
         }
         
-        console.log(`✅ Применены изменения для урока ${lessonId}: ${cellsToUpdate.length} клеток обновлены`);
+        // Если есть API, отправляем данные на сервер
+        if (window.Telegram?.WebApp) {
+            try {
+                const response = await fetch('/api/progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: this.userId,
+                        lessonId: lessonId,
+                        code: code,
+                        completed: true
+                    })
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Прогресс сохранен на сервере');
+                }
+            } catch (error) {
+                console.log('⚠️ Не удалось сохранить прогресс на сервере, продолжаем в демо-режиме');
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка сохранения прогресса:', error);
     }
+}
     
     // Вспомогательная функция для получения случайных клеток
     getRandomCells(type, count) {
@@ -1784,40 +2031,57 @@ class CodeFarmApp {
     }
     
     playSuccessAnimation() {
-        console.log('🎉 Играем анимацию успеха...');
-        
-        // Создаем элемент анимации
-        const successEl = document.createElement('div');
-        successEl.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 80px;
-            z-index: 2000;
-            animation: zoomInOut 1.5s ease;
-            pointer-events: none;
+    console.log('🎉 Играем анимацию успеха...');
+    
+    // Создаем элемент анимации успеха
+    const successEl = document.createElement('div');
+    successEl.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 80px;
+        z-index: 2000;
+        animation: zoomInOut 1.5s ease;
+        pointer-events: none;
+    `;
+    successEl.textContent = '🎉';
+    
+    document.body.appendChild(successEl);
+    
+    // Создаем конфетти
+    const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#FFA500', '#C7F464'];
+    for (let i = 0; i < 50; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.cssText = `
+            left: ${Math.random() * 100}vw;
+            --color: ${colors[Math.floor(Math.random() * colors.length)]};
+            animation-delay: ${Math.random() * 2}s;
+            width: ${Math.random() * 10 + 5}px;
+            height: ${Math.random() * 10 + 5}px;
+            border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
         `;
-        successEl.textContent = '🎉';
+        document.body.appendChild(confetti);
         
-        document.body.appendChild(successEl);
-        
-        // Удаляем после анимации
+        // Удаляем конфетти после анимации
         setTimeout(() => {
-            if (successEl.parentNode) {
-                successEl.parentNode.removeChild(successEl);
+            if (confetti.parentNode) {
+                confetti.parentNode.removeChild(confetti);
             }
-        }, 1500);
+        }, 3000);
     }
     
-    getCropName(type) {
-        const names = {
-            'wheat': 'Пшеница',
-            'carrot': 'Морковь',
-            'potato': 'Картофель',
-            'tomato': 'Помидор'
-        };
-        return names[type] || type;
+    // Удаляем основной элемент после анимации
+    setTimeout(() => {
+        if (successEl.parentNode) {
+            successEl.parentNode.removeChild(successEl);
+        }
+    }, 1500);
+    
+    // Добавляем вибрацию (если поддерживается)
+    if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
     }
 }
 
