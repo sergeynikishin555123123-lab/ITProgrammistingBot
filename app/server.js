@@ -137,222 +137,174 @@ app.get('/api/farm/:userId/visual', (req, res) => {
     }
 });
 
-// app.post('/api/lessons/:id/submit', ...)
+// В server.js улучшаем обработку /api/lessons/:id/submit
 app.post('/api/lessons/:id/submit', async (req, res) => {
     try {
         const { userId, code } = req.body;
         const lessonId = req.params.id;
         
-        // Получаем урок из базы
-        const lesson = await db.get('SELECT * FROM lessons WHERE id = ?', [lessonId]);
+        console.log(`📥 Отправка решения: userId=${userId}, lessonId=${lessonId}`);
         
+        if (!userId || !code) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Необходимы userId и код' 
+            });
+        }
+        
+        // Получаем пользователя
+        let user = storage.getUser(userId);
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Пользователь не найден' 
+            });
+        }
+        
+        // Получаем урок
+        const lesson = lessons.getLesson(lessonId);
         if (!lesson) {
-            return res.json({ success: false, message: 'Урок не найден' });
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Урок не найден' 
+            });
         }
         
-        // Простая проверка кода (можно расширить)
-        const cleanCode = code.toLowerCase().replace(/\s+/g, ' ');
-        const testCode = lesson.test_code.toLowerCase().replace(/\s+/g, ' ');
+        // Проверяем, не пройден ли уже урок
+        if (user.completedLessonIds?.includes(lessonId)) {
+            return res.json({
+                success: true,
+                message: 'Урок уже был пройден ранее',
+                alreadyCompleted: true,
+                reward: 0,
+                experience: 0
+            });
+        }
         
+        // Простая проверка кода
         let passed = false;
+        const cleanCode = code.toLowerCase().replace(/\s+/g, ' ');
         
-        if (lessonId === 'lesson_1') {
-            passed = cleanCode.includes('print("привет, агробот!")') && 
-                     cleanCode.includes('print("начинаю работу!")');
-        } else if (lessonId === 'lesson_2') {
-            passed = cleanCode.includes('farm_name') && 
-                     cleanCode.includes('солнечная долина');
+        switch(lessonId) {
+            case 'lesson_1':
+                passed = cleanCode.includes('"привет, агробот!"') && 
+                        cleanCode.includes('"начинаю работу!"');
+                break;
+            case 'lesson_2':
+                passed = cleanCode.includes('farm_name=') && 
+                        (cleanCode.includes('"солнечная долина"') || 
+                         cleanCode.includes("'солнечная долина'")) &&
+                        cleanCode.includes('print(farm_name)');
+                break;
+            case 'lesson_3':
+                passed = cleanCode.includes('def start_tractor():') && 
+                        cleanCode.includes('print') &&
+                        cleanCode.includes('start_tractor()');
+                break;
+            case 'lesson_4':
+                passed = cleanCode.includes('def build_house(') && 
+                        cleanCode.includes('material') &&
+                        cleanCode.includes('print');
+                break;
+            case 'lesson_5':
+                passed = cleanCode.includes('for ') && 
+                        cleanCode.includes('range(3)') &&
+                        cleanCode.includes('print') &&
+                        cleanCode.includes('сажаю растение');
+                break;
+            case 'lesson_6':
+                passed = cleanCode.includes('if ') && 
+                        cleanCode.includes('soil_moisture') &&
+                        cleanCode.includes('< 50') &&
+                        cleanCode.includes('print');
+                break;
+            default:
+                // Для остальных уроков
+                passed = code.length > 10 && code.includes('print');
         }
-        // ... остальные проверки
         
         if (passed) {
             // Обновляем прогресс пользователя
-            await db.run(`
-                INSERT OR REPLACE INTO user_progress (user_id, lesson_id, completed, code) 
-                VALUES (?, ?, 1, ?)
-            `, [userId, lessonId, code]);
+            user.lessonsCompleted = (user.lessonsCompleted || 0) + 1;
+            user.coins = (user.coins || 0) + lesson.rewardCoins;
+            user.experience = (user.experience || 0) + lesson.rewardExp;
             
-            // Обновляем статистику
-            await db.run(`
-                UPDATE users 
-                SET lessons_completed = lessons_completed + 1,
-                    coins = coins + ?,
-                    experience = experience + ?,
-                    last_lesson_date = datetime('now')
-                WHERE telegram_id = ?
-            `, [lesson.reward_coins, lesson.reward_exp, userId]);
+            if (!user.completedLessonIds) {
+                user.completedLessonIds = [];
+            }
+            user.completedLessonIds.push(lessonId);
             
-            res.json({
+            // Проверяем уровень
+            const oldLevel = user.level || 1;
+            const newLevel = Math.max(1, Math.floor((user.experience || 0) / 1000) + 1);
+            user.level = newLevel;
+            
+            // Сохраняем пользователя
+            storage.updateUser(userId, user);
+            
+            // Готовим ответ
+            const response = {
                 success: true,
-                message: 'Урок успешно пройден!',
-                reward: lesson.reward_coins,
-                experience: lesson.reward_exp,
+                message: '🎉 Урок успешно пройден!',
+                reward: lesson.rewardCoins,
+                experience: lesson.rewardExp,
+                levelUp: newLevel > oldLevel,
+                newLevel: newLevel,
+                coins: user.coins,
+                experienceTotal: user.experience,
                 farmUpdate: {
                     lessonId: lessonId,
-                    action: 'update_farm'
+                    action: 'update_farm',
+                    changes: this.getFarmChangesForLesson(lessonId)
                 }
-            });
+            };
+            
+            console.log('✅ Урок пройден:', response);
+            res.json(response);
+            
         } else {
+            // Ошибка
             res.json({
                 success: false,
-                message: 'Код не соответствует заданию. Проверьте свой код и попробуйте снова.'
+                message: 'Код не соответствует заданию',
+                hint: this.getHintForLesson(lessonId)
             });
         }
         
     } catch (error) {
-        console.error('Ошибка проверки урока:', error);
-        res.status(500).json({ success: false, message: 'Ошибка сервера' });
+        console.error('❌ Ошибка проверки урока:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Ошибка сервера при проверке урока' 
+        });
     }
 });
 
-// Обновляем обработку отправки урока
-app.post('/api/lessons/:id/submit', async (req, res) => {
-    try {
-        const { userId, code } = req.body;
-        const lessonId = req.params.id;
-        
-        if (!userId || !code) {
-            return res.status(400).json({ error: 'Missing userId or code' });
-        }
-        
-        const lesson = lessons.getLesson(lessonId);
-        if (!lesson) {
-            return res.status(404).json({ error: 'Lesson not found' });
-        }
-        
-        // Проверяем код
-        let score = 0;
-        let errors = [];
-        
-        if (lesson.checks) {
-            lesson.checks.forEach((check) => {
-                if (code.includes(check.keyword)) {
-                    score += check.points || 10;
-                } else {
-                    errors.push(check.error || `Missing: ${check.keyword}`);
-                }
-            });
-        }
-        
-        if (errors.length === 0) {
-            // Урок пройден успешно
-            const result = storage.completeLesson(userId, lessonId, score, code);
-            
-            // Выполняем действие на ферме в зависимости от урока
-            let farmActionResult = null;
-            
-            switch(lessonId) {
-                case 'lesson_1':
-                    // Очистить участок
-                    farmActionResult = farmEngine.clearLand(userId, lessonId, {});
-                    break;
-                    
-                case 'lesson_2':
-                    // Построить дом
-                    farmActionResult = farmEngine.buildHouse(userId, lessonId, {
-                        materials: 'wood',
-                        color: 'brown'
-                    });
-                    break;
-                    
-                case 'lesson_3':
-                    // Подготовить поле
-                    farmActionResult = farmEngine.prepareField(userId, lessonId, {
-                        size: 4
-                    });
-                    break;
-                    
-                case 'lesson_4':
-                case 'lesson_5':
-                case 'lesson_6':
-                    // Посадить культуры (разные для разных уроков)
-                    const cropsMap = {
-                        'lesson_4': ['wheat'],
-                        'lesson_5': ['wheat', 'carrot'],
-                        'lesson_6': ['wheat', 'carrot', 'potato']
-                    };
-                    farmActionResult = farmEngine.plantCrops(userId, lessonId, {
-                        crops: cropsMap[lessonId] || ['wheat'],
-                        size: 3
-                    });
-                    break;
-                    
-                case 'lesson_7':
-                    // Полить растения
-                    farmActionResult = farmEngine.waterCrops(userId, lessonId, {});
-                    break;
-                    
-                case 'lesson_9':
-                    // Собрать урожай
-                    farmActionResult = farmEngine.harvestCrops(userId, lessonId, {});
-                    break;
-                    
-                case 'lesson_14':
-                    // Построить теплицу
-                    farmActionResult = farmEngine.buildGreenhouse(userId, lessonId, {});
-                    break;
-                    
-                default:
-                    // Для остальных уроков просто добавляем ресурсы
-                    if (lesson.farmUpdate) {
-                        const farm = storage.getFarm(userId);
-                        if (farm && farm.resources) {
-                            Object.entries(lesson.farmUpdate.resources || {}).forEach(([key, value]) => {
-                                farm.resources[key] = (farm.resources[key] || 0) + value;
-                            });
-                            storage.updateFarm(userId, farm);
-                        }
-                    }
-            }
-            
-            // Отправляем уведомление в Telegram
-            try {
-                telegramBot.sendNotification(userId, 
-                    `🎉 Урок "${lesson.title}" пройден!\n` +
-                    `⭐ Оценка: ${score}/100\n` +
-                    `💰 Награда: ${result.reward} монет\n` +
-                    (farmActionResult ? `\n🏗️ ${farmActionResult.message}` : '')
-                );
-            } catch (botError) {
-                console.log('Не удалось отправить уведомление:', botError.message);
-            }
-            
-            res.json({
-                success: true,
-                message: '🎉 Урок успешно пройден!',
-                score: score,
-                reward: result.reward,
-                levelUp: result.levelUp,
-                newLevel: result.newLevel,
-                farmAction: farmActionResult,
-                farmUpdate: farmActionResult?.farmUpdate || lesson.farmUpdate
-            });
-            
-        } else {
-            // Урок не пройден
-            const progress = storage.getLessonProgress(userId, lessonId);
-            const attempts = (progress.attempts || 0) + 1;
-            
-            storage.setLessonProgress(userId, lessonId, {
-                ...progress,
-                status: 'in-progress',
-                attempts: attempts,
-                lastAttempt: new Date().toISOString()
-            });
-            
-            res.json({
-                success: false,
-                message: '❌ Есть ошибки в коде',
-                errors: errors,
-                attempts: attempts
-            });
-        }
-        
-    } catch (error) {
-        console.error('Ошибка отправки решения:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+// Функция для получения подсказки по уроку
+function getHintForLesson(lessonId) {
+    const hints = {
+        'lesson_1': 'Используйте две команды print: "Привет, АгроБот!" и "Начинаю работу!"',
+        'lesson_2': 'Создайте переменную: farm_name = "Солнечная долина", затем выведите её',
+        'lesson_3': 'Создайте функцию def start_tractor(): с print внутри, затем вызовите её',
+        'lesson_4': 'Функция должна принимать аргумент: def build_house(material):',
+        'lesson_5': 'Используйте: for i in range(3): и внутри print("Сажаю растение")',
+        'lesson_6': 'Проверьте условие: if soil_moisture < 50: и выведите сообщение'
+    };
+    return hints[lessonId] || 'Проверьте синтаксис Python и точное соответствие заданию';
+}
+
+// Функция для получения изменений на ферме
+function getFarmChangesForLesson(lessonId) {
+    const changes = {
+        'lesson_1': { clearedCells: 10, type: 'clear_grass' },
+        'lesson_2': { plowedCells: 8, type: 'plow_land' },
+        'lesson_3': { buildings: 1, type: 'build_house' },
+        'lesson_4': { buildings: 1, type: 'build_barn' },
+        'lesson_5': { crops: 6, type: 'plant_crops' },
+        'lesson_6': { waterSources: 1, type: 'add_water' }
+    };
+    return changes[lessonId] || {};
+}
 // Webhook для Telegram
 app.post('/webhook', (req, res) => {
     telegramBot.handleUpdate(req.body);
