@@ -1284,121 +1284,175 @@
         }
         
         // Применение изменений на ферме после урока
-        function applyFarmChanges(lessonId) {
-            const effect = LESSON_EFFECTS[lessonId];
-            if (!effect) return;
+      function applyFarmChanges(lessonId) {
+    console.log(`🌾 Применяем изменения на ферме для урока: ${lessonId}`);
+    
+    if (!farmData || !farmData.cells) {
+        console.log('⚠️ Нет данных фермы');
+        return;
+    }
+    
+    const lessonNumber = parseInt(lessonId.split('_')[1]);
+    let message = '';
+    let emoji = '✨';
+    let cellsToUpdate = [];
+    
+    // Изменения на ферме в зависимости от номера урока
+    switch(lessonNumber) {
+        case 1: // Первые команды - расчистка участков
+            emoji = '🧹';
+            message = 'Расчищено 10 участков! Появилась свободная земля.';
             
-            console.log(`Применяем эффект урока ${lessonId}:`, effect);
+            // Расчищаем первые 10 клеток травы
+            cellsToUpdate = farmData.cells
+                .filter(cell => cell.type === 'grass')
+                .slice(0, 10);
             
-            // Находим доступные для изменения клетки
-            let availableCells = [];
-            
-            switch(effect.type) {
-                case 'clear_grass':
-                    availableCells = farmData.cells.filter(c => c.type === 'grass');
-                    break;
-                case 'plow_land':
-                    availableCells = farmData.cells.filter(c => c.type === 'cleared');
-                    break;
-                case 'build_house':
-                    availableCells = farmData.cells.filter(c => c.type === 'cleared' || c.type === 'plowed');
-                    // Дом строим в центре
-                    const centerRow = Math.floor(farmData.size / 2);
-                    const centerCol = Math.floor(farmData.size / 2);
-                    const centerCell = farmData.cells.find(c => c.row === centerRow && c.col === centerCol);
-                    if (centerCell) availableCells = [centerCell];
-                    break;
-                case 'build_barn':
-                    availableCells = farmData.cells.filter(c => c.type === 'cleared' || c.type === 'plowed');
-                    // Сарай рядом с домом
-                    const houseCell = farmData.cells.find(c => c.type === 'house');
-                    if (houseCell) {
-                        const nearbyCells = farmData.cells.filter(c => 
-                            Math.abs(c.row - houseCell.row) <= 1 && 
-                            Math.abs(c.col - houseCell.col) <= 1 &&
-                            (c.type === 'cleared' || c.type === 'plowed')
-                        );
-                        if (nearbyCells.length > 0) availableCells = [nearbyCells[0]];
-                    }
-                    break;
-                case 'plant_crops':
-                    availableCells = farmData.cells.filter(c => c.type === 'plowed');
-                    break;
-                case 'add_water':
-                    availableCells = farmData.cells.filter(c => c.type === 'grass' && 
-                        (c.row === 0 || c.row === farmData.size-1 || c.col === 0 || c.col === farmData.size-1));
-                    break;
-            }
-            
-            // Применяем изменения к случайным клеткам
-            const cellsToChange = availableCells
-                .sort(() => Math.random() - 0.5)
-                .slice(0, Math.min(effect.cells, availableCells.length));
-            
-            cellsToChange.forEach(cell => {
-                let newType, newIcon, newTitle;
-                
-                switch(effect.type) {
-                    case 'clear_grass':
-                        newType = 'cleared';
-                        newIcon = '🟫';
-                        newTitle = 'Расчищенная земля';
-                        break;
-                    case 'plow_land':
-                        newType = 'plowed';
-                        newIcon = '🟨';
-                        newTitle = 'Вспаханное поле';
-                        break;
-                    case 'build_house':
-                        newType = 'house';
-                        newIcon = '🏠';
-                        newTitle = 'Дом фермера';
-                        farmData.buildings++;
-                        break;
-                    case 'build_barn':
-                        newType = 'barn';
-                        newIcon = '🏚️';
-                        newTitle = 'Сарай';
-                        farmData.buildings++;
-                        break;
-                    case 'plant_crops':
-                        newType = 'crop';
-                        const cropTypes = ['🌾', '🥕', '🥔'];
-                        newIcon = cropTypes[Math.floor(Math.random() * cropTypes.length)];
-                        newTitle = newIcon === '🌾' ? 'Пшеница' : 
-                                  newIcon === '🥕' ? 'Морковь' : 'Картофель';
-                        farmData.crops++;
-                        break;
-                    case 'add_water':
-                        newType = 'water';
-                        newIcon = '💧';
-                        newTitle = 'Источник воды';
-                        break;
-                }
-                
-                // Обновляем данные клетки
-                cell.type = newType;
-                cell.icon = newIcon;
-                
-                // Обновляем DOM
-                const cellElement = document.querySelector(`.farm-cell[data-row="${cell.row}"][data-col="${cell.col}"]`);
-                if (cellElement) {
-                    cellElement.className = `farm-cell ${newType}`;
-                    cellElement.querySelector('.farm-cell-icon').textContent = newIcon;
-                    
-                    // Анимация изменения
-                    cellElement.classList.add('grow-animation');
-                    setTimeout(() => cellElement.classList.remove('grow-animation'), 500);
-                }
+            cellsToUpdate.forEach(cell => {
+                cell.type = 'cleared';
+                cell.icon = '🟫';
+                cell.title = 'Расчищенная земля';
             });
+            break;
             
-            // Обновляем статистику
-            updateFarmStats();
+        case 2: // Переменные - строительство дома
+            emoji = '🏠';
+            message = 'Построен дом! Теперь есть жилье на ферме.';
             
-            // Показываем сообщение
-            if (effect.message) {
-                showNotification('🌾 Изменения на ферме', effect.message);
+            // Находим центральную клетку для дома
+            const centerCells = farmData.cells
+                .filter(cell => 
+                    cell.row >= 3 && cell.row <= 4 && 
+                    cell.col >= 3 && cell.col <= 4 &&
+                    cell.type !== 'grass'
+                );
+            
+            if (centerCells.length > 0) {
+                const houseCell = centerCells[0];
+                cellsToUpdate = [houseCell];
+                houseCell.type = 'house';
+                houseCell.icon = '🏠';
+                houseCell.title = 'Дом фермера';
             }
+            break;
+            
+        case 3: // Функции - вспашка земли
+            emoji = '🚜';
+            message = 'Вспахано 8 участков! Земля готова к посадке.';
+            
+            // Вспахиваем расчищенные участки
+            cellsToUpdate = farmData.cells
+                .filter(cell => cell.type === 'cleared')
+                .slice(0, 8);
+            
+            cellsToUpdate.forEach(cell => {
+                cell.type = 'plowed';
+                cell.icon = '🟨';
+                cell.title = 'Вспаханное поле';
+            });
+            break;
+            
+        case 4: // Аргументы функций - сарай
+            emoji = '🏚️';
+            message = 'Построен сарай! Можно хранить инструменты.';
+            
+            // Строим сарай рядом с домом
+            const houseCell = farmData.cells.find(cell => cell.type === 'house');
+            if (houseCell) {
+                const nearbyCells = farmData.cells.filter(cell => 
+                    Math.abs(cell.row - houseCell.row) <= 1 && 
+                    Math.abs(cell.col - houseCell.col) <= 1 &&
+                    cell.type !== 'house' &&
+                    cell.type !== 'grass'
+                );
+                
+                if (nearbyCells.length > 0) {
+                    const barnCell = nearbyCells[0];
+                    cellsToUpdate = [barnCell];
+                    barnCell.type = 'barn';
+                    barnCell.icon = '🏚️';
+                    barnCell.title = 'Сарай';
+                }
+            }
+            break;
+            
+        case 5: // Списки - посадка культур
+            emoji = '🌱';
+            message = 'Посажены первые культуры! Скоро будет урожай.';
+            
+            // Сажаем на вспаханных полях
+            cellsToUpdate = farmData.cells
+                .filter(cell => cell.type === 'plowed')
+                .slice(0, 6);
+            
+            const cropIcons = ['🌾', '🥕', '🥔'];
+            cellsToUpdate.forEach((cell, index) => {
+                cell.type = 'crop';
+                cell.icon = cropIcons[index % cropIcons.length];
+                cell.title = 'Растущая культура';
+            });
+            break;
+            
+        case 6: // Циклы - добавление воды
+            emoji = '💧';
+            message = 'Добавлен источник воды! Теперь можно поливать растения.';
+            
+            // Добавляем воду на границе фермы
+            const waterCells = farmData.cells.filter(cell => 
+                (cell.row === 0 || cell.row === 7 || cell.col === 0 || cell.col === 7) &&
+                cell.type === 'grass'
+            );
+            
+            if (waterCells.length > 0) {
+                const waterCell = waterCells[0];
+                cellsToUpdate = [waterCell];
+                waterCell.type = 'water';
+                waterCell.icon = '💧';
+                waterCell.title = 'Источник воды';
+            }
+            break;
+            
+        default:
+            // Для остальных уроков - добавляем дороги
+            emoji = '🛣️';
+            message = 'Добавлены дороги на ферме! Улучшена инфраструктура.';
+            
+            cellsToUpdate = farmData.cells
+                .filter(cell => 
+                    cell.type === 'cleared' || 
+                    cell.type === 'plowed'
+                )
+                .filter((cell, index) => index % 3 === 0)
+                .slice(0, 3);
+            
+            cellsToUpdate.forEach(cell => {
+                cell.type = 'road';
+                cell.icon = '🛣️';
+                cell.title = 'Дорога';
+            });
+    }
+    
+    // Обновляем DOM фермы
+    cellsToUpdate.forEach(cell => {
+        const cellElement = document.querySelector(`.farm-cell[data-row="${cell.row}"][data-col="${cell.col}"]`);
+        if (cellElement) {
+            cellElement.className = `farm-cell ${cell.type}`;
+            cellElement.querySelector('.farm-cell-icon').textContent = cell.icon;
+            cellElement.classList.add('grow-animation');
+            setTimeout(() => cellElement.classList.remove('grow-animation'), 500);
+        }
+    });
+    
+    // Обновляем статистику
+    updateFarmStats();
+    
+    // Показываем сообщение
+    if (message) {
+        showNotification(emoji, message);
+    }
+    
+    console.log(`✅ Изменения применены: ${cellsToUpdate.length} клеток обновлены`);
+}
             
             // Анимация всей фермы
             const farmGrid = document.getElementById('farm-grid');
@@ -1652,23 +1706,25 @@
         }
         
         // Загрузка уроков
-        async function loadLessonsData() {
-            try {
-                const response = await fetch('/api/lessons');
-                if (response.ok) {
-                    lessonsData = await response.json();
-                } else {
-                    throw new Error('API не доступен');
-                }
-            } catch (error) {
-                console.error('Ошибка загрузки уроков:', error);
-                lessonsData = createDemoLessons();
-            }
-            
-            renderLessons();
+async function loadLessonsData() {
+    try {
+        const response = await fetch('/api/lessons');
+        if (response.ok) {
+            lessonsData = await response.json();
+            console.log(`✅ Загружено ${lessonsData.length} уроков из сервера`);
+        } else {
+            throw new Error('API не доступен');
         }
-        
-        function createDemoLessons() {
+    } catch (error) {
+        console.error('Ошибка загрузки уроков:', error);
+        // Используем базовые уроки если API не доступно
+        lessonsData = createBasicLessons();
+    }
+    
+    renderLessons();
+}
+
+function createBasicLessons() {
             return [
                 {
                     id: 'lesson_1',
@@ -1827,132 +1883,171 @@
             updateHints(lesson);
         }
         
-        function updateHints(lesson) {
-            const hintsContainer = document.getElementById('hints-container');
-            if (!hintsContainer) return;
+      function updateHints(lesson) {
+    const hintsContainer = document.getElementById('hints-container');
+    if (!hintsContainer || !lesson) return;
+    
+    // Используем теорию из lessons.js если есть, иначе базовую теорию
+    const theory = lesson.theory || 'Теория будет добавлена позже';
+    const task = lesson.task || 'Задание будет добавлено';
+    const example = lesson.testCode || lesson.exampleCode || '# Пример кода';
+    
+    hintsContainer.innerHTML = `
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <h3 style="color: #2E7D32; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">📖</span>
+                <span>Теория урока</span>
+            </h3>
+            <div style="background: #F9F9F9; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
+                ${theory}
+            </div>
             
-            hintsContainer.innerHTML = `
-                <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                    <h3 style="color: #2E7D32; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">📖</span>
-                        <span>Теория урока</span>
-                    </h3>
-                    <div style="background: #F9F9F9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        ${lesson.theory}
-                    </div>
-                    
-                    <h3 style="color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">🎯</span>
-                        <span>Задание</span>
-                    </h3>
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <strong>Что нужно сделать:</strong>
-                        <p style="margin-top: 5px;">${lesson.task}</p>
-                    </div>
-                    
-                    <h3 style="color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">💡</span>
-                        <span>Подсказки</span>
-                    </h3>
-                    <ul style="margin: 0; padding-left: 20px; color: #666;">
-                        <li>Следуйте точному тексту задания</li>
-                        <li>Проверьте правильность синтаксиса Python</li>
-                        <li>Используйте функции и команды из теории</li>
-                        ${lesson.testCode ? 
-                            `<li>Пример правильного кода:<br>
-                            <pre style="background: #f0f0f0; padding: 10px; border-radius: 5px; margin-top: 5px; font-size: 12px;">${lesson.testCode}</pre></li>` 
-                            : ''}
-                    </ul>
-                </div>
-            `;
-        }
+            <h3 style="color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">🎯</span>
+                <span>Задание</span>
+            </h3>
+            <div style="background: #FFF3E0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <strong>Что нужно сделать:</strong>
+                <p style="margin-top: 5px;">${task}</p>
+            </div>
+            
+            <h3 style="color: #2E7D32; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">💡</span>
+                <span>Подсказки</span>
+            </h3>
+            <ul style="margin: 0; padding-left: 20px; color: #666;">
+                <li>Следуйте точному тексту задания</li>
+                <li>Проверьте правильность синтаксиса Python</li>
+                <li>Используйте функции и команды из теории</li>
+                ${example ? 
+                    `<li>Пример кода:<br>
+                    <pre style="background: #f0f0f0; padding: 10px; border-radius: 5px; margin-top: 5px; font-size: 12px; max-height: 150px; overflow-y: auto;">${example}</pre></li>` 
+                    : ''}
+            </ul>
+            
+            <div style="margin-top: 15px; padding: 10px; background: #E8F5E9; border-radius: 8px; border-left: 4px solid #4CAF50;">
+                <strong>🌾 Что изменится на ферме после урока:</strong>
+                <p style="margin-top: 5px; font-size: 14px;">
+                    После прохождения этого урока на вашей ферме появятся новые объекты или улучшения!
+                </p>
+            </div>
+        </div>
+    `;
+}
         
-        // Проверка кода (простая проверка для демо)
-function checkCode(code, lessonId) {
+        function checkCode(code, lessonId) {
     console.log(`🔍 Проверка кода для урока: ${lessonId}`);
     console.log('📝 Код для проверки:', code);
     
-    // Проверяем, что код существует и является строкой
     if (!code || typeof code !== 'string') {
-        console.log('❌ Код пустой или не строка');
         return { success: false, message: 'Введите код для проверки' };
     }
     
-    // Безопасная очистка кода
-    let cleanCode;
-    try {
-        cleanCode = code
-            .replace(/#[^\n]*/g, '') // Убираем комментарии
-            .replace(/\s+/g, ' ')    // Заменяем все пробелы на один
-            .trim()
-            .toLowerCase();
-    } catch (error) {
-        console.error('Ошибка очистки кода:', error);
-        return { success: false, message: 'Ошибка обработки кода' };
-    }
-    
+    // Получаем урок из данных
     const lesson = lessonsData.find(l => l.id === lessonId);
     if (!lesson) {
         return { success: false, message: 'Урок не найден' };
     }
     
-    // Проверяем код в зависимости от урока
+    // Безопасная очистка кода
+    let cleanCode;
+    try {
+        cleanCode = code.toLowerCase().replace(/\s+/g, ' ');
+        console.log('🧹 Очищенный код:', cleanCode.substring(0, 150) + '...');
+    } catch (error) {
+        console.error('Ошибка очистки кода:', error);
+        return { success: false, message: 'Ошибка обработки кода' };
+    }
+    
+    // Проверяем в зависимости от урока
+    // Базовые проверки для уроков 1-6
     let passed = false;
     let message = '';
     
-    switch(lessonId) {
-        case 'lesson_1':
-            const hasHello = code.includes('"Привет, АгроБот!"') || code.includes("'Привет, АгроБот!'");
-            const hasStart = code.includes('"Начинаю работу!"') || code.includes("'Начинаю работу!'");
-            passed = hasHello && hasStart;
-            message = passed ? 'Код правильный!' : 'Нужно вывести обе фразы: "Привет, АгроБот!" и "Начинаю работу!"';
-            break;
-            
-        case 'lesson_2':
-            const hasVariable = cleanCode.includes('farm_name=') || cleanCode.includes('farm_name =');
-            const hasValue = cleanCode.includes('"солнечная долина"') || cleanCode.includes("'солнечная долина'");
-            const hasPrint = cleanCode.includes('print(farm_name)');
-            passed = hasVariable && hasValue && hasPrint;
-            message = passed ? 'Код правильный!' : 'Нужно: 1) farm_name = "Солнечная долина" 2) print(farm_name)';
-            break;
-            
-        case 'lesson_3':
-            const hasDef = cleanCode.includes('def start_tractor():');
-            const hasPrintInside = cleanCode.includes('print("запускаю трактор")') || 
-                                   cleanCode.includes("print('запускаю трактор')");
-            const hasCall = cleanCode.includes('start_tractor()');
-            passed = hasDef && hasPrintInside && hasCall;
-            message = passed ? 'Код правильный!' : 'Нужно: 1) def start_tractor(): 2) print("Запускаю трактор") внутри 3) Вызов start_tractor()';
-            break;
-            
-        case 'lesson_4':
-            const hasDef2 = cleanCode.includes('def build_house(') && cleanCode.includes('material');
-            const hasPrint2 = cleanCode.includes('print(') && 
-                             (cleanCode.includes('строю дом из') || cleanCode.includes('f"строю дом из'));
-            passed = hasDef2 && hasPrint2;
-            message = passed ? 'Код правильный!' : 'Нужно: def build_house(material): с выводом "Строю дом из [material]"';
-            break;
-            
-        case 'lesson_5':
-            const hasFor = cleanCode.includes('for ') && cleanCode.includes('range(3)');
-            const hasPrint3 = cleanCode.includes('print("сажаю растение")') || 
-                             cleanCode.includes("print('сажаю растение')");
-            passed = hasFor && hasPrint3;
-            message = passed ? 'Код правильный!' : 'Нужно: for i in range(3): с print("Сажаю растение") внутри';
-            break;
-            
-        case 'lesson_6':
-            const hasIf = cleanCode.includes('if ') && cleanCode.includes('soil_moisture') && cleanCode.includes('< 50');
-            const hasPrint4 = cleanCode.includes('print("поливаю растения")') || 
-                             cleanCode.includes("print('поливаю растения')");
-            passed = hasIf && hasPrint4;
-            message = passed ? 'Код правильный!' : 'Нужно: if soil_moisture < 50: с print("Поливаю растения") внутри';
-            break;
-            
-        default:
-            // Для остальных уроков - простая проверка
-            passed = code.length > 10 && code.includes('print');
-            message = passed ? 'Код правильный!' : 'Код должен содержать команду print()';
+    // Проверки для уроков из библиотеки lessons.js
+    if (lessonId.startsWith('lesson_')) {
+        const lessonNumber = parseInt(lessonId.split('_')[1]);
+        
+        switch(lessonNumber) {
+            case 1: // Первые команды боту-помощнику
+                const hasPrint = cleanCode.includes('print');
+                const hasBotSay = cleanCode.includes('bot_say') || cleanCode.includes('print("привет, агробот")');
+                const hasClearArea = cleanCode.includes('clear_area');
+                passed = hasPrint || hasBotSay;
+                message = passed ? 'Код правильный!' : 'Используйте print(), bot_say() или clear_area()';
+                break;
+                
+            case 2: // Переменные - Проект фермы
+                const hasFarmName = cleanCode.includes('farm_name');
+                const hasArea = cleanCode.includes('area');
+                const hasAnimals = cleanCode.includes('animals');
+                const hasBuildHouse = cleanCode.includes('build_house');
+                passed = (hasFarmName && hasArea) || (hasAnimals && hasBuildHouse);
+                message = passed ? 'Код правильный!' : 'Используйте переменные: farm_name, area, animals, build_house()';
+                break;
+                
+            case 3: // Функции - Расчистка территории
+                const hasDefStartTractor = cleanCode.includes('def start_tractor');
+                const hasDefClearSection = cleanCode.includes('def clear_section');
+                passed = hasDefStartTractor || hasDefClearSection;
+                message = passed ? 'Код правильный!' : 'Создайте функции start_tractor() и clear_section()';
+                break;
+                
+            case 4: // Аргументы функций - Строительство дома
+                const hasDefBuildHouse = cleanCode.includes('def build_house');
+                const hasMaterial = cleanCode.includes('material');
+                passed = hasDefBuildHouse && hasMaterial;
+                message = passed ? 'Код правильный!' : 'Создайте функцию build_house(material)';
+                break;
+                
+            case 5: // Списки - План посадки
+                const hasList = code.includes('[') && code.includes(']');
+                const hasCrops = cleanCode.includes('crops') || cleanCode.includes('vegetables');
+                const hasTools = cleanCode.includes('tools');
+                passed = hasList && (hasCrops || hasTools);
+                message = passed ? 'Код правильный!' : 'Используйте списки: crops = [], tools = []';
+                break;
+                
+            case 6: // Циклы for - Автоматическая посадка
+                const hasForLoop = cleanCode.includes('for ') && cleanCode.includes('range');
+                const hasPlant = cleanCode.includes('plant') || cleanCode.includes('print');
+                passed = hasForLoop && hasPlant;
+                message = passed ? 'Код правильный!' : 'Используйте цикл for i in range() и функцию plant()';
+                break;
+                
+            case 7: // Условия if-else - Умная система полива
+                const hasIf = cleanCode.includes('if ');
+                const hasMoisture = cleanCode.includes('moisture') || cleanCode.includes('soil');
+                passed = hasIf && hasMoisture;
+                message = passed ? 'Код правильный!' : 'Используйте if условие с переменной moisture';
+                break;
+                
+            case 8: // Словари - База данных растений
+                const hasDict = code.includes('{') && code.includes('}');
+                const hasPlantsDb = cleanCode.includes('plants_database') || cleanCode.includes('plant');
+                passed = hasDict && hasPlantsDb;
+                message = passed ? 'Код правильный!' : 'Используйте словари: {"name": "растение"}';
+                break;
+                
+            case 9: // Циклы while - Автоматический сбор урожая
+                const hasWhile = cleanCode.includes('while ');
+                const hasHarvest = cleanCode.includes('harvest') || cleanCode.includes('ripe_crops');
+                passed = hasWhile && hasHarvest;
+                message = passed ? 'Код правильный!' : 'Используйте цикл while и harvest()';
+                break;
+                
+            case 10: // Функции с возвратом значений - Расчет прибыли
+                const hasDefCalculate = cleanCode.includes('def calculate');
+                const hasReturn = cleanCode.includes('return ');
+                passed = hasDefCalculate && hasReturn;
+                message = passed ? 'Код правильный!' : 'Создайте функцию с return';
+                break;
+                
+            default:
+                // Для остальных уроков - общая проверка
+                passed = code.length > 10 && (cleanCode.includes('def ') || cleanCode.includes('class ') || cleanCode.includes('import '));
+                message = passed ? 'Код правильный!' : 'Код должен содержать функции, классы или импорты';
+        }
     }
     
     console.log(`✅ Проверка завершена: ${passed ? 'ПРОШЕЛ' : 'НЕ ПРОШЕЛ'}`, { passed, message });
