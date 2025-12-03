@@ -1868,57 +1868,96 @@
         }
         
         // Проверка кода (простая проверка для демо)
-        function checkCode(code, lessonId) {
-            if (!code || !lessonId) return { success: false, message: 'Нет кода для проверки' };
+function checkCode(code, lessonId) {
+    console.log(`🔍 Проверка кода для урока: ${lessonId}`);
+    console.log('📝 Код для проверки:', code);
+    
+    // Проверяем, что код существует и является строкой
+    if (!code || typeof code !== 'string') {
+        console.log('❌ Код пустой или не строка');
+        return { success: false, message: 'Введите код для проверки' };
+    }
+    
+    // Безопасная очистка кода
+    let cleanCode;
+    try {
+        cleanCode = code
+            .replace(/#[^\n]*/g, '') // Убираем комментарии
+            .replace(/\s+/g, ' ')    // Заменяем все пробелы на один
+            .trim()
+            .toLowerCase();
+    } catch (error) {
+        console.error('Ошибка очистки кода:', error);
+        return { success: false, message: 'Ошибка обработки кода' };
+    }
+    
+    const lesson = lessonsData.find(l => l.id === lessonId);
+    if (!lesson) {
+        return { success: false, message: 'Урок не найден' };
+    }
+    
+    // Проверяем код в зависимости от урока
+    let passed = false;
+    let message = '';
+    
+    switch(lessonId) {
+        case 'lesson_1':
+            const hasHello = code.includes('"Привет, АгроБот!"') || code.includes("'Привет, АгроБот!'");
+            const hasStart = code.includes('"Начинаю работу!"') || code.includes("'Начинаю работу!'");
+            passed = hasHello && hasStart;
+            message = passed ? 'Код правильный!' : 'Нужно вывести обе фразы: "Привет, АгроБот!" и "Начинаю работу!"';
+            break;
             
-            const lesson = lessonsData.find(l => l.id === lessonId);
-            if (!lesson) return { success: false, message: 'Урок не найден' };
+        case 'lesson_2':
+            const hasVariable = cleanCode.includes('farm_name=') || cleanCode.includes('farm_name =');
+            const hasValue = cleanCode.includes('"солнечная долина"') || cleanCode.includes("'солнечная долина'");
+            const hasPrint = cleanCode.includes('print(farm_name)');
+            passed = hasVariable && hasValue && hasPrint;
+            message = passed ? 'Код правильный!' : 'Нужно: 1) farm_name = "Солнечная долина" 2) print(farm_name)';
+            break;
             
-            // Убираем комментарии и лишние пробелы для проверки
-            const cleanCode = code
-                .replace(/#[^\n]*/g, '') // Убираем комментарии
-                .replace(/\s+/g, ' ')    // Заменяем все пробелы на один
-                .trim()
-                .toLowerCase();
+        case 'lesson_3':
+            const hasDef = cleanCode.includes('def start_tractor():');
+            const hasPrintInside = cleanCode.includes('print("запускаю трактор")') || 
+                                   cleanCode.includes("print('запускаю трактор')");
+            const hasCall = cleanCode.includes('start_tractor()');
+            passed = hasDef && hasPrintInside && hasCall;
+            message = passed ? 'Код правильный!' : 'Нужно: 1) def start_tractor(): 2) print("Запускаю трактор") внутри 3) Вызов start_tractor()';
+            break;
             
-            const testCode = lesson.testCode
-                .replace(/\s+/g, ' ')
-                .trim()
-                .toLowerCase();
+        case 'lesson_4':
+            const hasDef2 = cleanCode.includes('def build_house(') && cleanCode.includes('material');
+            const hasPrint2 = cleanCode.includes('print(') && 
+                             (cleanCode.includes('строю дом из') || cleanCode.includes('f"строю дом из'));
+            passed = hasDef2 && hasPrint2;
+            message = passed ? 'Код правильный!' : 'Нужно: def build_house(material): с выводом "Строю дом из [material]"';
+            break;
             
-            console.log('Проверка кода:', { cleanCode, testCode });
+        case 'lesson_5':
+            const hasFor = cleanCode.includes('for ') && cleanCode.includes('range(3)');
+            const hasPrint3 = cleanCode.includes('print("сажаю растение")') || 
+                             cleanCode.includes("print('сажаю растение')");
+            passed = hasFor && hasPrint3;
+            message = passed ? 'Код правильный!' : 'Нужно: for i in range(3): с print("Сажаю растение") внутри';
+            break;
             
-            // Простая проверка наличия ключевых фраз
-            if (lessonId === 'lesson_1') {
-                const hasHello = code.includes('"Привет, АгроБот!"') || code.includes("'Привет, АгроБот!'");
-                const hasStart = code.includes('"Начинаю работу!"') || code.includes("'Начинаю работу!'");
-                
-                if (!hasHello || !hasStart) {
-                    return { 
-                        success: false, 
-                        message: 'В коде должны быть обе фразы: "Привет, АгроБот!" и "Начинаю работу!"' 
-                    };
-                }
-            }
-            else if (lessonId === 'lesson_2') {
-                if (!cleanCode.includes('farm_name') || !cleanCode.includes('солнечная долина')) {
-                    return { 
-                        success: false, 
-                        message: 'Создайте переменную farm_name со значением "Солнечная долина" и выведите её' 
-                    };
-                }
-            }
-            else if (lessonId === 'lesson_3') {
-                if (!cleanCode.includes('def start_tractor') || !cleanCode.includes('print')) {
-                    return { 
-                        success: false, 
-                        message: 'Создайте функцию start_tractor() с командой print внутри' 
-                    };
-                }
-            }
+        case 'lesson_6':
+            const hasIf = cleanCode.includes('if ') && cleanCode.includes('soil_moisture') && cleanCode.includes('< 50');
+            const hasPrint4 = cleanCode.includes('print("поливаю растения")') || 
+                             cleanCode.includes("print('поливаю растения')");
+            passed = hasIf && hasPrint4;
+            message = passed ? 'Код правильный!' : 'Нужно: if soil_moisture < 50: с print("Поливаю растения") внутри';
+            break;
             
-            return { success: true, message: 'Код правильный!' };
-        }
+        default:
+            // Для остальных уроков - простая проверка
+            passed = code.length > 10 && code.includes('print');
+            message = passed ? 'Код правильный!' : 'Код должен содержать команду print()';
+    }
+    
+    console.log(`✅ Проверка завершена: ${passed ? 'ПРОШЕЛ' : 'НЕ ПРОШЕЛ'}`, { passed, message });
+    return { success: passed, message: message };
+}
         
         // Запустить код
         function runCode() {
@@ -1961,66 +2000,54 @@
             }, 500);
         }
         
-        // Отправить код на проверку
-        async function submitCode() {
-            const code = document.getElementById('code-editor')?.value;
-            if (!code || !currentLesson) {
-                showNotification('⚠️ Внимание', 'Сначала выберите урок и напишите код');
-                return;
-            }
+async function submitCode() {
+    const code = document.getElementById('code-editor')?.value;
+    
+    if (!code || !currentLesson) {
+        showNotification('⚠️ Внимание', 'Сначала выберите урок и напишите код');
+        return;
+    }
+    
+    console.log('📤 Отправка кода:', { 
+        lesson: currentLesson.id, 
+        codeLength: code.length,
+        codePreview: code.substring(0, 100) + '...' 
+    });
+    
+    // Проверяем, что код не пустой
+    if (!code.trim()) {
+        showNotification('❌ Ошибка', 'Введите код для проверки');
+        return;
+    }
+    
+    // Показываем загрузку
+    showNotification('⏳ Проверка', 'Проверяю ваш код...');
+    
+    try {
+        // Проверяем код локально
+        const checkResult = checkCode(code, currentLesson.id);
+        console.log('Результат проверки:', checkResult);
+        
+        if (checkResult.success) {
+            // Успешное выполнение
+            await completeLesson(currentLesson.id, code);
+        } else {
+            // Ошибка
+            showNotification('❌ Ошибка', checkResult.message || 'Код не соответствует заданию');
             
-            // Показываем загрузку
-            showNotification('⏳ Проверка', 'Проверяю ваш код...');
-            
-            // Проверяем код локально (для демо)
-            const checkResult = checkCode(code, currentLesson.id);
-            
-            if (checkResult.success) {
-                // Успешное выполнение
-                showNotification('🎉 Успех!', `Урок "${currentLesson.title}" пройден!\nНаграда: ${currentLesson.rewardCoins} монет`);
-                
-                // Обновляем данные пользователя
-                if (userData) {
-                    userData.lessonsCompleted = (userData.lessonsCompleted || 0) + 1;
-                    if (!userData.completedLessonIds) userData.completedLessonIds = [];
-                    if (!userData.completedLessonIds.includes(currentLesson.id)) {
-                        userData.completedLessonIds.push(currentLesson.id);
-                    }
-                    userData.coins = (userData.coins || 0) + currentLesson.rewardCoins;
-                    userData.experience = (userData.experience || 0) + currentLesson.rewardExp;
-                    
-                    // Проверяем повышение уровня
-                    if (userData.experience >= (userData.level || 1) * 1000) {
-                        userData.level = (userData.level || 1) + 1;
-                        showNotification('⭐ Новый уровень!', `Поздравляем! Вы достигли уровня ${userData.level}!`);
-                    }
-                    
-                    updateUserStats();
-                    renderLessons();
-                    
-                    // Применяем изменения на ферме
-                    applyFarmChanges(currentLesson.id);
-                    
-                    // Анимация успеха
-                    const submitBtn = document.getElementById('submit-code-btn');
-                    if (submitBtn) {
-                        submitBtn.classList.add('pulse');
-                        setTimeout(() => submitBtn.classList.remove('pulse'), 2000);
-                    }
-                }
-            } else {
-                // Ошибка
-                showNotification('❌ Ошибка', checkResult.message);
-                
-                // Показываем ошибку в выводе
-                const output = document.getElementById('output-text');
-                const outputContainer = document.getElementById('output-container');
-                if (output && outputContainer) {
-                    output.textContent = '❌ Ошибка проверки:\n\n' + checkResult.message;
-                    outputContainer.style.display = 'block';
-                }
+            // Показываем ошибку в выводе
+            const output = document.getElementById('output-text');
+            const outputContainer = document.getElementById('output-container');
+            if (output && outputContainer) {
+                output.textContent = '❌ Ошибка проверки:\n\n' + checkResult.message;
+                outputContainer.style.display = 'block';
             }
         }
+    } catch (error) {
+        console.error('Ошибка при проверке кода:', error);
+        showNotification('❌ Ошибка', 'Произошла ошибка при проверке кода');
+    }
+}
         
         // Очистить вывод
         function clearOutput() {
@@ -2058,7 +2085,158 @@
                 }
             }
         }
+
+function playSuccessAnimation() {
+    // Простая анимация
+    const submitBtn = document.getElementById('submit-code-btn');
+    if (submitBtn) {
+        submitBtn.classList.add('pulse');
+        setTimeout(() => submitBtn.classList.remove('pulse'), 2000);
+    }
+    
+    // Показываем конфетти
+    showConfetti();
+}
+
+function showConfetti() {
+    const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#FFA500', '#C7F464'];
+    
+    for (let i = 0; i < 50; i++) {
+        const confetti = document.createElement('div');
+        confetti.style.cssText = `
+            position: fixed;
+            width: ${Math.random() * 10 + 5}px;
+            height: ${Math.random() * 10 + 5}px;
+            background: ${colors[Math.floor(Math.random() * colors.length)]};
+            top: -10px;
+            left: ${Math.random() * 100}vw;
+            z-index: 1000;
+            animation: confetti 3s linear forwards;
+            border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+        `;
         
+        // Добавляем CSS анимацию
+        if (!document.querySelector('#confetti-animation')) {
+            const style = document.createElement('style');
+            style.id = 'confetti-animation';
+            style.textContent = `
+                @keyframes confetti {
+                    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(confetti);
+        
+        // Удаляем через 3 секунды
+        setTimeout(() => {
+            if (confetti.parentNode) {
+                confetti.parentNode.removeChild(confetti);
+            }
+        }, 3000);
+    }
+}
+
+function saveProgress(lessonId, code) {
+    try {
+        // Сохраняем в localStorage
+        const progress = {
+            userId: currentUserId,
+            lessonId: lessonId,
+            code: code,
+            completedAt: new Date().toISOString(),
+            userData: userData
+        };
+        
+        localStorage.setItem(`codefarm_progress_${currentUserId}_${lessonId}`, JSON.stringify(progress));
+        
+        // Сохраняем общий прогресс
+        let userProgress = JSON.parse(localStorage.getItem(`codefarm_user_${currentUserId}`) || '{}');
+        userProgress.completedLessons = userProgress.completedLessons || [];
+        if (!userProgress.completedLessons.includes(lessonId)) {
+            userProgress.completedLessons.push(lessonId);
+        }
+        userProgress.lastActivity = new Date().toISOString();
+        localStorage.setItem(`codefarm_user_${currentUserId}`, JSON.stringify(userProgress));
+        
+        console.log('💾 Прогресс сохранен');
+    } catch (error) {
+        console.error('❌ Ошибка сохранения:', error);
+    }
+}
+        
+async function completeLesson(lessonId, code) {
+    console.log(`✅ Завершаем урок: ${lessonId}`);
+    
+    try {
+        const lesson = lessonsData.find(l => l.id === lessonId);
+        if (!lesson) {
+            throw new Error('Урок не найден');
+        }
+        
+        const rewardCoins = lesson.rewardCoins || 50;
+        const rewardExp = lesson.rewardExp || 100;
+        
+        // Показываем уведомление
+        showNotification('🎉 Урок пройден!', 
+            `${lesson.title} пройден!\n` +
+            `Награда: ${rewardCoins} монет\n` +
+            `Опыт: +${rewardExp}`);
+        
+        // Обновляем данные пользователя
+        if (userData) {
+            // Проверяем, не был ли урок уже пройден
+            if (!userData.completedLessonIds) {
+                userData.completedLessonIds = [];
+            }
+            
+            const alreadyCompleted = userData.completedLessonIds.includes(lessonId);
+            
+            if (!alreadyCompleted) {
+                // Обновляем данные
+                userData.coins = (userData.coins || 100) + rewardCoins;
+                userData.experience = (userData.experience || 0) + rewardExp;
+                userData.lessonsCompleted = (userData.lessonsCompleted || 0) + 1;
+                userData.completedLessonIds.push(lessonId);
+                
+                // Проверяем уровень
+                const oldLevel = userData.level || 1;
+                const newLevel = Math.max(1, Math.floor((userData.experience || 0) / 1000) + 1);
+                
+                if (newLevel > oldLevel) {
+                    userData.level = newLevel;
+                    showNotification('⭐ Новый уровень!', `Вы достигли уровня ${newLevel}!`);
+                }
+                
+                // Обновляем статистику
+                updateUserStats();
+                
+                // Перерисовываем уроки
+                renderLessons();
+                
+                // Применяем изменения на ферме
+                applyFarmChanges(lessonId);
+                
+                // Анимация успеха
+                playSuccessAnimation();
+                
+                // Сохраняем прогресс
+                saveProgress(lessonId, code);
+                
+                console.log('✅ Урок успешно завершен со всеми изменениями');
+            } else {
+                showNotification('ℹ️ Уже пройден', 'Этот урок уже был пройден ранее');
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка завершения урока:', error);
+        showNotification('❌ Ошибка', 'Не удалось завершить урок: ' + error.message);
+    }
+}
+
         // Инициализация редактора кода
         function initCodeEditor() {
             const codeEditor = document.getElementById('code-editor');
