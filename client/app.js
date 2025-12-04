@@ -436,47 +436,92 @@ class CodeFarmApp {
         }
     }
     
-    initEventHandlers() {
-        console.log('🔄 Настраиваем обработчики событий...');
-        
-        // Кнопка запуска кода
-        const runBtn = document.getElementById('run-code-btn');
-        if (runBtn) {
-            runBtn.addEventListener('click', () => this.runCode());
-        }
-        
-        // Кнопка отправки решения
-        const submitBtn = document.getElementById('submit-code-btn');
-        if (submitBtn) {
-            submitBtn.addEventListener('click', () => this.submitSolution());
-        }
-        
-        // Кнопка очистки вывода
-        const clearBtn = document.getElementById('clear-output-btn');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearOutput());
-        }
-        
-        // Быстрые действия
-        const quickActions = document.querySelectorAll('.quick-action-btn');
-        quickActions.forEach(btn => {
-            const action = btn.getAttribute('data-action');
-            if (action) {
-                btn.addEventListener('click', () => this.handleQuickAction(action));
-            }
+   initEventHandlers() {
+    console.log('🔄 Настраиваем обработчики событий...');
+    
+    // 1. Кнопка запуска кода - ДЕБАГ
+    const runBtn = document.getElementById('run-code-btn');
+    console.log('🔍 run-code-btn найден:', !!runBtn);
+    if (runBtn) {
+        runBtn.addEventListener('click', () => {
+            console.log('🎯 Нажата кнопка "Запустить код"');
+            this.runCode();
         });
-        
-        // Действия на ферме
-        const farmActions = document.querySelectorAll('.farm-action-btn');
-        farmActions.forEach(btn => {
-            const action = btn.getAttribute('data-action');
-            if (action) {
-                btn.addEventListener('click', () => this.handleFarmAction(action));
-            }
-        });
-        
-        console.log('✅ Обработчики событий настроены');
+    } else {
+        console.error('❌ run-code-btn не найден!');
     }
+    
+    // 2. Кнопка отправки решения - ДЕБАГ
+    const submitBtn = document.getElementById('submit-code-btn');
+    console.log('🔍 submit-code-btn найден:', !!submitBtn);
+    if (submitBtn) {
+        submitBtn.addEventListener('click', () => {
+            console.log('🎯 Нажата кнопка "Проверить решение"');
+            this.submitSolution();
+        });
+    }
+    
+    // 3. Кнопка очистки вывода
+    const clearBtn = document.getElementById('clear-output-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => this.clearOutput());
+    }
+    
+    // 4. Быстрые действия - ДЕБАГ
+    const quickActions = document.querySelectorAll('.quick-action-btn');
+    console.log('🔍 quick-action-btn найдено:', quickActions.length);
+    quickActions.forEach(btn => {
+        const action = btn.getAttribute('data-action');
+        if (action) {
+            btn.addEventListener('click', () => {
+                console.log('🎯 Быстрое действие:', action);
+                this.handleQuickAction(action);
+            });
+        }
+    });
+    
+    // 5. Действия на ферме - ДЕБАГ
+    const farmActions = document.querySelectorAll('.farm-action-btn');
+    console.log('🔍 farm-action-btn найдено:', farmActions.length);
+    farmActions.forEach(btn => {
+        const action = btn.getAttribute('data-action');
+        if (action) {
+            btn.addEventListener('click', () => {
+                console.log('🎯 Действие на ферме:', action);
+                this.handleFarmAction(action);
+            });
+        }
+    });
+    
+    // 6. Кнопки навигации - ДЕБАГ
+    const navItems = document.querySelectorAll('.nav-item');
+    console.log('🔍 nav-item найдено:', navItems.length);
+    navItems.forEach(item => {
+        const screen = item.getAttribute('data-screen');
+        if (screen) {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('🎯 Навигация на экран:', screen);
+                this.showScreen(screen);
+            });
+        }
+    });
+    
+    // 7. Кнопки быстрых уроков - ДЕБАГ
+    const quickLessonBtns = document.querySelectorAll('.quick-lesson-btn');
+    console.log('🔍 quick-lesson-btn найдено:', quickLessonBtns.length);
+    quickLessonBtns.forEach(btn => {
+        const lessonId = btn.getAttribute('data-lesson');
+        if (lessonId) {
+            btn.addEventListener('click', () => {
+                console.log('🎯 Быстрый урок:', lessonId);
+                this.startLesson(lessonId);
+            });
+        }
+    });
+    
+    console.log('✅ Обработчики событий настроены');
+}
     
     addStyles() {
         console.log('🎨 Добавляем стили...');
@@ -2160,32 +2205,47 @@ window.codeFarmApp = null;
 
 // Делаем функции глобально доступными для HTML
 window.showScreen = (screenName) => {
+    console.log('🌐 Глобальный showScreen:', screenName);
     if (window.codeFarmApp) {
         window.codeFarmApp.showScreen(screenName);
+    } else {
+        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
 window.runCode = () => {
+    console.log('🌐 Глобальный runCode вызван');
     if (window.codeFarmApp) {
         window.codeFarmApp.runCode();
+    } else {
+        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
 window.submitCode = () => {
+    console.log('🌐 Глобальный submitCode вызван');
     if (window.codeFarmApp) {
         window.codeFarmApp.submitSolution();
+    } else {
+        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
 window.startLesson = (lessonId) => {
+    console.log('🌐 Глобальный startLesson:', lessonId);
     if (window.codeFarmApp) {
         window.codeFarmApp.startLesson(lessonId);
+    } else {
+        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
 window.clearOutput = () => {
+    console.log('🌐 Глобальный clearOutput');
     if (window.codeFarmApp) {
         window.codeFarmApp.clearOutput();
+    } else {
+        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
@@ -2201,6 +2261,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Запускаем приложение
     window.codeFarmApp = new CodeFarmApp();
+    
+    // Инициализируем приложение
+    setTimeout(() => {
+        if (window.codeFarmApp && window.codeFarmApp.init) {
+            window.codeFarmApp.init();
+        } else {
+            console.error('❌ Не удалось инициализировать приложение');
+        }
+    }, 100);
     
     console.log('✅ CodeFarm запущен и готов к работе!');
 });
