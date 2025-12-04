@@ -1873,12 +1873,19 @@ clear_area()  # Не указан аргумент</pre>
         }
         
         function startApp() {
-            startLoading();
-            loadLessonsData();
-            initCodeEditor();
-            createInitialFarm();
-            initEventHandlers();
-        }
+    console.log('🚀 startApp вызван');
+    startLoading();
+    
+    // Инициализируем базовый UI
+    initCodeEditor();
+    createInitialFarm();
+    initEventHandlers();
+    
+    // Показываем главный экран сразу
+    showScreen('main');
+    
+    console.log('✅ startApp завершен');
+}
         
         // Создание начальной фермы (все в траве)
    function createInitialFarm() {
