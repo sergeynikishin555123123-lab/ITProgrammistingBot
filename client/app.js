@@ -21,7 +21,6 @@ class CodeFarmApp {
         };
         
         console.log('🚀 CodeFarmApp инициализирован');
-        this.init();
     }
     
     async init() {
@@ -160,27 +159,30 @@ class CodeFarmApp {
         }
     }
     
-   async loadLessons() {
-    console.log('📚 Загружаем уроки...');
-    
-    try {
-        // Используем полные уроки сразу
-        this.lessonsData = this.createCompleteLessons();
-        console.log(`✅ Создано ${this.lessonsData.length} уроков`);
+    async loadLessons() {
+        console.log('📚 Загружаем уроки...');
+        
+        try {
+            // Сначала пробуем загрузить с сервера
+            const response = await fetch('/api/lessons');
+            if (response.ok) {
+                this.lessonsData = await response.json();
+                console.log(`✅ Загружено ${this.lessonsData.length} уроков с сервера`);
+            } else {
+                throw new Error('API не доступен');
+            }
+            
+        } catch (error) {
+            console.error('❌ Ошибка загрузки уроков:', error);
+            console.log('🔄 Используем локальные уроки');
+            
+            // Используем локальные уроки
+            this.lessonsData = this.createCompleteLessons();
+            console.log(`✅ Создано ${this.lessonsData.length} локальных уроков`);
+        }
         
         // Рендерим уроки
         this.renderLessons();
-        
-    } catch (error) {
-        console.error('❌ Ошибка загрузки уроков:', error);
-        this.showError('Не удалось загрузить уроки');
-            
-            // Создаем полные уроки с правильной структурой
-            this.lessonsData = this.createCompleteLessons();
-            console.log('🔄 Используем полные уроки:', this.lessonsData.length);
-            
-            this.renderLessons();
-        }
     }
     
     createCompleteLessons() {
@@ -256,54 +258,6 @@ class CodeFarmApp {
                 task: 'Создайте систему полива, которая проверяет влажность почвы и решает, поливать или нет.\n\nТребуется:\n1. Создать переменную moisture_level со значением от 0 до 100\n2. Использовать if/elif/else для проверки влажности\n3. Если влажность < 30 - поливать обильно\n4. Если влажность 30-60 - поливать умеренно\n5. Если влажность > 60 - не поливать\n6. Вызывать water_plants(amount) в зависимости от условий',
                 testCode: '# Уровень влажности почвы\nmoisture_level = 25  # в процентах\n\nprint(f"Текущая влажность почвы: {moisture_level}%")\n\n# Проверяем условия и принимаем решение\nif moisture_level < 30:\n    print("Критически сухо! Срочно поливаю.")\n    water_plants(amount="обильно")\nelif moisture_level <= 60:\n    print("Суховато, поливаю умеренно.")\n    water_plants(amount="умеренно")\nelse:\n    print("Влажность нормальная, полив не требуется.")\n    print("Растения в порядке!")\n\nprint("Проверка влажности завершена.")',
                 initialCode: '# Урок 6: Умная система полива\n# Используйте условия if/elif/else\n\n# 1. Создайте переменную moisture_level\n# Пример: moisture_level = 40\n\n# 2. Проверьте условие для обильного полива (влажность < 30)\n# Используйте if moisture_level < 30:\n\n# 3. Добавьте условие для умеренного полива (30-60)\n# Используйте elif 30 <= moisture_level <= 60:\n\n# 4. Добавьте условие, когда полив не нужен (> 60)\n# Используйте else:\n\n# 5. В каждом условии вызовите water_plants() с разным amount\n\n# 6. Выведите информативные сообщения\n\n# Напишите ваш код ниже:'
-            },
-            {
-                id: 'lesson_7',
-                title: 'Словари - База данных растений',
-                description: 'Создайте базу данных с характеристиками растений',
-                level: 4,
-                rewardCoins: 400,
-                rewardExp: 800,
-                theory: 'Словари хранят данные в виде пар ключ-значение. Они идеально подходят для хранения структурированной информации. Доступ к значениям осуществляется по ключу. В Python словари изменяемы и могут содержать различные типы данных.',
-                task: 'Создайте словарь с информацией о растениях и функцию для поиска.\n\nТребуется:\n1. Создать словарь plants_db с информацией о растениях\n2. Добавить информацию о 3 растениях (ключ - название, значение - словарь с характеристиками)\n3. Создать функцию find_plant(name) для поиска\n4. Функция должна возвращать информацию о растении или сообщение об ошибке\n5. Протестировать поиск',
-                testCode: '# Создаем базу данных растений\nplants_db = {\n    "пшеница": {\n        "growth_days": 120,\n        "water_needs": "высокая",\n        "season": "осень",\n        "price_per_kg": 50\n    },\n    "морковь": {\n        "growth_days": 80,\n        "water_needs": "средняя",\n        "season": "весна",\n        "price_per_kg": 70\n    },\n    "картофель": {\n        "growth_days": 100,\n        "water_needs": "средняя",\n        "season": "весна",\n        "price_per_kg": 40\n    }\n}\n\n# Функция поиска растения\ndef find_plant(plant_name):\n    if plant_name in plants_db:\n        plant_info = plants_db[plant_name]\n        return f"Растение \'{plant_name}\': растет {plant_info[\'growth_days\']} дней, нуждается в {plant_info[\'water_needs\']} влаге, сезон - {plant_info[\'season\']}, цена {plant_info[\'price_per_kg\']} монет/кг"\n    else:\n        return f"Растение \'{plant_name}\' не найдено в базе данных"\n\n# Тестируем функцию\nprint("Поиск информации о растениях:")\nprint(find_plant("морковь"))\nprint(find_plant("пшеница"))\nprint(find_plant("яблоко"))  # Не существует',
-                initialCode: '# Урок 7: База данных растений\n# Используйте словари\n\n# 1. Создайте словарь plants_db\n# Структура: {\n#   "название": {\n#       "growth_days": дни_роста,\n#       "water_needs": "уровень_влажности",\n#       "season": "сезон",\n#       "price_per_kg": цена\n#   }\n# }\n\n# 2. Добавьте информацию о 3 растениях\n\n# 3. Создайте функцию find_plant(name)\n\n# 4. В функции проверьте, есть ли растение в словаре\n# Используйте if name in plants_db:\n\n# 5. Если есть - верните информацию в читаемом виде\n\n# 6. Если нет - верните сообщение об ошибке\n\n# 7. Протестируйте функцию\n\n# Напишите ваш код ниже:'
-            },
-            {
-                id: 'lesson_8',
-                title: 'Циклы while - Автоматический сбор урожая',
-                description: 'Используйте циклы while для непрерывного сбора урожая',
-                level: 4,
-                rewardCoins: 450,
-                rewardExp: 900,
-                theory: 'Цикл while выполняется, пока условие истинно. Полезен, когда количество повторений неизвестно заранее. Важно обновлять условие в цикле, чтобы избежать бесконечного цикла. В Python можно использовать break для досрочного выхода из цикла.',
-                task: 'Создайте систему автоматического сбора урожая, пока есть созревшие культуры.\n\nТребуется:\n1. Создать переменную ripe_crops с количеством созревших культур\n2. Использовать цикл while для сбора урожая\n3. В цикле уменьшать ripe_crops после каждого сбора\n4. Вызывать harvest_crop() для сбора каждой культуры\n5. Выводить прогресс сбора\n6. Продолжать пока ripe_crops > 0',
-                testCode: '# Количество созревших культур\nripe_crops = 10\ncollected = 0  # Счетчик собранных культур\n\nprint("Запускаю автоматический сбор урожая...")\nprint(f"Созревших культур: {ripe_crops}")\n\n# Цикл сбора урожая\nwhile ripe_crops > 0:\n    # Собираем одну культуру\n    harvest_crop()\n    \n    # Обновляем счетчики\n    ripe_crops -= 1\n    collected += 1\n    \n    # Выводим прогресс\n    print(f"Собрано культур: {collected}. Осталось: {ripe_crops}")\n    \n    # Небольшая пауза для имитации работы\n    # (в реальном коде здесь может быть time.sleep(1))\n\nprint(f"\\n✅ Сбор урожая завершен!")\nprint(f"Всего собрано: {collected} культур")\nprint("Урожай готов к продаже!")',
-                initialCode: '# Урок 8: Автоматический сбор урожая\n# Используйте цикл while\n\n# 1. Установите начальное количество созревших культур\n# Пример: ripe_crops = 8\n\n# 2. Создайте переменную для подсчета собранных культур\n# Пример: collected = 0\n\n# 3. Используйте while для сбора, пока ripe_crops > 0\n\n# 4. Внутри цикла:\n#    - Вызовите harvest_crop()\n#    - Уменьшите ripe_crops на 1\n#    - Увеличьте collected на 1\n#    - Выведите прогресс\n\n# 5. После цикла выведите итоговое сообщение\n\n# Напишите ваш код ниже:'
-            },
-            {
-                id: 'lesson_9',
-                title: 'Функции с возвратом - Расчет прибыли',
-                description: 'Создайте функции, которые возвращают результаты расчетов',
-                level: 5,
-                rewardCoins: 500,
-                rewardExp: 1000,
-                theory: 'Оператор return возвращает значение из функции. Это позволяет использовать результат функции в других вычислениях. Функции могут возвращать любые типы данных. Возвращаемые значения делают функции более полезными и переиспользуемыми.',
-                task: 'Создайте функцию для расчета прибыли от продажи урожая.\n\nТребуется:\n1. Создать функцию calculate_profit()\n2. Функция должна принимать параметры: harvest_kg, price_per_kg, costs\n3. Рассчитать прибыль по формуле: прибыль = (урожай * цена) - затраты\n4. Вернуть значение прибыли\n5. Протестировать функцию на разных данных\n6. Вывести результаты с пояснениями',
-                testCode: 'def calculate_profit(harvest_kg, price_per_kg, costs):\n    """\n    Рассчитывает прибыль от продажи урожая\n    \n    Параметры:\n    harvest_kg - урожай в килограммах\n    price_per_kg - цена за килограмм в монетах\n    costs - затраты на выращивание в монетах\n    \n    Возвращает:\n    Прибыль в монетах\n    """\n    revenue = harvest_kg * price_per_kg\n    profit = revenue - costs\n    return profit\n\n# Тестируем функцию на разных данных\nprint("📊 Расчет прибыли от продажи урожая:")\nprint("=" * 40)\n\n# Тест 1: Пшеница\nwheat_profit = calculate_profit(\n    harvest_kg=1000,\n    price_per_kg=50,\n    costs=20000\n)\nprint(f"1. Пшеница:")\nprint(f"   Урожай: 1000 кг, Цена: 50 монет/кг, Затраты: 20000 монет")\nprint(f"   Прибыль: {wheat_profit} монет")\nprint()\n\n# Тест 2: Морковь\ncarrot_profit = calculate_profit(\n    harvest_kg=500,\n    price_per_kg=80,\n    costs=15000\n)\nprint(f"2. Морковь:")\nprint(f"   Урожай: 500 кг, Цена: 80 монет/кг, Затраты: 15000 монет")\nprint(f"   Прибыль: {carrot_profit} монет")\nprint()\n\n# Тест 3: Убыточная культура\nloss_profit = calculate_profit(\n    harvest_kg=200,\n    price_per_kg=30,\n    costs=10000\n)\nprint(f"3. Картофель (пример убытка):")\nprint(f"   Урожай: 200 кг, Цена: 30 монет/кг, Затраты: 10000 монет")\nprint(f"   Прибыль: {loss_profit} монет (убыток)")\n\nprint("=" * 40)\nprint("📈 Анализ завершен!")',
-                initialCode: '# Урок 9: Расчет прибыли\n# Создайте функцию с возвратом значения\n\n# 1. Определите функцию calculate_profit()\n# с параметрами harvest_kg, price_per_kg, costs\n\n# 2. В функции рассчитайте выручку:\n# revenue = harvest_kg * price_per_kg\n\n# 3. Рассчитайте прибыль:\n# profit = revenue - costs\n\n# 4. Верните profit с помощью return\n\n# 5. Протестируйте функцию минимум с 3 разными наборами данных\n\n# 6. Для каждого теста выведите:\n# - Название культуры\n# - Входные данные\n# - Результат расчета\n# - Комментарий (прибыль/убыток)\n\n# Напишите ваш код ниже:'
-            },
-            {
-                id: 'lesson_10',
-                title: 'Обработка ошибок - Надежная ферма',
-                description: 'Научитесь обрабатывать ошибки в программах фермы',
-                level: 5,
-                rewardCoins: 550,
-                rewardExp: 1100,
-                theory: 'Блок try-except позволяет обрабатывать ошибки без падения программы. Это делает программы более надежными и пользователь-френдли. Можно обрабатывать конкретные типы ошибок. В Python есть встроенные исключения, которые можно перехватывать.',
-                task: 'Создайте безопасную систему запуска оборудования с обработкой ошибок.\n\nТребуется:\n1. Создать функцию safe_start_equipment()\n2. Функция должна принимать имя оборудования и уровень топлива\n3. Использовать try-except для обработки ошибок\n4. Если топливо <= 0 - вызвать ValueError с сообщением\n5. Обработать ValueError и другие исключения\n6. Всегда выводить информативные сообщения\n7. Возвращать True при успехе, False при ошибке',
-                testCode: 'def safe_start_equipment(equipment_name, fuel_level):\n    """\n    Безопасно запускает оборудование фермы\n    \n    Параметры:\n    equipment_name - название оборудования\n    fuel_level - уровень топлива в процентах\n    \n    Возвращает:\n    True - если запуск успешен, False - если произошла ошибка\n    """\n    print(f"\\n🔄 Пытаюсь запустить: {equipment_name}")\n    print(f"   Уровень топлива: {fuel_level}%")\n    \n    try:\n        # Проверяем уровень топлива\n        if fuel_level <= 0:\n            raise ValueError("Нет топлива! Заправьте оборудование.")\n        \n        # Проверяем очень низкий уровень топлива\n        if fuel_level < 10:\n            print("   ⚠️ Внимание: очень низкий уровень топлива")\n            \n        # Имитация запуска оборудования\n        print(f"   ✅ {equipment_name} запущен успешно!")\n        return True\n        \n    except ValueError as e:\n        # Обработка ошибки значения\n        print(f"   ❌ Ошибка: {e}")\n        print("   💡 Решение: заправьте оборудование")\n        return False\n        \n    except Exception as e:\n        # Обработка любых других ошибок\n        print(f"   ❌ Неожиданная ошибка: {e}")\n        print("   💡 Решение: проверьте оборудование")\n        return False\n    finally:\n        # Этот код выполнится всегда\n        print(f"   📝 Проверка {equipment_name} завершена")\n\n# Тестируем функцию\nprint("🚜 Тестирование безопасной системы запуска:")\nprint("=" * 50)\n\n# Тест 1: Успешный запуск\nresult1 = safe_start_equipment("Трактор МТЗ-80", 85)\nprint(f"   Результат: {\'УСПЕХ\' if result1 else \'ОШИБКА\'}")\n\n# Тест 2: Ошибка - нет топлива\nresult2 = safe_start_equipment("Комбайн Дон-1500", 0)\nprint(f"   Результат: {\'УСПЕХ\' if result2 else \'ОШИБКА\'}")\n\n# Тест 3: Низкий уровень топлива\nresult3 = safe_start_equipment("Грузовик ЗИЛ", 5)\nprint(f"   Результат: {\'УСПЕХ\' if result3 else \'ОШИБКА\'}")\n\nprint("=" * 50)\nprint("✅ Все тесты завершены!")',
-                initialCode: '# Урок 10: Надежная ферма\n# Обработка ошибок с try-except\n\n# 1. Определите функцию safe_start_equipment()\n# с параметрами equipment_name, fuel_level\n\n# 2. Используйте блок try-except-finally\n\n# 3. В try-блоке:\n#    - Проверьте, если fuel_level <= 0, вызовите ValueError\n#    - Если fuel_level < 10, выведите предупреждение\n#    - Имитируйте успешный запуск\n#    - Верните True\n\n# 4. В except ValueError обработайте ошибку без топлива\n\n# 5. В except Exception обработайте другие ошибки\n\n# 6. В finally всегда выведите сообщение о завершении проверки\n\n# 7. Протестируйте функцию с разными уровнями топлива\n\n# Напишите ваш код ниже:'
             }
         ];
     }
@@ -371,26 +325,23 @@ class CodeFarmApp {
     initUI() {
         console.log('🎨 Инициализируем интерфейс...');
         
-initUI() {
-    console.log('🎨 Инициализируем интерфейс...');
-    
-    // 1. Инициализируем навигацию
-    this.initNavigation();
-    
-    // 2. Инициализируем редактор кода
-    this.initCodeEditor();
-    
-    // 3. Инициализируем обработчики событий
-    this.initEventHandlers();  // ← ЭТО ВАЖНО!
-    
-    // 4. Показываем главный экран
-    this.showScreen('main');
-    
-    // 5. Добавляем CSS для анимаций
-    this.addStyles();
-    
-    console.log('✅ Интерфейс инициализирован');
-}
+        // 1. Инициализируем навигацию
+        this.initNavigation();
+        
+        // 2. Инициализируем редактор кода
+        this.initCodeEditor();
+        
+        // 3. Инициализируем обработчики событий
+        this.initEventHandlers();
+        
+        // 4. Показываем главный экран
+        this.showScreen('main');
+        
+        // 5. Добавляем CSS для анимаций
+        this.addStyles();
+        
+        console.log('✅ Интерфейс инициализирован');
+    }
     
     initNavigation() {
         console.log('📍 Инициализируем навигацию...');
@@ -436,121 +387,147 @@ initUI() {
         }
     }
     
-  initEventHandlers() {
-    console.log('🔄 Настраиваем обработчики событий...');
-    
-    // 1. Кнопка запуска кода
-    const runBtn = document.getElementById('run-code-btn');
-    if (runBtn) {
-        console.log('✅ run-code-btn найден, добавляем обработчик');
-        runBtn.addEventListener('click', (e) => {
-            console.log('🎯 Нажата кнопка "Запустить код"');
-            e.preventDefault();
-            e.stopPropagation();
-            this.runCode();
-        });
-    }
-    
-    // 2. Кнопка отправки решения
-    const submitBtn = document.getElementById('submit-code-btn');
-    if (submitBtn) {
-        console.log('✅ submit-code-btn найден, добавляем обработчик');
-        submitBtn.addEventListener('click', (e) => {
-            console.log('🎯 Нажата кнопка "Проверить решение"');
-            e.preventDefault();
-            e.stopPropagation();
-            this.submitSolution();
-        });
-    }
-    
-    // 3. Кнопка очистки вывода
-    const clearBtn = document.getElementById('clear-output-btn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.clearOutput();
-        });
-    }
-       
-    // 4. Быстрые действия - ДЕБАГ
-    const quickActions = document.querySelectorAll('.quick-action-btn');
-    console.log('🔍 quick-action-btn найдено:', quickActions.length);
-    quickActions.forEach(btn => {
-        const action = btn.getAttribute('data-action');
-        if (action) {
-            btn.addEventListener('click', () => {
-                console.log('🎯 Быстрое действие:', action);
-                this.handleQuickAction(action);
-            });
-        }
-    });
-    
-    // 5. Действия на ферме - ДЕБАГ
-    const farmActions = document.querySelectorAll('.farm-action-btn');
-    console.log('🔍 farm-action-btn найдено:', farmActions.length);
-    farmActions.forEach(btn => {
-        const action = btn.getAttribute('data-action');
-        if (action) {
-            btn.addEventListener('click', () => {
-                console.log('🎯 Действие на ферме:', action);
-                this.handleFarmAction(action);
-            });
-        }
-    });
-    
-    // 6. Кнопки навигации - ДЕБАГ
-    const navItems = document.querySelectorAll('.nav-item');
-    console.log('🔍 nav-item найдено:', navItems.length);
-    navItems.forEach(item => {
-        const screen = item.getAttribute('data-screen');
-        if (screen) {
-            item.addEventListener('click', (e) => {
+    initEventHandlers() {
+        console.log('🔄 Настраиваем обработчики событий...');
+        
+        // 1. Кнопка запуска кода
+        const runBtn = document.getElementById('run-code-btn');
+        if (runBtn) {
+            console.log('✅ run-code-btn найден, добавляем обработчик');
+            runBtn.addEventListener('click', (e) => {
+                console.log('🎯 Нажата кнопка "Запустить код"');
                 e.preventDefault();
-                console.log('🎯 Навигация на экран:', screen);
-                this.showScreen(screen);
+                e.stopPropagation();
+                this.runCode();
             });
         }
-    });
-    
-    // 7. Кнопки быстрых уроков - ДЕБАГ
-    const quickLessonBtns = document.querySelectorAll('.quick-lesson-btn');
-    console.log('🔍 quick-lesson-btn найдено:', quickLessonBtns.length);
-    quickLessonBtns.forEach(btn => {
-        const lessonId = btn.getAttribute('data-lesson');
-        if (lessonId) {
-            btn.addEventListener('click', () => {
-                console.log('🎯 Быстрый урок:', lessonId);
-                this.startLesson(lessonId);
+        
+        // 2. Кнопка отправки решения
+        const submitBtn = document.getElementById('submit-code-btn');
+        if (submitBtn) {
+            console.log('✅ submit-code-btn найден, добавляем обработчик');
+            submitBtn.addEventListener('click', (e) => {
+                console.log('🎯 Нажата кнопка "Проверить решение"');
+                e.preventDefault();
+                e.stopPropagation();
+                this.submitSolution();
             });
         }
-    });
-
-prevLesson() {
-    if (!this.currentLesson) return;
-    
-    const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
-    if (currentIndex > 0) {
-        const prevLesson = this.lessonsData[currentIndex - 1];
-        this.startLesson(prevLesson.id);
+        
+        // 3. Кнопка очистки вывода
+        const clearBtn = document.getElementById('clear-output-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.clearOutput();
+            });
+        }
+           
+        // 4. Быстрые действия
+        const quickActions = document.querySelectorAll('.quick-action-btn');
+        console.log('🔍 quick-action-btn найдено:', quickActions.length);
+        quickActions.forEach(btn => {
+            const action = btn.getAttribute('data-action');
+            if (action) {
+                btn.addEventListener('click', () => {
+                    console.log('🎯 Быстрое действие:', action);
+                    this.handleQuickAction(action);
+                });
+            }
+        });
+        
+        // 5. Действия на ферме
+        const farmActions = document.querySelectorAll('.farm-action-btn');
+        console.log('🔍 farm-action-btn найдено:', farmActions.length);
+        farmActions.forEach(btn => {
+            const action = btn.getAttribute('data-action');
+            if (action) {
+                btn.addEventListener('click', () => {
+                    console.log('🎯 Действие на ферме:', action);
+                    this.handleFarmAction(action);
+                });
+            }
+        });
+        
+        // 6. Кнопки навигации
+        const navItems = document.querySelectorAll('.nav-item');
+        console.log('🔍 nav-item найдено:', navItems.length);
+        navItems.forEach(item => {
+            const screen = item.getAttribute('data-screen');
+            if (screen) {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    console.log('🎯 Навигация на экран:', screen);
+                    this.showScreen(screen);
+                });
+            }
+        });
+        
+        // 7. Кнопки быстрых уроков
+        const quickLessonBtns = document.querySelectorAll('.quick-lesson-btn');
+        console.log('🔍 quick-lesson-btn найдено:', quickLessonBtns.length);
+        quickLessonBtns.forEach(btn => {
+            const lessonId = btn.getAttribute('data-lesson');
+            if (lessonId) {
+                btn.addEventListener('click', () => {
+                    console.log('🎯 Быстрый урок:', lessonId);
+                    this.startLesson(lessonId);
+                });
+            }
+        });
+        
+        // 8. Навигация по урокам
+        this.initLessonNavigation();
+        
+        console.log('✅ Обработчики событий настроены');
     }
-}
-
-nextLesson() {
-    if (!this.currentLesson) return;
     
-    const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
-    if (currentIndex < this.lessonsData.length - 1) {
-        const nextLesson = this.lessonsData[currentIndex + 1];
-        this.startLesson(nextLesson.id);
+    initLessonNavigation() {
+        console.log('🔄 Инициализируем навигацию по урокам...');
+        
+        // Кнопка предыдущего урока
+        const prevBtn = document.getElementById('prev-lesson-btn');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🎯 Нажата кнопка "Предыдущий урок"');
+                this.prevLesson();
+            });
+        }
+        
+        // Кнопка следующего урока
+        const nextBtn = document.getElementById('next-lesson-btn');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🎯 Нажата кнопка "Следующий урок"');
+                this.nextLesson();
+            });
+        }
     }
-}
-      
-     // Навигация по урокам
-    this.initLessonNavigation();
     
-    console.log('✅ Обработчики событий настроены');
-}
+    prevLesson() {
+        if (!this.currentLesson) return;
+        
+        const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+        if (currentIndex > 0) {
+            const prevLesson = this.lessonsData[currentIndex - 1];
+            this.startLesson(prevLesson.id);
+        }
+    }
+    
+    nextLesson() {
+        if (!this.currentLesson) return;
+        
+        const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+        if (currentIndex < this.lessonsData.length - 1) {
+            const nextLesson = this.lessonsData[currentIndex + 1];
+            this.startLesson(nextLesson.id);
+        }
+    }
     
     addStyles() {
         console.log('🎨 Добавляем стили...');
@@ -1440,40 +1417,6 @@ nextLesson() {
                 message = passed ? 'Код правильный! Система полива работает.' : 'Нужно: if moisture_level < 30: с water_plants() внутри';
                 break;
                 
-            case 'lesson_7':
-                const hasDict = cleanCode.includes('{') && cleanCode.includes('}');
-                const hasFindFunc = cleanCode.includes('def find_plant(');
-                const hasInCheck = cleanCode.includes(' in ') || cleanCode.includes('.get(');
-                passed = hasDict && hasFindFunc && hasInCheck;
-                message = passed ? 'Код правильный! База данных создана.' : 'Нужно: 1) словарь plants_db 2) функция find_plant() 3) проверка if name in plants_db';
-                break;
-                
-            case 'lesson_8':
-                const hasWhile = cleanCode.includes('while ');
-                const hasHarvest = cleanCode.includes('harvest_crop(');
-                const hasDecrement = cleanCode.includes('-=') || cleanCode.includes('= ripe_crops - 1');
-                passed = hasWhile && hasHarvest && hasDecrement;
-                message = passed ? 'Код правильный! Урожай собран.' : 'Нужно: while ripe_crops > 0: с harvest_crop() и уменьшением ripe_crops';
-                break;
-                
-            case 'lesson_9':
-                const hasProfitFunc = cleanCode.includes('def calculate_profit(');
-                const hasReturn = cleanCode.includes('return');
-                const hasCalculate = (cleanCode.includes('*') && cleanCode.includes('-')) || 
-                                    cleanCode.includes('revenue') || cleanCode.includes('profit');
-                passed = hasProfitFunc && hasReturn && hasCalculate;
-                message = passed ? 'Код правильный! Прибыль рассчитана.' : 'Нужно: def calculate_profit() с return и расчетом (урожай * цена) - затраты';
-                break;
-                
-            case 'lesson_10':
-                const hasTry = cleanCode.includes('try:');
-                const hasExcept = cleanCode.includes('except');
-                const hasValueError = cleanCode.includes('valueerror');
-                const hasFinally = cleanCode.includes('finally:');
-                passed = hasTry && hasExcept && hasValueError;
-                message = passed ? 'Код правильный! Обработка ошибок настроена.' : 'Нужно: try-except блок с обработкой ValueError и Exception';
-                break;
-                
             default:
                 // Для остальных уроков - простая проверка
                 passed = code.length > 10 && code.includes('print');
@@ -1696,91 +1639,10 @@ nextLesson() {
                 }
                 break;
                 
-            case 'lesson_7':
-                // Добавление садового участка
-                emoji = '🌳';
-                message = 'Садовый участок создан! База данных растений настроена.';
-                
-                // Создаем участок для разных растений
-                const emptyCells = this.farmData.cells.filter(cell => 
-                    cell.type === 'cleared' && 
-                    cell.x > 4 && cell.y > 4 // В правом нижнем углу
-                );
-                
-                cellsToUpdate = emptyCells.slice(0, 4);
-                
-                const gardenPlants = ['🌻', '🌷', '🌹', '🌸'];
-                cellsToUpdate.forEach((cell, index) => {
-                    cell.type = 'crop';
-                    cell.emoji = gardenPlants[index] || '🌱';
-                    cell.color = '#4CAF50';
-                    cell.title = 'Декоративное растение';
-                    cell.growth = 50;
-                });
-                break;
-                
-            case 'lesson_8':
-                // Дорога к дому
-                emoji = '🛣️';
-                message = 'Дорога проложена! Теперь удобнее перемещаться по ферме.';
-                
-                // Создаем дорогу от входа к дому
-                const roadCells = [];
-                for (let y = 0; y < 8; y++) {
-                    const cell = this.farmData.cells.find(c => c.x === 0 && c.y === y);
-                    if (cell && cell.type !== 'house' && cell.type !== 'barn') {
-                        roadCells.push(cell);
-                    }
-                }
-                
-                cellsToUpdate = roadCells.slice(0, 4);
-                cellsToUpdate.forEach(cell => {
-                    cell.type = 'road';
-                    cell.emoji = '🛣️';
-                    cell.color = '#9E9E9E';
-                    cell.title = 'Дорога';
-                });
-                break;
-                
-            case 'lesson_9':
-                // Расширение фермы - больше полей
-                emoji = '📈';
-                message = 'Ферма расширена! Появилось больше места для выращивания.';
-                
-                // Добавляем больше полей
-                const moreCells = this.farmData.cells.filter(cell => 
-                    cell.type === 'cleared' && 
-                    cell.x < 5 && cell.y < 5
-                );
-                
-                cellsToUpdate = moreCells.slice(0, 8);
-                cellsToUpdate.forEach(cell => {
-                    cell.type = 'plowed';
-                    cell.emoji = '🟨';
-                    cell.color = '#FFD54F';
-                    cell.title = 'Новое вспаханное поле';
-                });
-                break;
-                
-            case 'lesson_10':
-                // Финальное улучшение - ограждение фермы
-                emoji = '🛡️';
-                message = 'Ферма защищена! Все системы работают надежно.';
-                
-                // Создаем ограждение по краям
-                const borderCells = this.farmData.cells.filter(cell => 
-                    (cell.x === 0 || cell.x === 7 || cell.y === 0 || cell.y === 7) &&
-                    cell.type !== 'house' && cell.type !== 'barn' && cell.type !== 'water'
-                );
-                
-                cellsToUpdate = borderCells.slice(0, 12);
-                cellsToUpdate.forEach(cell => {
-                    cell.type = 'road';
-                    cell.emoji = '🛡️';
-                    cell.color = '#607D8B';
-                    cell.title = 'Защитное ограждение';
-                });
-                break;
+            default:
+                // Для остальных уроков
+                emoji = '⭐';
+                message = 'Ферма улучшена!';
         }
         
         // Перерисовываем ферму
@@ -2147,46 +2009,6 @@ nextLesson() {
             }
         }
     }
-
-initLessonNavigation() {
-    console.log('🔄 Инициализируем навигацию по урокам...');
-    
-    // Кнопка предыдущего урока
-    const prevBtn = document.getElementById('prev-lesson-btn');
-    if (prevBtn) {
-        prevBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('🎯 Нажата кнопка "Предыдущий урок"');
-            
-            if (!this.currentLesson) return;
-            
-            const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
-            if (currentIndex > 0) {
-                const prevLesson = this.lessonsData[currentIndex - 1];
-                this.startLesson(prevLesson.id);
-            }
-        });
-    }
-    
-    // Кнопка следующего урока
-    const nextBtn = document.getElementById('next-lesson-btn');
-    if (nextBtn) {
-        nextBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('🎯 Нажата кнопка "Следующий урок"');
-            
-            if (!this.currentLesson) return;
-            
-            const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
-            if (currentIndex < this.lessonsData.length - 1) {
-                const nextLesson = this.lessonsData[currentIndex + 1];
-                this.startLesson(nextLesson.id);
-            }
-        });
-    }
-}
         
     upgradeFarm() {
         console.log('⬆️ Улучшаем ферму...');
@@ -2269,8 +2091,6 @@ initLessonNavigation() {
     }
 }
 
-
-    
 // Создаем глобальный объект приложения
 window.codeFarmApp = null;
 
@@ -2326,17 +2146,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('✅ CodeFarm запущен и готов к работе!');
     } catch (error) {
         console.error('❌ Ошибка запуска приложения:', error);
+        this.showNotification('❌ Ошибка', 'Не удалось запустить приложение: ' + error.message);
     }
-});
-    
-    // Инициализируем приложение
-    setTimeout(() => {
-        if (window.codeFarmApp && window.codeFarmApp.init) {
-            window.codeFarmApp.init();
-        } else {
-            console.error('❌ Не удалось инициализировать приложение');
-        }
-    }, 100);
-    
-    console.log('✅ CodeFarm запущен и готов к работе!');
 });
