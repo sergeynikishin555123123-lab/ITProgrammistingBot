@@ -1326,27 +1326,24 @@ pre.info {
                     
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
     <!-- Строка ~235 -->
-<button class="btn btn-primary quick-action-btn" data-action="start_lesson_1" 
-        onclick="window.codeFarmApp.handleQuickAction('start_lesson_1')">
-    <i class="fas fa-code"></i> Урок 1: Первые команды
-</button>
+    <button id="start-lesson-1-btn" class="btn btn-primary">
+        <i class="fas fa-code"></i> Урок 1: Первые команды
+    </button>
 
-<!-- Строка ~236 -->
-<button class="btn btn-secondary nav-trigger" data-screen="lessons" 
-        onclick="window.showScreen('lessons')">
-    <i class="fas fa-book-open"></i> Все уроки
-</button>
+    <!-- Строка ~236 -->
+    <button id="show-lessons-btn" class="btn btn-secondary">
+        <i class="fas fa-book-open"></i> Все уроки
+    </button>
 
-<!-- Строка ~237 -->
-<button class="btn btn-accent quick-action-btn" data-action="sell_produce" 
-        onclick="window.codeFarmApp.handleQuickAction('sell_produce')">
-    <i class="fas fa-shopping-cart"></i> Продать урожай
-</button>
+    <!-- Строка ~237 -->
+    <button id="sell-produce-btn" class="btn btn-accent">
+        <i class="fas fa-shopping-cart"></i> Продать урожай
+    </button>
 
-<!-- Строка ~238 -->
-<button class="btn btn-primary" onclick="window.showScreen('code')">
-    <i class="fas fa-laptop-code"></i> Редактор кода
-</button>
+    <!-- Строка ~238 -->
+    <button id="show-code-btn" class="btn btn-primary">
+        <i class="fas fa-laptop-code"></i> Редактор кода
+    </button>
 </div>
                 </div>
             </div>
@@ -3957,6 +3954,140 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ Глобальные обработчики установлены');
 });
+// Глобальная инициализация кнопок
+function initAllButtons() {
+    console.log('🎯 Инициализация всех кнопок...');
+    
+    // 1. Кнопка старта урока 1
+    const lesson1Btn = document.getElementById('start-lesson-1-btn');
+    if (lesson1Btn) {
+        console.log('✅ Найдена кнопка Урока 1');
+        lesson1Btn.onclick = () => {
+            console.log('🎯 Нажата кнопка Урока 1');
+            if (window.codeFarmApp && window.codeFarmApp.startLesson) {
+                window.codeFarmApp.startLesson('lesson_1');
+            } else {
+                alert('Приложение не готово. Обновите страницу.');
+            }
+        };
+    } else {
+        console.log('❌ Не найдена кнопка Урока 1');
+    }
+    
+    // 2. Кнопка показа уроков
+    const showLessonsBtn = document.getElementById('show-lessons-btn');
+    if (showLessonsBtn) {
+        showLessonsBtn.onclick = () => {
+            console.log('📚 Показать все уроки');
+            if (window.codeFarmApp) {
+                window.codeFarmApp.showScreen('lessons');
+                // Перезагружаем уроки
+                window.codeFarmApp.loadLessons();
+            }
+        };
+    }
+    
+    // 3. Кнопка редактора кода
+    const showCodeBtn = document.getElementById('show-code-btn');
+    if (showCodeBtn) {
+        showCodeBtn.onclick = () => {
+            console.log('💻 Показать редактор кода');
+            if (window.codeFarmApp) {
+                window.codeFarmApp.showScreen('code');
+            }
+        };
+    }
+    
+    // 4. Кнопки навигации
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.onclick = function() {
+            const screen = this.getAttribute('data-screen');
+            console.log('📍 Навигация на экран:', screen);
+            if (window.codeFarmApp && window.codeFarmApp.showScreen) {
+                window.codeFarmApp.showScreen(screen);
+            }
+        };
+    });
+    
+    // 5. Кнопка продажи
+    const sellBtn = document.getElementById('sell-produce-btn');
+    if (sellBtn) {
+        sellBtn.onclick = () => {
+            console.log('💰 Продажа урожая');
+            if (window.codeFarmApp && window.codeFarmApp.sellProduce) {
+                window.codeFarmApp.sellProduce();
+            }
+        };
+    }
+    
+    console.log('✅ Все кнопки инициализированы');
+}
+
+// Запускаем при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOM загружен, запускаем инициализацию...');
+    
+    // Ждем немного чтобы все загрузилось
+    setTimeout(() => {
+        initAllButtons();
+        
+        // Создаем приложение если его нет
+        if (!window.codeFarmApp) {
+            console.log('🔄 Создаем приложение...');
+            window.codeFarmApp = new CodeFarmApp();
+            
+            // Инициализируем простые методы
+            window.codeFarmApp.showScreen = (screen) => {
+                console.log('🖥️ Показать экран:', screen);
+                document.querySelectorAll('[id$="-screen"]').forEach(el => {
+                    el.style.display = 'none';
+                });
+                const target = document.getElementById(screen + '-screen');
+                if (target) target.style.display = 'block';
+            };
+            
+            window.codeFarmApp.startLesson = (lessonId) => {
+                console.log('🎯 Начать урок:', lessonId);
+                alert('Начинаем урок ' + lessonId);
+                window.codeFarmApp.showScreen('code');
+            };
+            
+            window.codeFarmApp.loadLessons = () => {
+                console.log('📚 Загрузка уроков...');
+                // Создаем тестовые уроки
+                window.codeFarmApp.lessonsData = [
+                    { id: 'lesson_1', title: 'Тест урок 1' },
+                    { id: 'lesson_2', title: 'Тест урок 2' }
+                ];
+                console.log('✅ Создано 2 тестовых урока');
+            };
+        }
+        
+        // Показываем главный экран
+        window.codeFarmApp.showScreen('main');
+        
+        // Загружаем уроки
+        window.codeFarmApp.loadLessons();
+        
+        console.log('🎉 Приложение готово к работе!');
+        
+    }, 500);
+});
+
+// Дебаг функция
+window.debugApp = function() {
+    console.log('=== ДЕБАГ ИНФОРМАЦИЯ ===');
+    console.log('1. window.codeFarmApp:', window.codeFarmApp ? '✓ Есть' : '✗ Нет');
+    console.log('2. Кнопка Урока 1:', document.getElementById('start-lesson-1-btn'));
+    console.log('3. Контейнер уроков:', document.getElementById('lessons-list'));
+    console.log('4. Все кнопки .btn:', document.querySelectorAll('.btn').length);
+    console.log('5. Уроки в app:', window.codeFarmApp?.lessonsData?.length || 0);
+    
+    // Тест API
+    fetch('/api/lessons')
+        .then(r => console.log('6. API уроков:', r.status))
+        .catch(e => console.log('6. API ошибка:', e.message));
+};
 </script>
 </body>
 </html>
