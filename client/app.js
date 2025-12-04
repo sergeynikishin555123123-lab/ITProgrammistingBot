@@ -169,23 +169,25 @@ class CodeFarmApp {
                 this.lessonsData = await response.json();
                 console.log(`✅ Загружено ${this.lessonsData.length} уроков с сервера`);
             } else {
+                console.log('🔄 API не доступен, создаем локальные уроки');
                 throw new Error('API не доступен');
             }
             
         } catch (error) {
             console.error('❌ Ошибка загрузки уроков:', error);
-            console.log('🔄 Используем локальные уроки');
             
             // Используем локальные уроки
             this.lessonsData = this.createCompleteLessons();
             console.log(`✅ Создано ${this.lessonsData.length} локальных уроков`);
         }
         
-        // Рендерим уроки
+        // ОБЯЗАТЕЛЬНО рендерим уроки после загрузки
+        console.log('🎨 Рендерим уроки...');
         this.renderLessons();
     }
     
     createCompleteLessons() {
+        console.log('📝 Создаем полные уроки...');
         return [
             {
                 id: 'lesson_1',
@@ -255,7 +257,7 @@ class CodeFarmApp {
                 rewardCoins: 350,
                 rewardExp: 700,
                 theory: 'Оператор if проверяет условие. elif проверяет дополнительные условия. else выполняется, если все условия ложны. Это позволяет программе принимать решения на основе данных. В Python отступы (4 пробела) определяют блоки кода.',
-                task: 'Создайте систему полива, которая проверяет влажность почвы и решает, поливать или нет.\n\nТребуется:\n1. Создать переменную moisture_level со значением от 0 до 100\n2. Использовать if/elif/else для проверки влажности\n3. Если влажность < 30 - поливать обильно\n4. Если влажность 30-60 - поливать умеренно\n5. Если влажность > 60 - не поливать\n6. Вызывать water_plants(amount) в зависимости от условий',
+                task: 'Создайте систему полива, которая проверяет влажность почвы и решает, поливать или нет.\n\nТребования:\n1. Создать переменную moisture_level со значением от 0 до 100\n2. Использовать if/elif/else для проверки влажности\n3. Если влажность < 30 - поливать обильно\n4. Если влажность 30-60 - поливать умеренно\n5. Если влажность > 60 - не поливать\n6. Вызывать water_plants(amount) в зависимости от условий',
                 testCode: '# Уровень влажности почвы\nmoisture_level = 25  # в процентах\n\nprint(f"Текущая влажность почвы: {moisture_level}%")\n\n# Проверяем условия и принимаем решение\nif moisture_level < 30:\n    print("Критически сухо! Срочно поливаю.")\n    water_plants(amount="обильно")\nelif moisture_level <= 60:\n    print("Суховато, поливаю умеренно.")\n    water_plants(amount="умеренно")\nelse:\n    print("Влажность нормальная, полив не требуется.")\n    print("Растения в порядке!")\n\nprint("Проверка влажности завершена.")',
                 initialCode: '# Урок 6: Умная система полива\n# Используйте условия if/elif/else\n\n# 1. Создайте переменную moisture_level\n# Пример: moisture_level = 40\n\n# 2. Проверьте условие для обильного полива (влажность < 30)\n# Используйте if moisture_level < 30:\n\n# 3. Добавьте условие для умеренного полива (30-60)\n# Используйте elif 30 <= moisture_level <= 60:\n\n# 4. Добавьте условие, когда полив не нужен (> 60)\n# Используйте else:\n\n# 5. В каждом условии вызовите water_plants() с разным amount\n\n# 6. Выведите информативные сообщения\n\n# Напишите ваш код ниже:'
             }
@@ -510,22 +512,32 @@ class CodeFarmApp {
     }
     
     prevLesson() {
-        if (!this.currentLesson) return;
+        if (!this.currentLesson) {
+            console.log('⚠️ Нет текущего урока');
+            return;
+        }
         
         const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
         if (currentIndex > 0) {
             const prevLesson = this.lessonsData[currentIndex - 1];
             this.startLesson(prevLesson.id);
+        } else {
+            this.showNotification('ℹ️ Нет предыдущего урока', 'Это первый урок');
         }
     }
     
     nextLesson() {
-        if (!this.currentLesson) return;
+        if (!this.currentLesson) {
+            console.log('⚠️ Нет текущего урока');
+            return;
+        }
         
         const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
         if (currentIndex < this.lessonsData.length - 1) {
             const nextLesson = this.lessonsData[currentIndex + 1];
             this.startLesson(nextLesson.id);
+        } else {
+            this.showNotification('🎉 Поздравляем!', 'Вы прошли все уроки!');
         }
     }
     
@@ -885,6 +897,12 @@ class CodeFarmApp {
             }
         });
         
+        // Для экрана уроков обновляем список уроков
+        if (screenName === 'lessons' && this.lessonsData.length > 0) {
+            console.log('📚 Обновляем список уроков на экране уроков');
+            this.renderLessons();
+        }
+        
         // Для экрана кода обновляем редактор
         if (screenName === 'code' && this.codeEditor) {
             setTimeout(() => {
@@ -982,10 +1000,29 @@ class CodeFarmApp {
         }
         
         console.log('📝 Рендерим уроки...');
+        console.log('📚 Всего уроков для рендеринга:', this.lessonsData.length);
         
+        // Очищаем контейнер
         container.innerHTML = '';
         
+        if (this.lessonsData.length === 0) {
+            console.log('⚠️ Нет уроков для отображения');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 60px; margin-bottom: 20px;">📚</div>
+                    <h3 style="color: #666; margin-bottom: 15px;">Уроки не загружены</h3>
+                    <p style="color: #999;">Попробуйте обновить страницу или проверьте подключение к серверу</p>
+                    <button onclick="window.codeFarmApp.loadLessons()" style="margin-top: 20px; padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        Загрузить уроки
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
         this.lessonsData.forEach((lesson, index) => {
+            console.log(`📝 Обрабатываем урок ${index + 1}: ${lesson.title}`);
+            
             const card = document.createElement('div');
             card.className = 'lesson-card fade-in';
             card.style.animationDelay = `${index * 0.1}s`;
@@ -1092,9 +1129,13 @@ class CodeFarmApp {
         this.farmData.stats = stats;
         
         // Обновляем элементы на странице
-        document.getElementById('cleared-land-count').textContent = stats.clearedLand;
-        document.getElementById('buildings-count').textContent = stats.buildings;
-        document.getElementById('crops-count').textContent = stats.crops;
+        const clearedLandElement = document.getElementById('cleared-land-count');
+        const buildingsElement = document.getElementById('buildings-count');
+        const cropsElement = document.getElementById('crops-count');
+        
+        if (clearedLandElement) clearedLandElement.textContent = stats.clearedLand;
+        if (buildingsElement) buildingsElement.textContent = stats.buildings;
+        if (cropsElement) cropsElement.textContent = stats.crops;
         
         // Обновляем прогресс-бар фермы
         const progressBar = document.getElementById('farm-progress-bar');
@@ -1132,8 +1173,11 @@ class CodeFarmApp {
         console.log('🔄 Обновляем интерфейс урока...');
         
         // Обновляем заголовок
-        document.getElementById('current-lesson-title').textContent = this.currentLesson.title;
-        document.getElementById('current-lesson-desc').textContent = this.currentLesson.description;
+        const titleElement = document.getElementById('current-lesson-title');
+        const descElement = document.getElementById('current-lesson-desc');
+        
+        if (titleElement) titleElement.textContent = this.currentLesson.title;
+        if (descElement) descElement.textContent = this.currentLesson.description;
         
         // Обновляем теорию
         const theoryEl = document.getElementById('lesson-theory');
@@ -1179,8 +1223,14 @@ class CodeFarmApp {
             this.codeEditor.style.height = (this.codeEditor.scrollHeight) + 'px';
         }
         
-        // Обновляем подсказки
-        this.updateHints();
+        // Обновляем номер урока в навигации
+        const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+        if (currentIndex >= 0) {
+            const currentLessonNumber = document.getElementById('current-lesson-number');
+            const totalLessons = document.getElementById('total-lessons');
+            if (currentLessonNumber) currentLessonNumber.textContent = `Урок ${currentIndex + 1}`;
+            if (totalLessons) totalLessons.textContent = this.lessonsData.length;
+        }
         
         console.log('✅ Интерфейс урока обновлен');
     }
@@ -2132,20 +2182,36 @@ window.clearOutput = () => {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 DOM загружен, запускаем CodeFarm...');
     
-    // Скрываем экран загрузки
-    const loadingScreen = document.getElementById('loading-screen');
-    if (loadingScreen) {
-        loadingScreen.style.display = 'none';
-    }
-    
     try {
         // Запускаем приложение
         window.codeFarmApp = new CodeFarmApp();
         await window.codeFarmApp.init();
         
         console.log('✅ CodeFarm запущен и готов к работе!');
+        
+        // Проверяем загрузку уроков через 1 секунду
+        setTimeout(() => {
+            if (window.codeFarmApp.lessonsData.length === 0) {
+                console.log('⚠️ Уроки не загрузились, пробуем загрузить еще раз');
+                window.codeFarmApp.loadLessons();
+            }
+        }, 1000);
+        
     } catch (error) {
         console.error('❌ Ошибка запуска приложения:', error);
-        this.showNotification('❌ Ошибка', 'Не удалось запустить приложение: ' + error.message);
+        
+        // Показываем сообщение об ошибке
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+            <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; z-index: 9999;">
+                <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                <h3 style="color: #f44336; margin-bottom: 15px;">Ошибка запуска приложения</h3>
+                <p style="color: #666; margin-bottom: 20px;">${error.message}</p>
+                <button onclick="location.reload()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Обновить страницу
+                </button>
+            </div>
+        `;
+        document.body.appendChild(notification);
     }
 });
