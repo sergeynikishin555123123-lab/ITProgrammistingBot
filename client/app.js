@@ -1,45 +1,80 @@
 // client/app.js - Полностью рабочий фронтенд для CodeFarm
 class CodeFarmApp {
-    constructor() {
-        this.userId = null;
-        this.userData = null;
-        this.farmData = null;
-        this.lessonsData = [];
-        this.currentLesson = null;
-        this.codeEditor = null;
-        
-        // Типы клеток фермы
-        this.CELL_TYPES = {
-            GRASS: 'grass',      // Трава (заросший участок) - начало
-            CLEARED: 'cleared',  // Расчищенная земля - урок 1
-            PLOWED: 'plowed',    // Вспаханная земля - урок 2
-            HOUSE: 'house',      // Дом - урок 3
-            BARN: 'barn',        // Сарай - урок 4
-            CROP: 'crop',        // Посев - урок 5
-            WATER: 'water',      // Вода - урок 6
-            ROAD: 'road'         // Дорога
-        };
-        
-        console.log('🚀 CodeFarmApp инициализирован');
-    }
+// В конструкторе класса CodeFarmApp добавьте:
+constructor() {
+    this.userId = null;
+    this.userData = null;
+    this.farmData = null;
+    this.lessonsData = [];
+    this.currentLesson = null;
+    this.codeEditor = null;
     
-    async init() {
-        console.log('🔧 Начинаем инициализацию...');
+    // Типы клеток фермы
+    this.CELL_TYPES = {
+        GRASS: 'grass',      // Трава (заросший участок) - начало
+        CLEARED: 'cleared',  // Расчищенная земля - урок 1
+        PLOWED: 'plowed',    // Вспаханная земля - урок 2
+        HOUSE: 'house',      // Дом - урок 3
+        BARN: 'barn',        // Сарай - урок 4
+        CROP: 'crop',        // Посев - урок 5
+        WATER: 'water',      // Вода - урок 6
+        ROAD: 'road'         // Дорога
+    };
+    
+    // Биндим методы к текущему контексту
+    this.loadLessons = this.loadLessons.bind(this);
+    this.createCompleteLessons = this.createCompleteLessons.bind(this);
+    this.startLesson = this.startLesson.bind(this);
+    this.runCode = this.runCode.bind(this);
+    this.submitSolution = this.submitSolution.bind(this);
+    
+    console.log('🚀 CodeFarmApp инициализирован');
+}
+    
+   async init() {
+    console.log('🔧 Начинаем инициализацию...');
+    
+    // 1. Проверяем авторизацию
+    await this.checkAuth();
+    
+    // 2. Загружаем начальные данные
+    await this.loadInitialData();
+    
+    // 3. Инициализируем интерфейс
+    this.initUI();
+    
+    // 4. Показываем приветствие
+    this.showWelcomeMessage();
+    
+    console.log('✅ Инициализация завершена');
+}
+
+async loadInitialData() {
+    console.log('📥 Загружаем начальные данные...');
+    
+    try {
+        // Загружаем уроки - ОБЯЗАТЕЛЬНО ЖДЕМ завершения
+        this.lessonsData = await this.loadLessons();
+        console.log(`📚 Уроки загружены: ${this.lessonsData.length} уроков`);
         
-        // 1. Проверяем авторизацию
-        await this.checkAuth();
+        // Загружаем ферму
+        await this.loadFarm();
         
-        // 2. Загружаем начальные данные
-        await this.loadInitialData();
+        // Обновляем статистику
+        this.updateUserStats();
         
-        // 3. Инициализируем интерфейс
-        this.initUI();
+        // Сразу рендерим уроки
+        this.renderLessons();
         
-        // 4. Показываем приветствие
-        this.showWelcomeMessage();
+    } catch (error) {
+        console.error('❌ Ошибка загрузки данных:', error);
+        this.showError('Не удалось загрузить данные');
         
-        console.log('✅ Инициализация завершена');
+        // Создаем демо уроки
+        this.lessonsData = this.createCompleteLessons();
+        this.renderLessons();
     }
+}
     
     async checkAuth() {
         console.log('🔐 Проверяем авторизацию...');
@@ -140,41 +175,28 @@ class CodeFarmApp {
         }
     }
     
-    async loadInitialData() {
-        console.log('📥 Загружаем начальные данные...');
-        
-        try {
-            // Загружаем уроки
-            await this.loadLessons();
-            
-            // Загружаем ферму
-            await this.loadFarm();
-            
-            // Обновляем статистику
-            this.updateUserStats();
-            
-        } catch (error) {
-            console.error('❌ Ошибка загрузки данных:', error);
-            this.showError('Не удалось загрузить данные');
-        }
-    }
+
+   async loadLessons() {
+    console.log('📚 Загружаем уроки...');
     
-    async loadLessons() {
-        console.log('📚 Загружаем уроки...');
+    try {
+        // Пробуем загрузить с сервера
+        const response = await fetch('/api/lessons');
         
-        try {
-            // Сначала пробуем загрузить с сервера
-            const response = await fetch('/api/lessons');
-            if (response.ok) {
-                this.lessonsData = await response.json();
-                console.log(`✅ Загружено ${this.lessonsData.length} уроков с сервера`);
-            } else {
-                console.log('🔄 API не доступен, создаем локальные уроки');
-                throw new Error('API не доступен');
-            }
-            
-        } catch (error) {
-            console.error('❌ Ошибка загрузки уроков:', error);
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`✅ Загружено ${data.length} уроков с сервера`);
+            return data;
+        } else {
+            console.log('🔄 Сервер не отвечает, используем локальные уроки');
+            return this.createCompleteLessons();
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки уроков:', error);
+        return this.createCompleteLessons();
+    }
+}
             
             // Используем локальные уроки
             this.lessonsData = this.createCompleteLessons();
