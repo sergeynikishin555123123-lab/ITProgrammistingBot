@@ -160,23 +160,20 @@ class CodeFarmApp {
         }
     }
     
-    async loadLessons() {
-        console.log('📚 Загружаем уроки...');
+   async loadLessons() {
+    console.log('📚 Загружаем уроки...');
+    
+    try {
+        // Используем полные уроки сразу
+        this.lessonsData = this.createCompleteLessons();
+        console.log(`✅ Создано ${this.lessonsData.length} уроков`);
         
-        try {
-            const response = await fetch('/api/lessons');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            this.lessonsData = await response.json();
-            console.log(`✅ Загружено ${this.lessonsData.length} уроков`);
-            
-            // Рендерим уроки
-            this.renderLessons();
-            
-        } catch (error) {
-            console.error('❌ Ошибка загрузки уроков:', error);
+        // Рендерим уроки
+        this.renderLessons();
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки уроков:', error);
+        this.showError('Не удалось загрузить уроки');
             
             // Создаем полные уроки с правильной структурой
             this.lessonsData = this.createCompleteLessons();
@@ -439,27 +436,29 @@ initUI() {
         }
     }
     
-   initEventHandlers() {
+  initEventHandlers() {
     console.log('🔄 Настраиваем обработчики событий...');
     
-    // 1. Кнопка запуска кода - ДЕБАГ
+    // 1. Кнопка запуска кода
     const runBtn = document.getElementById('run-code-btn');
-    console.log('🔍 run-code-btn найден:', !!runBtn);
     if (runBtn) {
-        runBtn.addEventListener('click', () => {
+        console.log('✅ run-code-btn найден, добавляем обработчик');
+        runBtn.addEventListener('click', (e) => {
             console.log('🎯 Нажата кнопка "Запустить код"');
+            e.preventDefault();
+            e.stopPropagation();
             this.runCode();
         });
-    } else {
-        console.error('❌ run-code-btn не найден!');
     }
     
-    // 2. Кнопка отправки решения - ДЕБАГ
+    // 2. Кнопка отправки решения
     const submitBtn = document.getElementById('submit-code-btn');
-    console.log('🔍 submit-code-btn найден:', !!submitBtn);
     if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
+        console.log('✅ submit-code-btn найден, добавляем обработчик');
+        submitBtn.addEventListener('click', (e) => {
             console.log('🎯 Нажата кнопка "Проверить решение"');
+            e.preventDefault();
+            e.stopPropagation();
             this.submitSolution();
         });
     }
@@ -467,9 +466,13 @@ initUI() {
     // 3. Кнопка очистки вывода
     const clearBtn = document.getElementById('clear-output-btn');
     if (clearBtn) {
-        clearBtn.addEventListener('click', () => this.clearOutput());
+        clearBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.clearOutput();
+        });
     }
-    
+       
     // 4. Быстрые действия - ДЕБАГ
     const quickActions = document.querySelectorAll('.quick-action-btn');
     console.log('🔍 quick-action-btn найдено:', quickActions.length);
@@ -522,6 +525,29 @@ initUI() {
             });
         }
     });
+
+prevLesson() {
+    if (!this.currentLesson) return;
+    
+    const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+    if (currentIndex > 0) {
+        const prevLesson = this.lessonsData[currentIndex - 1];
+        this.startLesson(prevLesson.id);
+    }
+}
+
+nextLesson() {
+    if (!this.currentLesson) return;
+    
+    const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+    if (currentIndex < this.lessonsData.length - 1) {
+        const nextLesson = this.lessonsData[currentIndex + 1];
+        this.startLesson(nextLesson.id);
+    }
+}
+      
+     // Навигация по урокам
+    this.initLessonNavigation();
     
     console.log('✅ Обработчики событий настроены');
 }
@@ -2121,7 +2147,47 @@ initUI() {
             }
         }
     }
+
+initLessonNavigation() {
+    console.log('🔄 Инициализируем навигацию по урокам...');
     
+    // Кнопка предыдущего урока
+    const prevBtn = document.getElementById('prev-lesson-btn');
+    if (prevBtn) {
+        prevBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🎯 Нажата кнопка "Предыдущий урок"');
+            
+            if (!this.currentLesson) return;
+            
+            const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+            if (currentIndex > 0) {
+                const prevLesson = this.lessonsData[currentIndex - 1];
+                this.startLesson(prevLesson.id);
+            }
+        });
+    }
+    
+    // Кнопка следующего урока
+    const nextBtn = document.getElementById('next-lesson-btn');
+    if (nextBtn) {
+        nextBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🎯 Нажата кнопка "Следующий урок"');
+            
+            if (!this.currentLesson) return;
+            
+            const currentIndex = this.lessonsData.findIndex(l => l.id === this.currentLesson.id);
+            if (currentIndex < this.lessonsData.length - 1) {
+                const nextLesson = this.lessonsData[currentIndex + 1];
+                this.startLesson(nextLesson.id);
+            }
+        });
+    }
+}
+        
     upgradeFarm() {
         console.log('⬆️ Улучшаем ферму...');
         
@@ -2203,16 +2269,15 @@ initUI() {
     }
 }
 
+
+    
 // Создаем глобальный объект приложения
 window.codeFarmApp = null;
 
 // Делаем функции глобально доступными для HTML
 window.showScreen = (screenName) => {
-    console.log('🌐 Глобальный showScreen:', screenName);
     if (window.codeFarmApp) {
         window.codeFarmApp.showScreen(screenName);
-    } else {
-        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
@@ -2220,8 +2285,6 @@ window.runCode = () => {
     console.log('🌐 Глобальный runCode вызван');
     if (window.codeFarmApp) {
         window.codeFarmApp.runCode();
-    } else {
-        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
@@ -2229,8 +2292,6 @@ window.submitCode = () => {
     console.log('🌐 Глобальный submitCode вызван');
     if (window.codeFarmApp) {
         window.codeFarmApp.submitSolution();
-    } else {
-        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
@@ -2238,22 +2299,17 @@ window.startLesson = (lessonId) => {
     console.log('🌐 Глобальный startLesson:', lessonId);
     if (window.codeFarmApp) {
         window.codeFarmApp.startLesson(lessonId);
-    } else {
-        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
 window.clearOutput = () => {
-    console.log('🌐 Глобальный clearOutput');
     if (window.codeFarmApp) {
         window.codeFarmApp.clearOutput();
-    } else {
-        console.error('❌ codeFarmApp не инициализирован!');
     }
 };
 
 // Запускаем приложение при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 DOM загружен, запускаем CodeFarm...');
     
     // Скрываем экран загрузки
@@ -2262,8 +2318,16 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingScreen.style.display = 'none';
     }
     
-    // Запускаем приложение
-    window.codeFarmApp = new CodeFarmApp();
+    try {
+        // Запускаем приложение
+        window.codeFarmApp = new CodeFarmApp();
+        await window.codeFarmApp.init();
+        
+        console.log('✅ CodeFarm запущен и готов к работе!');
+    } catch (error) {
+        console.error('❌ Ошибка запуска приложения:', error);
+    }
+});
     
     // Инициализируем приложение
     setTimeout(() => {
