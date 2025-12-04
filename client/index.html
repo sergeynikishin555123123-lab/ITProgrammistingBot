@@ -1368,18 +1368,28 @@ pre.info {
                     </h2>
                     
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-    <button class="btn btn-primary quick-action-btn" data-action="start_lesson_1">
-        <i class="fas fa-code"></i> Урок 1: Первые команды
-    </button>
-    <button class="btn btn-secondary nav-trigger" data-screen="lessons">
-        <i class="fas fa-book-open"></i> Все уроки
-    </button>
-    <button class="btn btn-accent quick-action-btn" data-action="sell_produce">
-        <i class="fas fa-shopping-cart"></i> Продать урожай
-    </button>
-    <button class="btn btn-primary" onclick="window.showScreen('code')">
-        <i class="fas fa-laptop-code"></i> Редактор кода
-    </button>
+    <!-- Строка ~235 -->
+<button class="btn btn-primary quick-action-btn" data-action="start_lesson_1" 
+        onclick="window.codeFarmApp.handleQuickAction('start_lesson_1')">
+    <i class="fas fa-code"></i> Урок 1: Первые команды
+</button>
+
+<!-- Строка ~236 -->
+<button class="btn btn-secondary nav-trigger" data-screen="lessons" 
+        onclick="window.showScreen('lessons')">
+    <i class="fas fa-book-open"></i> Все уроки
+</button>
+
+<!-- Строка ~237 -->
+<button class="btn btn-accent quick-action-btn" data-action="sell_produce" 
+        onclick="window.codeFarmApp.handleQuickAction('sell_produce')">
+    <i class="fas fa-shopping-cart"></i> Продать урожай
+</button>
+
+<!-- Строка ~238 -->
+<button class="btn btn-primary" onclick="window.showScreen('code')">
+    <i class="fas fa-laptop-code"></i> Редактор кода
+</button>
 </div>
                 </div>
             </div>
@@ -3947,6 +3957,48 @@ async function completeLesson(lessonId, code) {
         window.clearOutput = clearOutput;
         window.closeModal = closeModal;
         window.openLessonModal = openLessonModal;
-    </script>
+    // Простой обработчик для всех кнопок
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎯 Устанавливаем глобальные обработчики...');
+    
+    // 1. Обработчик для кнопок с data-action
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.quick-action-btn');
+        if (btn && window.codeFarmApp) {
+            const action = btn.getAttribute('data-action');
+            console.log('🎯 Быстрое действие:', action);
+            window.codeFarmApp.handleQuickAction(action);
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+    
+    // 2. Обработчик для кнопок навигации
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.nav-trigger');
+        if (btn && window.codeFarmApp) {
+            const screen = btn.getAttribute('data-screen');
+            console.log('🎯 Навигация на экран:', screen);
+            window.codeFarmApp.showScreen(screen);
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+    
+    // 3. Обработчик для кнопок фермы
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.farm-action-btn');
+        if (btn && window.codeFarmApp) {
+            const action = btn.getAttribute('data-action');
+            console.log('🎯 Действие на ферме:', action);
+            window.codeFarmApp.handleFarmAction(action);
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+    
+    console.log('✅ Глобальные обработчики установлены');
+});
+</script>
 </body>
 </html>
