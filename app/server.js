@@ -154,7 +154,7 @@ app.get('/api/farm/:userId/visual', (req, res) => {
     }
 });
 
-// В server.js улучшаем обработку /api/lessons/:id/submit
+// server.js - обновляем функцию submitSolution
 app.post('/api/lessons/:id/submit', async (req, res) => {
     try {
         const { userId, code } = req.body;
@@ -259,6 +259,9 @@ app.post('/api/lessons/:id/submit', async (req, res) => {
             // Сохраняем пользователя
             storage.updateUser(userId, user);
             
+            // Получаем изменения на ферме
+            const farmChanges = getFarmChangesForLesson(lessonId);
+            
             // Готовим ответ
             const response = {
                 success: true,
@@ -272,7 +275,7 @@ app.post('/api/lessons/:id/submit', async (req, res) => {
                 farmUpdate: {
                     lessonId: lessonId,
                     action: 'update_farm',
-                    changes: this.getFarmChangesForLesson(lessonId)
+                    changes: farmChanges
                 }
             };
             
@@ -284,7 +287,7 @@ app.post('/api/lessons/:id/submit', async (req, res) => {
             res.json({
                 success: false,
                 message: 'Код не соответствует заданию',
-                hint: this.getHintForLesson(lessonId)
+                hint: getHintForLesson(lessonId)
             });
         }
         
@@ -297,7 +300,44 @@ app.post('/api/lessons/:id/submit', async (req, res) => {
     }
 });
 
-// Функция для получения подсказки по уроку
+// Улучшаем функцию getFarmChangesForLesson
+function getFarmChangesForLesson(lessonId) {
+    const changes = {
+        'lesson_1': { 
+            type: 'clear_grass', 
+            cells: 10,
+            message: 'Расчищено 10 участков от травы! Теперь можно строить.'
+        },
+        'lesson_2': { 
+            type: 'plow_land', 
+            cells: 8,
+            message: 'Вспахано 8 участков! Готово для посадки растений.'
+        },
+        'lesson_3': { 
+            type: 'build_house', 
+            cells: 1,
+            message: 'Построен дом фермера! Теперь у вас есть жилье на ферме.'
+        },
+        'lesson_4': { 
+            type: 'build_barn', 
+            cells: 1,
+            message: 'Построен сарай! Можно хранить инструменты и урожай.'
+        },
+        'lesson_5': { 
+            type: 'plant_crops', 
+            cells: 6,
+            message: 'Посажены первые культуры! Скоро будет урожай.'
+        },
+        'lesson_6': { 
+            type: 'add_water', 
+            cells: 1,
+            message: 'Добавлен источник воды! Теперь можно поливать растения.'
+        }
+    };
+    return changes[lessonId] || {};
+}
+
+// Функция для получения подсказки
 function getHintForLesson(lessonId) {
     const hints = {
         'lesson_1': 'Используйте две команды print: "Привет, АгроБот!" и "Начинаю работу!"',
