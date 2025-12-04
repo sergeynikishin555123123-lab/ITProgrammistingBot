@@ -176,37 +176,52 @@ async loadInitialData() {
     }
     
 
-   async loadLessons() {
+async loadLessons() {
     console.log('📚 Загружаем уроки...');
     
     try {
-        // Пробуем загрузить с сервера
+        // Пробуем API
         const response = await fetch('/api/lessons');
-        
         if (response.ok) {
-            const data = await response.json();
-            console.log(`✅ Загружено ${data.length} уроков с сервера`);
-            return data;
+            this.lessonsData = await response.json();
+            console.log(`✅ API: ${this.lessonsData.length} уроков`);
         } else {
-            console.log('🔄 Сервер не отвечает, используем локальные уроки');
-            return this.createCompleteLessons();
+            throw new Error('API не отвечает');
         }
-        
     } catch (error) {
-        console.error('❌ Ошибка загрузки уроков:', error);
-        return this.createCompleteLessons();
+        console.log('🔄 Используем локальные уроки');
+        this.lessonsData = [
+            {
+                id: 'lesson_1',
+                title: 'Урок 1: Приветствие',
+                description: 'Научитесь использовать print()',
+                level: 1,
+                rewardCoins: 100,
+                rewardExp: 200,
+                theory: 'Используйте print() для вывода текста',
+                task: 'Напишите: print("Привет, фермер!")',
+                testCode: 'print("Привет, фермер!")',
+                initialCode: '# Урок 1\n# Напишите команду print'
+            },
+            {
+                id: 'lesson_2',
+                title: 'Урок 2: Переменные',
+                description: 'Научитесь создавать переменные',
+                level: 1,
+                rewardCoins: 150,
+                rewardExp: 300,
+                theory: 'Переменные хранят данные',
+                task: 'Создайте переменную name = "Фермер"',
+                testCode: 'name = "Фермер"\nprint(name)',
+                initialCode: '# Урок 2\n# Создайте переменную'
+            }
+        ];
     }
+    
+    // Всегда рендерим уроки
+    this.renderLessons();
+    return this.lessonsData;
 }
-            
-            // Используем локальные уроки
-            this.lessonsData = this.createCompleteLessons();
-            console.log(`✅ Создано ${this.lessonsData.length} локальных уроков`);
-        }
-        
-        // ОБЯЗАТЕЛЬНО рендерим уроки после загрузки
-        console.log('🎨 Рендерим уроки...');
-        this.renderLessons();
-    }
     
     createCompleteLessons() {
         console.log('📝 Создаем полные уроки...');
@@ -1014,79 +1029,66 @@ async loadInitialData() {
         console.log(`✅ Ферма отрендерена: ${sortedCells.length} клеток`);
     }
     
-    renderLessons() {
-        const container = document.getElementById('lessons-list');
-        if (!container) {
-            console.log('⚠️ Не найден lessons-list');
-            return;
-        }
-        
-        console.log('📝 Рендерим уроки...');
-        console.log('📚 Всего уроков для рендеринга:', this.lessonsData.length);
-        
-        // Очищаем контейнер
-        container.innerHTML = '';
-        
-        if (this.lessonsData.length === 0) {
-            console.log('⚠️ Нет уроков для отображения');
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <div style="font-size: 60px; margin-bottom: 20px;">📚</div>
-                    <h3 style="color: #666; margin-bottom: 15px;">Уроки не загружены</h3>
-                    <p style="color: #999;">Попробуйте обновить страницу или проверьте подключение к серверу</p>
-                    <button onclick="window.codeFarmApp.loadLessons()" style="margin-top: 20px; padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                        Загрузить уроки
-                    </button>
-                </div>
-            `;
-            return;
-        }
-        
-        this.lessonsData.forEach((lesson, index) => {
-            console.log(`📝 Обрабатываем урок ${index + 1}: ${lesson.title}`);
-            
-            const card = document.createElement('div');
-            card.className = 'lesson-card fade-in';
-            card.style.animationDelay = `${index * 0.1}s`;
-            
-            // Определяем статус
-            const completed = this.userData?.completedLessonIds?.includes(lesson.id) || false;
-            const available = index === 0 || completed || 
-                (index > 0 && this.userData?.completedLessonIds?.includes(this.lessonsData[index-1].id));
-            const status = completed ? 'completed' : available ? 'available' : 'locked';
-            
-            card.innerHTML = `
-                <div class="lesson-header">
-                    <div class="lesson-number">${index + 1}</div>
-                    <div class="lesson-status status-${status}"></div>
-                </div>
-                <h3 style="margin-bottom: 10px; color: #333;">${lesson.title}</h3>
-                <p style="color: #666; margin-bottom: 15px; font-size: 14px;">${lesson.description}</p>
-                
-                <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-                    <span style="background: #FFF3E0; color: #EF6C00; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
-                        🪙 ${lesson.rewardCoins || 50}
-                    </span>
-                    <span style="background: #E8F5E9; color: #2E7D32; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
-                        ⭐ ${lesson.rewardExp || 100}
-                    </span>
-                    <span style="background: #E3F2FD; color: #1565C0; padding: 4px 8px; border-radius: 12px; font-size: 12px;">
-                        📊 Ур. ${lesson.level || 1}
-                    </span>
-                </div>
-                
-                <button class="start-lesson-btn" 
-                        onclick="window.codeFarmApp.startLesson('${lesson.id}')"
-                        ${!available ? 'disabled' : ''}>
-                    ${completed ? 'Повторить урок' : available ? 'Начать урок' : 'Заблокировано'}
-                </button>
-            `;
-            
-            container.appendChild(card);
-        });
-        
-        console.log(`✅ Уроки отрендерены: ${this.lessonsData.length} уроков`);
+   renderLessons() {
+    console.log('🎨 Рендерим уроки...');
+    
+    const container = document.getElementById('lessons-list');
+    if (!container) {
+        console.log('⚠️ Не найден lessons-list');
+        return;
     }
+    
+    if (!this.lessonsData || this.lessonsData.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <div style="font-size: 48px;">📚</div>
+                <h3>Нет уроков</h3>
+                <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px;
+                        background: #4CAF50; color: white; border: none; border-radius: 5px;">
+                    Обновить страницу
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    this.lessonsData.forEach((lesson, index) => {
+        const card = document.createElement('div');
+        card.className = 'lesson-card';
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div style="background: #4CAF50; color: white; width: 30px; height: 30px; 
+                           border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    ${index + 1}
+                </div>
+                <div style="width: 12px; height: 12px; background: #4CAF50; border-radius: 50%;"></div>
+            </div>
+            <h3 style="margin-bottom: 10px;">${lesson.title}</h3>
+            <p style="color: #666; margin-bottom: 15px;">${lesson.description}</p>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <span style="background: #FFF3E0; color: #EF6C00; padding: 4px 8px; border-radius: 12px;">
+                    🪙 ${lesson.rewardCoins || 50}
+                </span>
+                <span style="background: #E8F5E9; color: #2E7D32; padding: 4px 8px; border-radius: 12px;">
+                    ⭐ ${lesson.rewardExp || 100}
+                </span>
+            </div>
+            
+            <button onclick="window.codeFarmApp.startLesson('${lesson.id}')" 
+                    style="width: 100%; padding: 10px; background: #4CAF50; color: white; 
+                           border: none; border-radius: 5px; cursor: pointer;">
+                Начать урок
+            </button>
+        `;
+        
+        container.appendChild(card);
+    });
+    
+    console.log(`✅ Отрендерено ${this.lessonsData.length} уроков`);
+}
     
     updateUserStats() {
         if (!this.userData) {
@@ -1170,24 +1172,31 @@ async loadInitialData() {
         console.log('✅ Статистика фермы обновлена:', stats);
     }
     
-    async startLesson(lessonId) {
-        console.log(`🎯 Начинаем урок: ${lessonId}`);
+   startLesson(lessonId) {
+    console.log(`🎯 Начинаем урок: ${lessonId}`);
+    
+    const lesson = this.lessonsData.find(l => l.id === lessonId);
+    if (!lesson) {
+        alert('Урок не найден');
+        return;
+    }
+    
+    this.currentLesson = lesson;
+    this.showScreen('code');
+    
+    // Обновляем интерфейс
+    setTimeout(() => {
+        const titleEl = document.getElementById('current-lesson-title');
+        if (titleEl) titleEl.textContent = lesson.title;
         
-        // Находим урок
-        const lesson = this.lessonsData.find(l => l.id === lessonId);
-        if (!lesson) {
-            this.showNotification('❌ Ошибка', 'Урок не найден');
-            return;
+        const editor = document.getElementById('code-editor');
+        if (editor) {
+            editor.value = lesson.initialCode || '# Напишите код здесь';
         }
         
-        this.currentLesson = lesson;
-        this.showScreen('code');
-        
-        // Обновляем интерфейс урока
-        this.updateLessonInterface();
-        
         console.log(`✅ Урок "${lesson.title}" начат`);
-    }
+    }, 100);
+}
     
     updateLessonInterface() {
         if (!this.currentLesson) return;
@@ -2166,7 +2175,7 @@ async loadInitialData() {
 // Создаем глобальный объект приложения
 window.codeFarmApp = null;
 
-// Делаем функции глобально доступными для HTML
+// Глобальные функции для HTML
 window.showScreen = (screenName) => {
     if (window.codeFarmApp) {
         window.codeFarmApp.showScreen(screenName);
@@ -2174,29 +2183,27 @@ window.showScreen = (screenName) => {
 };
 
 window.runCode = () => {
-    console.log('🌐 Глобальный runCode вызван');
     if (window.codeFarmApp) {
         window.codeFarmApp.runCode();
     }
 };
 
-window.submitCode = () => {
-    console.log('🌐 Глобальный submitCode вызван');
-    if (window.codeFarmApp) {
-        window.codeFarmApp.submitSolution();
-    }
-};
-
 window.startLesson = (lessonId) => {
-    console.log('🌐 Глобальный startLesson:', lessonId);
     if (window.codeFarmApp) {
         window.codeFarmApp.startLesson(lessonId);
     }
 };
 
-window.clearOutput = () => {
-    if (window.codeFarmApp) {
-        window.codeFarmApp.clearOutput();
+// Простая проверка
+window.checkApp = () => {
+    console.log('Проверка приложения:', {
+        appExists: !!window.codeFarmApp,
+        lessons: window.codeFarmApp?.lessonsData?.length || 0,
+        user: window.codeFarmApp?.userData
+    });
+    
+    if (window.codeFarmApp && !window.codeFarmApp.lessonsData?.length) {
+        window.codeFarmApp.loadLessons();
     }
 };
 
@@ -2205,35 +2212,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('📄 DOM загружен, запускаем CodeFarm...');
     
     try {
-        // Запускаем приложение
+        // Создаем и сохраняем глобальный экземпляр
         window.codeFarmApp = new CodeFarmApp();
+        
+        // Явно привязываем методы
+        window.codeFarmApp.handleQuickAction = window.codeFarmApp.handleQuickAction.bind(window.codeFarmApp);
+        window.codeFarmApp.startLesson = window.codeFarmApp.startLesson.bind(window.codeFarmApp);
+        window.codeFarmApp.showScreen = window.codeFarmApp.showScreen.bind(window.codeFarmApp);
+        
+        // Инициализируем
         await window.codeFarmApp.init();
         
-        console.log('✅ CodeFarm запущен и готов к работе!');
+        console.log('✅ CodeFarm запущен!');
         
-        // Проверяем загрузку уроков через 1 секунду
+        // Сразу загружаем уроки принудительно
         setTimeout(() => {
-            if (window.codeFarmApp.lessonsData.length === 0) {
-                console.log('⚠️ Уроки не загрузились, пробуем загрузить еще раз');
-                window.codeFarmApp.loadLessons();
+            if (!window.codeFarmApp.lessonsData || window.codeFarmApp.lessonsData.length === 0) {
+                console.log('🔄 Принудительно загружаем уроки...');
+                window.codeFarmApp.loadLessons().then(() => {
+                    console.log(`✅ Уроки загружены: ${window.codeFarmApp.lessonsData.length}`);
+                    window.codeFarmApp.renderLessons();
+                });
             }
-        }, 1000);
+        }, 500);
         
     } catch (error) {
         console.error('❌ Ошибка запуска приложения:', error);
-        
-        // Показываем сообщение об ошибке
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-            <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; z-index: 9999;">
-                <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
-                <h3 style="color: #f44336; margin-bottom: 15px;">Ошибка запуска приложения</h3>
-                <p style="color: #666; margin-bottom: 20px;">${error.message}</p>
-                <button onclick="location.reload()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                    Обновить страницу
-                </button>
-            </div>
-        `;
-        document.body.appendChild(notification);
+        this.showSimpleError(error.message);
     }
 });
+
+// Простая функция для показа ошибки
+function showSimpleError(message) {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <div style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%); 
+                   background: #ff4444; color: white; padding: 15px 20px; border-radius: 8px;
+                   z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+            <strong>❌ Ошибка:</strong> ${message}
+            <button onclick="location.reload()" style="margin-left: 15px; padding: 5px 10px;
+                    background: white; color: #333; border: none; border-radius: 4px; cursor: pointer;">
+                Обновить
+            </button>
+        </div>
+    `;
+    document.body.appendChild(div);
+}
