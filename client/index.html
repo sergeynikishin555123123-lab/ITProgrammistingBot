@@ -1252,13 +1252,14 @@ pre.info {
     </h2>
     
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-        <button class="btn btn-primary quick-lesson-btn" data-lesson="lesson_1">
-            <div style="text-align: left;">
-                <div style="font-size: 24px;">🧹</div>
-                <div style="font-weight: bold; margin: 5px 0;">Урок 1</div>
-                <div style="font-size: 12px; opacity: 0.9;">Расчистка фермы</div>
-            </div>
-        </button>
+        <button class="btn btn-primary quick-lesson-btn" onclick="startLesson('lesson_1')" 
+        data-lesson="lesson_1" style="cursor: pointer;">
+    <div style="text-align: left;">
+        <div style="font-size: 24px;">🧹</div>
+        <div style="font-weight: bold; margin: 5px 0;">Урок 1</div>
+        <div style="font-size: 12px; opacity: 0.9;">Расчистка фермы</div>
+    </div>
+</button>
         
         <button class="btn btn-primary quick-lesson-btn" data-lesson="lesson_2">
             <div style="text-align: left;">
