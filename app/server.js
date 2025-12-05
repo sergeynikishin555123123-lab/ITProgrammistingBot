@@ -197,7 +197,6 @@ app.get('/api/lessons', (req, res) => {
         ];
         
         res.json(simpleLessons);
-    }
 });
 
 // Новый endpoint для получения визуальной фермы
