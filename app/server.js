@@ -64,6 +64,49 @@ app.post('/api/user', (req, res) => {
     }
 });
 
+// Упрощенный endpoint для уроков
+app.get('/api/lessons/simple', (req, res) => {
+    const lessons = [
+        {
+            id: 'lesson_1',
+            title: 'Урок 1: Первые команды',
+            description: 'Научитесь использовать print() для вывода текста',
+            level: 1,
+            rewardCoins: 100,
+            rewardExp: 200,
+            theory: 'Функция print() используется для вывода текста на экран.',
+            task: 'Напишите команду: print("Привет, фермер!")',
+            testCode: 'print("Привет, фермер!")',
+            initialCode: '# Урок 1: Начните с простого\n# Напишите команду print с приветствием'
+        },
+        {
+            id: 'lesson_2',
+            title: 'Урок 2: Переменные',
+            description: 'Используйте переменные для хранения данных',
+            level: 1,
+            rewardCoins: 150,
+            rewardExp: 300,
+            theory: 'Переменные хранят данные в программе.',
+            task: 'Создайте переменную name = "Фермер" и выведите её',
+            testCode: 'name = "Фермер"\nprint(name)',
+            initialCode: '# Урок 2: Работа с переменными\n# Создайте переменную и выведите её'
+        },
+        {
+            id: 'lesson_3',
+            title: 'Урок 3: Функции',
+            description: 'Создайте свою первую функцию',
+            level: 2,
+            rewardCoins: 200,
+            rewardExp: 400,
+            theory: 'Функции позволяют повторно использовать код.',
+            task: 'Создайте функцию hello() которая выводит приветствие',
+            testCode: 'def hello():\n    print("Привет из функции!")\n\nhello()',
+            initialCode: '# Урок 3: Создание функций\n# Определите функцию с помощью def'
+        }
+    ];
+    res.json(lessons);
+});
+
 // Получить данные пользователя
 app.get('/api/user/:id', (req, res) => {
     try {
@@ -98,26 +141,60 @@ app.get('/api/farm/:userId', (req, res) => {
     }
 });
 
-// Получить уроки
+// Обновите основной endpoint
 app.get('/api/lessons', (req, res) => {
     try {
-        const allLessons = lessons.getAllLessons();
-        // Форматируем уроки для фронтенда
-        const formattedLessons = allLessons.map(lesson => ({
+        // Пробуем загрузить из lessons.js
+        const lessons = require('./lessons').getAllLessons();
+        
+        // Форматируем для фронтенда
+        const formatted = lessons.slice(0, 10).map(lesson => ({
             id: lesson.id,
             title: lesson.title,
             description: lesson.description,
-            level: lesson.level || 1,
-            rewardCoins: lesson.coins || 50,
-            rewardExp: lesson.experience || 100,
-            theory: lesson.theory || 'Теория будет добавлена позже',
+            level: lesson.level,
+            rewardCoins: lesson.coins || 100,
+            rewardExp: lesson.experience || 200,
+            theory: lesson.theory ? lesson.theory.substring(0, 500) + '...' : 'Теория будет добавлена',
             task: lesson.task || 'Задание будет добавлено',
             testCode: lesson.exampleCode || '# Пример кода',
-            initialCode: lesson.initialCode || '# Начни писать код здесь'
+            initialCode: lesson.initialCode || '# Начните писать код здесь'
         }));
-        res.json(formattedLessons);
+        
+        res.json(formatted);
+        
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.log('❌ Ошибка загрузки уроков, используем простые:', error.message);
+        
+        // Возвращаем простые уроки
+        const simpleLessons = [
+            {
+                id: 'lesson_1',
+                title: 'Урок 1: Hello World',
+                description: 'Напишите свою первую программу',
+                level: 1,
+                rewardCoins: 100,
+                rewardExp: 200,
+                theory: 'print() - базовая функция Python для вывода текста.',
+                task: 'Напишите: print("Привет, фермер!")',
+                testCode: 'print("Привет, фермер!")',
+                initialCode: '# Напишите ваш первый код здесь'
+            },
+            {
+                id: 'lesson_2',
+                title: 'Урок 2: Переменные',
+                description: 'Используйте переменные для хранения данных',
+                level: 1,
+                rewardCoins: 150,
+                rewardExp: 300,
+                theory: 'Переменные - это ящики для хранения данных.',
+                task: 'Создайте переменную name = "Фермер"',
+                testCode: 'name = "Фермер"\nprint(name)',
+                initialCode: '# Создайте переменную и выведите её'
+            }
+        ];
+        
+        res.json(simpleLessons);
     }
 });
 
