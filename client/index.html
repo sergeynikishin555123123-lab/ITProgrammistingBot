@@ -1318,6 +1318,14 @@ pre.info {
     <button class="farm-btn farm-action-btn" data-action="build">
         <i class="fas fa-home"></i> Построить дом
     </button>
+ <button class="farm-btn" id="toggle-view-btn" style="background: #2196F3; color: white;">
+        <i class="fas fa-cube"></i> 3D Вид
+    </button>
+    
+    <button class="farm-btn" id="reload-farm-btn" style="background: #9C27B0; color: white;">
+        <i class="fas fa-sync-alt"></i> Обновить
+    </button>
+</div>
     <button class="farm-btn farm-action-btn" data-action="upgrade">
         <i class="fas fa-arrow-up"></i> Улучшить
     </button>
@@ -2134,24 +2142,60 @@ ${lesson.testCode || lesson.exampleCode || '# Пример кода будет �
     }
     
     // Показать экран
-    function showScreen(screenName) {
-        // Скрываем все экраны
-        ['main', 'lessons', 'code', 'profile'].forEach(screen => {
-            const element = document.getElementById(`${screen}-screen`);
-            if (element) element.style.display = 'none';
-        });
-        
-        // Показываем нужный экран
-        const targetScreen = document.getElementById(`${screenName}-screen`);
-        if (targetScreen) targetScreen.style.display = 'block';
-        
-        // Обновляем навигацию
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.remove('active');
-            if (item.getAttribute('data-screen') === screenName) {
-                item.classList.add('active');
+showScreen(screenName) {
+    console.log(`🖥️ Переключаемся на экран: ${screenName}`);
+    
+    // Скрываем все экраны
+    const screens = ['main', 'lessons', 'code', 'profile'];
+    screens.forEach(screen => {
+        const element = document.getElementById(`${screen}-screen`);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
+    
+    // Показываем нужный экран
+    const targetScreen = document.getElementById(`${screenName}-screen`);
+    if (targetScreen) {
+        targetScreen.style.display = 'block';
+    }
+    
+    // Обновляем активную кнопку навигации
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.getAttribute('data-screen') === screenName) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Для экрана уроков обновляем список уроков
+    if (screenName === 'lessons' && this.lessonsData.length > 0) {
+        console.log('📚 Обновляем список уроков на экране уроков');
+        this.renderLessons();
+    }
+    
+    // Для экрана кода обновляем редактор
+    if (screenName === 'code' && this.codeEditor) {
+        setTimeout(() => {
+            this.codeEditor.style.height = 'auto';
+            this.codeEditor.style.height = (this.codeEditor.scrollHeight) + 'px';
+        }, 100);
+    }
+    
+    // ★★★★ ДЛЯ ГЛАВНОГО ЭКРАНА ПЕРЕЗАГРУЖАЕМ 3D ФЕРМУ ЕСЛИ НУЖНО ★★★★
+    if (screenName === 'main' && this.farm3D) {
+        setTimeout(() => {
+            // Проверяем, что канвас 3D фермы все еще в DOM
+            const canvas = document.querySelector('#farm-3d-container canvas');
+            if (!canvas && this.farm3D.scene) {
+                console.log('🔄 Восстанавливаем 3D ферму...');
+                this.init3DFarm();
             }
-        });
+        }, 500);
+    }
+    
+    console.log(`✅ Экран "${screenName}" показан`);
+}
         
         // Обновляем контент для некоторых экранов
         if (screenName === 'lessons') {
