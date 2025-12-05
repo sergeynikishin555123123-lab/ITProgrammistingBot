@@ -2786,4 +2786,6 @@ print("🤖 Автономная ферма работает!")`,
         }
     }
     
+    if (typeof module !== 'undefined' && module.exports) {
     module.exports = Lessons;
+}
