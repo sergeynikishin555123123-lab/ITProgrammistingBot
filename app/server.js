@@ -141,21 +141,20 @@ app.get('/api/farm/:userId', (req, res) => {
     }
 });
 
-// Обновите основной endpoint
+// В app.get('/api/lessons') должно быть:
 app.get('/api/lessons', (req, res) => {
     try {
-        // Пробуем загрузить из lessons.js
-        const lessons = require('./lessons').getAllLessons();
+        const lessons = new Lessons().getAllLessons();
         
         // Форматируем для фронтенда
-        const formatted = lessons.slice(0, 10).map(lesson => ({
+        const formatted = lessons.map(lesson => ({
             id: lesson.id,
             title: lesson.title,
             description: lesson.description,
-            level: lesson.level,
+            level: lesson.level || 1,
             rewardCoins: lesson.coins || 100,
             rewardExp: lesson.experience || 200,
-            theory: lesson.theory ? lesson.theory.substring(0, 500) + '...' : 'Теория будет добавлена',
+            theory: lesson.theory || 'Теория будет добавлена',
             task: lesson.task || 'Задание будет добавлено',
             testCode: lesson.exampleCode || '# Пример кода',
             initialCode: lesson.initialCode || '# Начните писать код здесь'
@@ -164,7 +163,10 @@ app.get('/api/lessons', (req, res) => {
         res.json(formatted);
         
     } catch (error) {
-        console.log('❌ Ошибка загрузки уроков, используем простые:', error.message);
+        console.error('❌ Ошибка загрузки уроков:', error);
+        res.json([]);
+    }
+});
         
         // Возвращаем простые уроки
         const simpleLessons = [
