@@ -1,25 +1,37 @@
 // client/app.js - Полностью рабочий фронтенд для CodeFarm
 class CodeFarmApp {
-// В конструкторе класса CodeFarmApp добавьте:
-constructor() {
-    this.userId = null;
-    this.userData = null;
-    this.farmData = null;
-    this.lessonsData = [];
-    this.currentLesson = null;
-    this.codeEditor = null;
-    
-    // Типы клеток фермы
-    this.CELL_TYPES = {
-        GRASS: 'grass',      // Трава (заросший участок) - начало
-        CLEARED: 'cleared',  // Расчищенная земля - урок 1
-        PLOWED: 'plowed',    // Вспаханная земля - урок 2
-        HOUSE: 'house',      // Дом - урок 3
-        BARN: 'barn',        // Сарай - урок 4
-        CROP: 'crop',        // Посев - урок 5
-        WATER: 'water',      // Вода - урок 6
-        ROAD: 'road'         // Дорога
-    };
+    constructor() {
+        this.userId = null;
+        this.userData = null;
+        this.farmData = null;
+        this.lessonsData = [];
+        this.currentLesson = null;
+        this.codeEditor = null;
+        
+        // Типы клеток фермы
+        this.CELL_TYPES = {
+            GRASS: 'grass',
+            CLEARED: 'cleared',
+            PLOWED: 'plowed',
+            HOUSE: 'house',
+            BARN: 'barn',
+            CROP: 'crop',
+            WATER: 'water',
+            ROAD: 'road'
+        };
+        
+        // ★★★★ ДОБАВЛЯЕМ ЭТУ СТРОКУ ★★★★
+        this.farm3D = null; // Инициализация 3D фермы
+        
+        // Биндим методы к текущему контексту
+        this.loadLessons = this.loadLessons.bind(this);
+        this.createCompleteLessons = this.createCompleteLessons.bind(this);
+        this.startLesson = this.startLesson.bind(this);
+        this.runCode = this.runCode.bind(this);
+        this.submitSolution = this.submitSolution.bind(this);
+        
+        console.log('🚀 CodeFarmApp инициализирован');
+    }
     
     // Биндим методы к текущему контексту
     this.loadLessons = this.loadLessons.bind(this);
@@ -362,26 +374,133 @@ async loadLessons() {
     }
     
     initUI() {
-        console.log('🎨 Инициализируем интерфейс...');
-        
-        // 1. Инициализируем навигацию
-        this.initNavigation();
-        
-        // 2. Инициализируем редактор кода
-        this.initCodeEditor();
-        
-        // 3. Инициализируем обработчики событий
-        this.initEventHandlers();
-        
-        // 4. Показываем главный экран
-        this.showScreen('main');
-        
-        // 5. Добавляем CSS для анимаций
-        this.addStyles();
-        
-        console.log('✅ Интерфейс инициализирован');
+    console.log('🎨 Инициализируем интерфейс...');
+    
+    // 1. Инициализируем навигацию
+    this.initNavigation();
+    
+    // 2. Инициализируем редактор кода
+    this.initCodeEditor();
+    
+    // 3. Инициализируем обработчики событий
+    this.initEventHandlers();
+    
+    // 4. Показываем главный экран
+    this.showScreen('main');
+    
+    // 5. Добавляем CSS для анимаций
+    this.addStyles();
+    
+    // ★★★★ ДОБАВЛЯЕМ ЭТИ СТРОКИ ПОСЛЕ addStyles() ★★★★
+    // 6. Инициализируем 3D ферму (если библиотеки загружены)
+    if (window.THREE && window.TWEEN) {
+        setTimeout(() => {
+            this.init3DFarm();
+        }, 1000); // Даем время на загрузку DOM
+    } else {
+        console.log('⚠️ Three.js не загружен, 3D ферма недоступна');
     }
     
+    console.log('✅ Интерфейс инициализирован');
+}
+
+// ★★★★ ДОБАВЛЯЕМ НОВЫЙ МЕТОД ПОСЛЕ initUI() ★★★★
+init3DFarm() {
+    console.log('🎮 Инициализируем 3D ферму...');
+    
+    const container = document.getElementById('farm-3d-container');
+    if (!container) {
+        console.log('⚠️ Контейнер для 3D фермы не найден');
+        return;
+    }
+    
+    try {
+        // Проверяем, что все необходимые библиотеки загружены
+        if (!window.THREE || !window.TWEEN) {
+            throw new Error('Не загружены необходимые 3D библиотеки');
+        }
+        
+        // Создаем экземпляр 3D фермы
+        this.farm3D = new Farm3DEngine('farm-3d-container', this.userId);
+        
+        // Инициализируем с небольшой задержкой
+        setTimeout(async () => {
+            try {
+                await this.farm3D.init();
+                console.log('✅ 3D ферма успешно инициализирована');
+                
+                // Если есть текущая ферма, применяем ее состояние
+                if (this.farmData) {
+                    this.update3DFarmFromData();
+                }
+            } catch (error) {
+                console.error('❌ Ошибка инициализации 3D фермы:', error);
+                this.show3DFarmFallback(container);
+            }
+        }, 1500);
+        
+    } catch (error) {
+        console.error('❌ Ошибка создания 3D фермы:', error);
+        this.show3DFarmFallback(container);
+    }
+}
+
+// ★★★★ ДОБАВЛЯЕМ ВСПОМОГАТЕЛЬНЫЙ МЕТОД ★★★★
+show3DFarmFallback(container) {
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div style="
+            width: 100%; 
+            height: 100%; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center;
+            background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+            color: white;
+            border-radius: 10px;
+            text-align: center;
+            padding: 20px;
+        ">
+            <div style="font-size: 60px; margin-bottom: 20px;">🌾</div>
+            <h3 style="margin-bottom: 10px;">3D Ферма</h3>
+            <p style="margin-bottom: 20px; opacity: 0.9;">
+                Пройдите уроки программирования, чтобы развивать свою ферму!
+            </p>
+            <div style="
+                background: rgba(255,255,255,0.1); 
+                padding: 15px; 
+                border-radius: 8px;
+                margin-top: 10px;
+            ">
+                <p style="margin: 0; font-size: 14px;">
+                    <strong>Для активации 3D фермы:</strong><br>
+                    1. Пройдите Урок 1: Расчистка фермы<br>
+                    2. Напишите код правильно<br>
+                    3. Ферма автоматически обновится!
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+// ★★★★ ДОБАВЛЯЕМ МЕТОД ОБНОВЛЕНИЯ 3D ФЕРМЫ ★★★★
+update3DFarmFromData() {
+    if (!this.farm3D || !this.userData) return;
+    
+    // Применяем эффекты для пройденных уроков
+    const completedLessons = this.userData.completedLessonIds || [];
+    
+    completedLessons.forEach(lessonId => {
+        setTimeout(() => {
+            if (this.farm3D && typeof this.farm3D.applyLessonEffect === 'function') {
+                this.farm3D.applyLessonEffect(lessonId);
+            }
+        }, 500);
+    });
+}
+
     initNavigation() {
         console.log('📍 Инициализируем навигацию...');
         
@@ -427,19 +546,17 @@ async loadLessons() {
     }
     
     initEventHandlers() {
-        console.log('🔄 Настраиваем обработчики событий...');
-        
-        // 1. Кнопка запуска кода
-        const runBtn = document.getElementById('run-code-btn');
-        if (runBtn) {
-            console.log('✅ run-code-btn найден, добавляем обработчик');
-            runBtn.addEventListener('click', (e) => {
-                console.log('🎯 Нажата кнопка "Запустить код"');
-                e.preventDefault();
-                e.stopPropagation();
-                this.runCode();
-            });
-        }
+    console.log('🔄 Настраиваем обработчики событий...');
+    
+    // 1. Кнопка запуска кода
+    const runBtn = document.getElementById('run-code-btn');
+    if (runBtn) {
+        runBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.runCode();
+        });
+    }
         
         // 2. Кнопка отправки решения
         const submitBtn = document.getElementById('submit-code-btn');
@@ -519,9 +636,53 @@ async loadLessons() {
         // 8. Навигация по урокам
         this.initLessonNavigation();
         
-        console.log('✅ Обработчики событий настроены');
+      // ★★★★ ДОБАВЛЯЕМ ОБРАБОТЧИК ДЛЯ ПЕРЕЗАГРУЗКИ 3D ФЕРМЫ ★★★★
+    const reloadFarmBtn = document.getElementById('reload-farm-btn');
+    if (reloadFarmBtn) {
+        reloadFarmBtn.addEventListener('click', () => {
+            console.log('🔄 Перезагружаем 3D ферму...');
+            if (this.farm3D) {
+                this.farm3D.init().catch(error => {
+                    console.error('❌ Ошибка перезагрузки 3D фермы:', error);
+                });
+            } else {
+                this.init3DFarm();
+            }
+        });
     }
     
+    // ★★★★ ДОБАВЛЯЕМ ОБРАБОТЧИК ДЛЯ ПЕРЕКЛЮЧЕНИЯ ВИДА ★★★★
+    const toggleViewBtn = document.getElementById('toggle-view-btn');
+    if (toggleViewBtn) {
+        toggleViewBtn.addEventListener('click', () => {
+            const farmContainer = document.getElementById('farm-3d-container');
+            const farm2D = document.getElementById('farm-grid-container');
+            
+            if (farmContainer && farm2D) {
+                if (farmContainer.style.display === 'none') {
+                    // Показываем 3D
+                    farmContainer.style.display = 'block';
+                    farm2D.style.display = 'none';
+                    toggleViewBtn.innerHTML = '<i class="fas fa-th"></i> 2D Вид';
+                    
+                    // Переинициализируем 3D если нужно
+                    if (this.farm3D && !this.farm3D.scene) {
+                        this.farm3D.init();
+                    }
+                } else {
+                    // Показываем 2D
+                    farmContainer.style.display = 'none';
+                    farm2D.style.display = 'block';
+                    toggleViewBtn.innerHTML = '<i class="fas fa-cube"></i> 3D Вид';
+                }
+            }
+        });
+    }
+    
+    console.log('✅ Обработчики событий настроены');
+}
+
+
     initLessonNavigation() {
         console.log('🔄 Инициализируем навигацию по урокам...');
         
@@ -1129,48 +1290,57 @@ async loadLessons() {
         console.log('✅ Статистика обновлена');
     }
     
-    updateFarmStats() {
-        if (!this.farmData || !this.farmData.cells) {
-            console.log('⚠️ Нет farmData для обновления статистики фермы');
-            return;
-        }
-        
-        console.log('📈 Обновляем статистику фермы...');
-        
-        // Пересчитываем статистику
-        const stats = {
-            clearedLand: this.farmData.cells.filter(cell => 
-                cell.type === 'cleared' || cell.type === 'plowed' || 
-                cell.type === 'house' || cell.type === 'barn' || 
-                cell.type === 'crop' || cell.type === 'water').length,
-            buildings: this.farmData.cells.filter(cell => 
-                cell.type === 'house' || cell.type === 'barn').length,
-            crops: this.farmData.cells.filter(cell => cell.type === 'crop').length,
-            water: this.farmData.cells.filter(cell => cell.type === 'water').length
-        };
-        
-        // Сохраняем статистику
-        this.farmData.stats = stats;
-        
-        // Обновляем элементы на странице
-        const clearedLandElement = document.getElementById('cleared-land-count');
-        const buildingsElement = document.getElementById('buildings-count');
-        const cropsElement = document.getElementById('crops-count');
-        
-        if (clearedLandElement) clearedLandElement.textContent = stats.clearedLand;
-        if (buildingsElement) buildingsElement.textContent = stats.buildings;
-        if (cropsElement) cropsElement.textContent = stats.crops;
-        
-        // Обновляем прогресс-бар фермы
-        const progressBar = document.getElementById('farm-progress-bar');
-        if (progressBar) {
-            // Рассчитываем общий прогресс (максимум 64 клетки)
-            const totalProgress = Math.min(100, (stats.clearedLand / 64) * 100);
-            progressBar.style.width = `${totalProgress}%`;
-        }
-        
-        console.log('✅ Статистика фермы обновлена:', stats);
+   updateFarmStats() {
+    if (!this.farmData || !this.farmData.cells) {
+        console.log('⚠️ Нет farmData для обновления статистики фермы');
+        return;
     }
+    
+    console.log('📈 Обновляем статистику фермы...');
+    
+    // Пересчитываем статистику
+    const stats = {
+        clearedLand: this.farmData.cells.filter(cell => 
+            cell.type === 'cleared' || cell.type === 'plowed' || 
+            cell.type === 'house' || cell.type === 'barn' || 
+            cell.type === 'crop' || cell.type === 'water').length,
+        buildings: this.farmData.cells.filter(cell => 
+            cell.type === 'house' || cell.type === 'barn').length,
+        crops: this.farmData.cells.filter(cell => cell.type === 'crop').length,
+        water: this.farmData.cells.filter(cell => cell.type === 'water').length
+    };
+    
+    // Сохраняем статистику
+    this.farmData.stats = stats;
+    
+    // ★★★★ ОБНОВЛЯЕМ СТАТИСТИКУ НА СТРАНИЦЕ ★★★★
+    // Используем существующие элементы или создаем новые
+    this.updateStatElement('cleared-land-count', stats.clearedLand);
+    this.updateStatElement('buildings-count', stats.buildings);
+    this.updateStatElement('crops-count', stats.crops);
+    this.updateStatElement('water-sources', stats.water);
+    
+    // Обновляем прогресс-бар фермы
+    const progressBar = document.getElementById('farm-progress-bar');
+    if (progressBar) {
+        // Рассчитываем общий прогресс (максимум 64 клетки)
+        const totalProgress = Math.min(100, (stats.clearedLand / 64) * 100);
+        progressBar.style.width = `${totalProgress}%`;
+    }
+    
+    console.log('✅ Статистика фермы обновлена:', stats);
+}
+
+// ★★★★ ДОБАВЛЯЕМ ВСПОМОГАТЕЛЬНЫЙ МЕТОД ★★★★
+updateStatElement(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = value;
+    } else {
+        // Если элемента нет, создаем его (для совместимости)
+        console.log(`⚠️ Элемент ${elementId} не найден`);
+    }
+}
     
    startLesson(lessonId) {
     console.log(`🎯 Начинаем урок: ${lessonId}`);
@@ -1578,20 +1748,20 @@ async loadLessons() {
         }
     }
     
-    applyFarmChanges(lessonId) {
-        console.log(`🌾 Применяем изменения на ферме для урока: ${lessonId}`);
-        
-        if (!this.farmData || !this.farmData.cells) {
-            console.log('⚠️ Нет данных фермы');
-            return;
-        }
-        
-        let cellsToUpdate = [];
-        let message = '';
-        let emoji = '✨';
-        
-        switch(lessonId) {
-            case 'lesson_1':
+    pplyFarmChanges(lessonId) {
+    console.log(`🌾 Применяем изменения на ферме для урока: ${lessonId}`);
+    
+    if (!this.farmData || !this.farmData.cells) {
+        console.log('⚠️ Нет данных фермы');
+        return;
+    }
+    
+    let cellsToUpdate = [];
+    let message = '';
+    let emoji = '✨';
+    
+    switch(lessonId) {
+        case 'lesson_1':
                 // Расчистка всей фермы от травы
                 emoji = '🧹';
                 message = 'Ферма полностью расчищена от травы! Теперь можно строить.';
@@ -1726,19 +1896,34 @@ async loadLessons() {
                 message = 'Ферма улучшена!';
         }
         
-        // Перерисовываем ферму
-        this.renderFarm();
-        
-        // Обновляем статистику фермы
+       // Применяем изменения в 3D ферме
+    if (this.farm3D && typeof this.farm3D.applyLessonEffect === 'function') {
+        // Даем время на обновление 2D фермы
+        setTimeout(() => {
+            console.log(`🎮 Применяем изменения в 3D ферме для урока: ${lessonId}`);
+            this.farm3D.applyLessonEffect(lessonId);
+            
+            // Обновляем статистику фермы
+            this.updateFarmStats();
+            
+        }, 300);
+    } else {
+        console.log('⚠️ 3D ферма не инициализирована, применяем только 2D изменения');
         this.updateFarmStats();
-        
-        // Показываем уведомление
-        if (message) {
-            this.showNotification(emoji, message);
-        }
-        
-        console.log(`✅ Изменения применены: ${cellsToUpdate.length} клеток обновлены`);
     }
+    
+    // ★★★★ ПЕРЕРИСОВЫВАЕМ ФЕРМУ (если метод renderFarm существует) ★★★★
+    if (typeof this.renderFarm === 'function') {
+        this.renderFarm();
+    }
+    
+    // Показываем уведомление
+    if (message) {
+        this.showNotification(emoji, message);
+    }
+    
+    console.log(`✅ Изменения применены: ${cellsToUpdate.length} клеток обновлены`);
+}
     
     playSuccessAnimation() {
         console.log('🎉 Играем анимацию успеха...');
