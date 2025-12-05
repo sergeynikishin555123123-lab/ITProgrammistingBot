@@ -1745,132 +1745,195 @@ clear_area()  # Не указан аргумент</pre>
         </div>
     </div>
 
-     <script>
-// Простой рабочий фронтенд
+    <script>
+// Полный рабочий CodeFarm с уроками и фермой
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 CodeFarm запускается...');
     
-    // Создаем глобальный объект приложения
-    window.app = {
+    // Глобальные переменные
+    const app = {
         userId: 'user-' + Date.now(),
+        userData: {
+            level: 1,
+            coins: 100,
+            experience: 0,
+            lessonsCompleted: 0,
+            completedLessonIds: []
+        },
         lessons: [],
-        currentLesson: null
+        currentLesson: null,
+        farmData: {
+            cells: [],
+            size: 8,
+            stats: {
+                clearedLand: 0,
+                buildings: 0,
+                crops: 0,
+                water: 0
+            }
+        }
     };
     
-    // Функции для работы с уроками
+    // Делаем доступным глобально
+    window.app = app;
+    
+    // Функция загрузки уроков
     async function loadLessons() {
         console.log('📚 Загружаем уроки...');
         try {
             const response = await fetch('/api/lessons');
             if (response.ok) {
-                window.app.lessons = await response.json();
-                console.log(`✅ Загружено ${window.app.lessons.length} уроков`);
+                app.lessons = await response.json();
+                console.log(`✅ Загружено ${app.lessons.length} уроков`);
             } else {
                 throw new Error('API не отвечает');
             }
         } catch (error) {
-            console.log('🔄 Создаем демо уроки...');
-            window.app.lessons = createDemoLessons();
+            console.error('❌ Ошибка загрузки уроков:', error);
+            // Используем демо уроки
+            app.lessons = createDemoLessons();
         }
         
         renderLessons();
+        return app.lessons;
     }
     
     function createDemoLessons() {
         return [
             {
                 id: 'lesson_1',
-                title: 'Урок 1: Первые команды',
-                description: 'Научитесь использовать print()',
+                title: 'Первые команды - Расчистка фермы',
+                description: 'Научитесь давать команды боту для расчистки всей фермы',
                 level: 1,
                 rewardCoins: 100,
                 rewardExp: 200,
-                theory: 'Используйте print() для вывода текста',
-                task: 'Напишите: print("Привет, фермер!")',
-                testCode: 'print("Привет, фермер!")',
-                initialCode: '# Урок 1\n# Напишите команду print'
+                theory: 'Вы научитесь использовать функции print() для общения с ботом и clear_area() для управления фермой.',
+                task: 'Напишите программу, которая поприветствует бота и попросит его расчистить всю ферму от травы.',
+                testCode: 'print("Привет, фермерский бот!")\nprint("Начинаю расчистку фермы")\nclear_area("вся ферма")\nprint("Ферма полностью расчищена!")',
+                initialCode: '# Урок 1: Расчистка фермы\n# Напишите код для расчистки всей фермы\n\n# 1. Поприветствуйте бота\n\n# 2. Расчистите ферму\n\n# 3. Подтвердите завершение'
             },
             {
                 id: 'lesson_2',
-                title: 'Урок 2: Переменные',
-                description: 'Научитесь создавать переменные',
+                title: 'Переменные - Постройка дома',
+                description: 'Используйте переменные для постройки первого дома на ферме',
                 level: 1,
                 rewardCoins: 150,
                 rewardExp: 300,
-                theory: 'Переменные хранят данные',
-                task: 'Создайте переменную name = "Фермер"',
-                testCode: 'name = "Фермер"\nprint(name)',
-                initialCode: '# Урок 2\n# Создайте переменную'
+                theory: 'Переменные хранят данные. Используйте знак = для присвоения значения.',
+                task: 'Создайте переменные для координат дома и постройте дом в центре фермы.',
+                testCode: '# Определяем координаты для дома\nx = 3\ny = 3\n\n# Строим дом\nbuild_house(x, y)\n\nprint(f"Дом построен по адресу: x={x}, y={y}")',
+                initialCode: '# Урок 2: Постройка дома\n# Постройте дом в центре фермы\n\n# 1. Определите координаты (центр фермы 8x8)\n\n# 2. Постройте дом\n\n# 3. Выведите сообщение о завершении'
             }
         ];
     }
     
+    // Рендер уроков
     function renderLessons() {
-        console.log('🎨 Рендерим уроки...');
         const container = document.getElementById('lessons-list');
-        if (!container) {
-            console.log('⚠️ Не найден lessons-list');
-            return;
-        }
+        if (!container) return;
         
         container.innerHTML = '';
         
-        window.app.lessons.forEach((lesson, index) => {
+        app.lessons.forEach((lesson, index) => {
             const card = document.createElement('div');
             card.className = 'lesson-card';
             card.innerHTML = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <div style="background: #4CAF50; color: white; width: 30px; height: 30px; 
-                               border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        ${index + 1}
-                    </div>
-                    <div style="width: 12px; height: 12px; background: #4CAF50; border-radius: 50%;"></div>
+                <div class="lesson-header">
+                    <div class="lesson-number">${index + 1}</div>
+                    <div class="lesson-status ${app.userData.completedLessonIds.includes(lesson.id) ? 'status-completed' : 'status-in-progress'}"></div>
                 </div>
                 <h3 style="margin-bottom: 10px;">${lesson.title}</h3>
                 <p style="color: #666; margin-bottom: 15px;">${lesson.description}</p>
                 
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <span style="background: #FFF3E0; color: #EF6C00; padding: 4px 8px; border-radius: 12px;">
-                        🪙 ${lesson.rewardCoins}
-                    </span>
-                    <span style="background: #E8F5E9; color: #2E7D32; padding: 4px 8px; border-radius: 12px;">
-                        ⭐ ${lesson.rewardExp}
-                    </span>
+                <div class="lesson-rewards">
+                    <div class="reward-item">
+                        <i class="fas fa-coins"></i>
+                        <span>${lesson.rewardCoins} монет</span>
+                    </div>
+                    <div class="reward-item">
+                        <i class="fas fa-star"></i>
+                        <span>${lesson.rewardExp} опыта</span>
+                    </div>
+                    <div class="reward-item">
+                        <i class="fas fa-layer-group"></i>
+                        <span>Уровень ${lesson.level}</span>
+                    </div>
                 </div>
                 
-                <button onclick="app.startLesson('${lesson.id}')" 
-                        style="width: 100%; padding: 10px; background: #4CAF50; color: white; 
-                               border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                    Начать урок
+                <button class="btn btn-primary" style="width: 100%; margin-top: 15px;" 
+                        onclick="app.startLesson('${lesson.id}')">
+                    ${app.userData.completedLessonIds.includes(lesson.id) ? 'Повторить урок' : 'Начать урок'}
                 </button>
             `;
             container.appendChild(card);
         });
-        
-        console.log(`✅ Отрендерено ${window.app.lessons.length} уроков`);
     }
     
-    // Функция для начала урока
-    window.app.startLesson = function(lessonId) {
+    // Старт урока
+    app.startLesson = function(lessonId) {
         console.log(`🎯 Начинаем урок: ${lessonId}`);
         
-        const lesson = window.app.lessons.find(l => l.id === lessonId);
+        const lesson = app.lessons.find(l => l.id === lessonId);
         if (!lesson) {
-            alert('Урок не найден');
+            showNotification('❌ Ошибка', 'Урок не найден');
             return;
         }
         
-        window.app.currentLesson = lesson;
+        app.currentLesson = lesson;
         showScreen('code');
         
         // Обновляем интерфейс урока
         setTimeout(() => {
+            // Заголовок
             const titleEl = document.getElementById('current-lesson-title');
             if (titleEl) titleEl.textContent = lesson.title;
             
+            // Теория
+            const theoryEl = document.getElementById('lesson-theory');
+            if (theoryEl) {
+                theoryEl.innerHTML = `
+                    <div style="line-height: 1.5; font-size: 14px;">
+                        <p><strong>В этом уроке вы научитесь:</strong></p>
+                        <ul style="margin: 10px 0 10px 20px;">
+                            <li>${lesson.description}</li>
+                        </ul>
+                        <p><strong>Основные концепции:</strong></p>
+                        <p>${lesson.theory || 'Изучите основные концепции программирования.'}</p>
+                    </div>
+                `;
+            }
+            
+            // Задание
+            const taskEl = document.getElementById('lesson-task');
+            if (taskEl) {
+                taskEl.innerHTML = `
+                    <div style="line-height: 1.5; font-size: 14px;">
+                        <p><strong>🎯 Цель урока:</strong> ${lesson.task}</p>
+                        
+                        <div style="background: #FFF3E0; padding: 12px; border-radius: 6px; margin: 10px 0;">
+                            <strong>📝 Что нужно сделать:</strong>
+                            <p style="margin-top: 5px;">${lesson.task}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Примеры
+            const examplesEl = document.getElementById('lesson-examples');
+            if (examplesEl) {
+                examplesEl.innerHTML = `
+                    <div style="line-height: 1.5; font-size: 14px;">
+                        <p><strong>📋 Пример правильного решения:</strong></p>
+                        <pre style="background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-size: 13px;">
+${lesson.testCode || lesson.exampleCode || '# Пример кода будет здесь'}</pre>
+                    </div>
+                `;
+            }
+            
+            // Редактор кода
             const editor = document.getElementById('code-editor');
             if (editor) {
-                editor.value = lesson.initialCode;
+                editor.value = lesson.initialCode || '# Напишите код здесь';
                 editor.style.height = 'auto';
                 editor.style.height = (editor.scrollHeight) + 'px';
             }
@@ -1879,22 +1942,195 @@ document.addEventListener('DOMContentLoaded', async function() {
         }, 100);
     };
     
-    // Функция для показа экрана
-    function showScreen(screenName) {
-        console.log(`🖥️ Показываем экран: ${screenName}`);
+    // Создание фермы
+    function createInitialFarm() {
+        console.log('🌾 Создаем ферму...');
+        const grid = document.getElementById('farm-grid');
+        if (!grid) return;
         
+        grid.innerHTML = '';
+        app.farmData.cells = [];
+        
+        // Создаем сетку 8x8
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'farm-cell grass';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                
+                cell.innerHTML = `
+                    <div class="farm-cell-icon">🌿</div>
+                    <div class="farm-cell-label">${row},${col}</div>
+                `;
+                
+                cell.title = 'Заросший участок. Пройдите Урок 1, чтобы расчистить землю!';
+                
+                cell.addEventListener('click', () => {
+                    handleFarmClick(row, col, 'grass');
+                });
+                
+                grid.appendChild(cell);
+                
+                app.farmData.cells.push({
+                    row, col,
+                    type: 'grass',
+                    icon: '🌿',
+                    title: 'Заросший участок'
+                });
+            }
+        }
+        
+        updateFarmStats();
+    }
+    
+    function handleFarmClick(row, col, type) {
+        let message = '';
+        switch(type) {
+            case 'grass':
+                message = '🌿 Заросший участок. Пройдите Урок 1, чтобы расчистить землю!';
+                break;
+            case 'cleared':
+                message = '🟫 Расчищенная земля. Готова для строительства или посадки.';
+                break;
+            case 'house':
+                message = '🏠 Дом фермера. Главное здание вашей фермы.';
+                break;
+            case 'crop':
+                message = '🌾 Посадки. Растения растут! Скоро можно будет собрать урожай.';
+                break;
+        }
+        
+        showNotification('📍 Ферма', message);
+    }
+    
+    function updateFarmStats() {
+        if (!app.farmData.cells) return;
+        
+        const stats = {
+            cleared: app.farmData.cells.filter(c => c.type !== 'grass').length,
+            buildings: app.farmData.cells.filter(c => c.type === 'house' || c.type === 'barn').length,
+            crops: app.farmData.cells.filter(c => c.type === 'crop').length,
+            water: app.farmData.cells.filter(c => c.type === 'water').length
+        };
+        
+        // Обновляем DOM
+        document.getElementById('cleared-land-count').textContent = stats.cleared;
+        document.getElementById('buildings-count').textContent = stats.buildings;
+        document.getElementById('crops-count').textContent = stats.crops;
+        document.getElementById('lessons-count').textContent = app.userData.lessonsCompleted;
+        
+        // Обновляем прогресс-бар
+        const progressBar = document.getElementById('farm-progress-bar');
+        if (progressBar) {
+            const progress = (stats.cleared / 64) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+        
+        // Сохраняем статистику
+        app.farmData.stats = stats;
+    }
+    
+    // Применение изменений на ферме после урока
+    function applyFarmChanges(lessonId) {
+        console.log(`🌾 Применяем изменения для урока: ${lessonId}`);
+        
+        let cellsToUpdate = [];
+        let message = '';
+        let emoji = '✨';
+        
+        switch(lessonId) {
+            case 'lesson_1':
+                // Расчистка всей фермы
+                emoji = '🧹';
+                message = 'Ферма полностью расчищена от травы!';
+                
+                cellsToUpdate = app.farmData.cells.filter(cell => cell.type === 'grass');
+                
+                cellsToUpdate.forEach(cell => {
+                    cell.type = 'cleared';
+                    cell.icon = '🟫';
+                    cell.title = 'Расчищенная земля';
+                });
+                break;
+                
+            case 'lesson_2':
+                // Постройка дома в центре
+                emoji = '🏠';
+                message = 'Дом построен в центре фермы!';
+                
+                const centerCells = app.farmData.cells.filter(cell => 
+                    cell.row >= 3 && cell.row <= 4 && 
+                    cell.col >= 3 && cell.col <= 4
+                ).slice(0, 4); // 2x2 дом
+                
+                cellsToUpdate = centerCells;
+                centerCells.forEach(cell => {
+                    cell.type = 'house';
+                    cell.icon = '🏠';
+                    cell.title = 'Дом фермера';
+                });
+                break;
+                
+            case 'lesson_5':
+                // Посадка растений
+                emoji = '🌱';
+                message = 'Растения посажены!';
+                
+                const plantCells = app.farmData.cells
+                    .filter(cell => cell.type === 'cleared')
+                    .slice(0, 12);
+                
+                cellsToUpdate = plantCells;
+                plantCells.forEach(cell => {
+                    cell.type = 'crop';
+                    cell.icon = '🌾';
+                    cell.title = 'Растущая культура';
+                });
+                break;
+        }
+        
+        // Обновляем DOM с анимацией
+        cellsToUpdate.forEach((cell, index) => {
+            setTimeout(() => {
+                const cellElement = document.querySelector(
+                    `.farm-cell[data-row="${cell.row}"][data-col="${cell.col}"]`
+                );
+                if (cellElement) {
+                    cellElement.className = `farm-cell ${cell.type}`;
+                    cellElement.innerHTML = `
+                        <div class="farm-cell-icon">${cell.icon}</div>
+                        <div class="farm-cell-label">${cell.row},${cell.col}</div>
+                    `;
+                    cellElement.classList.add('grow-animation');
+                    
+                    setTimeout(() => {
+                        cellElement.classList.remove('grow-animation');
+                    }, 500);
+                }
+            }, index * 50);
+        });
+        
+        // Обновляем статистику
+        updateFarmStats();
+        
+        // Показываем уведомление
+        if (message) {
+            showNotification(emoji, message);
+        }
+    }
+    
+    // Показать экран
+    function showScreen(screenName) {
         // Скрываем все экраны
-        document.getElementById('main-screen').style.display = 'none';
-        document.getElementById('lessons-screen').style.display = 'none';
-        document.getElementById('code-screen').style.display = 'none';
-        document.getElementById('profile-screen').style.display = 'none';
-        document.getElementById('loading-screen').style.display = 'none';
+        ['main', 'lessons', 'code', 'profile'].forEach(screen => {
+            const element = document.getElementById(`${screen}-screen`);
+            if (element) element.style.display = 'none';
+        });
         
         // Показываем нужный экран
-        const targetScreen = document.getElementById(screenName + '-screen');
-        if (targetScreen) {
-            targetScreen.style.display = 'block';
-        }
+        const targetScreen = document.getElementById(`${screenName}-screen`);
+        if (targetScreen) targetScreen.style.display = 'block';
         
         // Обновляем навигацию
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -1904,26 +2140,50 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
         
-        // Для экрана уроков обновляем список
+        // Обновляем контент для некоторых экранов
         if (screenName === 'lessons') {
             renderLessons();
         }
+        
+        // Обновляем статистику
+        updateUserStats();
     }
     
-    // Функция для запуска кода
-    window.app.runCode = function() {
-        console.log('🚀 Запускаем код...');
+    // Обновление статистики пользователя
+    function updateUserStats() {
+        // Заголовок
+        document.getElementById('user-level-value').textContent = app.userData.level;
+        document.getElementById('user-coins-value').textContent = app.userData.coins;
+        document.getElementById('user-exp-value').textContent = app.userData.experience;
+        document.getElementById('user-lessons-value').textContent = app.userData.lessonsCompleted;
+        
+        // Шапка
+        document.getElementById('header-coins').textContent = app.userData.coins;
+        document.getElementById('header-level').textContent = `Ур. ${app.userData.level}`;
+        
+        // Экран уроков
+        document.getElementById('completed-lessons').textContent = app.userData.lessonsCompleted;
+        document.getElementById('user-level-text').textContent = app.userData.level;
+        
+        // Прогресс-бар уроков
+        const progressBar = document.getElementById('lessons-progress');
+        if (progressBar && app.lessons.length > 0) {
+            const progress = (app.userData.lessonsCompleted / app.lessons.length) * 100;
+            progressBar.style.width = `${Math.min(100, progress)}%`;
+        }
+    }
+    
+    // Запуск кода
+    app.runCode = function() {
         const code = document.getElementById('code-editor')?.value;
         const output = document.getElementById('output-text');
         
-        if (!code || !output) {
-            showNotification('⚠️ Ошибка', 'Не найден редактор или вывод');
-            return;
-        }
+        if (!code || !output) return;
         
         output.textContent = '🚀 Выполняю код...\n\n';
+        document.getElementById('output-container').style.display = 'block';
         
-        // Простая имитация выполнения
+        // Имитация выполнения
         setTimeout(() => {
             const lines = code.split('\n');
             let result = '';
@@ -1931,58 +2191,106 @@ document.addEventListener('DOMContentLoaded', async function() {
             lines.forEach(line => {
                 if (line.includes('print(')) {
                     const match = line.match(/print\(["'](.+?)["']\)/);
-                    if (match) result += match[1] + '\n';
+                    if (match) result += `>>> ${match[1]}\n`;
                 }
             });
             
             output.textContent += result + '\n✅ Выполнение завершено';
-            
-            // Показываем вывод
-            const outputContainer = document.getElementById('output-container');
-            if (outputContainer) {
-                outputContainer.style.display = 'block';
-            }
         }, 500);
     };
     
-    // Функция для проверки решения
-    window.app.submitSolution = function() {
-        console.log('📤 Проверяем решение...');
-        
+    // Проверка решения
+    app.submitSolution = async function() {
         const code = document.getElementById('code-editor')?.value;
-        if (!code || !window.app.currentLesson) {
-            showNotification('⚠️ Ошибка', 'Сначала напишите код');
+        
+        if (!code || !app.currentLesson) {
+            showNotification('⚠️ Внимание', 'Сначала напишите код');
             return;
         }
         
         showNotification('⏳ Проверка', 'Проверяю ваш код...');
         
-        // Простая проверка
-        let passed = false;
-        const cleanCode = code.toLowerCase();
-        
-        switch(window.app.currentLesson.id) {
-            case 'lesson_1':
-                passed = cleanCode.includes('print("привет, фермер!")');
-                break;
-            case 'lesson_2':
-                passed = cleanCode.includes('name = "фермер"') && cleanCode.includes('print(name)');
-                break;
-            default:
-                passed = code.length > 10;
-        }
-        
-        if (passed) {
-            showNotification('🎉 Успех!', 'Урок пройден! Награда: 100 монет');
-        } else {
-            showNotification('❌ Ошибка', 'Проверьте правильность кода');
+        try {
+            // Проверяем код
+            const checkResult = checkCode(code, app.currentLesson.id);
+            
+            if (checkResult.success) {
+                // Урок пройден
+                await completeLesson(app.currentLesson.id, code);
+            } else {
+                showNotification('❌ Ошибка', checkResult.message);
+            }
+        } catch (error) {
+            showNotification('❌ Ошибка', 'Ошибка при проверке кода');
         }
     };
     
-    // Функция для уведомлений
-    function showNotification(title, message) {
-        console.log(`🔔 Уведомление: ${title} - ${message}`);
+    function checkCode(code, lessonId) {
+        const cleanCode = code.toLowerCase().replace(/\s+/g, ' ');
         
+        switch(lessonId) {
+            case 'lesson_1':
+                const hasPrint = code.includes('print');
+                const hasClear = cleanCode.includes('clear_area');
+                return {
+                    success: hasPrint && hasClear,
+                    message: hasPrint && hasClear ? 'Код правильный!' : 'Используйте print() и clear_area()'
+                };
+                
+            case 'lesson_2':
+                const hasVariable = (cleanCode.includes('x=') || cleanCode.includes('x =')) && 
+                                  (cleanCode.includes('y=') || cleanCode.includes('y ='));
+                const hasBuild = cleanCode.includes('build_house');
+                return {
+                    success: hasVariable && hasBuild,
+                    message: hasVariable && hasBuild ? 'Код правильный!' : 'Нужно: x=3, y=3 и build_house(x, y)'
+                };
+                
+            default:
+                return {
+                    success: code.length > 10,
+                    message: code.length > 10 ? 'Код правильный!' : 'Код слишком короткий'
+                };
+        }
+    }
+    
+    async function completeLesson(lessonId, code) {
+        const lesson = app.lessons.find(l => l.id === lessonId);
+        if (!lesson) return;
+        
+        // Награда
+        const rewardCoins = lesson.rewardCoins || 100;
+        const rewardExp = lesson.rewardExp || 200;
+        
+        // Обновляем данные пользователя
+        if (!app.userData.completedLessonIds.includes(lessonId)) {
+            app.userData.coins += rewardCoins;
+            app.userData.experience += rewardExp;
+            app.userData.lessonsCompleted += 1;
+            app.userData.completedLessonIds.push(lessonId);
+            
+            // Проверяем уровень
+            const newLevel = Math.max(1, Math.floor(app.userData.experience / 1000) + 1);
+            if (newLevel > app.userData.level) {
+                app.userData.level = newLevel;
+                showNotification('⭐ Новый уровень!', `Вы достигли уровня ${newLevel}!`);
+            }
+        }
+        
+        // Применяем изменения на ферме
+        applyFarmChanges(lessonId);
+        
+        // Обновляем статистику
+        updateUserStats();
+        renderLessons();
+        
+        // Показываем уведомление
+        showNotification('🎉 Урок пройден!', 
+            `${lesson.title} пройден!\nНаграда: ${rewardCoins} монет\nОпыт: +${rewardExp}`);
+    }
+    
+    // Уведомления
+    function showNotification(title, message) {
         const notification = document.getElementById('notification');
         if (!notification) return;
         
@@ -1990,88 +2298,55 @@ document.addEventListener('DOMContentLoaded', async function() {
         notification.querySelector('#notification-message').textContent = message;
         
         notification.classList.remove('show');
-        void notification.offsetWidth; // Перезапуск анимации
+        void notification.offsetWidth;
         notification.classList.add('show');
         
         setTimeout(() => {
             notification.classList.remove('show');
-        }, 3000);
+        }, 4000);
     }
     
-    // Инициализация
-    async function init() {
-        console.log('🔧 Инициализация...');
-        
-        // Скрываем загрузку
-        document.getElementById('loading-screen').style.display = 'none';
-        
-        // Загружаем уроки
-        await loadLessons();
-        
-        // Инициализируем обработчики
-        initEventHandlers();
-        
-        // Показываем главный экран
-        showScreen('main');
-        
-        console.log('✅ Приложение инициализировано');
-    }
-    
+    // Инициализация обработчиков
     function initEventHandlers() {
-        console.log('🔄 Инициализируем обработчики...');
-        
         // Навигация
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', function() {
                 const screen = this.getAttribute('data-screen');
-                if (screen) {
-                    showScreen(screen);
-                }
+                if (screen) showScreen(screen);
             });
         });
         
-        // Кнопки навигации
-        document.getElementById('show-lessons-btn')?.addEventListener('click', function() {
+        // Быстрые действия
+        document.getElementById('start-lesson-1-btn')?.addEventListener('click', () => {
+            app.startLesson('lesson_1');
+        });
+        
+        document.getElementById('show-lessons-btn')?.addEventListener('click', () => {
             showScreen('lessons');
         });
         
-        document.getElementById('show-code-btn')?.addEventListener('click', function() {
+        document.getElementById('show-code-btn')?.addEventListener('click', () => {
             showScreen('code');
         });
         
-        // Кнопка Урока 1
-        document.getElementById('start-lesson-1-btn')?.addEventListener('click', function() {
-            window.app.startLesson('lesson_1');
+        // Кнопки редактора
+        document.getElementById('run-code-btn')?.addEventListener('click', () => app.runCode());
+        document.getElementById('submit-code-btn')?.addEventListener('click', () => app.submitSolution());
+        document.getElementById('clear-output-btn')?.addEventListener('click', () => {
+            document.getElementById('output-text').textContent = '';
         });
-        
-        // Кнопки редактора кода
-        document.getElementById('run-code-btn')?.addEventListener('click', function() {
-            window.app.runCode();
-        });
-        
-        document.getElementById('submit-code-btn')?.addEventListener('click', function() {
-            window.app.submitSolution();
-        });
-        
-        // Кнопка очистки вывода
-        document.getElementById('clear-output-btn')?.addEventListener('click', function() {
-            const output = document.getElementById('output-text');
-            if (output) output.textContent = '';
-        });
-        
-        // Кнопка сброса кода
-        document.getElementById('reset-code-btn')?.addEventListener('click', function() {
-            if (window.app.currentLesson) {
+        document.getElementById('reset-code-btn')?.addEventListener('click', () => {
+            if (app.currentLesson) {
                 const editor = document.getElementById('code-editor');
                 if (editor) {
-                    editor.value = window.app.currentLesson.initialCode;
+                    editor.value = app.currentLesson.initialCode;
                     editor.style.height = 'auto';
                     editor.style.height = (editor.scrollHeight) + 'px';
                 }
             }
         });
         
-        // Автоподстройка высоты редактора
+        // Автоподстройка редактора
         const editor = document.getElementById('code-editor');
         if (editor) {
             editor.addEventListener('input', function() {
@@ -2079,6 +2354,53 @@ document.addEventListener('DOMContentLoaded', async function() {
                 this.style.height = (this.scrollHeight) + 'px';
             });
         }
+        
+        // Действия на ферме
+        document.querySelectorAll('.farm-action-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const action = this.getAttribute('data-action');
+                handleFarmAction(action);
+            });
+        });
+    }
+    
+    function handleFarmAction(action) {
+        switch(action) {
+            case 'water':
+                showNotification('💧 Полив', 'Поливаем растения...');
+                break;
+            case 'harvest':
+                showNotification('📦 Сбор урожая', 'Собираем урожай...');
+                break;
+            case 'plant':
+                showNotification('🌱 Посадка', 'Сажаем новые растения...');
+                break;
+        }
+    }
+    
+    // Основная инициализация
+    async function init() {
+        console.log('🔧 Инициализация приложения...');
+        
+        // Скрываем загрузку
+        document.getElementById('loading-screen').style.display = 'none';
+        
+        // Загружаем уроки
+        await loadLessons();
+        
+        // Создаем ферму
+        createInitialFarm();
+        
+        // Инициализируем обработчики
+        initEventHandlers();
+        
+        // Обновляем статистику
+        updateUserStats();
+        
+        // Показываем главный экран
+        showScreen('main');
+        
+        console.log('✅ CodeFarm запущен!');
     }
     
     // Запускаем инициализацию
