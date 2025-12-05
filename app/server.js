@@ -200,23 +200,6 @@ app.get('/api/lessons', (req, res) => {
     }
 });
 
-// Получить конкретный урок
-app.get('/api/lessons/:id', (req, res) => {
-    const lesson = lessons.getLesson(req.params.id);
-    if (lesson) {
-        // Добавляем прогресс пользователя если есть userId
-        const userId = req.query.userId;
-        if (userId) {
-            const progress = storage.getLessonProgress(userId, req.params.id);
-            lesson.progress = progress;
-        }
-        
-        res.json(lesson);
-    } else {
-        res.status(404).json({ error: 'Lesson not found' });
-    }
-});
-
 // Новый endpoint для получения визуальной фермы
 app.get('/api/farm/:userId/visual', (req, res) => {
     try {
