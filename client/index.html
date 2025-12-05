@@ -4088,6 +4088,357 @@ window.debugApp = function() {
         .then(r => console.log('6. API уроков:', r.status))
         .catch(e => console.log('6. API ошибка:', e.message));
 };
+// Глобальная инициализация приложения
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 CodeFarm: Инициализация...');
+    
+    // Создаем глобальный объект приложения
+    window.codeFarmApp = new (class {
+        constructor() {
+            this.userId = null;
+            this.userData = null;
+            this.lessonsData = [];
+            this.currentLesson = null;
+            this.codeEditor = null;
+            
+            console.log('✅ CodeFarmApp создан');
+        }
+        
+        // Метод для загрузки уроков
+        async loadLessons() {
+            console.log('📚 Загружаем уроки...');
+            
+            try {
+                // Пробуем загрузить с сервера
+                const response = await fetch('/api/lessons');
+                if (response.ok) {
+                    this.lessonsData = await response.json();
+                    console.log(`✅ Загружено ${this.lessonsData.length} уроков`);
+                } else {
+                    // Создаем демо уроки
+                    this.createDemoLessons();
+                }
+            } catch (error) {
+                console.error('❌ Ошибка загрузки уроков:', error);
+                this.createDemoLessons();
+            }
+            
+            this.renderLessons();
+            return this.lessonsData;
+        }
+        
+        createDemoLessons() {
+            console.log('📝 Создаем демо уроки...');
+            this.lessonsData = [
+                {
+                    id: 'lesson_1',
+                    title: 'Урок 1: Первые команды',
+                    description: 'Научитесь использовать print() для общения с ботом',
+                    level: 1,
+                    rewardCoins: 100,
+                    rewardExp: 200,
+                    theory: 'В этом уроке вы научитесь использовать функцию print() для вывода текста на экран.',
+                    task: 'Напишите команду print("Привет, фермер!")',
+                    testCode: 'print("Привет, фермер!")',
+                    initialCode: '# Урок 1\n# Напишите команду print'
+                },
+                {
+                    id: 'lesson_2',
+                    title: 'Урок 2: Переменные',
+                    description: 'Научитесь создавать переменные',
+                    level: 1,
+                    rewardCoins: 150,
+                    rewardExp: 300,
+                    theory: 'Переменные позволяют хранить данные в программе.',
+                    task: 'Создайте переменную name = "Фермер" и выведите её',
+                    testCode: 'name = "Фермер"\nprint(name)',
+                    initialCode: '# Урок 2\n# Создайте переменную'
+                }
+            ];
+            console.log(`✅ Создано ${this.lessonsData.length} демо уроков`);
+        }
+        
+        renderLessons() {
+            console.log('🎨 Рендерим уроки...');
+            const container = document.getElementById('lessons-list');
+            if (!container) {
+                console.log('⚠️ Не найден lessons-list');
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            this.lessonsData.forEach((lesson, index) => {
+                const card = document.createElement('div');
+                card.className = 'lesson-card';
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <div style="background: #4CAF50; color: white; width: 30px; height: 30px; 
+                                   border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            ${index + 1}
+                        </div>
+                        <div style="width: 12px; height: 12px; background: #4CAF50; border-radius: 50%;"></div>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">${lesson.title}</h3>
+                    <p style="color: #666; margin-bottom: 15px;">${lesson.description}</p>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <span style="background: #FFF3E0; color: #EF6C00; padding: 4px 8px; border-radius: 12px;">
+                            🪙 ${lesson.rewardCoins}
+                        </span>
+                        <span style="background: #E8F5E9; color: #2E7D32; padding: 4px 8px; border-radius: 12px;">
+                            ⭐ ${lesson.rewardExp}
+                        </span>
+                    </div>
+                    
+                    <button onclick="window.codeFarmApp.startLesson('${lesson.id}')" 
+                            style="width: 100%; padding: 10px; background: #4CAF50; color: white; 
+                                   border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                        Начать урок
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+            
+            console.log(`✅ Отрендерено ${this.lessonsData.length} уроков`);
+        }
+        
+        startLesson(lessonId) {
+            console.log(`🎯 Начинаем урок: ${lessonId}`);
+            
+            const lesson = this.lessonsData.find(l => l.id === lessonId);
+            if (!lesson) {
+                alert('Урок не найден');
+                return;
+            }
+            
+            this.currentLesson = lesson;
+            this.showScreen('code');
+            
+            // Обновляем интерфейс урока
+            setTimeout(() => {
+                const titleEl = document.getElementById('current-lesson-title');
+                if (titleEl) titleEl.textContent = lesson.title;
+                
+                const editor = document.getElementById('code-editor');
+                if (editor) {
+                    editor.value = lesson.initialCode;
+                    editor.style.height = 'auto';
+                    editor.style.height = (editor.scrollHeight) + 'px';
+                }
+                
+                console.log(`✅ Урок "${lesson.title}" начат`);
+            }, 100);
+        }
+        
+        showScreen(screenName) {
+            console.log(`🖥️ Переключаемся на экран: ${screenName}`);
+            
+            // Скрываем все экраны
+            ['main', 'lessons', 'code', 'profile'].forEach(screen => {
+                const element = document.getElementById(`${screen}-screen`);
+                if (element) element.style.display = 'none';
+            });
+            
+            // Показываем нужный экран
+            const targetScreen = document.getElementById(`${screenName}-screen`);
+            if (targetScreen) targetScreen.style.display = 'block';
+            
+            // Обновляем навигацию
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('data-screen') === screenName) {
+                    item.classList.add('active');
+                }
+            });
+            
+            // Для экрана уроков обновляем список
+            if (screenName === 'lessons') {
+                this.renderLessons();
+            }
+        }
+        
+        async runCode() {
+            console.log('🚀 Запускаем код...');
+            const code = document.getElementById('code-editor')?.value;
+            const output = document.getElementById('output-text');
+            
+            if (!code || !output) {
+                this.showNotification('⚠️ Ошибка', 'Не найден редактор или вывод');
+                return;
+            }
+            
+            output.textContent = '🚀 Выполняю код...\n\n';
+            
+            // Простая имитация выполнения
+            setTimeout(() => {
+                const lines = code.split('\n');
+                let result = '';
+                
+                lines.forEach(line => {
+                    if (line.includes('print(')) {
+                        const match = line.match(/print\(["'](.+?)["']\)/);
+                        if (match) result += match[1] + '\n';
+                    }
+                });
+                
+                output.textContent += result + '\n✅ Выполнение завершено';
+            }, 500);
+        }
+        
+        async submitSolution() {
+            console.log('📤 Проверяем решение...');
+            
+            const code = document.getElementById('code-editor')?.value;
+            if (!code || !this.currentLesson) {
+                this.showNotification('⚠️ Ошибка', 'Сначала напишите код');
+                return;
+            }
+            
+            this.showNotification('⏳ Проверка', 'Проверяю ваш код...');
+            
+            // Простая проверка
+            let passed = false;
+            const cleanCode = code.toLowerCase();
+            
+            switch(this.currentLesson.id) {
+                case 'lesson_1':
+                    passed = cleanCode.includes('print("привет, фермер!")');
+                    break;
+                case 'lesson_2':
+                    passed = cleanCode.includes('name = "фермер"') && cleanCode.includes('print(name)');
+                    break;
+                default:
+                    passed = code.length > 10;
+            }
+            
+            if (passed) {
+                this.showNotification('🎉 Успех!', 'Урок пройден! Награда: 100 монет');
+            } else {
+                this.showNotification('❌ Ошибка', 'Проверьте правильность кода');
+            }
+        }
+        
+        showNotification(title, message) {
+            console.log(`🔔 Уведомление: ${title} - ${message}`);
+            
+            // Создаем уведомление
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `
+                <div style="font-size: 24px; margin-right: 10px;">${title.includes('🎉') ? '🎉' : '⚠️'}</div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">${title}</h4>
+                    <p style="margin: 0; color: #666;">${message}</p>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Инициализация
+        async init() {
+            console.log('🔧 Инициализация приложения...');
+            
+            // Инициализируем пользователя
+            this.userId = 'user-' + Date.now();
+            this.userData = {
+                level: 1,
+                coins: 100,
+                experience: 0
+            };
+            
+            // Загружаем уроки
+            await this.loadLessons();
+            
+            // Инициализируем ферму
+            this.createInitialFarm();
+            
+            // Инициализируем обработчики
+            this.initEventHandlers();
+            
+            // Показываем главный экран
+            this.showScreen('main');
+            
+            console.log('✅ Приложение инициализировано');
+        }
+        
+        createInitialFarm() {
+            console.log('🌾 Создаем начальную ферму...');
+            
+            const grid = document.getElementById('farm-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            
+            // Создаем ферму 8x8
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'farm-cell grass';
+                    cell.innerHTML = '🌿';
+                    cell.title = 'Заросший участок';
+                    grid.appendChild(cell);
+                }
+            }
+        }
+        
+        initEventHandlers() {
+            console.log('🔄 Инициализируем обработчики...');
+            
+            // Навигация
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const screen = item.getAttribute('data-screen');
+                    if (screen) this.showScreen(screen);
+                });
+            });
+            
+            // Кнопка запуска кода
+            const runBtn = document.getElementById('run-code-btn');
+            if (runBtn) {
+                runBtn.addEventListener('click', () => this.runCode());
+            }
+            
+            // Кнопка проверки решения
+            const submitBtn = document.getElementById('submit-code-btn');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', () => this.submitSolution());
+            }
+            
+            // Кнопка Урока 1
+            const lesson1Btn = document.getElementById('start-lesson-1-btn');
+            if (lesson1Btn) {
+                lesson1Btn.addEventListener('click', () => this.startLesson('lesson_1'));
+            }
+            
+            // Кнопка показа уроков
+            const showLessonsBtn = document.getElementById('show-lessons-btn');
+            if (showLessonsBtn) {
+                showLessonsBtn.addEventListener('click', () => {
+                    this.showScreen('lessons');
+                    this.renderLessons();
+                });
+            }
+            
+            // Кнопка редактора кода
+            const showCodeBtn = document.getElementById('show-code-btn');
+            if (showCodeBtn) {
+                showCodeBtn.addEventListener('click', () => this.showScreen('code'));
+            }
+        }
+    })();
+    
+    // Инициализируем приложение
+    window.codeFarmApp.init();
+});
 </script>
 </body>
 </html>
