@@ -390,5 +390,5 @@ app.listen(PORT, () => {
     console.log(`🤖 Telegram бот токен: ${process.env.TELEGRAM_BOT_TOKEN ? 'Настроен' : 'Не настроен'}`);
     console.log(`💾 Данные хранятся в папке: ${path.join(__dirname, '../data')}`);
     console.log(`👥 Пользователей в системе: ${Object.keys(storage.users).length}`);
-    console.log(`📚 Уроков доступно: ${lessons.getLessonCount()}`);
+    console.log('📚 Lessons module:', Lessons);
 });
