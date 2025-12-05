@@ -260,6 +260,16 @@ app.post('/api/lessons/:id/submit', async (req, res) => {
     }
 });
 
+// В конце класса Lessons добавьте:
+getLessonCount() {
+    return this.lessons.length;
+}
+
+// Экспорт для Node.js
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Lessons;
+}
+
 // Статические файлы фронтенда
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/index.html'));
