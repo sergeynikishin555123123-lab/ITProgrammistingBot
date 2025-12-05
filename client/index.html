@@ -2141,8 +2141,8 @@ ${lesson.testCode || lesson.exampleCode || '# Пример кода будет �
         }
     }
     
-    // Показать экран
-showScreen(screenName) {
+// Показать экран
+app.showScreen = function(screenName) { ... }
     console.log(`🖥️ Переключаемся на экран: ${screenName}`);
     
     // Скрываем все экраны
@@ -2169,18 +2169,36 @@ showScreen(screenName) {
     });
     
     // Для экрана уроков обновляем список уроков
-    if (screenName === 'lessons' && this.lessonsData.length > 0) {
+    if (screenName === 'lessons' && app.lessons.length > 0) {
         console.log('📚 Обновляем список уроков на экране уроков');
-        this.renderLessons();
+        renderLessons();
     }
     
     // Для экрана кода обновляем редактор
-    if (screenName === 'code' && this.codeEditor) {
+    if (screenName === 'code') {
         setTimeout(() => {
-            this.codeEditor.style.height = 'auto';
-            this.codeEditor.style.height = (this.codeEditor.scrollHeight) + 'px';
+            const editor = document.getElementById('code-editor');
+            if (editor) {
+                editor.style.height = 'auto';
+                editor.style.height = (editor.scrollHeight) + 'px';
+            }
         }, 100);
     }
+    
+    // ★★★★ ДЛЯ ГЛАВНОГО ЭКРАНА ПЕРЕЗАГРУЖАЕМ 3D ФЕРМУ ЕСЛИ НУЖНО ★★★★
+    if (screenName === 'main' && window.farm3D) {
+        setTimeout(() => {
+            // Проверяем, что канвас 3D фермы все еще в DOM
+            const canvas = document.querySelector('#farm-3d-container canvas');
+            if (!canvas) {
+                console.log('🔄 Восстанавливаем 3D ферму...');
+                // Здесь будет вызов функции инициализации 3D фермы
+            }
+        }, 500);
+    }
+    
+    console.log(`✅ Экран "${screenName}" показан`);
+}
     
     // ★★★★ ДЛЯ ГЛАВНОГО ЭКРАНА ПЕРЕЗАГРУЖАЕМ 3D ФЕРМУ ЕСЛИ НУЖНО ★★★★
     if (screenName === 'main' && this.farm3D) {
@@ -2207,7 +2225,19 @@ showScreen(screenName) {
     }
     
     // Обновление статистики пользователя
-    function updateUserStats() {
+   function updateUserStats() {
+    // Добавьте проверки на существование элементов
+    const elements = [
+        'user-level-value', 'user-coins-value', 'user-exp-value', 'user-lessons-value',
+        'header-coins', 'header-level', 'completed-lessons', 'user-level-text'
+    ];
+    
+    elements.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) {
+            console.warn(`Элемент #${id} не найден`);
+        }
+    });
         // Заголовок
         document.getElementById('user-level-value').textContent = app.userData.level;
         document.getElementById('user-coins-value').textContent = app.userData.coins;
@@ -2435,12 +2465,15 @@ showScreen(screenName) {
         }
     }
     
-    // Основная инициализация
     async function init() {
+    try {
         console.log('🔧 Инициализация приложения...');
         
         // Скрываем загрузку
-        document.getElementById('loading-screen').style.display = 'none';
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+        }
         
         // Загружаем уроки
         await loadLessons();
@@ -2458,7 +2491,11 @@ showScreen(screenName) {
         showScreen('main');
         
         console.log('✅ CodeFarm запущен!');
+    } catch (error) {
+        console.error('❌ Ошибка инициализации:', error);
+        showNotification('❌ Ошибка', 'Не удалось загрузить приложение');
     }
+}
     
     // Запускаем инициализацию
     await init();
