@@ -85,32 +85,39 @@ const DEMO_MODE = true;
 // ==================== НАСТРОЙКА ДИРЕКТОРИЙ ====================
 const ensureUploadDirs = () => {
     try {
+        console.log('📁 Проверка директорий для загрузок...');
+        
         const dirs = [
+            'public',
             'public/uploads',
             'public/uploads/users',
             'public/uploads/logo'
         ];
         
+        let dirsCreated = true;
         dirs.forEach(dir => {
             try {
                 if (!fsSync.existsSync(dir)) {
-                    fsSync.mkdirSync(dir, { recursive: true, mode: 0o755 });
-                    console.log(`✅ Создана директория: ${dir}`);
+                    console.warn(`⚠️ Директория ${dir} не существует`);
+                    console.log(`ℹ️ Для полной функциональности создайте директорию вручную:`);
+                    console.log(`   mkdir -p ${dir}`);
+                    console.log(`   chmod 755 ${dir}`);
+                    dirsCreated = false;
+                } else {
+                    console.log(`✅ Директория ${dir} существует`);
                 }
             } catch (dirError) {
-                console.warn(`⚠️ Не удалось создать директорию ${dir}:`, dirError.message);
-                console.log(`ℹ️ Попробуйте создать директорию вручную: mkdir -p ${dir}`);
+                console.warn(`⚠️ Не удалось проверить директорию ${dir}:`, dirError.message);
+                dirsCreated = false;
             }
         });
         
-        return true;
+        return dirsCreated;
     } catch (error) {
-        console.warn('⚠️ Предупреждение при создании директорий:', error.message);
-        console.log('ℹ️ Директории для загрузки файлов могут быть недоступны');
+        console.warn('⚠️ Предупреждение при проверке директорий:', error.message);
         return false;
     }
 };
-
 // Вызываем сразу
 ensureUploadDirs();
 
@@ -121,7 +128,11 @@ const initDatabase = async () => {
     try {
         console.log('🔄 Инициализация базы данных IT Farm...');
         
-        const dbPath = process.env.NODE_ENV === 'production' ? '/tmp/itfarm_prod.db' : './itfarm.db';
+        // Изменяем путь для работы без прав в текущей директории
+        const dbPath = process.env.NODE_ENV === 'production' 
+            ? '/tmp/itfarm_prod.db' 
+            : path.join(os.homedir(), '.itfarm.db'); // Используем домашнюю директорию
+        
         console.log(`📁 Путь к базе данных: ${dbPath}`);
         
         db = await open({
