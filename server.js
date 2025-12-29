@@ -16,15 +16,27 @@ const os = require('os');
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 const app = express();
 
-// CORS настройки
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
-        ? ['https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net'] 
-        : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8080', 'http://localhost:5000', 'http://localhost:5500'],
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net',
+            'http://localhost:3000',
+            'http://localhost:8080'
+        ];
+        
+        // Разрешаем запросы без origin (например, из браузера по IP)
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.log('❌ CORS блокирован для origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
+
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
@@ -46,7 +58,7 @@ app.use(express.urlencoded({
 }));
 
 // Статические файлы с правильными заголовками
-app.use(express.static('public', {
+app.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res, filePath) => {
         const ext = path.extname(filePath).toLowerCase();
         
@@ -65,7 +77,6 @@ app.use(express.static('public', {
         res.set('Access-Control-Allow-Methods', 'GET');
     }
 }));
-
 // Middleware для обработки ошибок CORS
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -2953,6 +2964,7 @@ app.get('/api/next-lesson', authMiddleware(), async (req, res) => {
 });
 
 // ==================== ОБРАБОТКА ОШИБОК ====================
+// ==================== ОБРАБОТКА ОШИБОК ====================
 app.use((err, req, res, next) => {
     console.error('🔥 Ошибка сервера:', err.message);
     
@@ -2971,8 +2983,9 @@ app.use('/api/*', (req, res) => {
     });
 });
 
-// SPA маршрутизация
+// SPA маршрутизация - ДОЛЖНА БЫТЬ ПОСЛЕДНЕЙ
 app.get('*', (req, res) => {
+    console.log('📄 Отдаю index.html для маршрута:', req.path);
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
