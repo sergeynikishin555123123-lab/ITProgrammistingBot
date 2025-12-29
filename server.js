@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const os = require('os');
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 const app = express();
