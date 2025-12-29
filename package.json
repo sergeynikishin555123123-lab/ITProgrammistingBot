@@ -1,30 +1,53 @@
 {
-  "name": "concierge-service",
-  "version": "4.6.0",
-  "description": "Консьерж сервис - персональный помощник",
+  "name": "itfarm-learning",
+  "version": "1.0.0",
+  "description": "IT Farm - Обучение программированию через игру с цифровой фермой",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "setup": "node setup.js",
-    "setup:prod": "NODE_ENV=production node setup.js",
-    "init-db": "node -e \"require('./server.js').initDatabase()\"",
-    "health": "node -e \"require('./server.js').checkHealth()\""
+    "setup": "node -e \"require('./server.js').initDatabase && console.log('База данных настроена')\"",
+    "setup:prod": "NODE_ENV=production node -e \"require('./server.js').initDatabase && console.log('База данных настроена для продакшена')\"",
+    "init-db": "node -e \"const { initDatabase } = require('./server.js'); initDatabase().then(() => console.log('База данных инициализирована'))\"",
+    "health": "node -e \"fetch('http://localhost:3000/health').then(r => r.json()).then(console.log).catch(console.error)\"",
+    "reset-db": "rm -f itfarm.db && echo 'База данных удалена' && npm run setup",
+    "reset-db:prod": "rm -f /tmp/itfarm_prod.db && echo 'Продакшн база данных удалена' && npm run setup:prod"
   },
   "dependencies": {
     "express": "^4.18.2",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
-    "sqlite3": "^5.1.7",
-    "sqlite": "^5.1.1",  
+    "sqlite3": "^5.1.6",
+    "sqlite": "^5.1.1",
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
     "multer": "^1.4.5-lts.1"
   },
-  "engines": {
-    "node": ">=14.0.0"
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   },
-  "keywords": ["concierge", "service", "assistant", "subscription"],
-  "author": "Консьерж Сервис",
-  "license": "MIT"
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "education",
+    "programming",
+    "javascript",
+    "learning",
+    "game",
+    "farm",
+    "interactive",
+    "coding"
+  ],
+  "author": "IT Farm Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/itfarm-learning.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/itfarm-learning/issues"
+  },
+  "homepage": "https://github.com/yourusername/itfarm-learning#readme"
 }
