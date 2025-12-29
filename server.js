@@ -1,12 +1,11 @@
-// server.js - СЕРВЕР ДЛЯ IT FARM
+// server.js - СЕРВЕР ДЛЯ IT FARM (Локальная версия)
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 const app = express();
@@ -20,94 +19,102 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
 
-// ==================== БАЗА ДАННЫХ ====================
+// Проверяем и создаем папку public если её нет
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+}
+app.use(express.static(publicDir));
+
+// ==================== ЛОКАЛЬНАЯ БАЗА ДАННЫХ ====================
 let db;
 
-const initDatabase = async () => {
+const initDatabase = () => {
     try {
-        console.log('🔄 Инициализация базы данных...');
+        console.log('🔄 Инициализация локальной базы данных...');
         
-        const dbPath = path.join(__dirname, 'itfarm.db');
+        // Используем базу данных в памяти для простоты
+        db = new sqlite3.Database(':memory:');
+        // Или для постоянного хранения: db = new sqlite3.Database('./itfarm.db');
         
-        db = await open({
-            filename: dbPath,
-            driver: sqlite3.Database
-        });
-
         console.log('✅ База данных подключена');
         
         // Создание таблиц
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE,
-                username TEXT UNIQUE,
-                password TEXT NOT NULL,
-                full_name TEXT,
-                avatar_url TEXT,
-                level INTEGER DEFAULT 1,
-                experience INTEGER DEFAULT 0,
-                coins INTEGER DEFAULT 0,
-                completed_lessons TEXT DEFAULT '[]',
-                farm_state TEXT DEFAULT '{"grass": 100, "elements": []}',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+        db.serialize(() => {
+            // Таблица пользователей
+            db.run(`
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE,
+                    username TEXT UNIQUE,
+                    password TEXT NOT NULL,
+                    full_name TEXT,
+                    avatar_url TEXT,
+                    level INTEGER DEFAULT 1,
+                    experience INTEGER DEFAULT 0,
+                    coins INTEGER DEFAULT 0,
+                    completed_lessons TEXT DEFAULT '[]',
+                    farm_state TEXT DEFAULT '{"grass": 100, "elements": []}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
 
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS lessons (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                description TEXT NOT NULL,
-                content TEXT NOT NULL,
-                task TEXT NOT NULL,
-                solution TEXT NOT NULL,
-                icon TEXT DEFAULT 'fas fa-code',
-                difficulty TEXT DEFAULT 'easy',
-                order_index INTEGER DEFAULT 0,
-                requirements TEXT DEFAULT '[]',
-                farm_effect TEXT DEFAULT '{}',
-                xp_reward INTEGER DEFAULT 100,
-                coins_reward INTEGER DEFAULT 50,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+            // Таблица уроков
+            db.run(`
+                CREATE TABLE IF NOT EXISTS lessons (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    task TEXT NOT NULL,
+                    solution TEXT NOT NULL,
+                    icon TEXT DEFAULT 'fas fa-code',
+                    difficulty TEXT DEFAULT 'easy',
+                    order_index INTEGER DEFAULT 0,
+                    requirements TEXT DEFAULT '[]',
+                    farm_effect TEXT DEFAULT '{}',
+                    xp_reward INTEGER DEFAULT 100,
+                    coins_reward INTEGER DEFAULT 50,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
 
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS progress (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                lesson_id INTEGER,
-                completed BOOLEAN DEFAULT 0,
-                code TEXT,
-                attempts INTEGER DEFAULT 0,
-                completed_at TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (lesson_id) REFERENCES lessons(id),
-                UNIQUE(user_id, lesson_id)
-            )
-        `);
+            // Таблица прогресса
+            db.run(`
+                CREATE TABLE IF NOT EXISTS progress (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    lesson_id INTEGER,
+                    completed BOOLEAN DEFAULT 0,
+                    code TEXT,
+                    attempts INTEGER DEFAULT 0,
+                    completed_at TIMESTAMP,
+                    UNIQUE(user_id, lesson_id)
+                )
+            `);
 
-        console.log('✅ Таблицы созданы');
+            console.log('✅ Таблицы созданы');
+            
+            // Создаем тестовые данные
+            createTestData();
+        });
         
-        // Создаем тестовые данные
-        await createTestData();
-        
-        return db;
     } catch (error) {
         console.error('❌ Ошибка инициализации БД:', error);
         throw error;
     }
 };
 
-const createTestData = async () => {
-    try {
-        // Проверяем есть ли уроки
-        const lessonCount = await db.get('SELECT COUNT(*) as count FROM lessons');
+const createTestData = () => {
+    // Проверяем есть ли уроки
+    db.get('SELECT COUNT(*) as count FROM lessons', (err, result) => {
+        if (err) {
+            console.error('Ошибка проверки уроков:', err);
+            return;
+        }
         
-        if (lessonCount.count === 0) {
+        if (result.count === 0) {
             const lessons = [
                 {
                     title: 'Основы JavaScript',
@@ -156,49 +163,85 @@ const createTestData = async () => {
                     farm_effect: JSON.stringify({ type: 'build_fence' }),
                     xp_reward: 200,
                     coins_reward: 100
+                },
+                {
+                    title: 'Условные операторы',
+                    description: 'Используйте if/else для принятия решений на ферме',
+                    content: `<h3>Условные операторы if/else</h3>
+                             <p>Операторы if/else позволяют выполнять код в зависимости от условий.</p>
+                             <p>Пример: <code>if (isRaining) { stayIndoors(); } else { goOutside(); }</code></p>`,
+                    task: 'Напишите условие: если время > 18, выведите "Вечер на ферме"',
+                    solution: 'if (time > 18) {\n    console.log("Вечер на ферме");\n}',
+                    icon: 'fas fa-question-circle',
+                    difficulty: 'medium',
+                    order_index: 4,
+                    requirements: JSON.stringify([1, 2]),
+                    farm_effect: JSON.stringify({ type: 'add_barn' }),
+                    xp_reward: 250,
+                    coins_reward: 125
+                },
+                {
+                    title: 'Циклы',
+                    description: 'Автоматизируйте повторяющиеся задачи с помощью циклов',
+                    content: `<h3>Циклы for и while</h3>
+                             <p>Циклы позволяют выполнять код несколько раз.</p>
+                             <p>Пример: <code>for(let i = 0; i < 5; i++) { plantSeed(); }</code></p>`,
+                    task: 'Используйте цикл for для посадки 5 семян',
+                    solution: 'for(let i = 0; i < 5; i++) {\n    plantSeed();\n}',
+                    icon: 'fas fa-redo',
+                    difficulty: 'medium',
+                    order_index: 5,
+                    requirements: JSON.stringify([1, 2, 3]),
+                    farm_effect: JSON.stringify({ type: 'plant_garden', count: 5 }),
+                    xp_reward: 300,
+                    coins_reward: 150
                 }
             ];
 
-            for (const lesson of lessons) {
-                await db.run(
-                    `INSERT INTO lessons (title, description, content, task, solution, icon, difficulty, 
-                                          order_index, requirements, farm_effect, xp_reward, coins_reward) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        lesson.title, lesson.description, lesson.content, lesson.task, lesson.solution,
-                        lesson.icon, lesson.difficulty, lesson.order_index, lesson.requirements,
-                        lesson.farm_effect, lesson.xp_reward, lesson.coins_reward
-                    ]
-                );
-            }
-            console.log(`✅ Создано ${lessons.length} урока`);
+            const stmt = db.prepare(`
+                INSERT INTO lessons (title, description, content, task, solution, icon, difficulty, 
+                                    order_index, requirements, farm_effect, xp_reward, coins_reward) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+
+            lessons.forEach(lesson => {
+                stmt.run([
+                    lesson.title, lesson.description, lesson.content, lesson.task, lesson.solution,
+                    lesson.icon, lesson.difficulty, lesson.order_index, lesson.requirements,
+                    lesson.farm_effect, lesson.xp_reward, lesson.coins_reward
+                ]);
+            });
+
+            stmt.finalize();
+            console.log(`✅ Создано ${lessons.length} уроков`);
         }
 
         // Тестовый пользователь
-        const userCount = await db.get('SELECT COUNT(*) as count FROM users');
-        
-        if (userCount.count === 0) {
-            const hashedPassword = await bcrypt.hash('123456', 10);
+        db.get('SELECT COUNT(*) as count FROM users', (err, result) => {
+            if (err) return;
             
-            await db.run(
-                `INSERT INTO users (email, username, password, full_name, avatar_url, level, coins) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    'test@test.com',
-                    'testuser',
-                    hashedPassword,
-                    'Тестовый Пользователь',
-                    'https://ui-avatars.com/api/?name=Тест&background=7CB342&color=fff',
-                    1,
-                    100
-                ]
-            );
-            console.log('✅ Тестовый пользователь создан');
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка создания тестовых данных:', error);
-    }
+            if (result.count === 0) {
+                const hashedPassword = bcrypt.hashSync('123456', 10);
+                
+                db.run(
+                    `INSERT INTO users (email, username, password, full_name, avatar_url, level, coins) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        'test@test.com',
+                        'testuser',
+                        hashedPassword,
+                        'Тестовый Пользователь',
+                        'https://ui-avatars.com/api/?name=Тест&background=7CB342&color=fff',
+                        1,
+                        100
+                    ],
+                    (err) => {
+                        if (!err) console.log('✅ Тестовый пользователь создан');
+                    }
+                );
+            }
+        });
+    });
 };
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
@@ -210,7 +253,7 @@ const generateToken = (user) => {
     );
 };
 
-const authMiddleware = async (req, res, next) => {
+const authMiddleware = (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         
@@ -260,24 +303,24 @@ app.get('/', (req, res) => {
 });
 
 // Health check
-app.get('/health', async (req, res) => {
-    try {
-        await db.get('SELECT 1');
+app.get('/health', (req, res) => {
+    db.get('SELECT 1', (err) => {
+        if (err) {
+            return res.status(500).json({
+                success: false,
+                error: 'Database error'
+            });
+        }
         res.json({
             success: true,
             status: 'OK',
             timestamp: new Date().toISOString()
         });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: 'Database error'
-        });
-    }
+    });
 });
 
 // Регистрация
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', (req, res) => {
     try {
         const { email, username, password, full_name } = req.body;
         
@@ -296,39 +339,66 @@ app.post('/api/auth/register', async (req, res) => {
         }
         
         // Проверяем уникальность
-        const existing = await db.get(
+        db.get(
             'SELECT id FROM users WHERE email = ? OR username = ?',
-            [email, username]
+            [email, username],
+            (err, existing) => {
+                if (err) {
+                    console.error('Ошибка проверки пользователя:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                if (existing) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Пользователь с таким email или именем уже существует'
+                    });
+                }
+                
+                const hashedPassword = bcrypt.hashSync(password, 10);
+                const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=7CB342&color=fff`;
+                
+                db.run(
+                    `INSERT INTO users (email, username, password, full_name, avatar_url) 
+                     VALUES (?, ?, ?, ?, ?)`,
+                    [email, username, hashedPassword, full_name, avatarUrl],
+                    function(err) {
+                        if (err) {
+                            console.error('Ошибка регистрации:', err);
+                            return res.status(500).json({
+                                success: false,
+                                error: 'Ошибка сервера'
+                            });
+                        }
+                        
+                        db.get(
+                            'SELECT id, email, username, full_name, avatar_url, level, experience, coins FROM users WHERE id = ?',
+                            [this.lastID],
+                            (err, user) => {
+                                if (err) {
+                                    console.error('Ошибка получения пользователя:', err);
+                                    return res.status(500).json({
+                                        success: false,
+                                        error: 'Ошибка сервера'
+                                    });
+                                }
+                                
+                                const token = generateToken(user);
+                                
+                                res.status(201).json({
+                                    success: true,
+                                    message: 'Регистрация успешна!',
+                                    data: { user, token }
+                                });
+                            }
+                        );
+                    }
+                );
+            }
         );
-        
-        if (existing) {
-            return res.status(400).json({
-                success: false,
-                error: 'Пользователь с таким email или именем уже существует'
-            });
-        }
-        
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=7CB342&color=fff`;
-        
-        const result = await db.run(
-            `INSERT INTO users (email, username, password, full_name, avatar_url) 
-             VALUES (?, ?, ?, ?, ?)`,
-            [email, username, hashedPassword, full_name, avatarUrl]
-        );
-        
-        const user = await db.get(
-            'SELECT id, email, username, full_name, avatar_url, level, experience, coins FROM users WHERE id = ?',
-            [result.lastID]
-        );
-        
-        const token = generateToken(user);
-        
-        res.status(201).json({
-            success: true,
-            message: 'Регистрация успешна!',
-            data: { user, token }
-        });
         
     } catch (error) {
         console.error('❌ Ошибка регистрации:', error);
@@ -340,7 +410,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Вход
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', (req, res) => {
     try {
         const { email, password } = req.body;
         
@@ -351,46 +421,55 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
         
-        const user = await db.get(
+        db.get(
             'SELECT * FROM users WHERE email = ?',
-            [email]
+            [email],
+            (err, user) => {
+                if (err) {
+                    console.error('Ошибка поиска пользователя:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                if (!user) {
+                    return res.status(401).json({
+                        success: false,
+                        error: 'Пользователь не найден'
+                    });
+                }
+                
+                const isPasswordValid = bcrypt.compareSync(password, user.password);
+                if (!isPasswordValid) {
+                    return res.status(401).json({
+                        success: false,
+                        error: 'Неверный пароль'
+                    });
+                }
+                
+                const userResponse = {
+                    id: user.id,
+                    email: user.email,
+                    username: user.username,
+                    full_name: user.full_name,
+                    avatar_url: user.avatar_url,
+                    level: user.level,
+                    experience: user.experience,
+                    coins: user.coins,
+                    completed_lessons: JSON.parse(user.completed_lessons || '[]'),
+                    farm_state: JSON.parse(user.farm_state || '{}')
+                };
+                
+                const token = generateToken(user);
+                
+                res.json({
+                    success: true,
+                    message: 'Вход выполнен успешно!',
+                    data: { user: userResponse, token }
+                });
+            }
         );
-        
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                error: 'Пользователь не найден'
-            });
-        }
-        
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                success: false,
-                error: 'Неверный пароль'
-            });
-        }
-        
-        const userResponse = {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            full_name: user.full_name,
-            avatar_url: user.avatar_url,
-            level: user.level,
-            experience: user.experience,
-            coins: user.coins,
-            completed_lessons: JSON.parse(user.completed_lessons || '[]'),
-            farm_state: JSON.parse(user.farm_state || '{}')
-        };
-        
-        const token = generateToken(user);
-        
-        res.json({
-            success: true,
-            message: 'Вход выполнен успешно!',
-            data: { user: userResponse, token }
-        });
         
     } catch (error) {
         console.error('❌ Ошибка входа:', error);
@@ -402,22 +481,31 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Получение уроков
-app.get('/api/lessons', async (req, res) => {
+app.get('/api/lessons', (req, res) => {
     try {
-        const lessons = await db.all(
-            'SELECT * FROM lessons ORDER BY order_index ASC'
+        db.all(
+            'SELECT * FROM lessons ORDER BY order_index ASC',
+            (err, lessons) => {
+                if (err) {
+                    console.error('Ошибка получения уроков:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                const lessonsWithData = lessons.map(lesson => ({
+                    ...lesson,
+                    requirements: JSON.parse(lesson.requirements || '[]'),
+                    farm_effect: JSON.parse(lesson.farm_effect || '{}')
+                }));
+                
+                res.json({
+                    success: true,
+                    data: { lessons: lessonsWithData }
+                });
+            }
         );
-        
-        const lessonsWithData = lessons.map(lesson => ({
-            ...lesson,
-            requirements: JSON.parse(lesson.requirements || '[]'),
-            farm_effect: JSON.parse(lesson.farm_effect || '{}')
-        }));
-        
-        res.json({
-            success: true,
-            data: { lessons: lessonsWithData }
-        });
         
     } catch (error) {
         console.error('❌ Ошибка получения уроков:', error);
@@ -429,30 +517,39 @@ app.get('/api/lessons', async (req, res) => {
 });
 
 // Получение урока по ID
-app.get('/api/lessons/:id', async (req, res) => {
+app.get('/api/lessons/:id', (req, res) => {
     try {
-        const lesson = await db.get(
+        db.get(
             'SELECT * FROM lessons WHERE id = ?',
-            [req.params.id]
+            [req.params.id],
+            (err, lesson) => {
+                if (err) {
+                    console.error('Ошибка получения урока:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                if (!lesson) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Урок не найден'
+                    });
+                }
+                
+                const lessonWithData = {
+                    ...lesson,
+                    requirements: JSON.parse(lesson.requirements || '[]'),
+                    farm_effect: JSON.parse(lesson.farm_effect || '{}')
+                };
+                
+                res.json({
+                    success: true,
+                    data: { lesson: lessonWithData }
+                });
+            }
         );
-        
-        if (!lesson) {
-            return res.status(404).json({
-                success: false,
-                error: 'Урок не найден'
-            });
-        }
-        
-        const lessonWithData = {
-            ...lesson,
-            requirements: JSON.parse(lesson.requirements || '[]'),
-            farm_effect: JSON.parse(lesson.farm_effect || '{}')
-        };
-        
-        res.json({
-            success: true,
-            data: { lesson: lessonWithData }
-        });
         
     } catch (error) {
         console.error('❌ Ошибка получения урока:', error);
@@ -464,76 +561,66 @@ app.get('/api/lessons/:id', async (req, res) => {
 });
 
 // Получение фермы
-app.get('/api/farm', authMiddleware, async (req, res) => {
+app.get('/api/farm', authMiddleware, (req, res) => {
     try {
-        const user = await db.get(
+        db.get(
             'SELECT farm_state, level, experience, coins FROM users WHERE id = ?',
-            [req.userId]
-        );
-        
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                error: 'Пользователь не найден'
-            });
-        }
-        
-        const farmState = JSON.parse(user.farm_state || '{}');
-        
-        // Генерируем элементы фермы
-        const elements = [];
-        
-        // Трава
-        if (farmState.grass > 0) {
-            const grassCount = Math.floor((farmState.grass / 100) * 20);
-            for (let i = 0; i < grassCount; i++) {
-                elements.push({
-                    type: 'grass',
-                    x: Math.random() * 90 + 5,
-                    y: Math.random() * 80 + 10,
-                    size: Math.random() * 15 + 10
+            [req.userId],
+            (err, user) => {
+                if (err) {
+                    console.error('Ошибка получения пользователя:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                if (!user) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Пользователь не найден'
+                    });
+                }
+                
+                const farmState = JSON.parse(user.farm_state || '{}');
+                
+                // Генерируем элементы фермы
+                const elements = [];
+                
+                // Трава
+                if (farmState.grass > 0) {
+                    const grassCount = Math.floor((farmState.grass / 100) * 20);
+                    for (let i = 0; i < grassCount; i++) {
+                        elements.push({
+                            type: 'grass',
+                            x: Math.random() * 90 + 5,
+                            y: Math.random() * 80 + 10,
+                            size: Math.random() * 15 + 10
+                        });
+                    }
+                }
+                
+                // Существующие элементы
+                if (farmState.elements && Array.isArray(farmState.elements)) {
+                    elements.push(...farmState.elements);
+                }
+                
+                res.json({
+                    success: true,
+                    data: {
+                        farm: {
+                            grass: farmState.grass || 100,
+                            elements: elements
+                        },
+                        stats: {
+                            level: user.level,
+                            experience: user.experience,
+                            coins: user.coins
+                        }
+                    }
                 });
             }
-        }
-        
-        // Существующие элементы
-        if (farmState.elements && Array.isArray(farmState.elements)) {
-            elements.push(...farmState.elements);
-        }
-        
-        // Солнце и облака
-        elements.push({
-            type: 'sun',
-            x: 85,
-            y: 10
-        });
-        
-        elements.push({
-            type: 'cloud',
-            x: 20,
-            y: 15
-        });
-        
-        elements.push({
-            type: 'cloud',
-            x: 60,
-            y: 20
-        });
-        
-        res.json({
-            success: true,
-            data: {
-                farm: {
-                    grass: farmState.grass || 100,
-                    elements: elements
-                },
-                stats: {
-                    level: user.level,
-                    experience: user.experience,
-                    coins: user.coins
-                }
-            }
-        });
+        );
         
     } catch (error) {
         console.error('❌ Ошибка получения фермы:', error);
@@ -544,163 +631,190 @@ app.get('/api/farm', authMiddleware, async (req, res) => {
     }
 });
 
-// Обновление фермы
-app.post('/api/farm/update', authMiddleware, async (req, res) => {
-    try {
-        const { farm_state } = req.body;
-        
-        await db.run(
-            'UPDATE users SET farm_state = ? WHERE id = ?',
-            [JSON.stringify(farm_state), req.userId]
-        );
-        
-        res.json({
-            success: true,
-            message: 'Ферма обновлена'
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка обновления фермы:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка сервера'
-        });
-    }
-});
-
 // Проверка решения урока
-app.post('/api/lessons/:id/check', authMiddleware, async (req, res) => {
+app.post('/api/lessons/:id/check', authMiddleware, (req, res) => {
     try {
         const { code } = req.body;
         const lessonId = req.params.id;
         
-        const lesson = await db.get(
+        db.get(
             'SELECT * FROM lessons WHERE id = ?',
-            [lessonId]
-        );
-        
-        if (!lesson) {
-            return res.status(404).json({
-                success: false,
-                error: 'Урок не найден'
-            });
-        }
-        
-        // Простая проверка решения
-        const userCode = code.trim();
-        const solution = lesson.solution.trim();
-        const isCorrect = userCode.includes(solution) || solution.includes(userCode);
-        
-        if (isCorrect) {
-            // Получаем пользователя
-            const user = await db.get('SELECT * FROM users WHERE id = ?', [req.userId]);
-            
-            // Добавляем урок в завершенные
-            let completedLessons = JSON.parse(user.completed_lessons || '[]');
-            if (!completedLessons.includes(parseInt(lessonId))) {
-                completedLessons.push(parseInt(lessonId));
-                
-                // Начисляем награды
-                const xpReward = lesson.xp_reward || 100;
-                const coinsReward = lesson.coins_reward || 50;
-                
-                let newExperience = user.experience + xpReward;
-                let newLevel = user.level;
-                let newCoins = user.coins + coinsReward;
-                
-                // Проверяем повышение уровня
-                const xpPerLevel = 100;
-                while (newExperience >= newLevel * xpPerLevel) {
-                    newExperience -= newLevel * xpPerLevel;
-                    newLevel++;
+            [lessonId],
+            (err, lesson) => {
+                if (err) {
+                    console.error('Ошибка получения урока:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
                 }
                 
-                // Применяем эффект к ферме
-                let farmState = JSON.parse(user.farm_state || '{}');
-                const farmEffect = JSON.parse(lesson.farm_effect || '{}');
-                
-                if (farmEffect.type === 'clear_grass') {
-                    farmState.grass = Math.max(0, (farmState.grass || 100) - (farmEffect.amount || 50));
+                if (!lesson) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Урок не найден'
+                    });
                 }
                 
-                // Обновляем пользователя
-                await db.run(
-                    `UPDATE users SET 
-                        level = ?,
-                        experience = ?,
-                        coins = ?,
-                        completed_lessons = ?,
-                        farm_state = ?
-                     WHERE id = ?`,
-                    [
-                        newLevel,
-                        newExperience,
-                        newCoins,
-                        JSON.stringify(completedLessons),
-                        JSON.stringify(farmState),
-                        req.userId
-                    ]
-                );
+                // Простая проверка решения
+                const userCode = code.trim();
+                const solution = lesson.solution.trim();
+                const isCorrect = userCode.includes(solution) || solution.includes(userCode);
                 
-                // Сохраняем прогресс
-                await db.run(
-                    `INSERT OR REPLACE INTO progress (user_id, lesson_id, completed, code, attempts, completed_at)
-                     VALUES (?, ?, ?, ?, COALESCE((SELECT attempts + 1 FROM progress WHERE user_id = ? AND lesson_id = ?), 1), CURRENT_TIMESTAMP)`,
-                    [req.userId, lessonId, 1, code, req.userId, lessonId]
-                );
-                
-                // Получаем обновленного пользователя
-                const updatedUser = await db.get(
-                    'SELECT * FROM users WHERE id = ?',
-                    [req.userId]
-                );
-                
-                const userResponse = {
-                    id: updatedUser.id,
-                    email: updatedUser.email,
-                    username: updatedUser.username,
-                    full_name: updatedUser.full_name,
-                    avatar_url: updatedUser.avatar_url,
-                    level: updatedUser.level,
-                    experience: updatedUser.experience,
-                    coins: updatedUser.coins,
-                    completed_lessons: JSON.parse(updatedUser.completed_lessons || '[]'),
-                    farm_state: JSON.parse(updatedUser.farm_state || '{}')
-                };
-                
-                res.json({
-                    success: true,
-                    message: '🎉 Урок выполнен успешно!',
-                    data: {
-                        is_correct: true,
-                        user: userResponse,
-                        rewards: {
-                            xp: xpReward,
-                            coins: coinsReward,
-                            level_up: newLevel > user.level
-                        },
-                        farm_effect: farmEffect
-                    }
-                });
-            } else {
-                res.json({
-                    success: true,
-                    message: 'Урок уже был выполнен ранее',
-                    data: {
-                        is_correct: true,
-                        already_completed: true
-                    }
-                });
+                if (isCorrect) {
+                    // Получаем пользователя
+                    db.get(
+                        'SELECT * FROM users WHERE id = ?',
+                        [req.userId],
+                        (err, user) => {
+                            if (err) {
+                                console.error('Ошибка получения пользователя:', err);
+                                return res.status(500).json({
+                                    success: false,
+                                    error: 'Ошибка сервера'
+                                });
+                            }
+                            
+                            // Добавляем урок в завершенные
+                            let completedLessons = JSON.parse(user.completed_lessons || '[]');
+                            if (!completedLessons.includes(parseInt(lessonId))) {
+                                completedLessons.push(parseInt(lessonId));
+                                
+                                // Начисляем награды
+                                const xpReward = lesson.xp_reward || 100;
+                                const coinsReward = lesson.coins_reward || 50;
+                                
+                                let newExperience = user.experience + xpReward;
+                                let newLevel = user.level;
+                                let newCoins = user.coins + coinsReward;
+                                
+                                // Проверяем повышение уровня
+                                const xpPerLevel = 100;
+                                while (newExperience >= newLevel * xpPerLevel) {
+                                    newExperience -= newLevel * xpPerLevel;
+                                    newLevel++;
+                                }
+                                
+                                // Применяем эффект к ферме
+                                let farmState = JSON.parse(user.farm_state || '{}');
+                                const farmEffect = JSON.parse(lesson.farm_effect || '{}');
+                                
+                                if (farmEffect.type === 'clear_grass') {
+                                    farmState.grass = Math.max(0, (farmState.grass || 100) - (farmEffect.amount || 50));
+                                } else if (farmEffect.type === 'plant_seeds') {
+                                    if (!farmState.elements) farmState.elements = [];
+                                    for (let i = 0; i < (farmEffect.count || 1); i++) {
+                                        farmState.elements.push({
+                                            type: 'seed',
+                                            x: Math.random() * 80 + 10,
+                                            y: Math.random() * 60 + 20,
+                                            icon: 'fas fa-seedling',
+                                            color: '#7CB342'
+                                        });
+                                    }
+                                }
+                                
+                                // Обновляем пользователя
+                                db.run(
+                                    `UPDATE users SET 
+                                        level = ?,
+                                        experience = ?,
+                                        coins = ?,
+                                        completed_lessons = ?,
+                                        farm_state = ?
+                                     WHERE id = ?`,
+                                    [
+                                        newLevel,
+                                        newExperience,
+                                        newCoins,
+                                        JSON.stringify(completedLessons),
+                                        JSON.stringify(farmState),
+                                        req.userId
+                                    ],
+                                    (err) => {
+                                        if (err) {
+                                            console.error('Ошибка обновления пользователя:', err);
+                                            return res.status(500).json({
+                                                success: false,
+                                                error: 'Ошибка сервера'
+                                            });
+                                        }
+                                        
+                                        // Получаем обновленного пользователя
+                                        db.get(
+                                            'SELECT * FROM users WHERE id = ?',
+                                            [req.userId],
+                                            (err, updatedUser) => {
+                                                if (err) {
+                                                    console.error('Ошибка получения пользователя:', err);
+                                                    return res.status(500).json({
+                                                        success: false,
+                                                        error: 'Ошибка сервера'
+                                                    });
+                                                }
+                                                
+                                                const userResponse = {
+                                                    id: updatedUser.id,
+                                                    email: updatedUser.email,
+                                                    username: updatedUser.username,
+                                                    full_name: updatedUser.full_name,
+                                                    avatar_url: updatedUser.avatar_url,
+                                                    level: updatedUser.level,
+                                                    experience: updatedUser.experience,
+                                                    coins: updatedUser.coins,
+                                                    completed_lessons: JSON.parse(updatedUser.completed_lessons || '[]'),
+                                                    farm_state: JSON.parse(updatedUser.farm_state || '{}')
+                                                };
+                                                
+                                                // Сохраняем прогресс
+                                                db.run(
+                                                    `INSERT OR REPLACE INTO progress (user_id, lesson_id, completed, code, attempts, completed_at)
+                                                     VALUES (?, ?, ?, ?, COALESCE((SELECT attempts + 1 FROM progress WHERE user_id = ? AND lesson_id = ?), 1), CURRENT_TIMESTAMP)`,
+                                                    [req.userId, lessonId, 1, code, req.userId, lessonId],
+                                                    () => {
+                                                        res.json({
+                                                            success: true,
+                                                            message: '🎉 Урок выполнен успешно!',
+                                                            data: {
+                                                                is_correct: true,
+                                                                user: userResponse,
+                                                                rewards: {
+                                                                    xp: xpReward,
+                                                                    coins: coinsReward,
+                                                                    level_up: newLevel > user.level
+                                                                },
+                                                                farm_effect: farmEffect
+                                                            }
+                                                        });
+                                                    }
+                                                );
+                                            }
+                                        );
+                                    }
+                                );
+                            } else {
+                                res.json({
+                                    success: true,
+                                    message: 'Урок уже был выполнен ранее',
+                                    data: {
+                                        is_correct: true,
+                                        already_completed: true
+                                    }
+                                });
+                            }
+                        }
+                    );
+                } else {
+                    res.json({
+                        success: false,
+                        message: 'Решение неверное. Попробуйте еще раз!',
+                        data: {
+                            is_correct: false
+                        }
+                    });
+                }
             }
-        } else {
-            res.json({
-                success: false,
-                message: 'Решение неверное. Попробуйте еще раз!',
-                data: {
-                    is_correct: false
-                }
-            });
-        }
+        );
         
     } catch (error) {
         console.error('❌ Ошибка проверки решения:', error);
@@ -712,37 +826,55 @@ app.post('/api/lessons/:id/check', authMiddleware, async (req, res) => {
 });
 
 // Получение прогресса
-app.get('/api/progress', authMiddleware, async (req, res) => {
+app.get('/api/progress', authMiddleware, (req, res) => {
     try {
-        const user = await db.get(
+        db.get(
             'SELECT level, experience, coins, completed_lessons FROM users WHERE id = ?',
-            [req.userId]
-        );
-        
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                error: 'Пользователь не найден'
-            });
-        }
-        
-        const totalLessons = await db.get('SELECT COUNT(*) as count FROM lessons');
-        const completedLessons = JSON.parse(user.completed_lessons || '[]');
-        const progressPercent = totalLessons.count > 0 
-            ? Math.round((completedLessons.length / totalLessons.count) * 100)
-            : 0;
-        
-        res.json({
-            success: true,
-            data: {
-                level: user.level,
-                experience: user.experience,
-                coins: user.coins,
-                completed_lessons: completedLessons.length,
-                total_lessons: totalLessons.count,
-                progress_percent: progressPercent
+            [req.userId],
+            (err, user) => {
+                if (err) {
+                    console.error('Ошибка получения пользователя:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                if (!user) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Пользователь не найден'
+                    });
+                }
+                
+                db.get('SELECT COUNT(*) as count FROM lessons', (err, totalResult) => {
+                    if (err) {
+                        console.error('Ошибка подсчета уроков:', err);
+                        return res.status(500).json({
+                            success: false,
+                            error: 'Ошибка сервера'
+                        });
+                    }
+                    
+                    const completedLessons = JSON.parse(user.completed_lessons || '[]');
+                    const progressPercent = totalResult.count > 0 
+                        ? Math.round((completedLessons.length / totalResult.count) * 100)
+                        : 0;
+                    
+                    res.json({
+                        success: true,
+                        data: {
+                            level: user.level,
+                            experience: user.experience,
+                            coins: user.coins,
+                            completed_lessons: completedLessons.length,
+                            total_lessons: totalResult.count,
+                            progress_percent: progressPercent
+                        }
+                    });
+                });
             }
-        });
+        );
         
     } catch (error) {
         console.error('❌ Ошибка получения прогресса:', error);
@@ -754,30 +886,39 @@ app.get('/api/progress', authMiddleware, async (req, res) => {
 });
 
 // Проверка пользователя
-app.get('/api/auth/check', authMiddleware, async (req, res) => {
+app.get('/api/auth/check', authMiddleware, (req, res) => {
     try {
-        const user = await db.get(
+        db.get(
             'SELECT id, email, username, full_name, avatar_url, level, experience, coins, completed_lessons, farm_state FROM users WHERE id = ?',
-            [req.userId]
+            [req.userId],
+            (err, user) => {
+                if (err) {
+                    console.error('Ошибка получения пользователя:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                if (!user) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Пользователь не найден'
+                    });
+                }
+                
+                const userResponse = {
+                    ...user,
+                    completed_lessons: JSON.parse(user.completed_lessons || '[]'),
+                    farm_state: JSON.parse(user.farm_state || '{}')
+                };
+                
+                res.json({
+                    success: true,
+                    data: { user: userResponse }
+                });
+            }
         );
-        
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                error: 'Пользователь не найден'
-            });
-        }
-        
-        const userResponse = {
-            ...user,
-            completed_lessons: JSON.parse(user.completed_lessons || '[]'),
-            farm_state: JSON.parse(user.farm_state || '{}')
-        };
-        
-        res.json({
-            success: true,
-            data: { user: userResponse }
-        });
         
     } catch (error) {
         console.error('❌ Ошибка проверки пользователя:', error);
@@ -788,21 +929,59 @@ app.get('/api/auth/check', authMiddleware, async (req, res) => {
     }
 });
 
+// Получение всех пользователей (для администрирования)
+app.get('/api/users', authMiddleware, (req, res) => {
+    try {
+        db.all(
+            'SELECT id, username, email, full_name, level, experience, coins FROM users',
+            (err, users) => {
+                if (err) {
+                    console.error('Ошибка получения пользователей:', err);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Ошибка сервера'
+                    });
+                }
+                
+                res.json({
+                    success: true,
+                    data: { users }
+                });
+            }
+        );
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения пользователей:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка сервера'
+        });
+    }
+});
+
 // ==================== SPA РОУТИНГ ====================
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.json({
+            success: false,
+            error: 'Файл index.html не найден. Запустите npm run setup для создания структуры.'
+        });
+    }
 });
 
 // ==================== ЗАПУСК СЕРВЕРА ====================
-const startServer = async () => {
+const startServer = () => {
     try {
-        await initDatabase();
+        initDatabase();
         
         const PORT = process.env.PORT || 3000;
         
         app.listen(PORT, () => {
             console.log('\n' + '='.repeat(60));
-            console.log('🚜 IT FARM СЕРВЕР ЗАПУЩЕН');
+            console.log('🚜 IT FARM СЕРВЕР ЗАПУЩЕН (Локальная версия)');
             console.log('='.repeat(60));
             console.log(`🌐 Сервер: http://localhost:${PORT}`);
             console.log(`🏥 Health: http://localhost:${PORT}/health`);
@@ -824,12 +1003,6 @@ const startServer = async () => {
         console.error('❌ Не удалось запустить сервер:', error);
         process.exit(1);
     }
-};
-
-// Экспорт для скриптов
-module.exports = {
-    initDatabase,
-    app
 };
 
 // Запуск сервера
