@@ -21,7 +21,7 @@ const corsOptions = {
     origin: process.env.NODE_ENV === 'production' 
         ? [
             'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net',
-            'https://yourdomain.com'  # замените на ваш реальный домен
+            'https://sergeynikishin555123123-lab-itprogrammistingbot-4dcd.twc1.net.com' 
           ] 
         : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8080', 'http://localhost:5000', 'http://localhost:5500'],
     credentials: true,
