@@ -84,18 +84,31 @@ const DEMO_MODE = true;
 
 // ==================== НАСТРОЙКА ДИРЕКТОРИЙ ====================
 const ensureUploadDirs = () => {
-    const dirs = [
-        'public/uploads',
-        'public/uploads/users',
-        'public/uploads/logo'
-    ];
-    
-    dirs.forEach(dir => {
-        if (!fsSync.existsSync(dir)) {
-            fsSync.mkdirSync(dir, { recursive: true });
-            console.log(`✅ Создана директория: ${dir}`);
-        }
-    });
+    try {
+        const dirs = [
+            'public/uploads',
+            'public/uploads/users',
+            'public/uploads/logo'
+        ];
+        
+        dirs.forEach(dir => {
+            try {
+                if (!fsSync.existsSync(dir)) {
+                    fsSync.mkdirSync(dir, { recursive: true, mode: 0o755 });
+                    console.log(`✅ Создана директория: ${dir}`);
+                }
+            } catch (dirError) {
+                console.warn(`⚠️ Не удалось создать директорию ${dir}:`, dirError.message);
+                console.log(`ℹ️ Попробуйте создать директорию вручную: mkdir -p ${dir}`);
+            }
+        });
+        
+        return true;
+    } catch (error) {
+        console.warn('⚠️ Предупреждение при создании директорий:', error.message);
+        console.log('ℹ️ Директории для загрузки файлов могут быть недоступны');
+        return false;
+    }
 };
 
 // Вызываем сразу
@@ -2964,7 +2977,18 @@ const startServer = async () => {
         console.log(`💾 База данных: ${process.env.NODE_ENV === 'production' ? '/tmp/itfarm_prod.db' : './itfarm.db'}`);
         console.log('='.repeat(80));
         
-        ensureUploadDirs();
+        // Создаем public директорию если нужно
+        if (!fsSync.existsSync('public')) {
+            try {
+                fsSync.mkdirSync('public', { recursive: true, mode: 0o755 });
+                console.log('✅ Создана директория public');
+            } catch (error) {
+                console.warn('⚠️ Не удалось создать public директорию:', error.message);
+            }
+        }
+        
+        // Пытаемся создать uploads директории, но не критично если не получится
+        const dirsCreated = ensureUploadDirs();
         
         await initDatabase();
         console.log('✅ База данных готова');
@@ -2973,15 +2997,22 @@ const startServer = async () => {
         console.log('✅ Все API настроены');
         
         const PORT = process.env.PORT || 3000;
+        const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
         
-        app.listen(PORT, '0.0.0.0', () => {
+        app.listen(PORT, HOST, () => {
             console.log('\n' + '='.repeat(80));
-            console.log(`✅ Сервер запущен на порту ${PORT}`);
-            console.log(`🌐 http://localhost:${PORT}`);
-            console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+            console.log(`✅ Сервер запущен: http://${HOST}:${PORT}`);
+            console.log(`🏥 Health check: http://${HOST}:${PORT}/health`);
             console.log('='.repeat(80));
             console.log('🚜 СИСТЕМА ГОТОВА К ОБУЧЕНИЮ!');
             console.log('='.repeat(80));
+            
+            if (!dirsCreated) {
+                console.log('\n⚠️  ВНИМАНИЕ: Директории для загрузки файлов не созданы');
+                console.log('ℹ️  Функция загрузки файлов может не работать');
+                console.log('🔧 Чтобы исправить, создайте директории вручную:');
+                console.log('   mkdir -p public/uploads public/uploads/users public/uploads/logo');
+            }
             
             console.log('\n📚 УРОКИ ПРОГРАММИРОВАНИЯ:');
             console.log('='.repeat(70));
@@ -2992,15 +3023,6 @@ const startServer = async () => {
             console.log('5. Циклы: Массовая обработка');
             console.log('='.repeat(70));
             
-            console.log('\n🎮 ВЛИЯНИЕ НА ФЕРМУ:');
-            console.log('='.repeat(60));
-            console.log('✅ Урок 1: Скосить траву на ферме');
-            console.log('✅ Урок 2: Посадить семена');
-            console.log('✅ Урок 3: Построить забор');
-            console.log('✅ Урок 4: Вспахать поле');
-            console.log('✅ Урок 5: Построить дом');
-            console.log('='.repeat(60));
-            
             console.log('\n🔑 ТЕСТОВЫЙ АККАУНТ:');
             console.log('='.repeat(50));
             console.log('👨‍🎓 Студент: student@itfarm.test / student123');
@@ -3009,9 +3031,9 @@ const startServer = async () => {
         
     } catch (error) {
         console.error('❌ Не удалось запустить сервер:', error.message);
+        console.error('📋 Полная ошибка:', error.stack);
         process.exit(1);
     }
 };
-
 // Запуск
 startServer();
