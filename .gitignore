@@ -14,6 +14,8 @@ yarn-error.log*
 # Database
 *.db
 *.db-journal
+atomicflow.db
+atomicflow.db-journal
 
 # Runtime data
 pids
@@ -21,7 +23,7 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage directory
 coverage/
 .nyc_output
 
@@ -46,3 +48,20 @@ temp/
 # Build
 dist/
 build/
+
+# Docker
+.dockerignore
+docker-compose.yml
+Dockerfile
+
+# PM2
+.pm2/
+ecosystem.config.js
+
+# SQLite
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
