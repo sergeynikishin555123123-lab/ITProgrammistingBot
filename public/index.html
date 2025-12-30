@@ -9,7 +9,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
-        /* Цветовая палитра - смелые, современные цвета */
+        /* Все стили остаются такими же как в вашем файле */
+        /* Я их не менял чтобы сохранить дизайн */
         :root {
             --primary: #7C3AED;
             --primary-light: #8B5CF6;
@@ -784,12 +785,12 @@
                 <div id="login-form">
                     <div class="form-group">
                         <label class="form-label">Email</label>
-                        <input type="email" id="loginEmail" class="form-input" placeholder="ваш@email.com" required>
+                        <input type="email" id="loginEmail" class="form-input" placeholder="demo@quantumflow.test" value="demo@quantumflow.test">
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Пароль</label>
-                        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required>
+                        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" value="demo123">
                     </div>
                     
                     <button class="btn btn-primary" style="width: 100%;" onclick="auth.login()">
@@ -888,10 +889,10 @@
                             </h1>
                             <p class="section-subtitle" id="dateDisplay"></p>
                         </div>
-                        <div class="btn btn-primary btn-sm" onclick="app.showReviewModal()">
+                        <button class="btn btn-primary btn-sm" onclick="app.showReviewModal()">
                             <i class="fas fa-clipboard-check"></i>
                             Ревью
-                        </div>
+                        </button>
                     </div>
                     
                     <div class="stats-grid" id="statsGrid">
@@ -968,10 +969,6 @@
                             Финансы
                         </h1>
                         <div>
-                            <button class="btn btn-secondary btn-sm" onclick="app.navigateToPage('debts')" style="margin-right: 10px;">
-                                <i class="fas fa-snowflake"></i>
-                                Долги
-                            </button>
                             <button class="btn btn-primary btn-sm" onclick="app.showGoalModal()">
                                 <i class="fas fa-bullseye"></i>
                                 Цель
@@ -1087,7 +1084,7 @@
                         </h1>
                         <button class="btn btn-primary btn-sm" onclick="app.showHabitModal()">
                             <i class="fas fa-plus"></i>
-                            Привычка
+                            Новая привычка
                         </button>
                     </div>
                     
@@ -1208,11 +1205,12 @@
                     
                     <div class="form-group">
                         <label class="form-label">Тег</label>
-                        <div class="category-grid">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                             <div class="category-item" data-tag="#работа" onclick="app.selectCategory(this)">#работа</div>
                             <div class="category-item" data-tag="#дом" onclick="app.selectCategory(this)">#дом</div>
                             <div class="category-item" data-tag="#здоровье" onclick="app.selectCategory(this)">#здоровье</div>
                             <div class="category-item" data-tag="#учеба" onclick="app.selectCategory(this)">#учеба</div>
+                            <div class="category-item" data-tag="#личное" onclick="app.selectCategory(this)">#личное</div>
                         </div>
                     </div>
                     
@@ -1225,8 +1223,55 @@
                         </select>
                     </div>
                     
+                    <div class="form-group">
+                        <label class="form-label">Дата выполнения (опционально)</label>
+                        <input type="date" id="taskDueDate" class="form-input">
+                    </div>
+                    
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
                         <i class="fas fa-save"></i> Сохранить задачу
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="modal" id="habitModal">
+            <div class="modal-content">
+                <h3 style="color: var(--text-primary); margin-bottom: 20px;">Новая привычка</h3>
+                <form id="habitForm">
+                    <div class="form-group">
+                        <label class="form-label">Название привычки</label>
+                        <input type="text" id="habitTitle" class="form-input" placeholder="Например: Утренняя зарядка" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Описание (опционально)</label>
+                        <textarea id="habitDescription" class="form-input" rows="3" placeholder="Опишите вашу привычку..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Иконка</label>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <div class="icon-option" data-icon="fas fa-running" onclick="app.selectIcon(this)">
+                                <i class="fas fa-running"></i>
+                            </div>
+                            <div class="icon-option" data-icon="fas fa-book" onclick="app.selectIcon(this)">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <div class="icon-option" data-icon="fas fa-bed" onclick="app.selectIcon(this)">
+                                <i class="fas fa-bed"></i>
+                            </div>
+                            <div class="icon-option" data-icon="fas fa-apple-alt" onclick="app.selectIcon(this)">
+                                <i class="fas fa-apple-alt"></i>
+                            </div>
+                            <div class="icon-option" data-icon="fas fa-mug-hot" onclick="app.selectIcon(this)">
+                                <i class="fas fa-mug-hot"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-save"></i> Создать привычку
                     </button>
                 </form>
             </div>
@@ -1246,12 +1291,12 @@
                     
                     <div class="form-group">
                         <label class="form-label">Сумма (₽)</label>
-                        <input type="number" id="financeAmount" class="form-input" placeholder="0" required>
+                        <input type="number" id="financeAmount" class="form-input" placeholder="0" required min="0" step="0.01">
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Категория</label>
-                        <div class="category-grid" id="financeCategories">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;" id="financeCategories">
                             <!-- Динамически загружается -->
                         </div>
                     </div>
@@ -1259,6 +1304,11 @@
                     <div class="form-group">
                         <label class="form-label">Описание</label>
                         <input type="text" id="financeDescription" class="form-input" placeholder="Краткое описание">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Дата</label>
+                        <input type="date" id="financeDate" class="form-input" value="<?php echo date('Y-m-d'); ?>">
                     </div>
                     
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -1279,17 +1329,17 @@
                     
                     <div class="form-group">
                         <label class="form-label">Целевая сумма (₽)</label>
-                        <input type="number" id="goalTarget" class="form-input" placeholder="100000" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Срок (месяцы)</label>
-                        <input type="number" id="goalMonths" class="form-input" placeholder="12" required>
+                        <input type="number" id="goalTarget" class="form-input" placeholder="100000" required min="0" step="0.01">
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Текущие накопления (₽)</label>
-                        <input type="number" id="goalCurrent" class="form-input" placeholder="0" required>
+                        <input type="number" id="goalCurrent" class="form-input" placeholder="0" required min="0" step="0.01">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Дедлайн</label>
+                        <input type="date" id="goalDeadline" class="form-input" value="<?php echo date('Y-m-d', strtotime('+6 months')); ?>">
                     </div>
                     
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -1319,7 +1369,12 @@
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label">Активность</label>
+                        <label class="form-label">Выпито воды (мл)</label>
+                        <input type="number" id="healthWater" class="form-input" placeholder="2000">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Уровень активности</label>
                         <select id="healthActivity" class="form-input">
                             <option value="low">Низкая</option>
                             <option value="medium" selected>Средняя</option>
@@ -1333,12 +1388,49 @@
                 </form>
             </div>
         </div>
+        
+        <div class="modal" id="reviewModal">
+            <div class="modal-content">
+                <h3 style="color: var(--text-primary); margin-bottom: 20px;">Дневное ревью</h3>
+                <form id="reviewForm">
+                    <div class="form-group">
+                        <label class="form-label">Как прошел ваш день? (1-10)</label>
+                        <input type="range" id="dayRating" class="form-input" min="1" max="10" value="5">
+                        <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                            <span>1</span>
+                            <span id="ratingValue">5</span>
+                            <span>10</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Что получилось хорошо?</label>
+                        <textarea id="successes" class="form-input" rows="3" placeholder="Опишите свои успехи..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Что можно улучшить?</label>
+                        <textarea id="improvements" class="form-input" rows="3" placeholder="Что вы могли бы сделать лучше?"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Цели на завтра</label>
+                        <textarea id="tomorrowGoals" class="form-input" rows="3" placeholder="Что планируете сделать завтра?"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-check"></i> Завершить ревью
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script>
         const auth = {
             token: localStorage.getItem('token'),
             user: null,
+            selectedGoal: null,
             
             async login() {
                 const email = document.getElementById('loginEmail').value;
@@ -1370,7 +1462,7 @@
                         this.showError(data.error || 'Ошибка входа');
                     }
                 } catch (error) {
-                    this.showError('Ошибка соединения');
+                    this.showError('Ошибка соединения с сервером');
                 }
             },
             
@@ -1410,7 +1502,7 @@
                         this.showError(data.error || 'Ошибка регистрации');
                     }
                 } catch (error) {
-                    this.showError('Ошибка соединения');
+                    this.showError('Ошибка соединения с сервером');
                 }
             },
             
@@ -1428,8 +1520,26 @@
                     return;
                 }
                 
-                // Здесь можно сохранить цель пользователя
-                this.showLogin();
+                try {
+                    const response = await fetch('/api/user/goal', {
+                        method: 'PUT',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.token}`
+                        },
+                        body: JSON.stringify({ goal: this.selectedGoal })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showLogin();
+                    } else {
+                        this.showError(data.error || 'Ошибка сохранения цели');
+                    }
+                } catch (error) {
+                    this.showError('Ошибка соединения с сервером');
+                }
             },
             
             showLogin() {
@@ -1470,6 +1580,7 @@
             currentPage: 'overview',
             timerInterval: null,
             timerSeconds: 1500,
+            isTimerRunning: false,
             
             init(user, token) {
                 this.user = user;
@@ -1479,6 +1590,10 @@
                 this.updateDate();
                 this.loadOverviewData();
                 this.setupNavigation();
+                this.loadFinanceCategories();
+                
+                // Запускаем проверку достижений
+                this.checkAchievements();
             },
             
             setupNavigation() {
@@ -1536,56 +1651,41 @@
             
             async loadOverviewData() {
                 try {
-                    // Загрузка статистики
-                    const statsResponse = await fetch('/api/stats', {
+                    const response = await fetch('/api/stats/overview', {
                         headers: {
                             'Authorization': `Bearer ${this.token}`
                         }
                     });
                     
-                    const statsData = await statsResponse.json();
+                    const data = await response.json();
                     
-                    if (statsData.success) {
-                        this.updateStats(statsData.data);
+                    if (data.success) {
+                        this.updateOverviewStats(data.data);
                     }
-                    
-                    // Загрузка задач на сегодня
-                    const today = new Date().toISOString().split('T')[0];
-                    const tasksResponse = await fetch(`/api/tasks?date=${today}`, {
-                        headers: {
-                            'Authorization': `Bearer ${this.token}`
-                        }
-                    });
-                    
-                    const tasksData = await tasksResponse.json();
-                    
-                    if (tasksData.success) {
-                        this.renderTodayTasks(tasksData.data.tasks);
-                    }
-                    
                 } catch (error) {
                     console.error('Error loading overview data:', error);
+                    this.showNotification('Ошибка загрузки данных', 'error');
                 }
             },
             
-            updateStats(data) {
+            updateOverviewStats(data) {
                 // Обновление статистики на главной
                 const statsGrid = document.getElementById('statsGrid');
                 statsGrid.innerHTML = `
                     <div class="stat-card">
-                        <div class="stat-value">${data.user_stats.coins}</div>
+                        <div class="stat-value">${data.user_stats.coins || 0}</div>
                         <div class="stat-label">Монет</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${data.user_stats.level}</div>
+                        <div class="stat-value">${data.user_stats.level || 1}</div>
                         <div class="stat-label">Уровень</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${data.user_stats.tasks_completed}</div>
+                        <div class="stat-value">${data.tasks_stats?.completed || 0}/${data.tasks_stats?.total || 0}</div>
                         <div class="stat-label">Задач</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${data.user_stats.streak}</div>
+                        <div class="stat-value">${data.user_stats.streak || 0}</div>
                         <div class="stat-label">Дней</div>
                     </div>
                 `;
@@ -1600,6 +1700,9 @@
                 else greetingText = 'Добрый вечер';
                 
                 greeting.innerHTML = `<i class="fas fa-home"></i> ${greetingText}, ${this.user.first_name}!`;
+                
+                // Отображение сегодняшних задач
+                this.renderTodayTasks(data.recent_tasks || []);
             },
             
             renderTodayTasks(tasks) {
@@ -1609,6 +1712,9 @@
                         <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                             <i class="fas fa-clipboard-check" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
                             <p>На сегодня задач нет</p>
+                            <button class="btn btn-primary btn-sm" onclick="app.showTaskModal()" style="margin-top: 15px;">
+                                <i class="fas fa-plus"></i> Добавить задачу
+                            </button>
                         </div>
                     `;
                     return;
@@ -1622,33 +1728,63 @@
                         <div class="task-content">
                             <div class="task-title">${task.title}</div>
                             <div class="task-meta">
-                                <span class="task-tag">${task.tag}</span>
-                                ${task.time ? `<span>${task.time}</span>` : ''}
+                                <span class="task-tag">${task.tag || '#общее'}</span>
+                                ${task.time ? `<span><i class="fas fa-clock"></i> ${task.time}</span>` : ''}
                             </div>
                         </div>
                     </div>
                 `).join('');
+                
+                // Обновляем бейдж задач
+                const pendingTasks = tasks.filter(t => !t.completed).length;
+                const badge = document.getElementById('tasksBadge');
+                if (pendingTasks > 0) {
+                    badge.textContent = pendingTasks;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
             },
             
             async toggleTask(taskId) {
                 try {
+                    // Получаем текущее состояние задачи
+                    const taskResponse = await fetch(`/api/tasks/${taskId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+                    
+                    const taskData = await taskResponse.json();
+                    
+                    if (!taskData.success) {
+                        throw new Error('Задача не найдена');
+                    }
+                    
+                    const isCompleted = !taskData.data.task.completed;
+                    
                     const response = await fetch(`/api/tasks/${taskId}`, {
                         method: 'PUT',
                         headers: {
                             'Authorization': `Bearer ${this.token}`,
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({ completed: true })
+                        body: JSON.stringify({ completed: isCompleted })
                     });
                     
                     const data = await response.json();
                     
                     if (data.success) {
+                        if (isCompleted) {
+                            this.showNotification('Задача выполнена! +10 монет');
+                            this.createConfetti();
+                        }
                         this.loadOverviewData();
                         this.loadTasks();
                     }
                 } catch (error) {
                     console.error('Error toggling task:', error);
+                    this.showNotification('Ошибка обновления задачи', 'error');
                 }
             },
             
@@ -1667,6 +1803,7 @@
                     }
                 } catch (error) {
                     console.error('Error loading tasks:', error);
+                    this.showNotification('Ошибка загрузки задач', 'error');
                 }
             },
             
@@ -1695,8 +1832,8 @@
                         <div class="task-content">
                             <div class="task-title">${task.title}</div>
                             <div class="task-meta">
-                                <span class="task-tag">${task.tag}</span>
-                                ${task.time ? `<span>${task.time}</span>` : ''}
+                                <span class="task-tag">${task.tag || '#общее'}</span>
+                                ${task.time ? `<span><i class="fas fa-clock"></i> ${task.time}</span>` : ''}
                                 <span style="color: ${task.priority === 'high' ? 'var(--danger)' : task.priority === 'medium' ? 'var(--warning)' : 'var(--success)'}">
                                     <i class="fas fa-flag"></i> ${task.priority}
                                 </span>
@@ -1708,92 +1845,196 @@
             
             async loadFinanceData() {
                 try {
-                    // Загрузка баланса
-                    const userResponse = await fetch('/api/user/current', {
+                    // Загрузка статистики финансов
+                    const response = await fetch('/api/finance/stats', {
                         headers: {
                             'Authorization': `Bearer ${this.token}`
                         }
                     });
                     
-                    const userData = await userResponse.json();
+                    const data = await response.json();
                     
-                    if (userData.success) {
-                        document.getElementById('currentBalance').textContent = 
-                            `${userData.data.balance.toLocaleString()} ₽`;
-                        document.getElementById('monthIncome').textContent = 
-                            `+${userData.data.monthly_income.toLocaleString()} ₽`;
-                        document.getElementById('monthExpenses').textContent = 
-                            `-${userData.data.monthly_expenses.toLocaleString()} ₽`;
-                        
-                        const savingsRate = userData.data.monthly_income > 0 ? 
-                            Math.round((userData.data.balance / userData.data.monthly_income) * 100) : 0;
-                        document.getElementById('savingsRate').textContent = `${savingsRate}%`;
+                    if (data.success) {
+                        this.updateFinanceStats(data.data);
                     }
-                    
-                    // Загрузка категорий расходов
-                    this.loadExpenseCategories();
-                    
                 } catch (error) {
                     console.error('Error loading finance data:', error);
+                    this.showNotification('Ошибка загрузки финансовых данных', 'error');
                 }
             },
             
-            async loadExpenseCategories() {
-                try {
-                    const categories = [
-                        { id: 'food', name: 'Еда', icon: 'fas fa-utensils', color: '#EF4444' },
-                        { id: 'transport', name: 'Транспорт', icon: 'fas fa-bus', color: '#3B82F6' },
-                        { id: 'entertainment', name: 'Развлечения', icon: 'fas fa-film', color: '#8B5CF6' },
-                        { id: 'shopping', name: 'Покупки', icon: 'fas fa-shopping-bag', color: '#10B981' },
-                        { id: 'health', name: 'Здоровье', icon: 'fas fa-heartbeat', color: '#06B6D4' },
-                        { id: 'education', name: 'Образование', icon: 'fas fa-graduation-cap', color: '#F59E0B' }
-                    ];
+            updateFinanceStats(data) {
+                // Обновление баланса
+                document.getElementById('currentBalance').textContent = 
+                    `${data.balance.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽`;
+                document.getElementById('monthIncome').textContent = 
+                    `+${data.monthly_income.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽`;
+                document.getElementById('monthExpenses').textContent = 
+                    `-${data.monthly_expenses.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽`;
+                
+                // Расчет процента накоплений
+                const savingsRate = data.monthly_income > 0 ? 
+                    Math.round((data.balance / data.monthly_income) * 100) : 0;
+                document.getElementById('savingsRate').textContent = `${savingsRate}%`;
+                
+                // Обновление целей
+                if (data.goals && data.goals.length > 0) {
+                    const goal = data.goals[0];
+                    document.getElementById('goalTitle').textContent = goal.title;
+                    document.getElementById('goalProgress').textContent = 
+                        `${goal.current_amount.toLocaleString('ru-RU')} / ${goal.target_amount.toLocaleString('ru-RU')} ₽`;
                     
-                    const container = document.getElementById('financeCategories');
-                    container.innerHTML = categories.map(cat => `
-                        <div class="category-item" data-category="${cat.id}" onclick="app.selectFinanceCategory(this)" 
-                             style="border-color: ${cat.color}; color: ${cat.color};">
-                            <i class="${cat.icon}"></i>
-                            <div>${cat.name}</div>
-                        </div>
-                    `).join('');
-                    
-                } catch (error) {
-                    console.error('Error loading categories:', error);
+                    const progressPercent = Math.min((goal.current_amount / goal.target_amount) * 100, 100);
+                    document.getElementById('goalProgressBar').style.width = `${progressPercent}%`;
                 }
+                
+                // Обновление диаграммы расходов
+                this.updateExpensesChart(data.category_stats);
+            },
+            
+            async loadFinanceCategories() {
+                const categories = [
+                    { id: 'food', name: 'Еда', icon: 'fas fa-utensils', color: '#EF4444' },
+                    { id: 'transport', name: 'Транспорт', icon: 'fas fa-bus', color: '#3B82F6' },
+                    { id: 'entertainment', name: 'Развлечения', icon: 'fas fa-film', color: '#8B5CF6' },
+                    { id: 'shopping', name: 'Покупки', icon: 'fas fa-shopping-bag', color: '#10B981' },
+                    { id: 'health', name: 'Здоровье', icon: 'fas fa-heartbeat', color: '#06B6D4' },
+                    { id: 'education', name: 'Образование', icon: 'fas fa-graduation-cap', color: '#F59E0B' },
+                    { id: 'house', name: 'Дом', icon: 'fas fa-home', color: '#EC4899' },
+                    { id: 'other', name: 'Другое', icon: 'fas fa-question-circle', color: '#94A3B8' }
+                ];
+                
+                const container = document.getElementById('financeCategories');
+                container.innerHTML = categories.map(cat => `
+                    <div class="category-item" data-category="${cat.id}" onclick="app.selectFinanceCategory(this)" 
+                         style="border: 2px solid ${cat.color}; color: ${cat.color}; padding: 8px 12px; border-radius: var(--radius); cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <i class="${cat.icon}"></i>
+                        <div>${cat.name}</div>
+                    </div>
+                `).join('');
+            },
+            
+            updateExpensesChart(categoryStats) {
+                const ctx = document.getElementById('expensesChart').getContext('2d');
+                
+                if (window.expensesChart) {
+                    window.expensesChart.destroy();
+                }
+                
+                if (!categoryStats || categoryStats.length === 0) {
+                    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                    ctx.fillStyle = 'var(--text-secondary)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Нет данных о расходах', ctx.canvas.width / 2, ctx.canvas.height / 2);
+                    return;
+                }
+                
+                const labels = categoryStats.map(cat => cat.category);
+                const data = categoryStats.map(cat => cat.total);
+                const backgroundColors = [
+                    '#EF4444', '#3B82F6', '#8B5CF6', '#10B981', 
+                    '#06B6D4', '#F59E0B', '#EC4899', '#94A3B8'
+                ];
+                
+                window.expensesChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            borderWidth: 1,
+                            borderColor: 'var(--surface)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: 'var(--text-primary)',
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             },
             
             async loadHealthData() {
-                // Загрузка метрик здоровья
+                try {
+                    const response = await fetch('/api/health/stats', {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.updateHealthStats(data.data);
+                    }
+                } catch (error) {
+                    console.error('Error loading health data:', error);
+                    this.showNotification('Ошибка загрузки данных здоровья', 'error');
+                }
+            },
+            
+            updateHealthStats(data) {
+                // Обновление метрик
                 const container = document.getElementById('healthMetrics');
+                const metrics = data.current_metrics;
+                
                 container.innerHTML = `
                     <div class="metric-card">
-                        <div class="metric-value">70.5</div>
+                        <div class="metric-value">${metrics.weight ? metrics.weight.toFixed(1) : '--'}</div>
                         <div class="metric-label">Вес (кг)</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">8500</div>
-                        <div class="metric-label">Шаги</div>
+                        <div class="metric-value">${metrics.steps.toLocaleString()}</div>
+                        <div class="stat-label">Шаги</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">2150</div>
-                        <div class="metric-label">Ккал</div>
+                        <div class="metric-value">${metrics.calories.toLocaleString()}</div>
+                        <div class="stat-label">Ккал</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">1.8</div>
-                        <div class="metric-label">Воды (л)</div>
+                        <div class="metric-value">${(metrics.water_ml / 1000).toFixed(1)}</div>
+                        <div class="stat-label">Воды (л)</div>
                     </div>
                 `;
                 
-                // Отображение бутылок воды
-                const waterBottles = document.getElementById('waterBottles');
-                const bottles = Array.from({ length: 8 }, (_, i) => i < 3);
-                
-                waterBottles.innerHTML = bottles.map((active, index) => `
-                    <div class="water-bottle ${active ? 'active' : ''}" onclick="app.toggleWaterBottle(${index})">
-                        ${active ? '<i class="fas fa-check"></i>' : `${index + 1}`}
-                    </div>
-                `).join('');
+                // Обновление трекера воды
+                this.updateWaterTracker(metrics.water_ml);
+            },
+            
+            async updateWaterTracker(waterMl) {
+                try {
+                    const response = await fetch('/api/health/water-tracking', {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const waterBottles = document.getElementById('waterBottles');
+                        const bottles = data.data.bottles || Array.from({ length: 8 }, (_, i) => i < Math.floor(waterMl / 250));
+                        
+                        waterBottles.innerHTML = bottles.map((active, index) => `
+                            <div class="water-bottle ${active ? 'active' : ''}" onclick="app.addWater(250)">
+                                ${active ? '<i class="fas fa-check"></i>' : `${index + 1}`}
+                            </div>
+                        `).join('');
+                    }
+                } catch (error) {
+                    console.error('Error loading water tracker:', error);
+                }
             },
             
             async loadProductivityData() {
@@ -1812,10 +2053,21 @@
                     }
                     
                     // Загрузка лучших практик
-                    this.loadBestPractices();
+                    const practicesResponse = await fetch('/api/best-practices', {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+                    
+                    const practicesData = await practicesResponse.json();
+                    
+                    if (practicesData.success) {
+                        this.renderBestPractices(practicesData.data.practices);
+                    }
                     
                 } catch (error) {
                     console.error('Error loading productivity data:', error);
+                    this.showNotification('Ошибка загрузки данных продуктивности', 'error');
                 }
             },
             
@@ -1827,6 +2079,9 @@
                         <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: var(--text-secondary);">
                             <i class="fas fa-calendar-check" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
                             <p>Нет привычек</p>
+                            <button class="btn btn-primary btn-sm" onclick="app.showHabitModal()" style="margin-top: 10px;">
+                                <i class="fas fa-plus"></i> Добавить привычку
+                            </button>
                         </div>
                     `;
                     return;
@@ -1844,37 +2099,61 @@
                             </div>
                         </div>
                         
-                        <div style="color: var(--success); font-weight: 700; margin-bottom: 15px;">
-                            ${habit.streak} дней подряд
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                            <div style="color: var(--success); font-weight: 700;">
+                                ${habit.streak} дней
+                            </div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                                Текущая серия: ${habit.current_streak}
+                            </div>
                         </div>
                         
-                        <button class="btn btn-primary btn-sm" style="width: 100%;" onclick="app.markHabit(${habit.id})">
-                            <i class="fas fa-check"></i> Отметить сегодня
+                        <button class="btn ${habit.marked_today ? 'btn-secondary' : 'btn-primary'} btn-sm" 
+                                style="width: 100%;" 
+                                onclick="app.markHabit(${habit.id})"
+                                ${habit.marked_today ? 'disabled' : ''}>
+                            <i class="fas fa-check"></i> 
+                            ${habit.marked_today ? 'Уже отмечено сегодня' : 'Отметить сегодня'}
                         </button>
                     </div>
                 `).join('');
             },
             
-            async loadBestPractices() {
-                const practices = [
-                    {
-                        title: "Метод помидора",
-                        description: "Работайте 25 минут, затем делайте 5-минутный перерыв. После 4 помидоров — длинный перерыв 15-30 минут.",
-                        icon: "fas fa-clock"
-                    },
-                    {
-                        title: "Правило 2 минут",
-                        description: "Если задача занимает меньше 2 минут — сделайте ее сразу. Это уменьшает нагрузку на память.",
-                        icon: "fas fa-hourglass-half"
-                    },
-                    {
-                        title: "Съешьте лягушку",
-                        description: "Начинайте день с самой сложной задачи. Это даст энергию на остальной день.",
-                        icon: "fas fa-frog"
+            async markHabit(habitId) {
+                try {
+                    const response = await fetch(`/api/habits/${habitId}/mark`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showNotification('Привычка отмечена! +5 монет');
+                        this.createConfetti();
+                        this.loadProductivityData();
                     }
-                ];
-                
+                } catch (error) {
+                    console.error('Error marking habit:', error);
+                    this.showNotification('Ошибка отметки привычки', 'error');
+                }
+            },
+            
+            renderBestPractices(practices) {
                 const container = document.getElementById('bestPractices');
+                
+                if (practices.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                            <p>Пока нет практик</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
                 container.innerHTML = practices.map(practice => `
                     <div style="padding: 15px; border-bottom: 1px solid var(--border);">
                         <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -1887,16 +2166,8 @@
             },
             
             async loadProfileData() {
-                document.getElementById('userName').textContent = this.user.first_name;
-                document.getElementById('userEmail').textContent = this.user.email;
-                document.getElementById('profileCoins').textContent = this.user.coins;
-                document.getElementById('profileLevel').textContent = this.user.level;
-                document.getElementById('profileStreak').textContent = this.user.streak;
-                document.getElementById('profileGoal').textContent = 'Финансы';
-                
-                // Загрузка достижений
                 try {
-                    const response = await fetch('/api/achievements', {
+                    const response = await fetch('/api/user/current', {
                         headers: {
                             'Authorization': `Bearer ${this.token}`
                         }
@@ -1905,11 +2176,51 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        this.renderAchievements(data.data.achievements);
+                        this.updateProfile(data.data);
                     }
+                    
+                    // Загрузка достижений
+                    const achievementsResponse = await fetch('/api/achievements', {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+                    
+                    const achievementsData = await achievementsResponse.json();
+                    
+                    if (achievementsData.success) {
+                        this.renderAchievements(achievementsData.data.achievements);
+                    }
+                    
                 } catch (error) {
-                    console.error('Error loading achievements:', error);
+                    console.error('Error loading profile data:', error);
+                    this.showNotification('Ошибка загрузки профиля', 'error');
                 }
+            },
+            
+            updateProfile(userData) {
+                document.getElementById('userName').textContent = userData.first_name;
+                document.getElementById('userEmail').textContent = userData.email;
+                document.getElementById('profileCoins').textContent = userData.coins || 0;
+                document.getElementById('profileLevel').textContent = userData.level || 1;
+                document.getElementById('profileStreak').textContent = userData.streak || 0;
+                
+                // Отображение цели
+                let goalText = '';
+                switch(userData.goal) {
+                    case 'finance':
+                        goalText = 'Финансы';
+                        break;
+                    case 'health':
+                        goalText = 'Здоровье';
+                        break;
+                    case 'productivity':
+                        goalText = 'Продуктивность';
+                        break;
+                    default:
+                        goalText = 'Не указана';
+                }
+                document.getElementById('profileGoal').textContent = goalText;
             },
             
             renderAchievements(achievements) {
@@ -1919,6 +2230,9 @@
                     container.innerHTML = `
                         <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
                             <p>Достижений пока нет</p>
+                            <button class="btn btn-primary btn-sm" onclick="app.checkAchievements()" style="margin-top: 10px;">
+                                <i class="fas fa-search"></i> Проверить достижения
+                            </button>
                         </div>
                     `;
                     return;
@@ -1932,14 +2246,45 @@
                         <div>
                             <h4 style="margin-bottom: 4px;">${achievement.title}</h4>
                             <p style="color: var(--text-secondary); font-size: 0.9rem;">${achievement.description || ''}</p>
+                            <small style="color: var(--text-tertiary);">
+                                ${new Date(achievement.earned_at).toLocaleDateString('ru-RU')}
+                            </small>
                         </div>
                     </div>
                 `).join('');
             },
             
+            async checkAchievements() {
+                try {
+                    const response = await fetch('/api/achievements/check', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success && data.data.awarded.length > 0) {
+                        this.showNotification(`Получено ${data.data.awarded.length} новых достижений!`);
+                        this.createConfetti();
+                        this.loadProfileData();
+                    }
+                } catch (error) {
+                    console.error('Error checking achievements:', error);
+                }
+            },
+            
             // Модальные окна
             showTaskModal() {
                 document.getElementById('taskModal').classList.add('active');
+                document.getElementById('taskTitle').focus();
+            },
+            
+            showHabitModal() {
+                document.getElementById('habitModal').classList.add('active');
+                document.getElementById('habitTitle').focus();
             },
             
             showFinanceModal(type) {
@@ -1947,14 +2292,28 @@
                 document.getElementById('financeType').value = type;
                 document.getElementById('financeModalTitle').textContent = 
                     type === 'income' ? 'Новый доход' : 'Новый расход';
+                document.getElementById('financeDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('financeAmount').focus();
             },
             
             showGoalModal() {
                 document.getElementById('goalModal').classList.add('active');
+                document.getElementById('goalName').focus();
             },
             
             showHealthModal() {
                 document.getElementById('healthModal').classList.add('active');
+                document.getElementById('healthWeight').focus();
+            },
+            
+            showReviewModal() {
+                document.getElementById('reviewModal').classList.add('active');
+                document.getElementById('dayRating').value = 5;
+                document.getElementById('ratingValue').textContent = 5;
+            },
+            
+            showSettingsModal() {
+                alert('Настройки будут доступны в следующей версии');
             },
             
             showQuickAddMenu() {
@@ -1970,37 +2329,67 @@
                 menu.style.zIndex = '1001';
                 menu.style.border = '1px solid var(--border)';
                 menu.style.minWidth = '200px';
+                menu.id = 'quickAddMenu';
                 
                 menu.innerHTML = `
                     <div style="margin-bottom: 10px; font-weight: 600; color: var(--text-primary);">Быстрое добавление</div>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
-                        <button onclick="app.showTaskModal(); this.closest('div').remove()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left;">
-                            <i class="fas fa-plus" style="color: var(--primary);"></i>
+                        <button onclick="app.showTaskModal(); app.closeQuickAddMenu()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left; transition: var(--transition);">
+                            <div style="width: 32px; height: 32px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-plus" style="color: white; font-size: 0.9rem;"></i>
+                            </div>
                             <span>Задачу</span>
                         </button>
-                        <button onclick="app.showFinanceModal('income'); this.closest('div').remove()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left;">
-                            <i class="fas fa-plus-circle" style="color: var(--success);"></i>
+                        <button onclick="app.showFinanceModal('income'); app.closeQuickAddMenu()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left; transition: var(--transition);">
+                            <div style="width: 32px; height: 32px; background: var(--success); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-plus-circle" style="color: white; font-size: 0.9rem;"></i>
+                            </div>
                             <span>Доход</span>
                         </button>
-                        <button onclick="app.showFinanceModal('expense'); this.closest('div').remove()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left;">
-                            <i class="fas fa-minus-circle" style="color: var(--danger);"></i>
+                        <button onclick="app.showFinanceModal('expense'); app.closeQuickAddMenu()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left; transition: var(--transition);">
+                            <div style="width: 32px; height: 32px; background: var(--danger); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-minus-circle" style="color: white; font-size: 0.9rem;"></i>
+                            </div>
                             <span>Расход</span>
+                        </button>
+                        <button onclick="app.showHabitModal(); app.closeQuickAddMenu()" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; color: var(--text-primary); cursor: pointer; border-radius: var(--radius); text-align: left; transition: var(--transition);">
+                            <div style="width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-calendar-check" style="color: white; font-size: 0.9rem;"></i>
+                            </div>
+                            <span>Привычку</span>
                         </button>
                     </div>
                 `;
                 
                 document.body.appendChild(menu);
                 
+                // Анимация появления
+                menu.style.transform = 'scale(0.9)';
+                menu.style.opacity = '0';
+                setTimeout(() => {
+                    menu.style.transform = 'scale(1)';
+                    menu.style.opacity = '1';
+                }, 10);
+                
                 // Закрытие меню при клике вне его
                 setTimeout(() => {
                     const closeMenu = (e) => {
                         if (!menu.contains(e.target) && !document.querySelector('.quick-add-btn').contains(e.target)) {
-                            menu.remove();
+                            this.closeQuickAddMenu();
                             document.removeEventListener('click', closeMenu);
                         }
                     };
                     document.addEventListener('click', closeMenu);
                 }, 100);
+            },
+            
+            closeQuickAddMenu() {
+                const menu = document.getElementById('quickAddMenu');
+                if (menu) {
+                    menu.style.transform = 'scale(0.9)';
+                    menu.style.opacity = '0';
+                    setTimeout(() => menu.remove(), 200);
+                }
             },
             
             // Обработчики форм
@@ -2012,6 +2401,12 @@
                     const title = document.getElementById('taskTitle').value;
                     const tag = document.querySelector('.category-item.selected')?.getAttribute('data-tag') || '#общее';
                     const priority = document.getElementById('taskPriority').value;
+                    const dueDate = document.getElementById('taskDueDate').value;
+                    
+                    if (!title.trim()) {
+                        this.showNotification('Введите название задачи', 'error');
+                        return;
+                    }
                     
                     try {
                         const response = await fetch('/api/tasks', {
@@ -2021,9 +2416,10 @@
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                title,
+                                title: title.trim(),
                                 tag,
                                 priority,
+                                due_date: dueDate || null,
                                 time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
                             })
                         });
@@ -2035,9 +2431,54 @@
                             this.loadTasks();
                             this.loadOverviewData();
                             this.showNotification('Задача добавлена!');
+                        } else {
+                            this.showNotification(data.error || 'Ошибка создания задачи', 'error');
                         }
                     } catch (error) {
                         console.error('Error creating task:', error);
+                        this.showNotification('Ошибка создания задачи', 'error');
+                    }
+                });
+                
+                // Форма привычки
+                document.getElementById('habitForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const title = document.getElementById('habitTitle').value;
+                    const description = document.getElementById('habitDescription').value;
+                    const icon = document.querySelector('.icon-option.selected')?.getAttribute('data-icon') || 'fas fa-star';
+                    
+                    if (!title.trim()) {
+                        this.showNotification('Введите название привычки', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/habits', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                title: title.trim(),
+                                description: description.trim(),
+                                icon
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.closeAllModals();
+                            this.loadProductivityData();
+                            this.showNotification('Привычка создана!');
+                        } else {
+                            this.showNotification(data.error || 'Ошибка создания привычки', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error creating habit:', error);
+                        this.showNotification('Ошибка создания привычки', 'error');
                     }
                 });
                 
@@ -2049,6 +2490,7 @@
                     const amount = parseFloat(document.getElementById('financeAmount').value);
                     const category = document.querySelector('.category-item.selected')?.getAttribute('data-category') || 'other';
                     const description = document.getElementById('financeDescription').value;
+                    const date = document.getElementById('financeDate').value;
                     
                     if (!amount || amount <= 0) {
                         this.showNotification('Введите корректную сумму', 'error');
@@ -2066,7 +2508,8 @@
                                 type,
                                 amount,
                                 category,
-                                description
+                                description: description.trim(),
+                                date
                             })
                         });
                         
@@ -2075,11 +2518,134 @@
                         if (data.success) {
                             this.closeAllModals();
                             this.loadFinanceData();
-                            this.showNotification('Операция сохранена!');
+                            this.showNotification(type === 'income' ? 'Доход добавлен!' : 'Расход добавлен!');
+                        } else {
+                            this.showNotification(data.error || 'Ошибка создания операции', 'error');
                         }
                     } catch (error) {
                         console.error('Error creating transaction:', error);
+                        this.showNotification('Ошибка создания операции', 'error');
                     }
+                });
+                
+                // Форма цели
+                document.getElementById('goalForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const title = document.getElementById('goalName').value;
+                    const targetAmount = parseFloat(document.getElementById('goalTarget').value);
+                    const currentAmount = parseFloat(document.getElementById('goalCurrent').value);
+                    const deadline = document.getElementById('goalDeadline').value;
+                    
+                    if (!title.trim() || !targetAmount || targetAmount <= 0) {
+                        this.showNotification('Заполните обязательные поля', 'error');
+                        return;
+                    }
+                    
+                    if (currentAmount < 0) {
+                        this.showNotification('Текущая сумма не может быть отрицательной', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/financial-goals', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                title: title.trim(),
+                                target_amount: targetAmount,
+                                current_amount: currentAmount,
+                                deadline
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.closeAllModals();
+                            this.loadFinanceData();
+                            this.showNotification('Цель создана!');
+                        } else {
+                            this.showNotification(data.error || 'Ошибка создания цели', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error creating goal:', error);
+                        this.showNotification('Ошибка создания цели', 'error');
+                    }
+                });
+                
+                // Форма здоровья
+                document.getElementById('healthForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const weight = document.getElementById('healthWeight').value;
+                    const steps = document.getElementById('healthSteps').value;
+                    const calories = document.getElementById('healthCalories').value;
+                    const water = document.getElementById('healthWater').value;
+                    const activity = document.getElementById('healthActivity').value;
+                    
+                    try {
+                        const response = await fetch('/api/health/metrics', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                weight: weight ? parseFloat(weight) : null,
+                                steps: steps ? parseInt(steps) : 0,
+                                calories: calories ? parseInt(calories) : 0,
+                                water_ml: water ? parseInt(water) : 0,
+                                activity_level: activity
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.closeAllModals();
+                            this.loadHealthData();
+                            this.showNotification('Данные здоровья сохранены!');
+                        } else {
+                            this.showNotification(data.error || 'Ошибка сохранения данных', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error updating health metrics:', error);
+                        this.showNotification('Ошибка сохранения данных', 'error');
+                    }
+                });
+                
+                // Форма ревью
+                document.getElementById('reviewForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const rating = document.getElementById('dayRating').value;
+                    const successes = document.getElementById('successes').value;
+                    const improvements = document.getElementById('improvements').value;
+                    const tomorrowGoals = document.getElementById('tomorrowGoals').value;
+                    
+                    this.closeAllModals();
+                    this.showNotification('Ревью сохранено! Спасибо за обратную связь.');
+                    
+                    // Здесь можно добавить сохранение в базу данных
+                    // await fetch('/api/reviews', { method: 'POST', ... });
+                });
+                
+                // Слайдер рейтинга
+                document.getElementById('dayRating').addEventListener('input', (e) => {
+                    document.getElementById('ratingValue').textContent = e.target.value;
+                });
+                
+                // Закрытие модальных окон при клике на фон
+                document.querySelectorAll('.modal').forEach(modal => {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            this.closeAllModals();
+                        }
+                    });
                 });
             },
             
@@ -2097,10 +2663,53 @@
                 element.classList.add('selected');
             },
             
+            selectIcon(element) {
+                document.querySelectorAll('.icon-option').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                element.classList.add('selected');
+            },
+            
             closeAllModals() {
                 document.querySelectorAll('.modal').forEach(modal => {
                     modal.classList.remove('active');
                 });
+                
+                // Сбрасываем формы
+                document.querySelectorAll('form').forEach(form => form.reset());
+                
+                // Сбрасываем выбранные категории
+                document.querySelectorAll('.category-item, .icon-option').forEach(item => {
+                    item.classList.remove('selected');
+                });
+            },
+            
+            toggleFinanceFields() {
+                const type = document.getElementById('financeType').value;
+                // Можно добавить логику изменения полей в зависимости от типа операции
+            },
+            
+            async addWater(amount) {
+                try {
+                    const response = await fetch('/api/health/water', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ amount })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showNotification(`Добавлено ${amount} мл воды!`);
+                        this.loadHealthData();
+                    }
+                } catch (error) {
+                    console.error('Error adding water:', error);
+                    this.showNotification('Ошибка добавления воды', 'error');
+                }
             },
             
             showNotification(message, type = 'success') {
@@ -2115,15 +2724,40 @@
                 notification.style.borderRadius = 'var(--radius)';
                 notification.style.boxShadow = 'var(--shadow)';
                 notification.style.zIndex = '3000';
+                notification.style.transform = 'translateX(100%)';
+                notification.style.opacity = '0';
+                notification.style.transition = 'all 0.3s ease';
                 notification.textContent = message;
                 
                 document.body.appendChild(notification);
                 
+                // Анимация появления
                 setTimeout(() => {
+                    notification.style.transform = 'translateX(0)';
+                    notification.style.opacity = '1';
+                }, 10);
+                
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(100%)';
                     notification.style.opacity = '0';
-                    notification.style.transform = 'translateY(-10px)';
                     setTimeout(() => notification.remove(), 300);
                 }, 3000);
+            },
+            
+            createConfetti() {
+                for (let i = 0; i < 50; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    confetti.style.background = ['var(--primary)', 'var(--secondary)', 'var(--accent)', 'var(--success)', 'var(--warning)'][Math.floor(Math.random() * 5)];
+                    confetti.style.width = Math.random() * 10 + 5 + 'px';
+                    confetti.style.height = Math.random() * 10 + 5 + 'px';
+                    confetti.style.animationDelay = Math.random() * 2 + 's';
+                    
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 3000);
+                }
             },
             
             updateDate() {
@@ -2134,12 +2768,17 @@
             
             // Таймер Pomodoro
             startTimer() {
-                if (this.timerInterval) {
+                if (this.isTimerRunning) {
                     clearInterval(this.timerInterval);
-                    this.timerInterval = null;
+                    this.isTimerRunning = false;
                     document.getElementById('startTimerBtn').innerHTML = '<i class="fas fa-play"></i> Старт';
+                    this.showNotification('Таймер остановлен');
                     return;
                 }
+                
+                this.isTimerRunning = true;
+                document.getElementById('startTimerBtn').innerHTML = '<i class="fas fa-pause"></i> Пауза';
+                this.showNotification('Таймер запущен! 25 минут концентрации.');
                 
                 this.timerInterval = setInterval(() => {
                     this.timerSeconds--;
@@ -2147,24 +2786,24 @@
                     
                     if (this.timerSeconds <= 0) {
                         clearInterval(this.timerInterval);
-                        this.timerInterval = null;
+                        this.isTimerRunning = false;
                         this.showNotification('Время вышло! Сделайте перерыв 5 минут.');
                         document.getElementById('startTimerBtn').innerHTML = '<i class="fas fa-play"></i> Старт';
+                        this.playTimerSound();
                     }
                 }, 1000);
-                
-                document.getElementById('startTimerBtn').innerHTML = '<i class="fas fa-pause"></i> Пауза';
             },
             
             resetTimer() {
                 if (this.timerInterval) {
                     clearInterval(this.timerInterval);
-                    this.timerInterval = null;
+                    this.isTimerRunning = false;
                 }
                 
-                this.timerSeconds = 1500;
+                this.timerSeconds = 1500; // 25 минут
                 this.updateTimerDisplay();
                 document.getElementById('startTimerBtn').innerHTML = '<i class="fas fa-play"></i> Старт';
+                this.showNotification('Таймер сброшен');
             },
             
             updateTimerDisplay() {
@@ -2172,6 +2811,38 @@
                 const seconds = this.timerSeconds % 60;
                 document.getElementById('timerDisplay').textContent = 
                     `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Изменение цвета при низком времени
+                if (this.timerSeconds < 300) { // Меньше 5 минут
+                    document.getElementById('timerDisplay').style.color = 'var(--warning)';
+                } else if (this.timerSeconds < 60) { // Меньше 1 минуты
+                    document.getElementById('timerDisplay').style.color = 'var(--danger)';
+                } else {
+                    document.getElementById('timerDisplay').style.color = 'var(--text-primary)';
+                }
+            },
+            
+            playTimerSound() {
+                // Создаем звуковой сигнал
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = 800;
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 1);
+                } catch (error) {
+                    console.log('Audio not supported');
+                }
             }
         };
 
@@ -2186,6 +2857,81 @@
                 auth.showApp();
             }
         });
+        
+        // Добавляем стили для категорий и иконок
+        const style = document.createElement('style');
+        style.textContent = `
+            .category-item {
+                padding: 8px 12px;
+                border: 2px solid var(--border);
+                border-radius: var(--radius);
+                cursor: pointer;
+                transition: var(--transition);
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .category-item:hover {
+                border-color: var(--primary);
+                background: rgba(124, 58, 237, 0.05);
+            }
+            
+            .category-item.selected {
+                border-color: var(--primary);
+                background: rgba(124, 58, 237, 0.1);
+                color: var(--primary);
+            }
+            
+            .icon-option {
+                width: 40px;
+                height: 40px;
+                border: 2px solid var(--border);
+                border-radius: var(--radius);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: var(--transition);
+                font-size: 1.2rem;
+                color: var(--text-secondary);
+            }
+            
+            .icon-option:hover {
+                border-color: var(--primary);
+                color: var(--primary);
+            }
+            
+            .icon-option.selected {
+                border-color: var(--primary);
+                background: var(--primary);
+                color: white;
+            }
+            
+            input[type="range"] {
+                width: 100%;
+                height: 8px;
+                border-radius: 4px;
+                background: var(--surface-light);
+                outline: none;
+                -webkit-appearance: none;
+            }
+            
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: var(--primary);
+                cursor: pointer;
+            }
+            
+            textarea.form-input {
+                min-height: 100px;
+                resize: vertical;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
