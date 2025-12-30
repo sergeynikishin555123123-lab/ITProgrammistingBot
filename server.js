@@ -9,9 +9,12 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const express = require('express');
+const path = require('path');
 
-// ==================== ИНИЦИАЛИЗАЦИЯ ====================
 const app = express();
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS настройки
 const corsOptions = {
@@ -1621,12 +1624,10 @@ const startServer = async () => {
         console.log('✅ Система готова к работе');
         
         const PORT = process.env.PORT || 3000;
-        
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log('\n' + '='.repeat(80));
-            console.log(`✅ Сервер запущен на порту ${PORT}`);
-            console.log(`🌐 http://localhost:${PORT}`);
-            console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+app.listen(PORT, () => {
+    console.log(`🚀 AtomicFlow запущен на порту ${PORT}`);
+    console.log(`🌐 Frontend: http://localhost:${PORT}`);
+    console.log(`📊 API Health: http://localhost:${PORT}/health`);
             console.log('='.repeat(80));
             console.log('🚀 ATOMICFLOW ГОТОВ К РАБОТЕ!');
             console.log('='.repeat(80));
