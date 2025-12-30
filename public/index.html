@@ -2294,11 +2294,15 @@
                     type === 'income' ? 'Новый доход' : 'Новый расход';
                 document.getElementById('financeDate').value = new Date().toISOString().split('T')[0];
                 document.getElementById('financeAmount').focus();
+                document.getElementById('financeDate').value = new Date().toISOString().split('T')[0];
             },
             
             showGoalModal() {
                 document.getElementById('goalModal').classList.add('active');
                 document.getElementById('goalName').focus();
+                const sixMonthsLater = new Date();
+sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+document.getElementById('goalDeadline').value = sixMonthsLater.toISOString().split('T')[0];
             },
             
             showHealthModal() {
