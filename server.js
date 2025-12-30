@@ -1753,52 +1753,214 @@ async function initControllers(db) {
 
 // ========== МАРШРУТЫ ==========
 
-// Аутентификация
-app.post('/api/auth/register', (req, res) => authController.register(req, res));
-app.post('/api/auth/login', (req, res) => authController.login(req, res));
-app.get('/api/user/current', authMiddleware, (req, res) => authController.getCurrentUser(req, res));
-app.put('/api/user/goal', authMiddleware, (req, res) => authController.updateUserGoal(req, res));
+// Главная страница API
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: '🚀 Добро пожаловать в QuantumFlow API',
+        version: '1.0.0',
+        status: '🟢 Работает',
+        features: [
+            'Аутентификация пользователей',
+            'Управление задачами',
+            'Финансовый трекер',
+            'Трекер здоровья',
+            'Привычки и продуктивность',
+            'Система достижений'
+        ],
+        endpoints: {
+            auth: '/api/auth',
+            tasks: '/api/tasks',
+            finance: '/api/finance',
+            health: '/api/health',
+            habits: '/api/habits',
+            stats: '/api/stats'
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Health check
+app.get('/health', async (req, res) => {
+    try {
+        const db = await database.db;
+        await db.get('SELECT 1 as status');
+        
+        const tables = ['users', 'tasks', 'habits', 'transactions', 'health_metrics', 'financial_goals', 'achievements'];
+        const tableStatus = {};
+        
+        for (const table of tables) {
+            try {
+                await db.get(`SELECT 1 FROM ${table} LIMIT 1`);
+                tableStatus[table] = '✅ OK';
+            } catch (error) {
+                tableStatus[table] = '❌ ERROR';
+            }
+        }
+        
+        res.json({
+            success: true,
+            status: 'healthy',
+            database: 'connected',
+            tables: tableStatus,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            status: 'unhealthy',
+            database: 'disconnected',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ========== СОЗДАНИЕ РОУТЕРОВ ==========
+
+// Создаем роутеры
+const authRouter = express.Router();
+const apiRouter = express.Router();
+
+// ========== МАРШРУТЫ АУТЕНТИФИКАЦИИ (публичные) ==========
+
+// Регистрация
+authRouter.post('/register', async (req, res) => {
+    await authController.register(req, res);
+});
+
+// Вход
+authRouter.post('/login', async (req, res) => {
+    await authController.login(req, res);
+});
+
+// Подключаем роутер аутентификации
+app.use('/api/auth', authRouter);
+
+// ========== API МАРШРУТЫ (защищенные) ==========
+
+// Применяем middleware аутентификации ко всем API маршрутам
+apiRouter.use(authMiddleware);
+
+// Пользователь
+apiRouter.get('/user/current', async (req, res) => {
+    await authController.getCurrentUser(req, res);
+});
+
+apiRouter.put('/user/goal', async (req, res) => {
+    await authController.updateUserGoal(req, res);
+});
 
 // Задачи
-app.get('/api/tasks', authMiddleware, (req, res) => tasksController.getTasks(req, res));
-app.post('/api/tasks', authMiddleware, (req, res) => tasksController.createTask(req, res));
-app.put('/api/tasks/:id', authMiddleware, (req, res) => tasksController.updateTask(req, res));
-app.delete('/api/tasks/:id', authMiddleware, (req, res) => tasksController.deleteTask(req, res));
+apiRouter.get('/tasks', async (req, res) => {
+    await tasksController.getTasks(req, res);
+});
+
+apiRouter.post('/tasks', async (req, res) => {
+    await tasksController.createTask(req, res);
+});
+
+apiRouter.put('/tasks/:id', async (req, res) => {
+    await tasksController.updateTask(req, res);
+});
+
+apiRouter.delete('/tasks/:id', async (req, res) => {
+    await tasksController.deleteTask(req, res);
+});
 
 // Привычки
-app.get('/api/habits', authMiddleware, (req, res) => habitsController.getHabits(req, res));
-app.post('/api/habits', authMiddleware, (req, res) => habitsController.createHabit(req, res));
-app.post('/api/habits/:id/mark', authMiddleware, (req, res) => habitsController.markHabit(req, res));
-app.delete('/api/habits/:id', authMiddleware, (req, res) => habitsController.deleteHabit(req, res));
+apiRouter.get('/habits', async (req, res) => {
+    await habitsController.getHabits(req, res);
+});
+
+apiRouter.post('/habits', async (req, res) => {
+    await habitsController.createHabit(req, res);
+});
+
+apiRouter.post('/habits/:id/mark', async (req, res) => {
+    await habitsController.markHabit(req, res);
+});
+
+apiRouter.delete('/habits/:id', async (req, res) => {
+    await habitsController.deleteHabit(req, res);
+});
 
 // Финансы
-app.get('/api/transactions', authMiddleware, (req, res) => financeController.getTransactions(req, res));
-app.post('/api/transactions', authMiddleware, (req, res) => financeController.createTransaction(req, res));
-app.get('/api/financial-goals', authMiddleware, (req, res) => financeController.getFinancialGoals(req, res));
-app.post('/api/financial-goals', authMiddleware, (req, res) => financeController.createFinancialGoal(req, res));
-app.put('/api/financial-goals/:id', authMiddleware, (req, res) => financeController.updateFinancialGoal(req, res));
-app.get('/api/finance/stats', authMiddleware, (req, res) => financeController.getFinanceStats(req, res));
+apiRouter.get('/transactions', async (req, res) => {
+    await financeController.getTransactions(req, res);
+});
+
+apiRouter.post('/transactions', async (req, res) => {
+    await financeController.createTransaction(req, res);
+});
+
+apiRouter.get('/financial-goals', async (req, res) => {
+    await financeController.getFinancialGoals(req, res);
+});
+
+apiRouter.post('/financial-goals', async (req, res) => {
+    await financeController.createFinancialGoal(req, res);
+});
+
+apiRouter.put('/financial-goals/:id', async (req, res) => {
+    await financeController.updateFinancialGoal(req, res);
+});
+
+apiRouter.get('/finance/stats', async (req, res) => {
+    await financeController.getFinanceStats(req, res);
+});
 
 // Здоровье
-app.get('/api/health/metrics', authMiddleware, (req, res) => healthController.getHealthMetrics(req, res));
-app.post('/api/health/metrics', authMiddleware, (req, res) => healthController.updateHealthMetrics(req, res));
-app.post('/api/health/water', authMiddleware, (req, res) => healthController.updateWaterIntake(req, res));
-app.get('/api/health/water-tracking', authMiddleware, (req, res) => healthController.getWaterTracking(req, res));
-app.get('/api/health/stats', authMiddleware, (req, res) => healthController.getHealthStats(req, res));
+apiRouter.get('/health/metrics', async (req, res) => {
+    await healthController.getHealthMetrics(req, res);
+});
+
+apiRouter.post('/health/metrics', async (req, res) => {
+    await healthController.updateHealthMetrics(req, res);
+});
+
+apiRouter.post('/health/water', async (req, res) => {
+    await healthController.updateWaterIntake(req, res);
+});
+
+apiRouter.get('/health/water-tracking', async (req, res) => {
+    await healthController.getWaterTracking(req, res);
+});
+
+apiRouter.get('/health/stats', async (req, res) => {
+    await healthController.getHealthStats(req, res);
+});
 
 // Статистика
-app.get('/api/stats/overview', authMiddleware, (req, res) => statsController.getOverviewStats(req, res));
-app.get('/api/stats/productivity', authMiddleware, (req, res) => statsController.getProductivityStats(req, res));
+apiRouter.get('/stats/overview', async (req, res) => {
+    await statsController.getOverviewStats(req, res);
+});
+
+apiRouter.get('/stats/productivity', async (req, res) => {
+    await statsController.getProductivityStats(req, res);
+});
 
 // Достижения
-app.get('/api/achievements', authMiddleware, (req, res) => achievementsController.getAchievements(req, res));
-app.post('/api/achievements/check', authMiddleware, (req, res) => achievementsController.checkAndAwardAchievements(req, res));
+apiRouter.get('/achievements', async (req, res) => {
+    await achievementsController.getAchievements(req, res);
+});
 
-// Лучшие практики
-app.get('/api/best-practices', optionalAuthMiddleware, (req, res) => bestPracticesController.getBestPractices(req, res));
+apiRouter.post('/achievements/check', async (req, res) => {
+    await achievementsController.checkAndAwardAchievements(req, res);
+});
 
-// Утилитарные эндпоинты
-app.get('/api/calories/foods', optionalAuthMiddleware, async (req, res) => {
+// Подключаем основной API роутер
+app.use('/api', apiRouter);
+
+// ========== ПУБЛИЧНЫЕ МАРШРУТЫ ==========
+
+// Лучшие практики (публичный маршрут)
+app.get('/api/best-practices', async (req, res) => {
+    await bestPracticesController.getBestPractices(req, res);
+});
+
+// Поиск калорий (публичный маршрут)
+app.get('/api/calories/foods', async (req, res) => {
     try {
         const { query } = req.query;
         
@@ -1853,31 +2015,58 @@ app.get('/api/calories/foods', optionalAuthMiddleware, async (req, res) => {
     }
 });
 
-// Проверка здоровья сервера
-app.get('/api/health', (req, res) => {
+// Проверка API (публичный)
+app.get('/api/health-check', (req, res) => {
     res.json({
         success: true,
         message: 'QuantumFlow API работает',
         timestamp: new Date().toISOString(),
-        version: '1.0.0'
+        version: '1.0.0',
+        uptime: process.uptime()
     });
 });
 
+// ========== SPA ПОДДЕРЖКА ==========
+
 // Обслуживание статических файлов
+app.use(express.static('public'));
+
+// Все остальные GET запросы направляем на SPA
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Обработка ошибок 404 для API
+app.use('/api/*', (req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'API endpoint not found',
+        path: req.originalUrl,
+        method: req.method
+    });
 });
 
 // ========== ЗАПУСК СЕРВЕРА ==========
 async function startServer() {
     try {
+        console.log('🔄 Инициализация базы данных...');
         const database = new Database();
         const db = await database.connect();
         await database.initTables();
         await database.seedInitialData();
         
-        // Инициализируем контроллеры ПЕРЕД запуском сервера
+        console.log('🔄 Инициализация контроллеров...');
         await initControllers(db);
+        
+        console.log('✅ Контроллеры инициализированы:');
+        console.log('   • AuthController:', !!authController);
+        console.log('   • TasksController:', !!tasksController);
+        console.log('   • HabitsController:', !!habitsController);
+        console.log('   • FinanceController:', !!financeController);
+        console.log('   • HealthController:', !!healthController);
+        console.log('   • StatsController:', !!statsController);
+        console.log('   • AchievementsController:', !!achievementsController);
+        console.log('   • BestPracticesController:', !!bestPracticesController);
         
         app.listen(config.port, () => {
             console.log(`🚀 QuantumFlow запущен на порту ${config.port}`);
@@ -1885,14 +2074,18 @@ async function startServer() {
             console.log('\n🔑 ДОСТУПНЫЕ ЭНДПОИНТЫ:');
             console.log('   POST /api/auth/register - Регистрация');
             console.log('   POST /api/auth/login - Вход');
-            console.log('   GET  /api/user/current - Текущий пользователь');
-            console.log('   GET  /api/tasks - Получение задач');
-            console.log('   POST /api/tasks - Создание задачи');
-            console.log('   GET  /api/stats/overview - Статистика обзора');
-            console.log('   POST /api/transactions - Создание транзакции');
+            console.log('   GET  /api/user/current - Текущий пользователь (требуется токен)');
+            console.log('   GET  /api/tasks - Получение задач (требуется токен)');
+            console.log('   POST /api/tasks - Создание задачи (требуется токен)');
+            console.log('   GET  /api/stats/overview - Статистика обзора (требуется токен)');
+            console.log('   POST /api/transactions - Создание транзакции (требуется токен)');
+            console.log('   GET  /api/best-practices - Лучшие практики (публичный)');
             console.log('\n🔧 ДЕМО АККАУНТ:');
             console.log('   Email: demo@quantumflow.test');
             console.log('   Пароль: demo123');
+            console.log('\n📊 HEALTH CHECKS:');
+            console.log('   GET /health - Проверка базы данных');
+            console.log('   GET /api/health-check - Проверка API');
         });
         
     } catch (error) {
@@ -1900,17 +2093,3 @@ async function startServer() {
         process.exit(1);
     }
 }
-
-startServer();
-
-// ========== ОБРАБОТКА ЗАВЕРШЕНИЯ ==========
-process.on('SIGINT', async () => {
-    console.log('\n🛑 Остановка сервера...');
-    process.exit(0);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Необработанное отклонение промиса:', reason);
-});
-
-module.exports = { app };
