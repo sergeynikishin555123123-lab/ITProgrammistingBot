@@ -9,8 +9,6 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const express = require('express');
-const path = require('path');
 
 const app = express();
 
