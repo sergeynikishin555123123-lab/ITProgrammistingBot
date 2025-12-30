@@ -496,6 +496,39 @@ class AuthController {
             );
         }
     }
+
+    async updateUserGoal(req, res) {
+        try {
+            const { goal } = req.body;
+            
+            if (!goal) {
+                return res.status(400).json(
+                    Utils.errorResponse('Цель обязательна', 400)
+                );
+            }
+            
+            await this.db.run(
+                'UPDATE users SET goal = ? WHERE id = ?',
+                [goal, req.userId]
+            );
+            
+            const updatedUser = await this.db.get(
+                `SELECT id, email, username, first_name, last_name, avatar_url, 
+                        level, coins, streak, balance, monthly_income, monthly_expenses,
+                        tasks_completed, health_streak, goal
+                 FROM users WHERE id = ?`,
+                [req.userId]
+            );
+            
+            res.json(Utils.successResponse(updatedUser, 'Цель обновлена'));
+            
+        } catch (error) {
+            console.error('Update goal error:', error);
+            res.status(500).json(
+                Utils.errorResponse('Ошибка обновления цели')
+            );
+        }
+    }
 }
 
 class TasksController {
@@ -559,6 +592,24 @@ class TasksController {
             const taskId = result.lastID;
             const task = await this.db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
             
+            // Награда за первую задачу
+            const taskCount = await this.db.get(
+                'SELECT COUNT(*) as count FROM tasks WHERE user_id = ?',
+                [req.userId]
+            );
+            
+            if (taskCount.count === 1) {
+                await this.db.run(
+                    'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                    [req.userId, 'first_task', 'Первая задача', 'Вы создали свою первую задачу']
+                );
+                
+                await this.db.run(
+                    'UPDATE users SET coins = coins + 50 WHERE id = ?',
+                    [req.userId]
+                );
+            }
+            
             res.status(201).json(
                 Utils.successResponse({ task }, 'Задача создана')
             );
@@ -574,7 +625,7 @@ class TasksController {
     async updateTask(req, res) {
         try {
             const taskId = req.params.id;
-            const { completed } = req.body;
+            const updates = req.body;
             
             // Проверка прав доступа
             const task = await this.db.get(
@@ -588,19 +639,53 @@ class TasksController {
                 );
             }
             
-            if (completed !== undefined) {
-                await this.db.run(
-                    'UPDATE tasks SET completed = ?, completed_at = ? WHERE id = ?',
-                    [completed ? 1 : 0, completed ? new Date().toISOString() : null, taskId]
-                );
+            // Подготовка полей для обновления
+            const updateFields = [];
+            const updateValues = [];
+            
+            if (updates.title !== undefined) {
+                updateFields.push('title = ?');
+                updateValues.push(updates.title);
+            }
+            
+            if (updates.description !== undefined) {
+                updateFields.push('description = ?');
+                updateValues.push(updates.description);
+            }
+            
+            if (updates.tag !== undefined) {
+                updateFields.push('tag = ?');
+                updateValues.push(updates.tag);
+            }
+            
+            if (updates.priority !== undefined) {
+                updateFields.push('priority = ?');
+                updateValues.push(updates.priority);
+            }
+            
+            if (updates.completed !== undefined) {
+                updateFields.push('completed = ?');
+                updateFields.push('completed_at = ?');
+                updateValues.push(updates.completed ? 1 : 0);
+                updateValues.push(updates.completed ? new Date().toISOString() : null);
                 
                 // Начисление монет за выполнение задачи
-                if (completed && !task.completed) {
+                if (updates.completed && !task.completed) {
                     await this.db.run(
                         'UPDATE users SET coins = coins + 10, tasks_completed = tasks_completed + 1 WHERE id = ?',
                         [req.userId]
                     );
                 }
+            }
+            
+            if (updateFields.length > 0) {
+                updateValues.push(taskId);
+                updateValues.push(req.userId);
+                
+                await this.db.run(
+                    `UPDATE tasks SET ${updateFields.join(', ')} WHERE id = ? AND user_id = ?`,
+                    updateValues
+                );
             }
             
             const updatedTask = await this.db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
@@ -649,7 +734,12 @@ class HabitsController {
     async getHabits(req, res) {
         try {
             const habits = await this.db.all(
-                'SELECT * FROM habits WHERE user_id = ? AND is_active = 1 ORDER BY streak DESC',
+                `SELECT h.*, 
+                        (SELECT COUNT(*) FROM habit_completions hc 
+                         WHERE hc.habit_id = h.id AND DATE(hc.created_at) = DATE('now')) as marked_today
+                 FROM habits h 
+                 WHERE h.user_id = ? AND h.is_active = 1 
+                 ORDER BY h.streak DESC`,
                 [req.userId]
             );
             
@@ -713,7 +803,8 @@ class HabitsController {
             
             // Проверка, не отмечена ли уже сегодня
             const lastMarked = await this.db.get(
-                'SELECT 1 FROM habit_completions WHERE habit_id = ? AND DATE(created_at) = DATE(?)',
+                `SELECT 1 FROM habit_completions hc 
+                 WHERE hc.habit_id = ? AND DATE(hc.created_at) = DATE(?)`,
                 [habitId, today]
             );
             
@@ -730,11 +821,29 @@ class HabitsController {
             );
             
             // Обновление стрика
-            const newCurrentStreak = habit.current_streak + 1;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+            
+            const yesterdayMarked = await this.db.get(
+                `SELECT 1 FROM habit_completions hc 
+                 WHERE hc.habit_id = ? AND DATE(hc.created_at) = DATE(?)`,
+                [habitId, yesterdayStr]
+            );
+            
+            let newCurrentStreak = 1;
+            if (yesterdayMarked) {
+                newCurrentStreak = habit.current_streak + 1;
+            }
+            
             const newBestStreak = Math.max(habit.best_streak, newCurrentStreak);
             
             await this.db.run(
-                'UPDATE habits SET streak = streak + 1, current_streak = ?, best_streak = ? WHERE id = ?',
+                `UPDATE habits 
+                 SET streak = streak + 1, 
+                     current_streak = ?, 
+                     best_streak = ? 
+                 WHERE id = ?`,
                 [newCurrentStreak, newBestStreak, habitId]
             );
             
@@ -743,6 +852,26 @@ class HabitsController {
                 'UPDATE users SET coins = coins + 5, streak = streak + 1 WHERE id = ?',
                 [req.userId]
             );
+            
+            // Проверка достижений
+            if (newCurrentStreak >= 7) {
+                const hasAchievement = await this.db.get(
+                    'SELECT 1 FROM achievements WHERE user_id = ? AND type = ?',
+                    [req.userId, 'streak_7']
+                );
+                
+                if (!hasAchievement) {
+                    await this.db.run(
+                        'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                        [req.userId, 'streak_7', 'Неделя продуктивности', 'Привычка выполнена 7 дней подряд']
+                    );
+                    
+                    await this.db.run(
+                        'UPDATE users SET coins = coins + 100 WHERE id = ?',
+                        [req.userId]
+                    );
+                }
+            }
             
             const updatedHabit = await this.db.get('SELECT * FROM habits WHERE id = ?', [habitId]);
             
@@ -755,6 +884,31 @@ class HabitsController {
             );
         }
     }
+
+    async deleteHabit(req, res) {
+        try {
+            const habitId = req.params.id;
+            
+            const result = await this.db.run(
+                'DELETE FROM habits WHERE id = ? AND user_id = ?',
+                [habitId, req.userId]
+            );
+            
+            if (result.changes === 0) {
+                return res.status(404).json(
+                    Utils.errorResponse('Привычка не найдена', 404)
+                );
+            }
+            
+            res.json(Utils.successResponse(null, 'Привычка удалена'));
+            
+        } catch (error) {
+            console.error('Delete habit error:', error);
+            res.status(500).json(
+                Utils.errorResponse('Ошибка удаления привычки')
+            );
+        }
+    }
 }
 
 class FinanceController {
@@ -764,7 +918,7 @@ class FinanceController {
 
     async getTransactions(req, res) {
         try {
-            const { type, start_date, end_date } = req.query;
+            const { type, start_date, end_date, limit = 50 } = req.query;
             
             let query = 'SELECT * FROM transactions WHERE user_id = ?';
             const params = [req.userId];
@@ -784,7 +938,8 @@ class FinanceController {
                 params.push(end_date);
             }
             
-            query += ' ORDER BY date DESC, created_at DESC';
+            query += ' ORDER BY date DESC, created_at DESC LIMIT ?';
+            params.push(parseInt(limit));
             
             const transactions = await this.db.all(query, params);
             
@@ -805,6 +960,12 @@ class FinanceController {
             if (!type || !amount) {
                 return res.status(400).json(
                     Utils.errorResponse('Тип и сумма обязательны', 400)
+                );
+            }
+            
+            if (amount <= 0) {
+                return res.status(400).json(
+                    Utils.errorResponse('Сумма должна быть больше 0', 400)
                 );
             }
             
@@ -829,6 +990,21 @@ class FinanceController {
             
             const transactionId = result.lastID;
             const transaction = await this.db.get('SELECT * FROM transactions WHERE id = ?', [transactionId]);
+            
+            // Проверка достижений
+            if (type === 'income' && amount >= 10000) {
+                const hasAchievement = await this.db.get(
+                    'SELECT 1 FROM achievements WHERE user_id = ? AND type = ?',
+                    [req.userId, 'big_income']
+                );
+                
+                if (!hasAchievement) {
+                    await this.db.run(
+                        'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                        [req.userId, 'big_income', 'Крупный доход', 'Получен доход более 10,000 рублей']
+                    );
+                }
+            }
             
             res.status(201).json(
                 Utils.successResponse({ transaction }, 'Транзакция создана')
@@ -869,10 +1045,24 @@ class FinanceController {
                 );
             }
             
+            if (target_amount <= 0) {
+                return res.status(400).json(
+                    Utils.errorResponse('Целевая сумма должна быть больше 0', 400)
+                );
+            }
+            
+            // Рассчитываем дедлайн если не указан
+            let goalDeadline = deadline;
+            if (!goalDeadline) {
+                const sixMonthsLater = new Date();
+                sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+                goalDeadline = sixMonthsLater.toISOString().split('T')[0];
+            }
+            
             const result = await this.db.run(
                 `INSERT INTO financial_goals (user_id, title, target_amount, current_amount, deadline)
                  VALUES (?, ?, ?, ?, ?)`,
-                [req.userId, title, target_amount, current_amount || 0, deadline || null]
+                [req.userId, title, target_amount, current_amount || 0, goalDeadline]
             );
             
             const goalId = result.lastID;
@@ -886,6 +1076,111 @@ class FinanceController {
             console.error('Create financial goal error:', error);
             res.status(500).json(
                 Utils.errorResponse('Ошибка создания цели')
+            );
+        }
+    }
+
+    async updateFinancialGoal(req, res) {
+        try {
+            const goalId = req.params.id;
+            const { current_amount } = req.body;
+            
+            if (current_amount === undefined) {
+                return res.status(400).json(
+                    Utils.errorResponse('Текущая сумма обязательна', 400)
+                );
+            }
+            
+            // Проверка прав доступа
+            const goal = await this.db.get(
+                'SELECT * FROM financial_goals WHERE id = ? AND user_id = ?',
+                [goalId, req.userId]
+            );
+            
+            if (!goal) {
+                return res.status(404).json(
+                    Utils.errorResponse('Цель не найдена', 404)
+                );
+            }
+            
+            await this.db.run(
+                'UPDATE financial_goals SET current_amount = ? WHERE id = ?',
+                [current_amount, goalId]
+            );
+            
+            const updatedGoal = await this.db.get('SELECT * FROM financial_goals WHERE id = ?', [goalId]);
+            
+            // Проверка достижения цели
+            if (current_amount >= goal.target_amount) {
+                const hasAchievement = await this.db.get(
+                    'SELECT 1 FROM achievements WHERE user_id = ? AND type = ?',
+                    [req.userId, 'goal_achieved']
+                );
+                
+                if (!hasAchievement) {
+                    await this.db.run(
+                        'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                        [req.userId, 'goal_achieved', 'Цель достигнута!', `Достигнута финансовая цель: ${goal.title}`]
+                    );
+                    
+                    await this.db.run(
+                        'UPDATE users SET coins = coins + 500 WHERE id = ?',
+                        [req.userId]
+                    );
+                }
+            }
+            
+            res.json(Utils.successResponse({ goal: updatedGoal }, 'Цель обновлена'));
+            
+        } catch (error) {
+            console.error('Update financial goal error:', error);
+            res.status(500).json(
+                Utils.errorResponse('Ошибка обновления цели')
+            );
+        }
+    }
+
+    async getFinanceStats(req, res) {
+        try {
+            // Общая статистика
+            const user = await this.db.get(
+                `SELECT balance, monthly_income, monthly_expenses 
+                 FROM users WHERE id = ?`,
+                [req.userId]
+            );
+            
+            // Статистика по категориям за текущий месяц
+            const categoryStats = await this.db.all(
+                `SELECT category, SUM(amount) as total 
+                 FROM transactions 
+                 WHERE user_id = ? AND type = 'expense' 
+                   AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
+                 GROUP BY category 
+                 ORDER BY total DESC`,
+                [req.userId]
+            );
+            
+            // Цели
+            const goals = await this.db.all(
+                `SELECT *, 
+                        (current_amount / target_amount * 100) as progress 
+                 FROM financial_goals 
+                 WHERE user_id = ? AND is_active = 1`,
+                [req.userId]
+            );
+            
+            res.json(Utils.successResponse({
+                balance: user.balance,
+                monthly_income: user.monthly_income,
+                monthly_expenses: user.monthly_expenses,
+                category_stats: categoryStats,
+                goals: goals
+            }));
+            
+        } catch (error) {
+            console.error('Get finance stats error:', error);
+            res.status(500).json(
+                Utils.errorResponse('Ошибка получения финансовой статистики')
             );
         }
     }
@@ -906,7 +1201,15 @@ class HealthController {
                 [req.userId, targetDate]
             );
             
-            res.json(Utils.successResponse({ metrics: metrics || {} }));
+            res.json(Utils.successResponse({ 
+                metrics: metrics || {
+                    weight: null,
+                    steps: 0,
+                    calories: 0,
+                    water_ml: 0,
+                    activity_level: 'medium'
+                }
+            }));
             
         } catch (error) {
             console.error('Get health metrics error:', error);
@@ -953,17 +1256,41 @@ class HealthController {
             
             // Проверка достижений
             if (water_ml >= 2000) {
-                await this.db.run(
-                    'UPDATE users SET coins = coins + 10 WHERE id = ?',
-                    [req.userId]
+                const hasAchievement = await this.db.get(
+                    'SELECT 1 FROM achievements WHERE user_id = ? AND type = ?',
+                    [req.userId, 'water_goal']
                 );
+                
+                if (!hasAchievement) {
+                    await this.db.run(
+                        'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                        [req.userId, 'water_goal', 'Водный баланс', 'Выпито 2 литра воды за день']
+                    );
+                    
+                    await this.db.run(
+                        'UPDATE users SET coins = coins + 20, health_streak = health_streak + 1 WHERE id = ?',
+                        [req.userId]
+                    );
+                }
             }
             
             if (steps >= 10000) {
-                await this.db.run(
-                    'UPDATE users SET health_streak = health_streak + 1 WHERE id = ?',
-                    [req.userId]
+                const hasAchievement = await this.db.get(
+                    'SELECT 1 FROM achievements WHERE user_id = ? AND type = ?',
+                    [req.userId, 'steps_goal']
                 );
+                
+                if (!hasAchievement) {
+                    await this.db.run(
+                        'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                        [req.userId, 'steps_goal', '10,000 шагов', 'Пройдено 10,000 шагов за день']
+                    );
+                    
+                    await this.db.run(
+                        'UPDATE users SET coins = coins + 30, health_streak = health_streak + 1 WHERE id = ?',
+                        [req.userId]
+                    );
+                }
             }
             
             res.json(Utils.successResponse({ metric }, 'Данные здоровья обновлены'));
@@ -1006,12 +1333,111 @@ class HealthController {
                 metric = await this.db.get('SELECT * FROM health_metrics WHERE id = ?', [metric.id]);
             }
             
+            // Проверка достижения водной цели
+            if (metric.water_ml >= 2000) {
+                const hasAchievement = await this.db.get(
+                    'SELECT 1 FROM achievements WHERE user_id = ? AND type = ?',
+                    [req.userId, 'water_goal']
+                );
+                
+                if (!hasAchievement) {
+                    await this.db.run(
+                        'INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)',
+                        [req.userId, 'water_goal', 'Водный баланс', 'Выпито 2 литра воды за день']
+                    );
+                    
+                    await this.db.run(
+                        'UPDATE users SET coins = coins + 20, health_streak = health_streak + 1 WHERE id = ?',
+                        [req.userId]
+                    );
+                }
+            }
+            
             res.json(Utils.successResponse({ metric }, 'Потребление воды обновлено'));
             
         } catch (error) {
             console.error('Update water intake error:', error);
             res.status(500).json(
                 Utils.errorResponse('Ошибка обновления потребления воды')
+            );
+        }
+    }
+
+    async getWaterTracking(req, res) {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const metric = await this.db.get(
+                'SELECT water_ml FROM health_metrics WHERE user_id = ? AND date = ?',
+                [req.userId, today]
+            );
+            
+            const waterMl = metric ? metric.water_ml : 0;
+            const bottles = Math.floor(waterMl / 250);
+            const progress = Math.min((waterMl / 2000) * 100, 100);
+            
+            res.json(Utils.successResponse({
+                current: waterMl,
+                target: 2000,
+                bottles: Array.from({ length: 8 }, (_, i) => i < bottles),
+                progress: Math.round(progress),
+                message: waterMl >= 2000 ? 'Цель достигнута! 🎉' : `Осталось ${2000 - waterMl} мл`
+            }));
+            
+        } catch (error) {
+            console.error('Water tracking error:', error);
+            res.status(500).json(Utils.errorResponse('Ошибка получения данных воды'));
+        }
+    }
+
+    async getHealthStats(req, res) {
+        try {
+            // Статистика за последние 7 дней
+            const weeklyStats = await this.db.all(
+                `SELECT date, 
+                        COALESCE(SUM(steps), 0) as steps,
+                        COALESCE(SUM(calories), 0) as calories,
+                        COALESCE(SUM(water_ml), 0) as water_ml
+                 FROM health_metrics 
+                 WHERE user_id = ? AND date >= date('now', '-7 days')
+                 GROUP BY date 
+                 ORDER BY date`,
+                [req.userId]
+            );
+            
+            // Текущие метрики
+            const today = new Date().toISOString().split('T')[0];
+            const currentMetrics = await this.db.get(
+                'SELECT * FROM health_metrics WHERE user_id = ? AND date = ?',
+                [req.userId, today]
+            );
+            
+            // Общая статистика
+            const totalStats = await this.db.get(
+                `SELECT COUNT(DISTINCT date) as active_days,
+                        COALESCE(AVG(steps), 0) as avg_steps,
+                        COALESCE(AVG(calories), 0) as avg_calories,
+                        COALESCE(AVG(water_ml), 0) as avg_water
+                 FROM health_metrics 
+                 WHERE user_id = ?`,
+                [req.userId]
+            );
+            
+            res.json(Utils.successResponse({
+                weekly_stats: weeklyStats,
+                current_metrics: currentMetrics || {
+                    weight: null,
+                    steps: 0,
+                    calories: 0,
+                    water_ml: 0,
+                    activity_level: 'medium'
+                },
+                total_stats: totalStats
+            }));
+            
+        } catch (error) {
+            console.error('Get health stats error:', error);
+            res.status(500).json(
+                Utils.errorResponse('Ошибка получения статистики здоровья')
             );
         }
     }
@@ -1027,7 +1453,8 @@ class StatsController {
             // Статистика пользователя
             const userStats = await this.db.get(
                 `SELECT level, coins, streak, tasks_completed, 
-                        balance, monthly_income, monthly_expenses
+                        balance, monthly_income, monthly_expenses,
+                        health_streak, goal
                  FROM users WHERE id = ?`,
                 [req.userId]
             );
@@ -1059,11 +1486,21 @@ class StatsController {
                 [req.userId]
             );
             
+            // Последние транзакции
+            const recentTransactions = await this.db.all(
+                `SELECT * FROM transactions 
+                 WHERE user_id = ? 
+                 ORDER BY date DESC, created_at DESC 
+                 LIMIT 5`,
+                [req.userId]
+            );
+            
             res.json(Utils.successResponse({
                 user_stats: userStats,
                 tasks_stats: tasksStats,
                 habits_stats: habitsStats,
-                recent_tasks: recentTasks
+                recent_tasks: recentTasks,
+                recent_transactions: recentTransactions
             }));
             
         } catch (error) {
@@ -1101,14 +1538,14 @@ class StatsController {
             const completionStats = await this.db.get(
                 `SELECT AVG(julianday(completed_at) - julianday(created_at)) * 24 as avg_hours_to_complete
                  FROM tasks 
-                 WHERE user_id = ? AND completed = 1`,
+                 WHERE user_id = ? AND completed = 1 AND completed_at IS NOT NULL`,
                 [req.userId]
             );
             
             res.json(Utils.successResponse({
                 weekly_stats: weeklyStats,
                 priority_stats: priorityStats,
-                completion_stats: completionStats
+                completion_stats: completionStats || { avg_hours_to_complete: 0 }
             }));
             
         } catch (error) {
@@ -1132,34 +1569,7 @@ class AchievementsController {
                 [req.userId]
             );
             
-            // Достижения пользователя
-            const userAchievements = [
-                {
-                    id: 1,
-                    type: 'welcome',
-                    title: 'Добро пожаловать!',
-                    description: 'Вы зарегистрировались в QuantumFlow',
-                    earned_at: new Date().toISOString()
-                },
-                {
-                    id: 2,
-                    type: 'first_task',
-                    title: 'Первая задача',
-                    description: 'Вы создали свою первую задачу',
-                    earned_at: new Date().toISOString()
-                },
-                {
-                    id: 3,
-                    type: 'streak_7',
-                    title: 'Неделя продуктивности',
-                    description: 'Активность 7 дней подряд',
-                    earned_at: new Date().toISOString()
-                }
-            ];
-            
-            res.json(Utils.successResponse({ 
-                achievements: achievements.length > 0 ? achievements : userAchievements 
-            }));
+            res.json(Utils.successResponse({ achievements }));
             
         } catch (error) {
             console.error('Get achievements error:', error);
@@ -1208,6 +1618,18 @@ class AchievementsController {
                         );
                         return result.tasks_completed >= 10;
                     }
+                },
+                {
+                    type: 'coins_1000',
+                    title: 'Богатство',
+                    description: 'Накоплено 1000 монет',
+                    condition: async () => {
+                        const result = await this.db.get(
+                            'SELECT coins FROM users WHERE id = ?',
+                            [userId]
+                        );
+                        return result.coins >= 1000;
+                    }
                 }
             ];
             
@@ -1230,7 +1652,7 @@ class AchievementsController {
                         
                         // Начисление монет за достижение
                         await this.db.run(
-                            'UPDATE users SET coins = coins + 50 WHERE id = ?',
+                            'UPDATE users SET coins = coins + 100 WHERE id = ?',
                             [userId]
                         );
                         
@@ -1334,6 +1756,7 @@ async function initControllers(db) {
 app.post('/api/auth/register', (req, res) => authController.register(req, res));
 app.post('/api/auth/login', (req, res) => authController.login(req, res));
 app.get('/api/user/current', authMiddleware, (req, res) => authController.getCurrentUser(req, res));
+app.put('/api/user/goal', authMiddleware, (req, res) => authController.updateUserGoal(req, res));
 
 // Задачи
 app.get('/api/tasks', authMiddleware, (req, res) => tasksController.getTasks(req, res));
@@ -1345,17 +1768,22 @@ app.delete('/api/tasks/:id', authMiddleware, (req, res) => tasksController.delet
 app.get('/api/habits', authMiddleware, (req, res) => habitsController.getHabits(req, res));
 app.post('/api/habits', authMiddleware, (req, res) => habitsController.createHabit(req, res));
 app.post('/api/habits/:id/mark', authMiddleware, (req, res) => habitsController.markHabit(req, res));
+app.delete('/api/habits/:id', authMiddleware, (req, res) => habitsController.deleteHabit(req, res));
 
 // Финансы
 app.get('/api/transactions', authMiddleware, (req, res) => financeController.getTransactions(req, res));
 app.post('/api/transactions', authMiddleware, (req, res) => financeController.createTransaction(req, res));
 app.get('/api/financial-goals', authMiddleware, (req, res) => financeController.getFinancialGoals(req, res));
 app.post('/api/financial-goals', authMiddleware, (req, res) => financeController.createFinancialGoal(req, res));
+app.put('/api/financial-goals/:id', authMiddleware, (req, res) => financeController.updateFinancialGoal(req, res));
+app.get('/api/finance/stats', authMiddleware, (req, res) => financeController.getFinanceStats(req, res));
 
 // Здоровье
 app.get('/api/health/metrics', authMiddleware, (req, res) => healthController.getHealthMetrics(req, res));
 app.post('/api/health/metrics', authMiddleware, (req, res) => healthController.updateHealthMetrics(req, res));
 app.post('/api/health/water', authMiddleware, (req, res) => healthController.updateWaterIntake(req, res));
+app.get('/api/health/water-tracking', authMiddleware, (req, res) => healthController.getWaterTracking(req, res));
+app.get('/api/health/stats', authMiddleware, (req, res) => healthController.getHealthStats(req, res));
 
 // Статистика
 app.get('/api/stats/overview', authMiddleware, (req, res) => statsController.getOverviewStats(req, res));
@@ -1369,32 +1797,6 @@ app.post('/api/achievements/check', authMiddleware, (req, res) => achievementsCo
 app.get('/api/best-practices', optionalAuthMiddleware, (req, res) => bestPracticesController.getBestPractices(req, res));
 
 // Утилитарные эндпоинты
-app.get('/api/health/water-tracking', authMiddleware, async (req, res) => {
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        const metric = await healthController.db.get(
-            'SELECT water_ml FROM health_metrics WHERE user_id = ? AND date = ?',
-            [req.userId, today]
-        );
-        
-        const waterMl = metric ? metric.water_ml : 0;
-        const bottles = Math.floor(waterMl / 250); // 250мл на бутылку
-        const progress = Math.min((waterMl / 2000) * 100, 100); // 2 литра цель
-        
-        res.json(Utils.successResponse({
-            current: waterMl,
-            target: 2000,
-            bottles: Array.from({ length: 8 }, (_, i) => i < bottles),
-            progress,
-            message: waterMl >= 2000 ? 'Цель достигнута!' : `Осталось ${2000 - waterMl} мл`
-        }));
-        
-    } catch (error) {
-        console.error('Water tracking error:', error);
-        res.status(500).json(Utils.errorResponse('Ошибка получения данных воды'));
-    }
-});
-
 app.get('/api/calories/foods', optionalAuthMiddleware, async (req, res) => {
     try {
         const { query } = req.query;
@@ -1409,7 +1811,17 @@ app.get('/api/calories/foods', optionalAuthMiddleware, async (req, res) => {
             'гречка': 343,
             'хлеб': 265,
             'яйцо': 155,
-            'молоко': 60
+            'молоко': 60,
+            'творог': 121,
+            'йогурт': 59,
+            'сыр': 402,
+            'картофель': 77,
+            'морковь': 41,
+            'помидор': 18,
+            'огурец': 15,
+            'салат': 15,
+            'макароны': 371,
+            'суп': 100
         };
         
         let results = [];
@@ -1418,6 +1830,13 @@ app.get('/api/calories/foods', optionalAuthMiddleware, async (req, res) => {
             const searchQuery = query.toLowerCase();
             results = Object.entries(calorieDatabase)
                 .filter(([food]) => food.toLowerCase().includes(searchQuery))
+                .map(([food, calories]) => ({
+                    name: food,
+                    calories,
+                    serving: '100г'
+                }));
+        } else {
+            results = Object.entries(calorieDatabase)
                 .map(([food, calories]) => ({
                     name: food,
                     calories,
