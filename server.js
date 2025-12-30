@@ -10,13 +10,20 @@ const crypto = require('crypto');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 
-const app = express();
+// ДОБАВЬТЕ ЭТУ СТРОКУ ↓
+const DOMAIN = process.env.DOMAIN || `http://localhost:${process.env.PORT || 3000}`;
 
+const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS настройки
 const corsOptions = {
-    origin: '*',
+    origin: [
+        DOMAIN,
+        'https://sergeynikishin555123123-lab-itprogrammistingbot-8f42.twc1.net',
+        'http://localhost:3000',
+        'http://localhost:8080'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -32,11 +39,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Статические файлы
+// Статические файлы
 app.use(express.static('public', {
     setHeaders: (res, filePath) => {
         const ext = path.extname(filePath).toLowerCase();
         
-        // Настройки кэширования для разных типов файлов
+        // Настройки кэширования
         if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/)) {
             res.set('Cache-Control', 'public, max-age=31536000');
         } else if (ext.match(/\.(css|js)$/)) {
@@ -45,13 +53,28 @@ app.use(express.static('public', {
             res.set('Cache-Control', 'public, max-age=3600');
         }
         
+        // ДОБАВЬТЕ ЭТИ ЗАГОЛОВКИ ДЛЯ БЕЗОПАСНОСТИ ↓
         res.set('X-Content-Type-Options', 'nosniff');
         res.set('X-Frame-Options', 'DENY');
+        res.set('X-XSS-Protection', '1; mode=block');
         res.set('Access-Control-Allow-Origin', '*');
         res.set('Access-Control-Allow-Methods', 'GET');
+        
+        // ДОБАВЬТЕ ЭТОТ ЗАГОЛОВОК ДЛЯ SPA ↓
+        if (ext === '.html') {
+            res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
     }
 }));
 
+// ДОБАВЬТЕ ЭТОТ МИДЛВАР ПОСЛЕ СТАТИКИ ↓
+app.use((req, res, next) => {
+    // Устанавливаем заголовки для API
+    if (req.path.startsWith('/api/')) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    next();
+});
 // ==================== КОНФИГУРАЦИЯ ====================
 const DEMO_MODE = true;
 
@@ -1590,10 +1613,25 @@ app.get('/api/stats', authMiddleware(), async (req, res) => {
 });
 
 // ==================== SPA МАРШРУТИЗАЦИЯ ====================
+// ==================== SPA МАРШРУТИЗАЦИЯ ====================
+// ДОБАВЬТЕ ЭТОТ КОД В САМЫЙ КОНЕЦ, ПЕРЕД ОБРАБОТКОЙ ОШИБОК ↓
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    // Проверяем, не является ли запрос API или статическим файлом
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ 
+            success: false, 
+            error: 'API endpoint not found' 
+        });
+    }
+    
+    // Отдаем index.html для всех остальных маршрутов
+    res.sendFile(path.join(__dirname, 'public', 'index.html'), {
+        headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'X-Content-Type-Options': 'nosniff'
+        }
+    });
 });
-
 // ==================== ОБРАБОТКА ОШИБОК ====================
 app.use((err, req, res, next) => {
     console.error('🔥 Ошибка сервера:', err.message);
@@ -1611,7 +1649,8 @@ const startServer = async () => {
         console.log('\n' + '='.repeat(80));
         console.log('🚀 ЗАПУСК ATOMICFLOW v1.0.0');
         console.log('='.repeat(80));
-        console.log(`🌐 PORT: ${process.env.PORT || 3000}`);
+        console.log(`🌐 ДОМЕН: ${DOMAIN}`);
+        console.log(`🔌 PORT: ${process.env.PORT || 3000}`);
         console.log(`🏷️  NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
         console.log(`📊 Демо-режим: ${DEMO_MODE ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`);
         console.log('='.repeat(80));
@@ -1621,20 +1660,20 @@ const startServer = async () => {
         console.log('✅ Все API настроены');
         console.log('✅ Система готова к работе');
         
-        const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 AtomicFlow запущен на порту ${PORT}`);
-    console.log(`🌐 Frontend: http://localhost:${PORT}`);
-    console.log(`📊 API Health: http://localhost:${PORT}/health`);
+  const PORT = process.env.PORT || 3000;
+        app.listen(PORT, () => {
+            // ИЗМЕНИТЕ ВЫВОД НА ВАШ ДОМЕН ↓
+            console.log(`🚀 AtomicFlow запущен!`);
+            console.log(`🌐 Доступ по адресу: ${DOMAIN}`);
+            console.log(`📊 Проверка здоровья: ${DOMAIN}/health`);
             console.log('='.repeat(80));
-            console.log('🚀 ATOMICFLOW ГОТОВ К РАБОТЕ!');
-            console.log('='.repeat(80));
-            
-            console.log('\n🔑 ТЕСТОВЫЙ АККАУНТ:');
+            console.log('🔑 ТЕСТОВЫЙ АККАУНТ:');
             console.log('='.repeat(50));
-            console.log('👤 Пользователь: alex@atomicflow.test / atomic123');
-            console.log('👤 Имя пользователя: atomic_user');
+            console.log('👤 Email: alex@atomicflow.test');
+            console.log('🔐 Пароль: atomic123');
+            console.log('👤 Username: atomic_user');
             console.log('='.repeat(50));
+        });
             
             console.log('\n📊 ОСНОВНЫЕ ФУНКЦИОНАЛЬНОСТИ:');
             console.log('='.repeat(60));
