@@ -1750,6 +1750,7 @@ async function initControllers(db) {
     bestPracticesController = new BestPracticesController(db);
 }
 
+
 // ========== МАРШРУТЫ ==========
 
 // Аутентификация
@@ -1875,6 +1876,7 @@ async function startServer() {
         await database.initTables();
         await database.seedInitialData();
         
+        // Инициализируем контроллеры ПЕРЕД запуском сервера
         await initControllers(db);
         
         app.listen(config.port, () => {
