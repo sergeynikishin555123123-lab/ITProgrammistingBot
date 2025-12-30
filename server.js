@@ -35,18 +35,42 @@ const initDatabase = async () => {
     try {
         console.log('🔄 Инициализация базы данных QuantumFlow...');
         
+        // Проверяем и создаем директорию если нужно
+        const dbDir = path.dirname(__dirname);
+        if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+        }
+        
+        // Путь к базе данных
+        const dbPath = path.join(__dirname, 'quantumflow.db');
+        console.log(`📁 Путь к базе данных: ${dbPath}`);
+        
         db = await open({
-            filename: './quantumflow.db',
+            filename: dbPath,
             driver: sqlite3.Database
         });
 
         console.log('✅ База данных SQLite подключена');
         await db.run('PRAGMA foreign_keys = ON');
+        await db.run('PRAGMA journal_mode = WAL');
 
         // Создание таблиц
-        await db.exec('BEGIN TRANSACTION');
+        await createTables();
+        
+        // Создаем демо-данные
+        await createDemoData();
+        
+        return db;
+    } catch (error) {
+        console.error('❌ Ошибка инициализации базы данных:', error.message);
+        throw error;
+    }
+};
 
-        // Пользователи
+const createTables = async () => {
+    try {
+        console.log('📊 Создание таблиц...');
+        
         await db.exec(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +96,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Задачи
         await db.exec(`
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +115,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Привычки
         await db.exec(`
             CREATE TABLE IF NOT EXISTS habits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,7 +133,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Транзакции
         await db.exec(`
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,7 +147,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Финансовые цели
         await db.exec(`
             CREATE TABLE IF NOT EXISTS financial_goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,7 +162,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Метрики здоровья
         await db.exec(`
             CREATE TABLE IF NOT EXISTS health_metrics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,7 +177,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Достижения
         await db.exec(`
             CREATE TABLE IF NOT EXISTS achievements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,7 +189,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Ежедневные ревью
         await db.exec(`
             CREATE TABLE IF NOT EXISTS daily_reviews (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,7 +203,6 @@ const initDatabase = async () => {
             )
         `);
 
-        // Лучшие практики
         await db.exec(`
             CREATE TABLE IF NOT EXISTS best_practices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,15 +215,10 @@ const initDatabase = async () => {
             )
         `);
 
-        await db.exec('COMMIT');
         console.log('✅ Все таблицы созданы');
-
-        // Создаем демо-данные
-        await createDemoData();
         
-        return db;
     } catch (error) {
-        console.error('❌ Ошибка инициализации базы данных:', error.message);
+        console.error('❌ Ошибка создания таблиц:', error.message);
         throw error;
     }
 };
@@ -1724,7 +1735,27 @@ const startServer = async () => {
         
     } catch (error) {
         console.error('❌ Не удалось запустить сервер:', error.message);
-        process.exit(1);
+        // Пробуем использовать базу данных в памяти как запасной вариант
+        console.log('🔄 Пробуем использовать базу данных в памяти...');
+        
+        try {
+            db = await open({
+                filename: ':memory:',
+                driver: sqlite3.Database
+            });
+            
+            console.log('✅ Используем базу данных в памяти');
+            await createTables();
+            
+            const PORT = process.env.PORT || 3000;
+            app.listen(PORT, () => {
+                console.log(`🚀 QuantumFlow запущен на порту ${PORT} (база в памяти)!`);
+                console.log(`⚠️ ВНИМАНИЕ: Данные будут сброшены при перезагрузке сервера`);
+            });
+        } catch (memoryError) {
+            console.error('❌ Не удалось создать базу в памяти:', memoryError.message);
+            process.exit(1);
+        }
     }
 };
 
