@@ -6,90 +6,37 @@ const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
-const crypto = require('crypto');
-const fs = require('fs').promises;
-const fsSync = require('fs');
-
-// ДОБАВЬТЕ ЭТУ СТРОКУ ↓
-const DOMAIN = process.env.DOMAIN || `http://localhost:${process.env.PORT || 3000}`;
 
 const app = express();
-app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS настройки
 const corsOptions = {
     origin: [
-        DOMAIN,
-        'https://sergeynikishin555123123-lab-itprogrammistingbot-8f42.twc1.net',
         'http://localhost:3000',
-        'http://localhost:8080'
+        'http://localhost:8080',
+        'https://sergeynikishin555123123-lab-itprogrammistingbot-8f42.twc1.net'
     ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-// Применяем CORS middleware
 app.use(cors(corsOptions));
-
-// Обработка preflight запросов
-app.options('*', cors(corsOptions));
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Статические файлы
-// Статические файлы
-app.use(express.static('public', {
-    setHeaders: (res, filePath) => {
-        const ext = path.extname(filePath).toLowerCase();
-        
-        // Настройки кэширования
-        if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/)) {
-            res.set('Cache-Control', 'public, max-age=31536000');
-        } else if (ext.match(/\.(css|js)$/)) {
-            res.set('Cache-Control', 'public, max-age=86400');
-        } else {
-            res.set('Cache-Control', 'public, max-age=3600');
-        }
-        
-        // ДОБАВЬТЕ ЭТИ ЗАГОЛОВКИ ДЛЯ БЕЗОПАСНОСТИ ↓
-        res.set('X-Content-Type-Options', 'nosniff');
-        res.set('X-Frame-Options', 'DENY');
-        res.set('X-XSS-Protection', '1; mode=block');
-        res.set('Access-Control-Allow-Origin', '*');
-        res.set('Access-Control-Allow-Methods', 'GET');
-        
-        // ДОБАВЬТЕ ЭТОТ ЗАГОЛОВОК ДЛЯ SPA ↓
-        if (ext === '.html') {
-            res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        }
-    }
-}));
-
-// ДОБАВЬТЕ ЭТОТ МИДЛВАР ПОСЛЕ СТАТИКИ ↓
-app.use((req, res, next) => {
-    // Устанавливаем заголовки для API
-    if (req.path.startsWith('/api/')) {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
-    next();
-});
-// ==================== КОНФИГУРАЦИЯ ====================
-const DEMO_MODE = true;
+app.use(express.static('public'));
 
 // ==================== БАЗА ДАННЫХ ====================
 let db;
 
 const initDatabase = async () => {
     try {
-        console.log('🔄 Инициализация базы данных AtomicFlow...');
-        
-        const dbPath = process.env.NODE_ENV === 'production' ? '/tmp/atomicflow.db' : './atomicflow.db';
-        console.log(`📁 Путь к базе данных: ${dbPath}`);
+        console.log('🔄 Инициализация базы данных QuantumFlow...');
         
         db = await open({
-            filename: dbPath,
+            filename: './quantumflow.db',
             driver: sqlite3.Database
         });
 
@@ -99,21 +46,19 @@ const initDatabase = async () => {
         // Создание таблиц
         await db.exec('BEGIN TRANSACTION');
 
-        // Пользователи AtomicFlow
+        // Пользователи
         await db.exec(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT,
+                email TEXT UNIQUE NOT NULL,
                 username TEXT UNIQUE,
                 password TEXT NOT NULL,
                 first_name TEXT NOT NULL,
                 last_name TEXT,
                 avatar_url TEXT,
-                phone TEXT,
-                phone_verified INTEGER DEFAULT 0,
-                role TEXT DEFAULT 'user' CHECK(role IN ('user', 'premium', 'admin')),
+                goal TEXT DEFAULT 'productivity',
                 level INTEGER DEFAULT 1,
-                coins INTEGER DEFAULT 0,
+                coins INTEGER DEFAULT 100,
                 streak INTEGER DEFAULT 0,
                 balance REAL DEFAULT 0,
                 monthly_income REAL DEFAULT 0,
@@ -140,7 +85,6 @@ const initDatabase = async () => {
                 time TEXT,
                 completed INTEGER DEFAULT 0,
                 completed_at TIMESTAMP,
-                subtasks TEXT,
                 pomodoro_sessions INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -157,9 +101,9 @@ const initDatabase = async () => {
                 icon TEXT DEFAULT 'fas fa-star',
                 description TEXT,
                 streak INTEGER DEFAULT 0,
-                calendar TEXT DEFAULT '[]',
                 current_streak INTEGER DEFAULT 0,
                 best_streak INTEGER DEFAULT 0,
+                marked_today INTEGER DEFAULT 0,
                 is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -167,7 +111,7 @@ const initDatabase = async () => {
             )
         `);
 
-        // Финансовые операции
+        // Транзакции
         await db.exec(`
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,25 +120,21 @@ const initDatabase = async () => {
                 amount REAL NOT NULL,
                 category TEXT DEFAULT 'other',
                 description TEXT,
-                comment TEXT,
                 date DATE DEFAULT CURRENT_DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
-        // Долги (метод снежного кома)
+        // Финансовые цели
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS debts (
+            CREATE TABLE IF NOT EXISTS financial_goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 title TEXT NOT NULL,
-                amount REAL NOT NULL,
-                interest REAL DEFAULT 0,
-                priority INTEGER DEFAULT 1,
-                paid_amount REAL DEFAULT 0,
-                start_date DATE,
-                target_date DATE,
+                target_amount REAL NOT NULL,
+                current_amount REAL DEFAULT 0,
+                deadline DATE,
                 is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -202,18 +142,17 @@ const initDatabase = async () => {
             )
         `);
 
-        // Еженедельные ревью
+        // Метрики здоровья
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS reviews (
+            CREATE TABLE IF NOT EXISTS health_metrics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
-                week_start DATE NOT NULL,
-                week_end DATE NOT NULL,
-                important_tasks TEXT,
-                improvements TEXT,
-                financial_insight TEXT,
-                rating INTEGER DEFAULT 5,
-                completed INTEGER DEFAULT 0,
+                weight REAL,
+                steps INTEGER DEFAULT 0,
+                calories INTEGER DEFAULT 0,
+                water_ml INTEGER DEFAULT 0,
+                activity_level TEXT DEFAULT 'medium',
+                date DATE DEFAULT CURRENT_DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
@@ -232,279 +171,270 @@ const initDatabase = async () => {
             )
         `);
 
-        // Настройки пользователя
+        // Ежедневные ревью
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS user_settings (
+            CREATE TABLE IF NOT EXISTS daily_reviews (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
-                theme TEXT DEFAULT 'light',
-                pomodoro_duration INTEGER DEFAULT 25,
-                short_break INTEGER DEFAULT 5,
-                long_break INTEGER DEFAULT 15,
-                notifications INTEGER DEFAULT 1,
-                language TEXT DEFAULT 'ru',
+                rating INTEGER DEFAULT 5,
+                successes TEXT,
+                improvements TEXT,
+                tomorrow_goals TEXT,
+                date DATE DEFAULT CURRENT_DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                UNIQUE(user_id)
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        // Лучшие практики
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS best_practices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                icon TEXT DEFAULT 'fas fa-lightbulb',
+                description TEXT NOT NULL,
+                category TEXT DEFAULT 'general',
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
         await db.exec('COMMIT');
-        console.log('✅ Все таблицы AtomicFlow созданы');
+        console.log('✅ Все таблицы созданы');
 
-        await createInitialData();
+        // Создаем демо-данные
+        await createDemoData();
         
         return db;
     } catch (error) {
-        try {
-            await db.exec('ROLLBACK');
-        } catch (rollbackError) {
-            console.error('Ошибка при ROLLBACK:', rollbackError.message);
-        }
         console.error('❌ Ошибка инициализации базы данных:', error.message);
         throw error;
     }
 };
 
-// ==================== ТЕСТОВЫЕ ДАННЫЕ ====================
-const createInitialData = async () => {
+// ==================== ДЕМО ДАННЫЕ ====================
+const createDemoData = async () => {
     try {
-        console.log('📝 Создание начальных данных AtomicFlow...');
+        console.log('📝 Создание демо-данных...');
 
-        // Проверяем существование тестового пользователя
-        const userExist = await db.get("SELECT 1 FROM users WHERE username = 'atomic_user'");
-        if (!userExist) {
-            const passwordHash = await bcrypt.hash('atomic123', 12);
+        // Проверяем существование демо-пользователя
+        const demoUser = await db.get("SELECT 1 FROM users WHERE email = 'demo@quantumflow.test'");
+        if (!demoUser) {
+            const passwordHash = await bcrypt.hash('demo123', 12);
             
             await db.run(
                 `INSERT INTO users 
-                (email, username, password, first_name, last_name, avatar_url,
-                 role, level, coins, streak, balance, monthly_income, monthly_expenses,
-                 tasks_completed, habits_streak, is_active) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (email, username, password, first_name, goal, level, coins, streak, balance, monthly_income, monthly_expenses, tasks_completed) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    'alex@atomicflow.test',
-                    'atomic_user',
+                    'demo@quantumflow.test',
+                    'demo_user',
                     passwordHash,
-                    'Александр',
-                    '',
-                    '',
-                    'user',
+                    'Демо',
+                    'productivity',
                     3,
                     1250,
                     12,
                     15840,
                     32500,
                     17600,
-                    87,
-                    12,
-                    1
+                    87
                 ]
             );
             
-            console.log('✅ Тестовый пользователь создан');
+            console.log('✅ Демо-пользователь создан');
         }
 
-        // Проверяем существование тестовых задач
+        // Получаем ID демо-пользователя
+        const userId = await db.get("SELECT id FROM users WHERE email = 'demo@quantumflow.test'");
+        if (!userId) return;
+
+        // Создаем демо-задачи
         const tasksExist = await db.get("SELECT 1 FROM tasks LIMIT 1");
         if (!tasksExist) {
-            const userId = await db.get("SELECT id FROM users WHERE username = 'atomic_user'");
+            const tasks = [
+                [userId.id, 'Запланировать неделю', 'Составить план на неделю', '#работа', 'medium', null, '10:00', 0],
+                [userId.id, 'Утренняя зарядка', '15 минут упражнений', '#здоровье', 'medium', null, '08:00', 1],
+                [userId.id, 'Купить продукты', 'Список продуктов на неделю', '#дом', 'low', null, '18:00', 0],
+                [userId.id, 'Изучить новый фреймворк', 'Изучить основы нового JS фреймворка', '#учеба', 'high', null, '14:00', 0],
+                [userId.id, 'Заполнить финансовый отчет', 'Отчет за прошлый месяц', '#финансы', 'medium', null, '16:00', 0]
+            ];
             
-            if (userId) {
-                const tasks = [
-                    [userId.id, 'Запланировать неделю', 'Составить план на неделю', '#работа', 'medium', null, '10:00', 0],
-                    [userId.id, 'Утренняя зарядка', '15 минут упражнений', '#здоровье', 'medium', null, '08:00', 1],
-                    [userId.id, 'Купить продукты', 'Список продуктов на неделю', '#дом', 'low', null, '18:00', 0],
-                    [userId.id, 'Изучить новый фреймворк', 'Изучить основы нового JS фреймворка', '#учеба', 'high', null, '14:00', 0],
-                    [userId.id, 'Заполнить финансовый отчет', 'Отчет за прошлый месяц', '#финансы', 'medium', null, '16:00', 0]
-                ];
-                
-                for (const task of tasks) {
-                    await db.run(
-                        `INSERT INTO tasks (user_id, title, description, tag, priority, due_date, time, completed)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        task
-                    );
-                }
-                console.log('✅ Тестовые задачи созданы');
+            for (const task of tasks) {
+                await db.run(
+                    `INSERT INTO tasks (user_id, title, description, tag, priority, due_date, time, completed)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    task
+                );
             }
+            console.log('✅ Демо-задачи созданы');
         }
 
-        // Проверяем существование тестовых привычек
+        // Создаем демо-привычки
         const habitsExist = await db.get("SELECT 1 FROM habits LIMIT 1");
         if (!habitsExist) {
-            const userId = await db.get("SELECT id FROM users WHERE username = 'atomic_user'");
+            const habits = [
+                [userId.id, 'Пить воду', 'fas fa-tint', 'Выпивать 2 литра воды в день', 12, 12, 12, 1],
+                [userId.id, '15 минут уборки', 'fas fa-broom', 'Короткая уборка каждый день', 8, 8, 8, 1],
+                [userId.id, 'Чтение 20 мин', 'fas fa-book', 'Чтение перед сном', 5, 5, 5, 0]
+            ];
             
-            if (userId) {
-                const habits = [
-                    [userId.id, 'Пить воду', 'fas fa-tint', 'Выпивать 2 литра воды в день', 12, '[1,1,1,1,1,1,0,1,1,1,1,1,1,0]'],
-                    [userId.id, '15 минут уборки', 'fas fa-broom', 'Короткая уборка каждый день', 8, '[1,1,0,1,1,1,1,1,1,0,0,1,1,1]'],
-                    [userId.id, 'Чтение 20 мин', 'fas fa-book', 'Чтение перед сном', 5, '[1,0,1,1,0,1,1,1,0,1,0,0,1,1]']
-                ];
-                
-                for (const habit of habits) {
-                    await db.run(
-                        `INSERT INTO habits (user_id, title, icon, description, streak, calendar)
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        habit
-                    );
-                }
-                console.log('✅ Тестовые привычки созданы');
+            for (const habit of habits) {
+                await db.run(
+                    `INSERT INTO habits (user_id, title, icon, description, streak, current_streak, best_streak, marked_today)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    habit
+                );
             }
+            console.log('✅ Демо-привычки созданы');
         }
 
-        // Проверяем существование тестовых транзакций
+        // Создаем демо-транзакции
         const transactionsExist = await db.get("SELECT 1 FROM transactions LIMIT 1");
         if (!transactionsExist) {
-            const userId = await db.get("SELECT id FROM users WHERE username = 'atomic_user'");
+            const transactions = [
+                [userId.id, 'income', 50000, 'salary', 'Зарплата'],
+                [userId.id, 'expense', 350, 'food', 'Обед'],
+                [userId.id, 'expense', 1200, 'transport', 'Такси'],
+                [userId.id, 'expense', 2500, 'entertainment', 'Кино'],
+                [userId.id, 'expense', 1800, 'shopping', 'Книги'],
+                [userId.id, 'expense', 3200, 'house', 'Коммунальные услуги'],
+                [userId.id, 'expense', 1500, 'health', 'Аптека'],
+                [userId.id, 'expense', 2800, 'education', 'Курсы']
+            ];
             
-            if (userId) {
-                const transactions = [
-                    [userId.id, 'income', 50000, 'salary', 'Зарплата', 'Оклад за январь'],
-                    [userId.id, 'expense', 350, 'food', 'Обед', 'Бизнес-ланч'],
-                    [userId.id, 'expense', 1200, 'transport', 'Такси', 'Поездка в аэропорт'],
-                    [userId.id, 'expense', 2500, 'entertainment', 'Кино', 'Вечер с друзьями'],
-                    [userId.id, 'expense', 1800, 'shopping', 'Книги', 'Новые книги по программированию']
-                ];
-                
-                for (const transaction of transactions) {
-                    await db.run(
-                        `INSERT INTO transactions (user_id, type, amount, category, description, comment)
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        transaction
-                    );
-                }
-                console.log('✅ Тестовые транзакции созданы');
+            for (const transaction of transactions) {
+                await db.run(
+                    `INSERT INTO transactions (user_id, type, amount, category, description)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    transaction
+                );
             }
+            console.log('✅ Демо-транзакции созданы');
         }
 
-        // Проверяем существование тестовых долгов
-        const debtsExist = await db.get("SELECT 1 FROM debts LIMIT 1");
-        if (!debtsExist) {
-            const userId = await db.get("SELECT id FROM users WHERE username = 'atomic_user'");
-            
-            if (userId) {
-                const debts = [
-                    [userId.id, 'Кредитная карта', 45000, 25, 1, 0, '2024-01-01', '2024-12-01'],
-                    [userId.id, 'Автокредит', 350000, 12, 2, 50000, '2023-06-01', '2026-06-01']
-                ];
-                
-                for (const debt of debts) {
-                    await db.run(
-                        `INSERT INTO debts (user_id, title, amount, interest, priority, paid_amount, start_date, target_date)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        debt
-                    );
-                }
-                console.log('✅ Тестовые долги созданы');
-            }
+        // Создаем финансовую цель
+        const goalsExist = await db.get("SELECT 1 FROM financial_goals LIMIT 1");
+        if (!goalsExist) {
+            await db.run(
+                `INSERT INTO financial_goals (user_id, title, target_amount, current_amount, deadline)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [userId.id, 'Новый ноутбук', 150000, 45000, '2024-12-31']
+            );
+            console.log('✅ Демо-цель создана');
         }
 
-        console.log('🎉 Начальные данные AtomicFlow созданы!');
+        // Создаем метрики здоровья
+        const healthExist = await db.get("SELECT 1 FROM health_metrics LIMIT 1");
+        if (!healthExist) {
+            await db.run(
+                `INSERT INTO health_metrics (user_id, weight, steps, calories, water_ml, activity_level)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [userId.id, 75.5, 8450, 2100, 1500, 'medium']
+            );
+            console.log('✅ Демо-метрики здоровья созданы');
+        }
+
+        // Создаем достижения
+        const achievementsExist = await db.get("SELECT 1 FROM achievements LIMIT 1");
+        if (!achievementsExist) {
+            const achievements = [
+                [userId.id, 'welcome', 'Первые шаги', 'Добро пожаловать в QuantumFlow!'],
+                [userId.id, 'tasks', 'Трудоголик', 'Выполнено 50 задач'],
+                [userId.id, 'habits', 'Мастер привычек', '30 дней подряд привычки'],
+                [userId.id, 'finance', 'Финансист', 'Накоплено 100,000 ₽'],
+                [userId.id, 'streak', 'Железная воля', 'Активная серия 14 дней']
+            ];
+            
+            for (const achievement of achievements) {
+                await db.run(
+                    `INSERT INTO achievements (user_id, type, title, description)
+                     VALUES (?, ?, ?, ?)`,
+                    achievement
+                );
+            }
+            console.log('✅ Демо-достижения созданы');
+        }
+
+        // Создаем лучшие практики
+        const practicesExist = await db.get("SELECT 1 FROM best_practices LIMIT 1");
+        if (!practicesExist) {
+            const practices = [
+                ['Правило 2 минут', 'fas fa-clock', 'Если задача занимает менее 2 минут, делайте её сразу', 'productivity'],
+                ['Метод Pomodoro', 'fas fa-hourglass-half', '25 минут работы, 5 минут отдыха', 'productivity'],
+                ['Пить воду утром', 'fas fa-tint', 'Выпивайте стакан воды сразу после пробуждения', 'health'],
+                ['Ведение бюджета', 'fas fa-chart-pie', 'Записывайте все доходы и расходы', 'finance'],
+                ['Планирование дня', 'fas fa-calendar-check', 'Составляйте план на день с вечера', 'productivity'],
+                ['Цифровой детокс', 'fas fa-mobile-alt', 'Отключайте уведомления во время работы', 'productivity'],
+                ['Регулярные перерывы', 'fas fa-coffee', 'Делайте перерыв каждые 90 минут', 'health']
+            ];
+            
+            for (const practice of practices) {
+                await db.run(
+                    `INSERT INTO best_practices (title, icon, description, category)
+                     VALUES (?, ?, ?, ?)`,
+                    practice
+                );
+            }
+            console.log('✅ Лучшие практики созданы');
+        }
+
+        console.log('🎉 Демо-данные созданы!');
         
     } catch (error) {
-        console.error('⚠️ Ошибка создания начальных данных:', error.message);
+        console.error('⚠️ Ошибка создания демо-данных:', error.message);
     }
 };
 
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
-const generateAvatarUrl = (firstName, lastName) => {
-    const colors = ['#4361ee', '#f72585', '#4cc9f0', '#4ade80', '#fbbf24'];
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName)}+${encodeURIComponent(lastName)}&background=${color.replace('#', '')}&color=fff&bold=true`;
-};
-
 // ==================== JWT МИДЛВАР ====================
-const authMiddleware = () => {
-    return async (req, res, next) => {
-        try {
-            const authHeader = req.headers.authorization;
-            
-            const publicRoutes = [
-                'GET /',
-                'GET /health',
-                'POST /api/auth/register',
-                'POST /api/auth/login',
-                'OPTIONS /*'
-            ];
-            
-            const currentRoute = `${req.method} ${req.path}`;
-            const isPublicRoute = publicRoutes.some(route => {
-                if (route.includes('*')) {
-                    const pattern = route.replace('*', '.*');
-                    return new RegExp(`^${pattern}$`).test(currentRoute);
-                }
-                return currentRoute === route;
-            });
-            
-            if (isPublicRoute) {
-                return next();
-            }
-            
-            if (!authHeader || !authHeader.startsWith('Bearer ')) {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'Требуется авторизация' 
-                });
-            }
-            
-            const token = authHeader.replace('Bearer ', '').trim();
-            
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'atomicflow-secret-key-2024');
-                
-                const user = await db.get(
-                    `SELECT id, email, username, first_name, last_name, avatar_url,
-                            role, level, coins, streak, balance, monthly_income, monthly_expenses,
-                            tasks_completed, habits_streak, is_active
-                     FROM users WHERE id = ? AND is_active = 1`,
-                    [decoded.id]
-                );
-                
-                if (!user) {
-                    return res.status(401).json({ 
-                        success: false, 
-                        error: 'Пользователь не найден' 
-                    });
-                }
-                
-                req.user = {
-                    id: user.id,
-                    email: user.email,
-                    username: user.username,
-                    first_name: user.first_name,
-                    last_name: user.last_name,
-                    avatar_url: user.avatar_url,
-                    role: user.role,
-                    level: user.level,
-                    coins: user.coins,
-                    streak: user.streak,
-                    balance: user.balance,
-                    monthly_income: user.monthly_income,
-                    monthly_expenses: user.monthly_expenses,
-                    tasks_completed: user.tasks_completed,
-                    habits_streak: user.habits_streak
-                };
-                
-                next();
-                
-            } catch (jwtError) {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'Неверный токен' 
-                });
-            }
-            
-        } catch (error) {
-            console.error('Ошибка authMiddleware:', error);
-            return res.status(500).json({ 
+const authMiddleware = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ 
                 success: false, 
-                error: 'Внутренняя ошибка сервера' 
+                error: 'Требуется авторизация' 
             });
         }
-    };
+        
+        const token = authHeader.replace('Bearer ', '').trim();
+        
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'quantumflow-secret-key-2024');
+            
+            const user = await db.get(
+                `SELECT id, email, username, first_name, last_name, goal,
+                        level, coins, streak, balance, monthly_income, monthly_expenses,
+                        tasks_completed, habits_streak
+                 FROM users WHERE id = ? AND is_active = 1`,
+                [decoded.id]
+            );
+            
+            if (!user) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Пользователь не найден' 
+                });
+            }
+            
+            req.user = user;
+            next();
+            
+        } catch (jwtError) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Неверный токен' 
+            });
+        }
+        
+    } catch (error) {
+        console.error('Ошибка authMiddleware:', error);
+        return res.status(500).json({ 
+            success: false, 
+            error: 'Внутренняя ошибка сервера' 
+        });
+    }
 };
 
 // ==================== API МАРШРУТЫ ====================
@@ -513,10 +443,9 @@ const authMiddleware = () => {
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: '🚀 Добро пожаловать в AtomicFlow API',
+        message: '🚀 Добро пожаловать в QuantumFlow API',
         version: '1.0.0',
         status: '🟢 Работает',
-        features: ['Задачи', 'Привычки', 'Финансы', 'Таймер Pomodoro', 'Ревью'],
         timestamp: new Date().toISOString()
     });
 });
@@ -530,16 +459,13 @@ app.get('/health', async (req, res) => {
             success: true,
             status: 'OK',
             database: 'connected',
-            demo_mode: DEMO_MODE,
-            timestamp: new Date().toISOString(),
-            uptime: process.uptime()
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
         res.status(500).json({
             success: false,
             status: 'ERROR',
-            error: error.message,
-            timestamp: new Date().toISOString()
+            error: error.message
         });
     }
 });
@@ -550,8 +476,6 @@ app.get('/health', async (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { email, username, password, first_name, last_name = '' } = req.body;
-        
-        console.log('📝 Регистрация пользователя:', { email, username, first_name });
         
         if (!email || !username || !password || !first_name) {
             return res.status(400).json({
@@ -567,7 +491,11 @@ app.post('/api/auth/register', async (req, res) => {
             });
         }
         
-        const existingUser = await db.get('SELECT id FROM users WHERE email = ? OR username = ?', [email, username]);
+        const existingUser = await db.get(
+            'SELECT id FROM users WHERE email = ? OR username = ?', 
+            [email, username]
+        );
+        
         if (existingUser) {
             return res.status(409).json({
                 success: false,
@@ -576,47 +504,25 @@ app.post('/api/auth/register', async (req, res) => {
         }
         
         const hashedPassword = await bcrypt.hash(password, 12);
-        const avatarUrl = generateAvatarUrl(first_name, last_name);
         
         const result = await db.run(
-            `INSERT INTO users 
-            (email, username, password, first_name, last_name, avatar_url,
-             role, level, coins, streak, balance, monthly_income, monthly_expenses) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                email,
-                username,
-                hashedPassword,
-                first_name,
-                last_name,
-                avatarUrl,
-                'user',
-                1,
-                100,
-                0,
-                0,
-                0,
-                0
-            ]
+            `INSERT INTO users (email, username, password, first_name, last_name) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [email, username, hashedPassword, first_name, last_name]
         );
         
         const userId = result.lastID;
         
-        // Создаем настройки пользователя
+        // Создаем первое достижение
         await db.run(
-            `INSERT INTO user_settings (user_id) VALUES (?)`,
+            `INSERT INTO achievements (user_id, type, title, description) 
+             VALUES (?, 'welcome', 'Первые шаги', 'Добро пожаловать в QuantumFlow!')`,
             [userId]
         );
         
-        // Создаем первую достижение
-        await db.run(
-            `INSERT INTO achievements (user_id, type, title, description) VALUES (?, ?, ?, ?)`,
-            [userId, 'welcome', 'Первые шаги', 'Добро пожаловать в AtomicFlow!']
-        );
-        
         const user = await db.get(
-            `SELECT id, email, username, first_name, last_name, avatar_url,
-                    role, level, coins, streak, balance, monthly_income, monthly_expenses,
+            `SELECT id, email, username, first_name, last_name, goal,
+                    level, coins, streak, balance, monthly_income, monthly_expenses,
                     tasks_completed, habits_streak
              FROM users WHERE id = ?`,
             [userId]
@@ -629,7 +535,7 @@ app.post('/api/auth/register', async (req, res) => {
                 username: user.username,
                 first_name: user.first_name
             },
-            process.env.JWT_SECRET || 'atomicflow-secret-key-2024',
+            process.env.JWT_SECRET || 'quantumflow-secret-key-2024',
             { expiresIn: '30d' }
         );
         
@@ -655,8 +561,6 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        
-        console.log('🔐 Попытка входа:', { email });
         
         if (!email || !password) {
             return res.status(400).json({
@@ -696,8 +600,7 @@ app.post('/api/auth/login', async (req, res) => {
             username: user.username,
             first_name: user.first_name,
             last_name: user.last_name,
-            avatar_url: user.avatar_url,
-            role: user.role,
+            goal: user.goal,
             level: user.level,
             coins: user.coins,
             streak: user.streak,
@@ -715,11 +618,9 @@ app.post('/api/auth/login', async (req, res) => {
                 username: user.username,
                 first_name: user.first_name
             },
-            process.env.JWT_SECRET || 'atomicflow-secret-key-2024',
+            process.env.JWT_SECRET || 'quantumflow-secret-key-2024',
             { expiresIn: '30d' }
         );
-        
-        console.log('Успешный вход пользователя:', user.email);
         
         res.json({
             success: true,
@@ -739,12 +640,141 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// Обновление цели пользователя
+app.put('/api/user/goal', authMiddleware, async (req, res) => {
+    try {
+        const { goal } = req.body;
+        
+        if (!goal) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите цель'
+            });
+        }
+        
+        await db.run(
+            'UPDATE users SET goal = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [goal, req.user.id]
+        );
+        
+        const user = await db.get(
+            `SELECT id, email, username, first_name, goal,
+                    level, coins, streak, balance, monthly_income, monthly_expenses,
+                    tasks_completed, habits_streak
+             FROM users WHERE id = ?`,
+            [req.user.id]
+        );
+        
+        res.json({
+            success: true,
+            message: 'Цель обновлена',
+            data: { user }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка обновления цели:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка обновления цели'
+        });
+    }
+});
+
+// Получение текущего пользователя
+app.get('/api/user/current', authMiddleware, async (req, res) => {
+    try {
+        const user = await db.get(
+            `SELECT id, email, username, first_name, last_name, goal,
+                    level, coins, streak, balance, monthly_income, monthly_expenses,
+                    tasks_completed, habits_streak
+             FROM users WHERE id = ?`,
+            [req.user.id]
+        );
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'Пользователь не найден'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: user
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения пользователя:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения пользователя'
+        });
+    }
+});
+
+// ==================== СТАТИСТИКА ====================
+
+// Общая статистика для главной страницы
+app.get('/api/stats/overview', authMiddleware, async (req, res) => {
+    try {
+        // Статистика пользователя
+        const userStats = await db.get(
+            `SELECT level, coins, streak, tasks_completed, habits_streak
+             FROM users WHERE id = ?`,
+            [req.user.id]
+        );
+        
+        // Статистика задач
+        const tasksStats = await db.get(
+            `SELECT COUNT(*) as total,
+                    SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as pending
+             FROM tasks WHERE user_id = ? AND DATE(due_date) = DATE('now')`,
+            [req.user.id]
+        );
+        
+        // Последние задачи
+        const recentTasks = await db.all(
+            `SELECT id, title, tag, time, completed
+             FROM tasks 
+             WHERE user_id = ? AND (due_date IS NULL OR DATE(due_date) >= DATE('now'))
+             ORDER BY due_date ASC, time ASC
+             LIMIT 5`,
+            [req.user.id]
+        );
+        
+        // Статистика финансов
+        const financeStats = await db.get(
+            `SELECT balance, monthly_income, monthly_expenses
+             FROM users WHERE id = ?`,
+            [req.user.id]
+        );
+        
+        res.json({
+            success: true,
+            data: {
+                user_stats: userStats,
+                tasks_stats: tasksStats,
+                recent_tasks: recentTasks,
+                finance_stats: financeStats
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения статистики:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения статистики'
+        });
+    }
+});
+
 // ==================== ЗАДАЧИ ====================
 
-// Получение задач пользователя
-app.get('/api/tasks', authMiddleware(), async (req, res) => {
+// Получение всех задач
+app.get('/api/tasks', authMiddleware, async (req, res) => {
     try {
-        const { completed, tag, date } = req.query;
+        const { completed, tag } = req.query;
         
         let query = 'SELECT * FROM tasks WHERE user_id = ?';
         const params = [req.user.id];
@@ -757,11 +787,6 @@ app.get('/api/tasks', authMiddleware(), async (req, res) => {
         if (tag && tag !== 'all') {
             query += ' AND tag = ?';
             params.push(tag);
-        }
-        
-        if (date) {
-            query += ' AND DATE(due_date) = ?';
-            params.push(date);
         }
         
         query += ' ORDER BY due_date, time ASC';
@@ -785,10 +810,41 @@ app.get('/api/tasks', authMiddleware(), async (req, res) => {
     }
 });
 
-// Создание задачи
-app.post('/api/tasks', authMiddleware(), async (req, res) => {
+// Получение одной задачи
+app.get('/api/tasks/:id', authMiddleware, async (req, res) => {
     try {
-        const { title, description, tag, priority, due_date, time, subtasks } = req.body;
+        const taskId = req.params.id;
+        
+        const task = await db.get(
+            'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+            [taskId, req.user.id]
+        );
+        
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                error: 'Задача не найдена'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: { task }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения задачи:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения задачи'
+        });
+    }
+});
+
+// Создание задачи
+app.post('/api/tasks', authMiddleware, async (req, res) => {
+    try {
+        const { title, description, tag, priority, due_date, time } = req.body;
         
         if (!title) {
             return res.status(400).json({
@@ -799,8 +855,8 @@ app.post('/api/tasks', authMiddleware(), async (req, res) => {
         
         const result = await db.run(
             `INSERT INTO tasks 
-            (user_id, title, description, tag, priority, due_date, time, subtasks) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (user_id, title, description, tag, priority, due_date, time) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
                 req.user.id,
                 title,
@@ -808,8 +864,7 @@ app.post('/api/tasks', authMiddleware(), async (req, res) => {
                 tag || '#общее',
                 priority || 'medium',
                 due_date || null,
-                time || null,
-                subtasks || null
+                time || null
             ]
         );
         
@@ -832,12 +887,16 @@ app.post('/api/tasks', authMiddleware(), async (req, res) => {
 });
 
 // Обновление задачи
-app.put('/api/tasks/:id', authMiddleware(), async (req, res) => {
+app.put('/api/tasks/:id', authMiddleware, async (req, res) => {
     try {
         const taskId = req.params.id;
-        const { title, description, tag, priority, due_date, time, completed, subtasks } = req.body;
+        const { title, description, tag, priority, due_date, time, completed } = req.body;
         
-        const task = await db.get('SELECT * FROM tasks WHERE id = ? AND user_id = ?', [taskId, req.user.id]);
+        const task = await db.get(
+            'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+            [taskId, req.user.id]
+        );
+        
         if (!task) {
             return res.status(404).json({
                 success: false,
@@ -893,11 +952,6 @@ app.put('/api/tasks/:id', authMiddleware(), async (req, res) => {
             }
         }
         
-        if (subtasks !== undefined) {
-            updateFields.push('subtasks = ?');
-            updateValues.push(subtasks);
-        }
-        
         if (updateFields.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -929,55 +983,22 @@ app.put('/api/tasks/:id', authMiddleware(), async (req, res) => {
     }
 });
 
-// Удаление задачи
-app.delete('/api/tasks/:id', authMiddleware(), async (req, res) => {
-    try {
-        const taskId = req.params.id;
-        
-        const task = await db.get('SELECT * FROM tasks WHERE id = ? AND user_id = ?', [taskId, req.user.id]);
-        if (!task) {
-            return res.status(404).json({
-                success: false,
-                error: 'Задача не найдена'
-            });
-        }
-        
-        await db.run('DELETE FROM tasks WHERE id = ?', [taskId]);
-        
-        res.json({
-            success: true,
-            message: 'Задача успешно удалена',
-            data: { id: taskId }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка удаления задачи:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка удаления задачи'
-        });
-    }
-});
-
 // ==================== ПРИВЫЧКИ ====================
 
-// Получение привычек пользователя
-app.get('/api/habits', authMiddleware(), async (req, res) => {
+// Получение привычек
+app.get('/api/habits', authMiddleware, async (req, res) => {
     try {
         const habits = await db.all(
-            'SELECT * FROM habits WHERE user_id = ? AND is_active = 1 ORDER BY streak DESC',
+            `SELECT * FROM habits 
+             WHERE user_id = ? AND is_active = 1 
+             ORDER BY streak DESC`,
             [req.user.id]
         );
-        
-        const habitsWithParsedCalendar = habits.map(habit => ({
-            ...habit,
-            calendar: JSON.parse(habit.calendar || '[]')
-        }));
         
         res.json({
             success: true,
             data: {
-                habits: habitsWithParsedCalendar,
+                habits,
                 count: habits.length
             }
         });
@@ -992,7 +1013,7 @@ app.get('/api/habits', authMiddleware(), async (req, res) => {
 });
 
 // Создание привычки
-app.post('/api/habits', authMiddleware(), async (req, res) => {
+app.post('/api/habits', authMiddleware, async (req, res) => {
     try {
         const { title, icon, description } = req.body;
         
@@ -1020,12 +1041,7 @@ app.post('/api/habits', authMiddleware(), async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Привычка успешно создана',
-            data: { 
-                habit: {
-                    ...habit,
-                    calendar: JSON.parse(habit.calendar || '[]')
-                }
-            }
+            data: { habit }
         });
         
     } catch (error) {
@@ -1038,11 +1054,15 @@ app.post('/api/habits', authMiddleware(), async (req, res) => {
 });
 
 // Отметка привычки
-app.post('/api/habits/:id/mark', authMiddleware(), async (req, res) => {
+app.post('/api/habits/:id/mark', authMiddleware, async (req, res) => {
     try {
         const habitId = req.params.id;
         
-        const habit = await db.get('SELECT * FROM habits WHERE id = ? AND user_id = ?', [habitId, req.user.id]);
+        const habit = await db.get(
+            'SELECT * FROM habits WHERE id = ? AND user_id = ?',
+            [habitId, req.user.id]
+        );
+        
         if (!habit) {
             return res.status(404).json({
                 success: false,
@@ -1050,20 +1070,13 @@ app.post('/api/habits/:id/mark', authMiddleware(), async (req, res) => {
             });
         }
         
-        let calendar = JSON.parse(habit.calendar || '[]');
-        const today = new Date().toISOString().split('T')[0];
-        
         // Проверяем, не отмечена ли уже сегодня
-        const lastMarkedIndex = calendar.length - 1;
-        if (lastMarkedIndex >= 0 && calendar[lastMarkedIndex] === 1) {
+        if (habit.marked_today) {
             return res.status(400).json({
                 success: false,
-                error: 'Привычка уже отмечена на сегодня'
+                error: 'Привычка уже отмечена сегодня'
             });
         }
-        
-        // Добавляем отметку на сегодня
-        calendar.push(1);
         
         // Обновляем стрик
         const newStreak = habit.streak + 1;
@@ -1072,13 +1085,13 @@ app.post('/api/habits/:id/mark', authMiddleware(), async (req, res) => {
         
         await db.run(
             `UPDATE habits SET 
-                calendar = ?,
+                marked_today = 1,
                 streak = ?,
                 current_streak = ?,
                 best_streak = ?,
                 updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
-            [JSON.stringify(calendar), newStreak, newCurrentStreak, newBestStreak, habitId]
+            [newStreak, newCurrentStreak, newBestStreak, habitId]
         );
         
         // Обновляем статистику пользователя
@@ -1092,12 +1105,7 @@ app.post('/api/habits/:id/mark', authMiddleware(), async (req, res) => {
         res.json({
             success: true,
             message: 'Привычка успешно отмечена! +5 монет',
-            data: { 
-                habit: {
-                    ...updatedHabit,
-                    calendar: JSON.parse(updatedHabit.calendar || '[]')
-                }
-            }
+            data: { habit: updatedHabit }
         });
         
     } catch (error) {
@@ -1111,8 +1119,72 @@ app.post('/api/habits/:id/mark', authMiddleware(), async (req, res) => {
 
 // ==================== ФИНАНСЫ ====================
 
+// Получение статистики финансов
+app.get('/api/finance/stats', authMiddleware, async (req, res) => {
+    try {
+        // Баланс пользователя
+        const userStats = await db.get(
+            'SELECT balance, monthly_income, monthly_expenses FROM users WHERE id = ?',
+            [req.user.id]
+        );
+        
+        // Финансовые цели
+        const goals = await db.all(
+            'SELECT * FROM financial_goals WHERE user_id = ? AND is_active = 1',
+            [req.user.id]
+        );
+        
+        // Статистика по категориям
+        const categoryStats = await db.all(
+            `SELECT category, SUM(amount) as total
+             FROM transactions 
+             WHERE user_id = ? AND type = 'expense' 
+             GROUP BY category
+             ORDER BY total DESC`,
+            [req.user.id]
+        );
+        
+        // Общий баланс
+        const incomeStats = await db.get(
+            'SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "income"',
+            [req.user.id]
+        );
+        
+        const expenseStats = await db.get(
+            'SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "expense"',
+            [req.user.id]
+        );
+        
+        const balance = (incomeStats?.total || 0) - (expenseStats?.total || 0);
+        
+        // Обновляем баланс пользователя
+        await db.run(
+            'UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [balance, req.user.id]
+        );
+        
+        res.json({
+            success: true,
+            data: {
+                balance: balance,
+                monthly_income: userStats?.monthly_income || 0,
+                monthly_expenses: userStats?.monthly_expenses || 0,
+                goals: goals || [],
+                category_stats: categoryStats || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения статистики финансов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения статистики финансов'
+        });
+    }
+});
+
 // Получение транзакций
-app.get('/api/transactions', authMiddleware(), async (req, res) => {
+app.get('/api/transactions', authMiddleware, async (req, res) => {
     try {
         const { type, category, start_date, end_date, limit = 20 } = req.query;
         
@@ -1144,32 +1216,10 @@ app.get('/api/transactions', authMiddleware(), async (req, res) => {
         
         const transactions = await db.all(query, params);
         
-        // Пересчитываем баланс
-        const income = await db.get(
-            'SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "income"',
-            [req.user.id]
-        );
-        
-        const expenses = await db.get(
-            'SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "expense"',
-            [req.user.id]
-        );
-        
-        const balance = (income?.total || 0) - (expenses?.total || 0);
-        
-        // Обновляем баланс пользователя
-        await db.run(
-            'UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [balance, req.user.id]
-        );
-        
         res.json({
             success: true,
             data: {
                 transactions,
-                balance: balance,
-                income: income?.total || 0,
-                expenses: expenses?.total || 0,
                 count: transactions.length
             }
         });
@@ -1184,9 +1234,9 @@ app.get('/api/transactions', authMiddleware(), async (req, res) => {
 });
 
 // Создание транзакции
-app.post('/api/transactions', authMiddleware(), async (req, res) => {
+app.post('/api/transactions', authMiddleware, async (req, res) => {
     try {
-        const { type, amount, category, description, comment, date } = req.body;
+        const { type, amount, category, description, date } = req.body;
         
         if (!type || !amount) {
             return res.status(400).json({
@@ -1197,15 +1247,14 @@ app.post('/api/transactions', authMiddleware(), async (req, res) => {
         
         const result = await db.run(
             `INSERT INTO transactions 
-            (user_id, type, amount, category, description, comment, date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            (user_id, type, amount, category, description, date) 
+            VALUES (?, ?, ?, ?, ?, ?)`,
             [
                 req.user.id,
                 type,
                 parseFloat(amount),
                 category || 'other',
                 description || null,
-                comment || null,
                 date || new Date().toISOString().split('T')[0]
             ]
         );
@@ -1241,163 +1290,256 @@ app.post('/api/transactions', authMiddleware(), async (req, res) => {
     }
 });
 
-// ==================== ДОЛГИ ====================
+// ==================== ФИНАНСОВЫЕ ЦЕЛИ ====================
 
-// Получение долгов
-app.get('/api/debts', authMiddleware(), async (req, res) => {
+// Создание финансовой цели
+app.post('/api/financial-goals', authMiddleware, async (req, res) => {
     try {
-        const debts = await db.all(
-            'SELECT * FROM debts WHERE user_id = ? AND is_active = 1 ORDER BY priority, amount ASC',
-            [req.user.id]
-        );
+        const { title, target_amount, current_amount, deadline } = req.body;
         
-        res.json({
-            success: true,
-            data: {
-                debts,
-                total_debt: debts.reduce((sum, debt) => sum + (debt.amount - debt.paid_amount), 0),
-                count: debts.length
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения долгов:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения долгов'
-        });
-    }
-});
-
-// Создание долга
-app.post('/api/debts', authMiddleware(), async (req, res) => {
-    try {
-        const { title, amount, interest, priority, start_date, target_date } = req.body;
-        
-        if (!title || !amount) {
+        if (!title || !target_amount) {
             return res.status(400).json({
                 success: false,
-                error: 'Заполните название и сумму долга'
+                error: 'Заполните название и целевую сумму'
             });
         }
         
+        // Деактивируем старые цели
+        await db.run(
+            'UPDATE financial_goals SET is_active = 0 WHERE user_id = ?',
+            [req.user.id]
+        );
+        
         const result = await db.run(
-            `INSERT INTO debts 
-            (user_id, title, amount, interest, priority, start_date, target_date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO financial_goals 
+            (user_id, title, target_amount, current_amount, deadline) 
+            VALUES (?, ?, ?, ?, ?)`,
             [
                 req.user.id,
                 title,
-                parseFloat(amount),
-                interest || 0,
-                priority || 1,
-                start_date || new Date().toISOString().split('T')[0],
-                target_date || null
+                parseFloat(target_amount),
+                parseFloat(current_amount) || 0,
+                deadline || null
             ]
         );
         
-        const debtId = result.lastID;
-        const debt = await db.get('SELECT * FROM debts WHERE id = ?', [debtId]);
+        const goalId = result.lastID;
+        const goal = await db.get('SELECT * FROM financial_goals WHERE id = ?', [goalId]);
         
         res.status(201).json({
             success: true,
-            message: 'Долг успешно добавлен',
-            data: { debt }
+            message: 'Финансовая цель создана',
+            data: { goal }
         });
         
     } catch (error) {
-        console.error('Ошибка создания долга:', error.message);
+        console.error('Ошибка создания финансовой цели:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка создания долга'
+            error: 'Ошибка создания финансовой цели'
         });
     }
 });
 
-// ==================== РЕВЬЮ ====================
+// ==================== ЗДОРОВЬЕ ====================
 
-// Получение последних ревью
-app.get('/api/reviews', authMiddleware(), async (req, res) => {
+// Получение статистики здоровья
+app.get('/api/health/stats', authMiddleware, async (req, res) => {
     try {
-        const reviews = await db.all(
-            'SELECT * FROM reviews WHERE user_id = ? ORDER BY week_start DESC LIMIT 5',
+        // Последние метрики
+        const currentMetrics = await db.get(
+            `SELECT weight, steps, calories, water_ml, activity_level
+             FROM health_metrics 
+             WHERE user_id = ? 
+             ORDER BY date DESC 
+             LIMIT 1`,
             [req.user.id]
         );
         
-        const reviewsWithParsedData = reviews.map(review => ({
-            ...review,
-            important_tasks: JSON.parse(review.important_tasks || '[]'),
-            improvements: JSON.parse(review.improvements || '[]')
-        }));
+        // Дефолтные значения
+        const metrics = currentMetrics || {
+            weight: null,
+            steps: 0,
+            calories: 0,
+            water_ml: 0,
+            activity_level: 'medium'
+        };
         
         res.json({
             success: true,
             data: {
-                reviews: reviewsWithParsedData,
-                count: reviews.length
+                current_metrics: metrics
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения ревью:', error.message);
+        console.error('Ошибка получения статистики здоровья:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения ревью'
+            error: 'Ошибка получения статистики здоровья'
         });
     }
 });
 
-// Создание ревью
-app.post('/api/reviews', authMiddleware(), async (req, res) => {
+// Сохранение метрик здоровья
+app.post('/api/health/metrics', authMiddleware, async (req, res) => {
     try {
-        const { week_start, week_end, important_tasks, improvements, financial_insight, rating } = req.body;
+        const { weight, steps, calories, water_ml, activity_level } = req.body;
         
-        const today = new Date();
-        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-        const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
-        
-        const result = await db.run(
-            `INSERT INTO reviews 
-            (user_id, week_start, week_end, important_tasks, improvements, financial_insight, rating, completed) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                req.user.id,
-                week_start || startOfWeek.toISOString().split('T')[0],
-                week_end || endOfWeek.toISOString().split('T')[0],
-                JSON.stringify(important_tasks || []),
-                JSON.stringify(improvements || []),
-                financial_insight || '',
-                rating || 5,
-                1
-            ]
-        );
-        
-        // Начисляем монеты за завершение ревью
-        await db.run(
-            'UPDATE users SET coins = coins + 50 WHERE id = ?',
+        // Проверяем существование записи на сегодня
+        const existingMetric = await db.get(
+            'SELECT id FROM health_metrics WHERE user_id = ? AND date = DATE("now")',
             [req.user.id]
         );
         
-        const reviewId = result.lastID;
-        const review = await db.get('SELECT * FROM reviews WHERE id = ?', [reviewId]);
+        if (existingMetric) {
+            // Обновляем существующую запись
+            await db.run(
+                `UPDATE health_metrics SET 
+                    weight = COALESCE(?, weight),
+                    steps = COALESCE(?, steps),
+                    calories = COALESCE(?, calories),
+                    water_ml = COALESCE(?, water_ml),
+                    activity_level = COALESCE(?, activity_level)
+                 WHERE id = ?`,
+                [
+                    weight || null,
+                    steps || 0,
+                    calories || 0,
+                    water_ml || 0,
+                    activity_level || 'medium',
+                    existingMetric.id
+                ]
+            );
+        } else {
+            // Создаем новую запись
+            await db.run(
+                `INSERT INTO health_metrics 
+                (user_id, weight, steps, calories, water_ml, activity_level) 
+                VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    req.user.id,
+                    weight || null,
+                    steps || 0,
+                    calories || 0,
+                    water_ml || 0,
+                    activity_level || 'medium'
+                ]
+            );
+        }
         
-        res.status(201).json({
+        res.json({
             success: true,
-            message: 'Еженедельное ревью успешно завершено! +50 монет',
-            data: { 
-                review: {
-                    ...review,
-                    important_tasks: JSON.parse(review.important_tasks || '[]'),
-                    improvements: JSON.parse(review.improvements || '[]')
-                }
+            message: 'Метрики здоровья сохранены'
+        });
+        
+    } catch (error) {
+        console.error('Ошибка сохранения метрик здоровья:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка сохранения метрик здоровья'
+        });
+    }
+});
+
+// Трекинг воды
+app.post('/api/health/water', authMiddleware, async (req, res) => {
+    try {
+        const { amount } = req.body;
+        
+        if (!amount) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите количество воды'
+            });
+        }
+        
+        // Получаем текущие метрики
+        const currentMetrics = await db.get(
+            'SELECT * FROM health_metrics WHERE user_id = ? AND date = DATE("now")',
+            [req.user.id]
+        );
+        
+        if (currentMetrics) {
+            // Обновляем существующую запись
+            await db.run(
+                'UPDATE health_metrics SET water_ml = water_ml + ? WHERE id = ?',
+                [amount, currentMetrics.id]
+            );
+        } else {
+            // Создаем новую запись
+            await db.run(
+                'INSERT INTO health_metrics (user_id, water_ml) VALUES (?, ?)',
+                [req.user.id, amount]
+            );
+        }
+        
+        res.json({
+            success: true,
+            message: 'Вода добавлена'
+        });
+        
+    } catch (error) {
+        console.error('Ошибка добавления воды:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка добавления воды'
+        });
+    }
+});
+
+// Получение трекера воды
+app.get('/api/health/water-tracking', authMiddleware, async (req, res) => {
+    try {
+        // Получаем текущее количество воды
+        const currentMetrics = await db.get(
+            'SELECT water_ml FROM health_metrics WHERE user_id = ? AND date = DATE("now")',
+            [req.user.id]
+        );
+        
+        const waterMl = currentMetrics?.water_ml || 0;
+        const bottlesCount = Math.floor(waterMl / 250);
+        const bottles = Array.from({ length: 8 }, (_, i) => i < bottlesCount);
+        
+        res.json({
+            success: true,
+            data: {
+                water_ml: waterMl,
+                bottles: bottles
             }
         });
         
     } catch (error) {
-        console.error('Ошибка создания ревью:', error.message);
+        console.error('Ошибка получения трекера воды:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка создания ревью'
+            error: 'Ошибка получения трекера воды'
+        });
+    }
+});
+
+// ==================== ЛУЧШИЕ ПРАКТИКИ ====================
+
+// Получение лучших практик
+app.get('/api/best-practices', authMiddleware, async (req, res) => {
+    try {
+        const practices = await db.all(
+            'SELECT * FROM best_practices WHERE is_active = 1 ORDER BY created_at DESC'
+        );
+        
+        res.json({
+            success: true,
+            data: {
+                practices,
+                count: practices.length
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения лучших практик:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения лучших практик'
         });
     }
 });
@@ -1405,7 +1547,7 @@ app.post('/api/reviews', authMiddleware(), async (req, res) => {
 // ==================== ДОСТИЖЕНИЯ ====================
 
 // Получение достижений
-app.get('/api/achievements', authMiddleware(), async (req, res) => {
+app.get('/api/achievements', authMiddleware, async (req, res) => {
     try {
         const achievements = await db.all(
             'SELECT * FROM achievements WHERE user_id = ? ORDER BY earned_at DESC',
@@ -1429,191 +1571,97 @@ app.get('/api/achievements', authMiddleware(), async (req, res) => {
     }
 });
 
-// ==================== НАСТРОЙКИ ====================
-
-// Получение настроек
-app.get('/api/settings', authMiddleware(), async (req, res) => {
+// Проверка достижений
+app.post('/api/achievements/check', authMiddleware, async (req, res) => {
     try {
-        const settings = await db.get(
-            'SELECT * FROM user_settings WHERE user_id = ?',
+        const awarded = [];
+        
+        // Проверяем различные достижения
+        
+        // 1. Достижение за задачи
+        const taskCount = await db.get(
+            'SELECT COUNT(*) as count FROM tasks WHERE user_id = ? AND completed = 1',
             [req.user.id]
         );
         
-        res.json({
-            success: true,
-            data: { settings }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения настроек:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения настроек'
-        });
-    }
-});
-
-// Обновление настроек
-app.put('/api/settings', authMiddleware(), async (req, res) => {
-    try {
-        const { theme, pomodoro_duration, short_break, long_break, notifications, language } = req.body;
-        
-        const updateFields = [];
-        const updateValues = [];
-        
-        if (theme !== undefined) {
-            updateFields.push('theme = ?');
-            updateValues.push(theme);
+        if (taskCount.count >= 50) {
+            const existingAchievement = await db.get(
+                'SELECT 1 FROM achievements WHERE user_id = ? AND type = "tasks"',
+                [req.user.id]
+            );
+            
+            if (!existingAchievement) {
+                await db.run(
+                    `INSERT INTO achievements (user_id, type, title, description) 
+                     VALUES (?, 'tasks', 'Трудоголик', 'Выполнено 50 задач')`,
+                    [req.user.id]
+                );
+                awarded.push('Трудоголик');
+            }
         }
         
-        if (pomodoro_duration !== undefined) {
-            updateFields.push('pomodoro_duration = ?');
-            updateValues.push(pomodoro_duration);
+        // 2. Достижение за привычки
+        const habitStreak = await db.get(
+            'SELECT MAX(streak) as max_streak FROM habits WHERE user_id = ?',
+            [req.user.id]
+        );
+        
+        if (habitStreak.max_streak >= 30) {
+            const existingAchievement = await db.get(
+                'SELECT 1 FROM achievements WHERE user_id = ? AND type = "habits"',
+                [req.user.id]
+            );
+            
+            if (!existingAchievement) {
+                await db.run(
+                    `INSERT INTO achievements (user_id, type, title, description) 
+                     VALUES (?, 'habits', 'Мастер привычек', '30 дней подряд привычки')`,
+                    [req.user.id]
+                );
+                awarded.push('Мастер привычек');
+            }
         }
         
-        if (short_break !== undefined) {
-            updateFields.push('short_break = ?');
-            updateValues.push(short_break);
+        // 3. Достижение за финансы
+        const userBalance = await db.get(
+            'SELECT balance FROM users WHERE id = ?',
+            [req.user.id]
+        );
+        
+        if (userBalance.balance >= 100000) {
+            const existingAchievement = await db.get(
+                'SELECT 1 FROM achievements WHERE user_id = ? AND type = "finance"',
+                [req.user.id]
+            );
+            
+            if (!existingAchievement) {
+                await db.run(
+                    `INSERT INTO achievements (user_id, type, title, description) 
+                     VALUES (?, 'finance', 'Финансист', 'Накоплено 100,000 ₽')`,
+                    [req.user.id]
+                );
+                awarded.push('Финансист');
+            }
         }
-        
-        if (long_break !== undefined) {
-            updateFields.push('long_break = ?');
-            updateValues.push(long_break);
-        }
-        
-        if (notifications !== undefined) {
-            updateFields.push('notifications = ?');
-            updateValues.push(notifications);
-        }
-        
-        if (language !== undefined) {
-            updateFields.push('language = ?');
-            updateValues.push(language);
-        }
-        
-        if (updateFields.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Нет данных для обновления'
-            });
-        }
-        
-        updateFields.push('updated_at = CURRENT_TIMESTAMP');
-        updateValues.push(req.user.id);
-        
-        const query = `UPDATE user_settings SET ${updateFields.join(', ')} WHERE user_id = ?`;
-        
-        await db.run(query, updateValues);
-        
-        const settings = await db.get('SELECT * FROM user_settings WHERE user_id = ?', [req.user.id]);
-        
-        res.json({
-            success: true,
-            message: 'Настройки успешно обновлены',
-            data: { settings }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка обновления настроек:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка обновления настроек'
-        });
-    }
-});
-
-// ==================== СТАТИСТИКА ====================
-
-// Получение статистики
-app.get('/api/stats', authMiddleware(), async (req, res) => {
-    try {
-        // Статистика задач
-        const tasksStats = await db.get(`
-            SELECT 
-                COUNT(*) as total_tasks,
-                SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_tasks,
-                SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as pending_tasks,
-                SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_priority_tasks,
-                AVG(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completion_rate
-            FROM tasks 
-            WHERE user_id = ?
-        `, [req.user.id]);
-        
-        // Статистика привычек
-        const habitsStats = await db.get(`
-            SELECT 
-                COUNT(*) as total_habits,
-                AVG(streak) as avg_streak,
-                MAX(streak) as max_streak,
-                SUM(CASE WHEN current_streak > 0 THEN 1 ELSE 0 END) as active_habits
-            FROM habits 
-            WHERE user_id = ? AND is_active = 1
-        `, [req.user.id]);
-        
-        // Финансовая статистика
-        const financeStats = await db.get(`
-            SELECT 
-                SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income,
-                SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as total_expenses,
-                AVG(CASE WHEN type = 'expense' THEN amount ELSE NULL END) as avg_expense,
-                COUNT(DISTINCT category) as categories_count
-            FROM transactions 
-            WHERE user_id = ? AND DATE(date) >= DATE('now', '-30 days')
-        `, [req.user.id]);
-        
-        // Статистика долгов
-        const debtsStats = await db.get(`
-            SELECT 
-                COUNT(*) as total_debts,
-                SUM(amount - paid_amount) as remaining_debt,
-                AVG(interest) as avg_interest,
-                SUM(paid_amount) as total_paid
-            FROM debts 
-            WHERE user_id = ? AND is_active = 1
-        `, [req.user.id]);
-        
-        // Еженедельная продуктивность
-        const weeklyProductivity = await db.all(`
-            SELECT 
-                strftime('%W', created_at) as week_number,
-                COUNT(*) as tasks_created,
-                SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as tasks_completed
-            FROM tasks 
-            WHERE user_id = ? 
-            GROUP BY strftime('%W', created_at)
-            ORDER BY week_number DESC
-            LIMIT 4
-        `, [req.user.id]);
         
         res.json({
             success: true,
             data: {
-                tasks: tasksStats || {},
-                habits: habitsStats || {},
-                finance: financeStats || {},
-                debts: debtsStats || {},
-                weekly_productivity: weeklyProductivity || [],
-                user_stats: {
-                    level: req.user.level,
-                    coins: req.user.coins,
-                    streak: req.user.streak,
-                    tasks_completed: req.user.tasks_completed,
-                    habits_streak: req.user.habits_streak
-                }
+                awarded: awarded,
+                count: awarded.length
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения статистики:', error.message);
+        console.error('Ошибка проверки достижений:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения статистики'
+            error: 'Ошибка проверки достижений'
         });
     }
 });
 
 // ==================== SPA МАРШРУТИЗАЦИЯ ====================
-// Исправленная версия - убрал лишние строки
 app.get('*', (req, res) => {
     // Проверяем, не является ли запрос API или статическим файлом
     if (req.path.startsWith('/api/')) {
@@ -1624,12 +1672,7 @@ app.get('*', (req, res) => {
     }
     
     // Отдаем index.html для всех остальных маршрутов
-    res.sendFile(path.join(__dirname, 'public', 'index.html'), {
-        headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'X-Content-Type-Options': 'nosniff'
-        }
-    });
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ==================== ОБРАБОТКА ОШИБОК ====================
@@ -1647,12 +1690,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
     try {
         console.log('\n' + '='.repeat(80));
-        console.log('🚀 ЗАПУСК ATOMICFLOW v1.0.0');
-        console.log('='.repeat(80));
-        console.log(`🌐 ДОМЕН: ${DOMAIN}`);
-        console.log(`🔌 PORT: ${process.env.PORT || 3000}`);
-        console.log(`🏷️  NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`📊 Демо-режим: ${DEMO_MODE ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`);
+        console.log('🚀 ЗАПУСК QUANTUMFLOW v1.0.0');
         console.log('='.repeat(80));
         
         await initDatabase();
@@ -1662,26 +1700,25 @@ const startServer = async () => {
         
         const PORT = process.env.PORT || 3000;
         app.listen(PORT, () => {
-            console.log(`🚀 AtomicFlow запущен!`);
-            console.log(`🌐 Доступ по адресу: ${DOMAIN}`);
-            console.log(`📊 Проверка здоровья: ${DOMAIN}/health`);
+            console.log(`🚀 QuantumFlow запущен на порту ${PORT}!`);
+            console.log(`🌐 Доступ по адресу: http://localhost:${PORT}`);
+            console.log(`📊 Проверка здоровья: http://localhost:${PORT}/health`);
             console.log('='.repeat(80));
-            console.log('🔑 ТЕСТОВЫЙ АККАУНТ:');
+            console.log('🔑 ДЕМО АККАУНТ:');
             console.log('='.repeat(50));
-            console.log('👤 Email: alex@atomicflow.test');
-            console.log('🔐 Пароль: atomic123');
-            console.log('👤 Username: atomic_user');
+            console.log('👤 Email: demo@quantumflow.test');
+            console.log('🔐 Пароль: demo123');
             console.log('='.repeat(50));
             
             console.log('\n📊 ОСНОВНЫЕ ФУНКЦИОНАЛЬНОСТИ:');
             console.log('='.repeat(60));
             console.log('✅ Управление задачами с тегами и приоритетами');
-            console.log('✅ Трекер привычек с календарем');
-            console.log('✅ Финансовый трекер с категориями');
-            console.log('✅ Метод снежного кома для долгов');
-            console.log('✅ Еженедельные ревью');
+            console.log('✅ Трекер привычек');
+            console.log('✅ Финансовый трекер с целями');
+            console.log('✅ Трекер здоровья и воды');
             console.log('✅ Таймер Pomodoro');
             console.log('✅ Система достижений и монет');
+            console.log('✅ Ежедневные ревью');
             console.log('='.repeat(60));
         });
         
@@ -1692,4 +1729,4 @@ const startServer = async () => {
 };
 
 // Запуск
-startServer(); 
+startServer();
