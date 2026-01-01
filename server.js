@@ -1584,15 +1584,15 @@ app.get('/api/habits/practices', authMiddleware, async (req, res) => {
             alcohol: Math.round((habitStats.days_alcohol_free || 0) * 150) // 150 руб в день на алкоголь
         };
         
-        res.json({
-            success: true,
-            data: {
-                practices: practices.slice(0, 5),
-                stats: habitStats,
-                money_saved: moneySaved,
-                health_improvements: this.calculateHealthImprovements(habitStats)
-            }
-        });
+       res.json({
+    success: true,
+    data: {
+        practices: practices.slice(0, 5),
+        stats: habitStats,
+        money_saved: moneySaved,
+        health_improvements: calculateHealthImprovements(habitStats) // Исправить на этот вызов
+    }
+});
         
     } catch (error) {
         console.error('Ошибка получения практик:', error.message);
@@ -2198,6 +2198,5 @@ const calculateHealthImprovements = (stats) => {
     
     return improvements;
 };
-
 // Запуск
 startServer();
