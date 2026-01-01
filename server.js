@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
-const fs = require('fs'); // Добавьте эту строку!
+const fs = require('fs');
 
 const app = express();
 
@@ -36,14 +36,12 @@ const initDatabase = async () => {
     try {
         console.log('🔄 Инициализация базы данных QuantumFlow...');
         
-        // Проверяем и создаем директорию если нужно
         const dbDir = path.join(__dirname, 'data');
         if (!fs.existsSync(dbDir)) {
             fs.mkdirSync(dbDir, { recursive: true });
         }
         
-        // Путь к базе данных
-        const dbPath = path.join(dbDir, 'quantumflow.db');
+        const dbPath = path.join(dbDir, 'quantumflow_v2.db');
         console.log(`📁 Путь к базе данных: ${dbPath}`);
         
         db = await open({
@@ -55,10 +53,7 @@ const initDatabase = async () => {
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
 
-        // Создание таблиц
         await createTables();
-        
-        // Создаем демо-данные
         await createDemoData();
         
         return db;
@@ -68,11 +63,11 @@ const initDatabase = async () => {
     }
 };
 
-
 const createTables = async () => {
     try {
         console.log('📊 Создание таблиц...');
         
+        // Расширенная таблица пользователей с целями и сроками
         await db.exec(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,15 +77,45 @@ const createTables = async () => {
                 first_name TEXT NOT NULL,
                 last_name TEXT,
                 avatar_url TEXT,
-                goal TEXT DEFAULT 'productivity',
+                
+                -- Основные цели (1-5)
+                goal_1_finance BOOLEAN DEFAULT 0,
+                goal_2_fitness BOOLEAN DEFAULT 0,
+                goal_3_habits BOOLEAN DEFAULT 0,
+                goal_4_productivity BOOLEAN DEFAULT 0,
+                goal_5_schedule BOOLEAN DEFAULT 0,
+                
+                -- Сроки для целей (в месяцах)
+                goal_1_deadline INTEGER DEFAULT 12,
+                goal_2_deadline INTEGER DEFAULT 6,
+                goal_3_deadline INTEGER DEFAULT 3,
+                goal_4_deadline INTEGER DEFAULT 1,
+                goal_5_deadline INTEGER DEFAULT 1,
+                
+                -- Статистика
                 level INTEGER DEFAULT 1,
                 coins INTEGER DEFAULT 100,
                 streak INTEGER DEFAULT 0,
+                tasks_completed INTEGER DEFAULT 0,
+                habits_streak INTEGER DEFAULT 0,
+                
+                -- Финансы
                 balance REAL DEFAULT 0,
                 monthly_income REAL DEFAULT 0,
                 monthly_expenses REAL DEFAULT 0,
-                tasks_completed INTEGER DEFAULT 0,
-                habits_streak INTEGER DEFAULT 0,
+                
+                -- Здоровье
+                weight REAL DEFAULT 70,
+                height REAL DEFAULT 170,
+                target_weight REAL DEFAULT 65,
+                activity_level TEXT DEFAULT 'medium',
+                
+                -- Вредные привычки
+                smoking_status TEXT DEFAULT 'non_smoker',
+                alcohol_status TEXT DEFAULT 'non_drinker',
+                smoking_start_date DATE,
+                alcohol_start_date DATE,
+                
                 is_active INTEGER DEFAULT 1,
                 last_login TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -98,57 +123,7 @@ const createTables = async () => {
             )
         `);
 
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                description TEXT,
-                tag TEXT DEFAULT '#общее',
-                priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high')),
-                due_date DATE,
-                time TEXT,
-                completed INTEGER DEFAULT 0,
-                completed_at TIMESTAMP,
-                pomodoro_sessions INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS habits (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                icon TEXT DEFAULT 'fas fa-star',
-                description TEXT,
-                streak INTEGER DEFAULT 0,
-                current_streak INTEGER DEFAULT 0,
-                best_streak INTEGER DEFAULT 0,
-                marked_today INTEGER DEFAULT 0,
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
-                amount REAL NOT NULL,
-                category TEXT DEFAULT 'other',
-                description TEXT,
-                date DATE DEFAULT CURRENT_DATE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
+        // Финансовые цели и копилки
         await db.exec(`
             CREATE TABLE IF NOT EXISTS financial_goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,63 +132,148 @@ const createTables = async () => {
                 target_amount REAL NOT NULL,
                 current_amount REAL DEFAULT 0,
                 deadline DATE,
+                category TEXT DEFAULT 'savings',
+                icon TEXT DEFAULT 'fas fa-piggy-bank',
                 is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
+        // Транзакции с расширенными категориями
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS health_metrics (
+            CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
-                weight REAL,
-                steps INTEGER DEFAULT 0,
-                calories INTEGER DEFAULT 0,
-                water_ml INTEGER DEFAULT 0,
-                activity_level TEXT DEFAULT 'medium',
+                type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+                amount REAL NOT NULL,
+                category TEXT NOT NULL,
+                subcategory TEXT,
+                description TEXT,
                 date DATE DEFAULT CURRENT_DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
+        // Упражнения и тренировки
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS achievements (
+            CREATE TABLE IF NOT EXISTS workouts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 type TEXT NOT NULL,
                 title TEXT NOT NULL,
+                duration INTEGER DEFAULT 20,
+                calories INTEGER DEFAULT 100,
+                completed INTEGER DEFAULT 0,
+                date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        // Программа упражнений (рекомендации)
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS exercise_programs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                difficulty TEXT DEFAULT 'beginner',
+                duration INTEGER DEFAULT 30,
+                calories INTEGER DEFAULT 200,
+                exercises TEXT NOT NULL, -- JSON массив упражнений
+                for_weight_loss BOOLEAN DEFAULT 1,
+                for_strength BOOLEAN DEFAULT 0,
+                for_endurance BOOLEAN DEFAULT 0,
+                is_active INTEGER DEFAULT 1
+            )
+        `);
+
+        // Трекер вредных привычек
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS bad_habits_tracker (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                habit_type TEXT NOT NULL CHECK(habit_type IN ('smoking', 'alcohol', 'other')),
+                status TEXT DEFAULT 'active',
+                start_date DATE,
+                quit_date DATE,
+                cravings_today INTEGER DEFAULT 0,
+                money_saved REAL DEFAULT 0,
+                health_improvements TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        // Практики для отказа от вредных привычек
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS quitting_practices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                for_habit TEXT NOT NULL,
+                difficulty TEXT DEFAULT 'easy',
+                duration INTEGER DEFAULT 10,
+                steps TEXT NOT NULL, -- JSON шаги
+                success_rate INTEGER DEFAULT 70
+            )
+        `);
+
+        // Методы личной эффективности
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS productivity_methods (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                icon TEXT DEFAULT 'fas fa-brain',
+                steps TEXT NOT NULL,
+                recommended_duration INTEGER DEFAULT 25,
+                category TEXT DEFAULT 'focus'
+            )
+        `);
+
+        // Распорядок дня
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS daily_schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                day_type TEXT DEFAULT 'weekday',
+                time_slot TEXT NOT NULL,
+                activity TEXT NOT NULL,
+                duration INTEGER DEFAULT 60,
+                priority INTEGER DEFAULT 3,
+                completed INTEGER DEFAULT 0,
+                date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        // Достижения для всех категорий
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                title TEXT NOT NULL,
                 description TEXT,
+                icon TEXT DEFAULT 'fas fa-trophy',
                 earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         `);
 
+        // Финансовые советы на основе расходов
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS daily_reviews (
+            CREATE TABLE IF NOT EXISTS financial_advice (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                rating INTEGER DEFAULT 5,
-                successes TEXT,
-                improvements TEXT,
-                tomorrow_goals TEXT,
-                date DATE DEFAULT CURRENT_DATE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS best_practices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                icon TEXT DEFAULT 'fas fa-lightbulb',
-                description TEXT NOT NULL,
-                category TEXT DEFAULT 'general',
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                category TEXT NOT NULL,
+                condition TEXT NOT NULL,
+                advice_text TEXT NOT NULL,
+                action_items TEXT,
+                priority INTEGER DEFAULT 1
             )
         `);
 
@@ -230,166 +290,210 @@ const createDemoData = async () => {
     try {
         console.log('📝 Создание демо-данных...');
 
-        // Проверяем существование демо-пользователя
+        // Демо-пользователь
         const demoUser = await db.get("SELECT 1 FROM users WHERE email = 'demo@quantumflow.test'");
         if (!demoUser) {
             const passwordHash = await bcrypt.hash('demo123', 12);
             
             await db.run(
                 `INSERT INTO users 
-                (email, username, password, first_name, goal, level, coins, streak, balance, monthly_income, monthly_expenses, tasks_completed) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (email, username, password, first_name, 
+                 goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                 goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline,
+                 level, coins, streak, balance, monthly_income, monthly_expenses,
+                 weight, target_weight, smoking_status, alcohol_status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     'demo@quantumflow.test',
                     'demo_user',
                     passwordHash,
                     'Демо',
-                    'productivity',
-                    3,
-                    1250,
-                    12,
-                    15840,
-                    32500,
-                    17600,
-                    87
+                    1, 1, 1, 1, 1,  // Все цели активны
+                    12, 6, 3, 1, 1, // Сроки
+                    3, 1250, 12, 15840, 32500, 17600,
+                    75.5, 70, 'former_smoker', 'social_drinker'
                 ]
             );
             
             console.log('✅ Демо-пользователь создан');
         }
 
-        // Получаем ID демо-пользователя
         const userId = await db.get("SELECT id FROM users WHERE email = 'demo@quantumflow.test'");
         if (!userId) return;
 
-        // Создаем демо-задачи
-        const tasksExist = await db.get("SELECT 1 FROM tasks LIMIT 1");
-        if (!tasksExist) {
-            const tasks = [
-                [userId.id, 'Запланировать неделю', 'Составить план на неделю', '#работа', 'medium', null, '10:00', 0],
-                [userId.id, 'Утренняя зарядка', '15 минут упражнений', '#здоровье', 'medium', null, '08:00', 1],
-                [userId.id, 'Купить продукты', 'Список продуктов на неделю', '#дом', 'low', null, '18:00', 0],
-                [userId.id, 'Изучить новый фреймворк', 'Изучить основы нового JS фреймворка', '#учеба', 'high', null, '14:00', 0],
-                [userId.id, 'Заполнить финансовый отчет', 'Отчет за прошлый месяц', '#финансы', 'medium', null, '16:00', 0]
-            ];
-            
-            for (const task of tasks) {
-                await db.run(
-                    `INSERT INTO tasks (user_id, title, description, tag, priority, due_date, time, completed)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    task
-                );
-            }
-            console.log('✅ Демо-задачи созданы');
-        }
-
-        // Создаем демо-привычки
-        const habitsExist = await db.get("SELECT 1 FROM habits LIMIT 1");
-        if (!habitsExist) {
-            const habits = [
-                [userId.id, 'Пить воду', 'fas fa-tint', 'Выпивать 2 литра воды в день', 12, 12, 12, 1],
-                [userId.id, '15 минут уборки', 'fas fa-broom', 'Короткая уборка каждый день', 8, 8, 8, 1],
-                [userId.id, 'Чтение 20 мин', 'fas fa-book', 'Чтение перед сном', 5, 5, 5, 0]
-            ];
-            
-            for (const habit of habits) {
-                await db.run(
-                    `INSERT INTO habits (user_id, title, icon, description, streak, current_streak, best_streak, marked_today)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    habit
-                );
-            }
-            console.log('✅ Демо-привычки созданы');
-        }
-
-        // Создаем демо-транзакции
-        const transactionsExist = await db.get("SELECT 1 FROM transactions LIMIT 1");
-        if (!transactionsExist) {
-            const transactions = [
-                [userId.id, 'income', 50000, 'salary', 'Зарплата'],
-                [userId.id, 'expense', 350, 'food', 'Обед'],
-                [userId.id, 'expense', 1200, 'transport', 'Такси'],
-                [userId.id, 'expense', 2500, 'entertainment', 'Кино'],
-                [userId.id, 'expense', 1800, 'shopping', 'Книги'],
-                [userId.id, 'expense', 3200, 'house', 'Коммунальные услуги'],
-                [userId.id, 'expense', 1500, 'health', 'Аптека'],
-                [userId.id, 'expense', 2800, 'education', 'Курсы']
-            ];
-            
-            for (const transaction of transactions) {
-                await db.run(
-                    `INSERT INTO transactions (user_id, type, amount, category, description)
-                     VALUES (?, ?, ?, ?, ?)`,
-                    transaction
-                );
-            }
-            console.log('✅ Демо-транзакции созданы');
-        }
-
-        // Создаем финансовую цель
+        // Финансовые цели демо
         const goalsExist = await db.get("SELECT 1 FROM financial_goals LIMIT 1");
         if (!goalsExist) {
-            await db.run(
-                `INSERT INTO financial_goals (user_id, title, target_amount, current_amount, deadline)
-                 VALUES (?, ?, ?, ?, ?)`,
-                [userId.id, 'Новый ноутбук', 150000, 45000, '2024-12-31']
-            );
-            console.log('✅ Демо-цель создана');
-        }
-
-        // Создаем метрики здоровья
-        const healthExist = await db.get("SELECT 1 FROM health_metrics LIMIT 1");
-        if (!healthExist) {
-            await db.run(
-                `INSERT INTO health_metrics (user_id, weight, steps, calories, water_ml, activity_level)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [userId.id, 75.5, 8450, 2100, 1500, 'medium']
-            );
-            console.log('✅ Демо-метрики здоровья созданы');
-        }
-
-        // Создаем достижения
-        const achievementsExist = await db.get("SELECT 1 FROM achievements LIMIT 1");
-        if (!achievementsExist) {
-            const achievements = [
-                [userId.id, 'welcome', 'Первые шаги', 'Добро пожаловать в QuantumFlow!'],
-                [userId.id, 'tasks', 'Трудоголик', 'Выполнено 50 задач'],
-                [userId.id, 'habits', 'Мастер привычек', '30 дней подряд привычки'],
-                [userId.id, 'finance', 'Финансист', 'Накоплено 100,000 ₽'],
-                [userId.id, 'streak', 'Железная воля', 'Активная серия 14 дней']
+            const goals = [
+                [userId.id, 'Новый ноутбук', 150000, 45000, '2024-12-31', 'electronics', 'fas fa-laptop'],
+                [userId.id, 'Отпуск на море', 80000, 20000, '2024-08-01', 'travel', 'fas fa-umbrella-beach'],
+                [userId.id, 'Подушка безопасности', 100000, 60000, null, 'savings', 'fas fa-shield-alt']
             ];
             
-            for (const achievement of achievements) {
+            for (const goal of goals) {
                 await db.run(
-                    `INSERT INTO achievements (user_id, type, title, description)
-                     VALUES (?, ?, ?, ?)`,
-                    achievement
+                    `INSERT INTO financial_goals (user_id, title, target_amount, current_amount, deadline, category, icon)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    goal
                 );
             }
-            console.log('✅ Демо-достижения созданы');
+            console.log('✅ Демо-финансовые цели созданы');
         }
 
-        // Создаем лучшие практики
-        const practicesExist = await db.get("SELECT 1 FROM best_practices LIMIT 1");
+        // Программы упражнений
+        const programsExist = await db.get("SELECT 1 FROM exercise_programs LIMIT 1");
+        if (!programsExist) {
+            const programs = [
+                ['Похудение для новичков', '30-минутная кардио тренировка для сжигания жира', 'beginner', 30, 250,
+                 JSON.stringify([
+                    {name: 'Прыжки на месте', duration: 60, rest: 30},
+                    {name: 'Приседания', duration: 45, rest: 15},
+                    {name: 'Отжимания от стены', duration: 45, rest: 15},
+                    {name: 'Планка', duration: 30, rest: 30},
+                    {name: 'Бег на месте', duration: 60, rest: 30}
+                 ]), 1, 0, 1],
+                 
+                ['Силовая тренировка дома', 'Упражнения с собственным весом для набора мышечной массы', 'intermediate', 40, 300,
+                 JSON.stringify([
+                    {name: 'Отжимания', sets: 3, reps: 15},
+                    {name: 'Приседания с прыжком', sets: 3, reps: 20},
+                    {name: 'Выпады', sets: 3, reps: 12},
+                    {name: 'Подтягивания (если есть турник)', sets: 3, reps: 'до отказа'},
+                    {name: 'Планка', duration: 60}
+                 ]), 0, 1, 0]
+            ];
+            
+            for (const program of programs) {
+                await db.run(
+                    `INSERT INTO exercise_programs (title, description, difficulty, duration, calories, exercises, for_weight_loss, for_strength, for_endurance)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    program
+                );
+            }
+            console.log('✅ Демо-программы упражнений созданы');
+        }
+
+        // Практики для отказа от вредных привычек
+        const practicesExist = await db.get("SELECT 1 FROM quitting_practices LIMIT 1");
         if (!practicesExist) {
             const practices = [
-                ['Правило 2 минут', 'fas fa-clock', 'Если задача занимает менее 2 минут, делайте её сразу', 'productivity'],
-                ['Метод Pomodoro', 'fas fa-hourglass-half', '25 минут работы, 5 минут отдыха', 'productivity'],
-                ['Пить воду утром', 'fas fa-tint', 'Выпивайте стакан воды сразу после пробуждения', 'health'],
-                ['Ведение бюджета', 'fas fa-chart-pie', 'Записывайте все доходы и расходы', 'finance'],
-                ['Планирование дня', 'fas fa-calendar-check', 'Составляйте план на день с вечера', 'productivity'],
-                ['Цифровой детокс', 'fas fa-mobile-alt', 'Отключайте уведомления во время работы', 'productivity'],
-                ['Регулярные перерывы', 'fas fa-coffee', 'Делайте перерыв каждые 90 минут', 'health']
+                ['Метод "5 минут"', 'Когда возникает желание закурить, подождите 5 минут и займитесь другим делом', 'smoking', 'easy', 5,
+                 JSON.stringify([
+                    'При появлении желания закурить посмотрите на часы',
+                    'Скажите себе: "Я подожду всего 5 минут"',
+                    'В течение этих 5 минут займитесь чем-то: выпейте воды, сделайте дыхательное упражнение',
+                    'После 5 минут оцените, насколько сильным осталось желание',
+                    'Повторяйте при необходимости'
+                 ]), 85],
+                 
+                ['Альтернативные ритуалы', 'Замена утренней сигареты на здоровые привычки', 'smoking', 'medium', 15,
+                 JSON.stringify([
+                    'Определите триггеры, которые вызывают желание курить',
+                    'Для каждого триггера придумайте альтернативное действие',
+                    'Утренняя сигарета → стакан воды с лимоном',
+                    'Сигарета после еды → чистка зубов',
+                    'Сигарета при стрессе → дыхательное упражнение 4-7-8'
+                 ]), 75],
+                 
+                ['Контроль окружения', 'Как избежать ситуаций, провоцирующих употребление алкоголя', 'alcohol', 'easy', 10,
+                 JSON.stringify([
+                    'Составьте список ситуаций, где вы обычно пьете',
+                    'Планируйте альтернативные активности',
+                    'Предупредите друзей о своем решении',
+                    'Всегда имейте безалкогольный напиток в руке',
+                    'Практикуйте вежливый отказ'
+                 ]), 80]
             ];
             
             for (const practice of practices) {
                 await db.run(
-                    `INSERT INTO best_practices (title, icon, description, category)
-                     VALUES (?, ?, ?, ?)`,
+                    `INSERT INTO quitting_practices (title, description, for_habit, difficulty, duration, steps, success_rate)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     practice
                 );
             }
-            console.log('✅ Лучшие практики созданы');
+            console.log('✅ Демо-практики для отказа созданы');
+        }
+
+        // Методы личной эффективности
+        const methodsExist = await db.get("SELECT 1 FROM productivity_methods LIMIT 1");
+        if (!methodsExist) {
+            const methods = [
+                ['Метод Pomodoro', '25 минут работы, 5 минут отдыха', 'fas fa-hourglass-half',
+                 JSON.stringify([
+                    'Выберите задачу',
+                    'Установите таймер на 25 минут',
+                    'Работайте без отвлечений',
+                    'Сделайте 5-минутный перерыв',
+                    'После 4 циклов сделайте длинный перерыв 15-30 минут'
+                 ]), 25, 'focus'],
+                 
+                ['Матрица Эйзенхауэра', 'Приоритизация задач по срочности и важности', 'fas fa-th-list',
+                 JSON.stringify([
+                    'Составьте список всех задач',
+                    'Разделите на 4 квадранта: Важно/Срочно, Важно/Не срочно, Не важно/Срочно, Не важно/Не срочно',
+                    'Выполняйте задачи в порядке приоритета квадрантов',
+                    'Делегируйте или удаляйте не важные задачи'
+                 ]), 30, 'planning'],
+                 
+                ['Правило двух минут', 'Если задача занимает меньше 2 минут, делайте её сразу', 'fas fa-bolt',
+                 JSON.stringify([
+                    'Получив новую задачу, оцените время выполнения',
+                    'Если задача занимает ≤2 минут, выполните её немедленно',
+                    'Если >2 минут, запланируйте в системе',
+                    'Применяйте к мелким задачам: ответы на email, уборка стола и т.д.'
+                 ]), 2, 'execution']
+            ];
+            
+            for (const method of methods) {
+                await db.run(
+                    `INSERT INTO productivity_methods (name, description, icon, steps, recommended_duration, category)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    method
+                );
+            }
+            console.log('✅ Демо-методы эффективности созданы');
+        }
+
+        // Финансовые советы
+        const adviceExist = await db.get("SELECT 1 FROM financial_advice LIMIT 1");
+        if (!adviceExist) {
+            const advice = [
+                ['food', 'spending > 30% income', 'Вы тратите более 30% дохода на еду. Попробуйте планировать меню на неделю и покупать оптом.', '["Составить список покупок", "Использовать купоны", "Готовить дома чаще"]', 1],
+                ['entertainment', 'spending > 15% income', 'Развлечения составляют значительную часть расходов. Установите месячный лимит.', '["Искать бесплатные мероприятия", "Использовать подписки вместо разовых покупок"]', 2],
+                ['transport', 'spending > 10% income', 'Рассмотрите альтернативы: общественный транспорт, каршеринг, велосипед.', '["Проанализировать частоту поездок", "Объединять поездки"]', 3],
+                ['savings', 'savings < 10% income', 'Старайтесь откладывать минимум 10% от дохода. Начните с автоматических переводов.', '["Настроить автоперевод в день зарплаты", "Начать с 5%"]', 1]
+            ];
+            
+            for (const item of advice) {
+                await db.run(
+                    `INSERT INTO financial_advice (category, condition, advice_text, action_items, priority)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    item
+                );
+            }
+            console.log('✅ Демо-финансовые советы созданы');
+        }
+
+        // Демо-достижения
+        const achievementsExist = await db.get("SELECT 1 FROM achievements LIMIT 1");
+        if (!achievementsExist) {
+            const achievements = [
+                [userId.id, 'finance', 'Первые накопления', 'Накоплено первые 10,000 ₽', 'fas fa-coins'],
+                [userId.id, 'fitness', 'Неделя тренировок', '7 дней подряд тренировок', 'fas fa-dumbbell'],
+                [userId.id, 'habits', 'Месяц без сигарет', '30 дней без курения', 'fas fa-smoking-ban'],
+                [userId.id, 'productivity', 'Мастер фокуса', '100 выполненных Pomodoro', 'fas fa-brain'],
+                [userId.id, 'schedule', 'Ранняя пташка', '7 дней раннего подъема', 'fas fa-sun']
+            ];
+            
+            for (const achievement of achievements) {
+                await db.run(
+                    `INSERT INTO achievements (user_id, category, title, description, icon)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    achievement
+                );
+            }
+            console.log('✅ Демо-достижения созданы');
         }
 
         console.log('🎉 Демо-данные созданы!');
@@ -417,8 +521,12 @@ const authMiddleware = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'quantumflow-secret-key-2024');
             
             const user = await db.get(
-                `SELECT id, email, username, first_name, last_name, goal,
+                `SELECT id, email, username, first_name, last_name,
+                        goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                        goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline,
                         level, coins, streak, balance, monthly_income, monthly_expenses,
+                        weight, height, target_weight, activity_level,
+                        smoking_status, alcohol_status,
                         tasks_completed, habits_streak
                  FROM users WHERE id = ? AND is_active = 1`,
                 [decoded.id]
@@ -456,8 +564,8 @@ const authMiddleware = async (req, res, next) => {
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: '🚀 Добро пожаловать в QuantumFlow API',
-        version: '1.0.0',
+        message: '🚀 Добро пожаловать в QuantumFlow API v2.0',
+        version: '2.0.0',
         status: '🟢 Работает',
         timestamp: new Date().toISOString()
     });
@@ -488,9 +596,10 @@ app.get('/health', async (req, res) => {
 // Регистрация
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { email, username, password, first_name, last_name = '' } = req.body;
+        const { email, username, password, first_name, last_name = '', 
+                goals, deadlines } = req.body;
         
-        if (!email || !username || !password || !first_name) {
+        if (!email || !username || !password || !first_name || !goals) {
             return res.status(400).json({
                 success: false,
                 error: 'Заполните все обязательные поля'
@@ -518,25 +627,58 @@ app.post('/api/auth/register', async (req, res) => {
         
         const hashedPassword = await bcrypt.hash(password, 12);
         
+        // Парсинг целей и сроков
+        const goalFields = {};
+        const deadlineFields = {};
+        
+        if (goals) {
+            const goalList = goals.split(',').map(g => parseInt(g));
+            goalFields.goal_1_finance = goalList.includes(1) ? 1 : 0;
+            goalFields.goal_2_fitness = goalList.includes(2) ? 1 : 0;
+            goalFields.goal_3_habits = goalList.includes(3) ? 1 : 0;
+            goalFields.goal_4_productivity = goalList.includes(4) ? 1 : 0;
+            goalFields.goal_5_schedule = goalList.includes(5) ? 1 : 0;
+        }
+        
+        if (deadlines) {
+            const deadlineList = deadlines.split(',').map(d => parseInt(d));
+            deadlineFields.goal_1_deadline = deadlineList[0] || 12;
+            deadlineFields.goal_2_deadline = deadlineList[1] || 6;
+            deadlineFields.goal_3_deadline = deadlineList[2] || 3;
+            deadlineFields.goal_4_deadline = deadlineList[3] || 1;
+            deadlineFields.goal_5_deadline = deadlineList[4] || 1;
+        }
+        
         const result = await db.run(
-            `INSERT INTO users (email, username, password, first_name, last_name) 
-             VALUES (?, ?, ?, ?, ?)`,
-            [email, username, hashedPassword, first_name, last_name]
+            `INSERT INTO users (email, username, password, first_name, last_name,
+                               goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                               goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                email, username, hashedPassword, first_name, last_name,
+                goalFields.goal_1_finance || 0, goalFields.goal_2_fitness || 0, 
+                goalFields.goal_3_habits || 0, goalFields.goal_4_productivity || 0,
+                goalFields.goal_5_schedule || 0,
+                deadlineFields.goal_1_deadline || 12, deadlineFields.goal_2_deadline || 6,
+                deadlineFields.goal_3_deadline || 3, deadlineFields.goal_4_deadline || 1,
+                deadlineFields.goal_5_deadline || 1
+            ]
         );
         
         const userId = result.lastID;
         
         // Создаем первое достижение
         await db.run(
-            `INSERT INTO achievements (user_id, type, title, description) 
-             VALUES (?, 'welcome', 'Первые шаги', 'Добро пожаловать в QuantumFlow!')`,
+            `INSERT INTO achievements (user_id, category, title, description, icon) 
+             VALUES (?, 'general', 'Первые шаги', 'Добро пожаловать в QuantumFlow!', 'fas fa-flag')`,
             [userId]
         );
         
         const user = await db.get(
-            `SELECT id, email, username, first_name, last_name, goal,
-                    level, coins, streak, balance, monthly_income, monthly_expenses,
-                    tasks_completed, habits_streak
+            `SELECT id, email, username, first_name, last_name,
+                    goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                    goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline,
+                    level, coins, streak, balance
              FROM users WHERE id = ?`,
             [userId]
         );
@@ -613,13 +755,28 @@ app.post('/api/auth/login', async (req, res) => {
             username: user.username,
             first_name: user.first_name,
             last_name: user.last_name,
-            goal: user.goal,
+            goal_1_finance: user.goal_1_finance,
+            goal_2_fitness: user.goal_2_fitness,
+            goal_3_habits: user.goal_3_habits,
+            goal_4_productivity: user.goal_4_productivity,
+            goal_5_schedule: user.goal_5_schedule,
+            goal_1_deadline: user.goal_1_deadline,
+            goal_2_deadline: user.goal_2_deadline,
+            goal_3_deadline: user.goal_3_deadline,
+            goal_4_deadline: user.goal_4_deadline,
+            goal_5_deadline: user.goal_5_deadline,
             level: user.level,
             coins: user.coins,
             streak: user.streak,
             balance: user.balance,
             monthly_income: user.monthly_income,
             monthly_expenses: user.monthly_expenses,
+            weight: user.weight,
+            height: user.height,
+            target_weight: user.target_weight,
+            activity_level: user.activity_level,
+            smoking_status: user.smoking_status,
+            alcohol_status: user.alcohol_status,
             tasks_completed: user.tasks_completed,
             habits_streak: user.habits_streak
         };
@@ -653,52 +810,18 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Обновление цели пользователя
-app.put('/api/user/goal', authMiddleware, async (req, res) => {
-    try {
-        const { goal } = req.body;
-        
-        if (!goal) {
-            return res.status(400).json({
-                success: false,
-                error: 'Укажите цель'
-            });
-        }
-        
-        await db.run(
-            'UPDATE users SET goal = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [goal, req.user.id]
-        );
-        
-        const user = await db.get(
-            `SELECT id, email, username, first_name, goal,
-                    level, coins, streak, balance, monthly_income, monthly_expenses,
-                    tasks_completed, habits_streak
-             FROM users WHERE id = ?`,
-            [req.user.id]
-        );
-        
-        res.json({
-            success: true,
-            message: 'Цель обновлена',
-            data: { user }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка обновления цели:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка обновления цели'
-        });
-    }
-});
+// ==================== ПОЛЬЗОВАТЕЛЬ И НАСТРОЙКИ ====================
 
 // Получение текущего пользователя
 app.get('/api/user/current', authMiddleware, async (req, res) => {
     try {
         const user = await db.get(
-            `SELECT id, email, username, first_name, last_name, goal,
+            `SELECT id, email, username, first_name, last_name,
+                    goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                    goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline,
                     level, coins, streak, balance, monthly_income, monthly_expenses,
+                    weight, height, target_weight, activity_level,
+                    smoking_status, alcohol_status, smoking_start_date, alcohol_start_date,
                     tasks_completed, habits_streak
              FROM users WHERE id = ?`,
             [req.user.id]
@@ -725,51 +848,223 @@ app.get('/api/user/current', authMiddleware, async (req, res) => {
     }
 });
 
-// ==================== СТАТИСТИКА ====================
-
-// Общая статистика для главной страницы
-app.get('/api/stats/overview', authMiddleware, async (req, res) => {
+// Обновление настроек пользователя
+app.put('/api/user/settings', authMiddleware, async (req, res) => {
     try {
-        // Статистика пользователя
-        const userStats = await db.get(
-            `SELECT level, coins, streak, tasks_completed, habits_streak
-             FROM users WHERE id = ?`,
-            [req.user.id]
-        );
+        const { 
+            first_name, last_name, 
+            goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+            goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline,
+            weight, height, target_weight, activity_level,
+            smoking_status, alcohol_status
+        } = req.body;
         
-        // Статистика задач
-        const tasksStats = await db.get(
-            `SELECT COUNT(*) as total,
-                    SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed,
-                    SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as pending
-             FROM tasks WHERE user_id = ? AND DATE(due_date) = DATE('now')`,
-            [req.user.id]
-        );
+        const updateFields = [];
+        const updateValues = [];
         
-        // Последние задачи
-        const recentTasks = await db.all(
-            `SELECT id, title, tag, time, completed
-             FROM tasks 
-             WHERE user_id = ? AND (due_date IS NULL OR DATE(due_date) >= DATE('now'))
-             ORDER BY due_date ASC, time ASC
-             LIMIT 5`,
-            [req.user.id]
-        );
+        if (first_name !== undefined) {
+            updateFields.push('first_name = ?');
+            updateValues.push(first_name);
+        }
         
-        // Статистика финансов
-        const financeStats = await db.get(
-            `SELECT balance, monthly_income, monthly_expenses
+        if (last_name !== undefined) {
+            updateFields.push('last_name = ?');
+            updateValues.push(last_name);
+        }
+        
+        // Обновление целей
+        const goals = [
+            {field: 'goal_1_finance', value: goal_1_finance},
+            {field: 'goal_2_fitness', value: goal_2_fitness},
+            {field: 'goal_3_habits', value: goal_3_habits},
+            {field: 'goal_4_productivity', value: goal_4_productivity},
+            {field: 'goal_5_schedule', value: goal_5_schedule}
+        ];
+        
+        goals.forEach(goal => {
+            if (goal.value !== undefined) {
+                updateFields.push(`${goal.field} = ?`);
+                updateValues.push(goal.value ? 1 : 0);
+            }
+        });
+        
+        // Обновление сроков
+        const deadlines = [
+            {field: 'goal_1_deadline', value: goal_1_deadline},
+            {field: 'goal_2_deadline', value: goal_2_deadline},
+            {field: 'goal_3_deadline', value: goal_3_deadline},
+            {field: 'goal_4_deadline', value: goal_4_deadline},
+            {field: 'goal_5_deadline', value: goal_5_deadline}
+        ];
+        
+        deadlines.forEach(deadline => {
+            if (deadline.value !== undefined) {
+                updateFields.push(`${deadline.field} = ?`);
+                updateValues.push(parseInt(deadline.value));
+            }
+        });
+        
+        // Обновление данных здоровья
+        if (weight !== undefined) {
+            updateFields.push('weight = ?');
+            updateValues.push(parseFloat(weight));
+        }
+        
+        if (height !== undefined) {
+            updateFields.push('height = ?');
+            updateValues.push(parseFloat(height));
+        }
+        
+        if (target_weight !== undefined) {
+            updateFields.push('target_weight = ?');
+            updateValues.push(parseFloat(target_weight));
+        }
+        
+        if (activity_level !== undefined) {
+            updateFields.push('activity_level = ?');
+            updateValues.push(activity_level);
+        }
+        
+        // Обновление статусов вредных привычек
+        if (smoking_status !== undefined) {
+            updateFields.push('smoking_status = ?');
+            updateValues.push(smoking_status);
+            if (smoking_status === 'former_smoker') {
+                updateFields.push('smoking_start_date = CURRENT_DATE');
+            }
+        }
+        
+        if (alcohol_status !== undefined) {
+            updateFields.push('alcohol_status = ?');
+            updateValues.push(alcohol_status);
+            if (alcohol_status === 'former_drinker') {
+                updateFields.push('alcohol_start_date = CURRENT_DATE');
+            }
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Нет данных для обновления'
+            });
+        }
+        
+        updateFields.push('updated_at = CURRENT_TIMESTAMP');
+        updateValues.push(req.user.id);
+        
+        const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`;
+        
+        await db.run(query, updateValues);
+        
+        // Получаем обновленного пользователя
+        const user = await db.get(
+            `SELECT id, email, username, first_name, last_name,
+                    goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                    goal_1_deadline, goal_2_deadline, goal_3_deadline, goal_4_deadline, goal_5_deadline,
+                    level, coins, streak, balance, monthly_income, monthly_expenses,
+                    weight, height, target_weight, activity_level,
+                    smoking_status, alcohol_status,
+                    tasks_completed, habits_streak
              FROM users WHERE id = ?`,
             [req.user.id]
         );
         
         res.json({
             success: true,
+            message: 'Настройки обновлены',
+            data: { user }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка обновления настроек:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка обновления настроек'
+        });
+    }
+});
+
+// ==================== СТАТИСТИКА ПОЛЬЗОВАТЕЛЯ ====================
+
+// Полная статистика для страницы настроек
+app.get('/api/user/stats', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Основные данные пользователя
+        const userData = await db.get(
+            `SELECT goal_1_finance, goal_2_fitness, goal_3_habits, goal_4_productivity, goal_5_schedule,
+                    level, coins, streak, tasks_completed, habits_streak
+             FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        // Финансовая статистика
+        const financeStats = await db.get(
+            `SELECT balance, monthly_income, monthly_expenses
+             FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        // Статистика по финансовым целям
+        const financeGoals = await db.all(
+            `SELECT COUNT(*) as total_goals,
+                    SUM(CASE WHEN current_amount >= target_amount THEN 1 ELSE 0 END) as completed_goals,
+                    SUM(target_amount) as total_target,
+                    SUM(current_amount) as total_current
+             FROM financial_goals WHERE user_id = ? AND is_active = 1`,
+            [userId]
+        );
+        
+        // Статистика по тренировкам
+        const workoutStats = await db.get(
+            `SELECT COUNT(*) as total_workouts,
+                    SUM(calories) as total_calories,
+                    SUM(duration) as total_minutes
+             FROM workouts WHERE user_id = ? AND completed = 1`,
+            [userId]
+        );
+        
+        // Статистика по вредным привычкам
+        const habitStats = await db.get(
+            `SELECT smoking_status, alcohol_status,
+                    CASE WHEN smoking_start_date IS NOT NULL 
+                         THEN JULIANDAY('now') - JULIANDAY(smoking_start_date) 
+                         ELSE 0 END as days_smoke_free,
+                    CASE WHEN alcohol_start_date IS NOT NULL 
+                         THEN JULIANDAY('now') - JULIANDAY(alcohol_start_date) 
+                         ELSE 0 END as days_alcohol_free
+             FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        // Прогресс по похудению
+        let weightProgress = { current: 0, target: 0, lost: 0, to_go: 0 };
+        const weightData = await db.get(
+            `SELECT weight, target_weight FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        if (weightData && weightData.weight && weightData.target_weight) {
+            weightProgress = {
+                current: weightData.weight,
+                target: weightData.target_weight,
+                lost: weightData.target_weight < weightData.weight ? 
+                      weightData.weight - weightData.target_weight : 0,
+                to_go: weightData.target_weight < weightData.weight ? 
+                       weightData.weight - weightData.target_weight : 0
+            };
+        }
+        
+        res.json({
+            success: true,
             data: {
-                user_stats: userStats,
-                tasks_stats: tasksStats,
-                recent_tasks: recentTasks,
-                finance_stats: financeStats
+                user_data: userData,
+                finance_stats: financeStats,
+                finance_goals: financeGoals[0] || {},
+                workout_stats: workoutStats || {},
+                habit_stats: habitStats || {},
+                weight_progress: weightProgress
             }
         });
         
@@ -782,533 +1077,100 @@ app.get('/api/stats/overview', authMiddleware, async (req, res) => {
     }
 });
 
-// ==================== ЗАДАЧИ ====================
-
-// Получение всех задач
-app.get('/api/tasks', authMiddleware, async (req, res) => {
-    try {
-        const { completed, tag } = req.query;
-        
-        let query = 'SELECT * FROM tasks WHERE user_id = ?';
-        const params = [req.user.id];
-        
-        if (completed !== undefined) {
-            query += ' AND completed = ?';
-            params.push(completed === 'true' ? 1 : 0);
-        }
-        
-        if (tag && tag !== 'all') {
-            query += ' AND tag = ?';
-            params.push(tag);
-        }
-        
-        query += ' ORDER BY due_date, time ASC';
-        
-        const tasks = await db.all(query, params);
-        
-        res.json({
-            success: true,
-            data: {
-                tasks,
-                count: tasks.length
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения задач:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения задач'
-        });
-    }
-});
-
-// Получение одной задачи
-app.get('/api/tasks/:id', authMiddleware, async (req, res) => {
-    try {
-        const taskId = req.params.id;
-        
-        const task = await db.get(
-            'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
-            [taskId, req.user.id]
-        );
-        
-        if (!task) {
-            return res.status(404).json({
-                success: false,
-                error: 'Задача не найдена'
-            });
-        }
-        
-        res.json({
-            success: true,
-            data: { task }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения задачи:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения задачи'
-        });
-    }
-});
-
-// Создание задачи
-app.post('/api/tasks', authMiddleware, async (req, res) => {
-    try {
-        const { title, description, tag, priority, due_date, time } = req.body;
-        
-        if (!title) {
-            return res.status(400).json({
-                success: false,
-                error: 'Заполните название задачи'
-            });
-        }
-        
-        const result = await db.run(
-            `INSERT INTO tasks 
-            (user_id, title, description, tag, priority, due_date, time) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-                req.user.id,
-                title,
-                description || null,
-                tag || '#общее',
-                priority || 'medium',
-                due_date || null,
-                time || null
-            ]
-        );
-        
-        const taskId = result.lastID;
-        const task = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
-        
-        res.status(201).json({
-            success: true,
-            message: 'Задача успешно создана',
-            data: { task }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка создания задачи:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка создания задачи'
-        });
-    }
-});
-
-// Обновление задачи
-app.put('/api/tasks/:id', authMiddleware, async (req, res) => {
-    try {
-        const taskId = req.params.id;
-        const { title, description, tag, priority, due_date, time, completed } = req.body;
-        
-        const task = await db.get(
-            'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
-            [taskId, req.user.id]
-        );
-        
-        if (!task) {
-            return res.status(404).json({
-                success: false,
-                error: 'Задача не найдена'
-            });
-        }
-        
-        const updateFields = [];
-        const updateValues = [];
-        
-        if (title !== undefined) {
-            updateFields.push('title = ?');
-            updateValues.push(title);
-        }
-        
-        if (description !== undefined) {
-            updateFields.push('description = ?');
-            updateValues.push(description);
-        }
-        
-        if (tag !== undefined) {
-            updateFields.push('tag = ?');
-            updateValues.push(tag);
-        }
-        
-        if (priority !== undefined) {
-            updateFields.push('priority = ?');
-            updateValues.push(priority);
-        }
-        
-        if (due_date !== undefined) {
-            updateFields.push('due_date = ?');
-            updateValues.push(due_date);
-        }
-        
-        if (time !== undefined) {
-            updateFields.push('time = ?');
-            updateValues.push(time);
-        }
-        
-        if (completed !== undefined) {
-            updateFields.push('completed = ?');
-            updateValues.push(completed ? 1 : 0);
-            
-            if (completed && !task.completed) {
-                updateFields.push('completed_at = CURRENT_TIMESTAMP');
-                
-                // Начисляем монеты за выполнение задачи
-                await db.run(
-                    'UPDATE users SET coins = coins + 10, tasks_completed = tasks_completed + 1 WHERE id = ?',
-                    [req.user.id]
-                );
-            }
-        }
-        
-        if (updateFields.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Нет данных для обновления'
-            });
-        }
-        
-        updateFields.push('updated_at = CURRENT_TIMESTAMP');
-        updateValues.push(taskId);
-        
-        const query = `UPDATE tasks SET ${updateFields.join(', ')} WHERE id = ?`;
-        
-        await db.run(query, [...updateValues, taskId]);
-        
-        const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
-        
-        res.json({
-            success: true,
-            message: 'Задача успешно обновлена',
-            data: { task: updatedTask }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка обновления задачи:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка обновления задачи'
-        });
-    }
-});
-
-// ==================== ПРИВЫЧКИ ====================
-
-// Получение привычек
-app.get('/api/habits', authMiddleware, async (req, res) => {
-    try {
-        const habits = await db.all(
-            `SELECT * FROM habits 
-             WHERE user_id = ? AND is_active = 1 
-             ORDER BY streak DESC`,
-            [req.user.id]
-        );
-        
-        res.json({
-            success: true,
-            data: {
-                habits,
-                count: habits.length
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения привычек:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения привычек'
-        });
-    }
-});
-
-// Создание привычки
-app.post('/api/habits', authMiddleware, async (req, res) => {
-    try {
-        const { title, icon, description } = req.body;
-        
-        if (!title) {
-            return res.status(400).json({
-                success: false,
-                error: 'Заполните название привычки'
-            });
-        }
-        
-        const result = await db.run(
-            `INSERT INTO habits (user_id, title, icon, description) 
-             VALUES (?, ?, ?, ?)`,
-            [
-                req.user.id,
-                title,
-                icon || 'fas fa-star',
-                description || null
-            ]
-        );
-        
-        const habitId = result.lastID;
-        const habit = await db.get('SELECT * FROM habits WHERE id = ?', [habitId]);
-        
-        res.status(201).json({
-            success: true,
-            message: 'Привычка успешно создана',
-            data: { habit }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка создания привычки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка создания привычки'
-        });
-    }
-});
-
-// Отметка привычки
-app.post('/api/habits/:id/mark', authMiddleware, async (req, res) => {
-    try {
-        const habitId = req.params.id;
-        
-        const habit = await db.get(
-            'SELECT * FROM habits WHERE id = ? AND user_id = ?',
-            [habitId, req.user.id]
-        );
-        
-        if (!habit) {
-            return res.status(404).json({
-                success: false,
-                error: 'Привычка не найдена'
-            });
-        }
-        
-        // Проверяем, не отмечена ли уже сегодня
-        if (habit.marked_today) {
-            return res.status(400).json({
-                success: false,
-                error: 'Привычка уже отмечена сегодня'
-            });
-        }
-        
-        // Обновляем стрик
-        const newStreak = habit.streak + 1;
-        const newCurrentStreak = habit.current_streak + 1;
-        const newBestStreak = Math.max(habit.best_streak, newCurrentStreak);
-        
-        await db.run(
-            `UPDATE habits SET 
-                marked_today = 1,
-                streak = ?,
-                current_streak = ?,
-                best_streak = ?,
-                updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?`,
-            [newStreak, newCurrentStreak, newBestStreak, habitId]
-        );
-        
-        // Обновляем статистику пользователя
-        await db.run(
-            'UPDATE users SET coins = coins + 5, streak = ?, habits_streak = ? WHERE id = ?',
-            [newStreak, newStreak, req.user.id]
-        );
-        
-        const updatedHabit = await db.get('SELECT * FROM habits WHERE id = ?', [habitId]);
-        
-        res.json({
-            success: true,
-            message: 'Привычка успешно отмечена! +5 монет',
-            data: { habit: updatedHabit }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка отметки привычки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка отметки привычки'
-        });
-    }
-});
-
 // ==================== ФИНАНСЫ ====================
 
-// Получение статистики финансов
-app.get('/api/finance/stats', authMiddleware, async (req, res) => {
+// Полная финансовая статистика
+app.get('/api/finance/full-stats', authMiddleware, async (req, res) => {
     try {
-        // Баланс пользователя
-        const userStats = await db.get(
-            'SELECT balance, monthly_income, monthly_expenses FROM users WHERE id = ?',
-            [req.user.id]
+        const userId = req.user.id;
+        
+        // Баланс и основные показатели
+        const userFinance = await db.get(
+            `SELECT balance, monthly_income, monthly_expenses
+             FROM users WHERE id = ?`,
+            [userId]
         );
         
-        // Финансовые цели
-        const goals = await db.all(
-            'SELECT * FROM financial_goals WHERE user_id = ? AND is_active = 1',
-            [req.user.id]
+        // Активные цели
+        const activeGoals = await db.all(
+            `SELECT * FROM financial_goals 
+             WHERE user_id = ? AND is_active = 1
+             ORDER BY deadline ASC`,
+            [userId]
         );
         
-        // Статистика по категориям
+        // Статистика по категориям расходов за текущий месяц
         const categoryStats = await db.all(
-            `SELECT category, SUM(amount) as total
+            `SELECT category, SUM(amount) as total, COUNT(*) as count
              FROM transactions 
              WHERE user_id = ? AND type = 'expense' 
+                   AND strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
              GROUP BY category
              ORDER BY total DESC`,
-            [req.user.id]
+            [userId]
         );
         
-        // Общий баланс
-        const incomeStats = await db.get(
-            'SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "income"',
-            [req.user.id]
-        );
+        // Рекомендации на основе расходов
+        let advice = [];
+        for (const cat of categoryStats) {
+            const categoryAdvice = await db.all(
+                `SELECT * FROM financial_advice 
+                 WHERE category = ? AND priority <= 2
+                 LIMIT 2`,
+                [cat.category]
+            );
+            advice = [...advice, ...categoryAdvice];
+        }
         
-        const expenseStats = await db.get(
-            'SELECT SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "expense"',
-            [req.user.id]
-        );
+        // Если рекомендаций мало, добавить общие
+        if (advice.length < 3) {
+            const generalAdvice = await db.all(
+                `SELECT * FROM financial_advice 
+                 WHERE category = 'savings' OR category = 'general'
+                 ORDER BY priority ASC
+                 LIMIT 5`,
+                []
+            );
+            advice = [...advice, ...generalAdvice];
+        }
         
-        const balance = (incomeStats?.total || 0) - (expenseStats?.total || 0);
-        
-        // Обновляем баланс пользователя
-        await db.run(
-            'UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [balance, req.user.id]
+        // Последние транзакции
+        const recentTransactions = await db.all(
+            `SELECT * FROM transactions 
+             WHERE user_id = ?
+             ORDER BY date DESC, created_at DESC
+             LIMIT 10`,
+            [userId]
         );
         
         res.json({
             success: true,
             data: {
-                balance: balance,
-                monthly_income: userStats?.monthly_income || 0,
-                monthly_expenses: userStats?.monthly_expenses || 0,
-                goals: goals || [],
-                category_stats: categoryStats || []
+                balance: userFinance?.balance || 0,
+                monthly_income: userFinance?.monthly_income || 0,
+                monthly_expenses: userFinance?.monthly_expenses || 0,
+                savings_rate: userFinance?.monthly_income > 0 ? 
+                    Math.round(((userFinance.monthly_income - userFinance.monthly_expenses) / userFinance.monthly_income) * 100) : 0,
+                active_goals: activeGoals,
+                category_stats: categoryStats,
+                advice: advice.slice(0, 5),
+                recent_transactions: recentTransactions
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения статистики финансов:', error.message);
+        console.error('Ошибка получения финансовой статистики:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения статистики финансов'
+            error: 'Ошибка получения финансовой статистики'
         });
     }
 });
-
-// Получение транзакций
-app.get('/api/transactions', authMiddleware, async (req, res) => {
-    try {
-        const { type, category, start_date, end_date, limit = 20 } = req.query;
-        
-        let query = 'SELECT * FROM transactions WHERE user_id = ?';
-        const params = [req.user.id];
-        
-        if (type && type !== 'all') {
-            query += ' AND type = ?';
-            params.push(type);
-        }
-        
-        if (category && category !== 'all') {
-            query += ' AND category = ?';
-            params.push(category);
-        }
-        
-        if (start_date) {
-            query += ' AND date >= ?';
-            params.push(start_date);
-        }
-        
-        if (end_date) {
-            query += ' AND date <= ?';
-            params.push(end_date);
-        }
-        
-        query += ' ORDER BY date DESC, created_at DESC LIMIT ?';
-        params.push(parseInt(limit));
-        
-        const transactions = await db.all(query, params);
-        
-        res.json({
-            success: true,
-            data: {
-                transactions,
-                count: transactions.length
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения транзакций:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения транзакций'
-        });
-    }
-});
-
-// Создание транзакции
-app.post('/api/transactions', authMiddleware, async (req, res) => {
-    try {
-        const { type, amount, category, description, date } = req.body;
-        
-        if (!type || !amount) {
-            return res.status(400).json({
-                success: false,
-                error: 'Заполните тип и сумму транзакции'
-            });
-        }
-        
-        const result = await db.run(
-            `INSERT INTO transactions 
-            (user_id, type, amount, category, description, date) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-                req.user.id,
-                type,
-                parseFloat(amount),
-                category || 'other',
-                description || null,
-                date || new Date().toISOString().split('T')[0]
-            ]
-        );
-        
-        // Обновляем статистику пользователя
-        if (type === 'income') {
-            await db.run(
-                'UPDATE users SET monthly_income = monthly_income + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                [amount, req.user.id]
-            );
-        } else {
-            await db.run(
-                'UPDATE users SET monthly_expenses = monthly_expenses + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                [amount, req.user.id]
-            );
-        }
-        
-        const transactionId = result.lastID;
-        const transaction = await db.get('SELECT * FROM transactions WHERE id = ?', [transactionId]);
-        
-        res.status(201).json({
-            success: true,
-            message: 'Транзакция успешно добавлена',
-            data: { transaction }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка создания транзакции:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка создания транзакции'
-        });
-    }
-});
-
-// ==================== ФИНАНСОВЫЕ ЦЕЛИ ====================
 
 // Создание финансовой цели
-app.post('/api/financial-goals', authMiddleware, async (req, res) => {
+app.post('/api/finance/goals', authMiddleware, async (req, res) => {
     try {
-        const { title, target_amount, current_amount, deadline } = req.body;
+        const { title, target_amount, current_amount, deadline, category, icon } = req.body;
         
         if (!title || !target_amount) {
             return res.status(400).json({
@@ -1317,22 +1179,18 @@ app.post('/api/financial-goals', authMiddleware, async (req, res) => {
             });
         }
         
-        // Деактивируем старые цели
-        await db.run(
-            'UPDATE financial_goals SET is_active = 0 WHERE user_id = ?',
-            [req.user.id]
-        );
-        
         const result = await db.run(
             `INSERT INTO financial_goals 
-            (user_id, title, target_amount, current_amount, deadline) 
-            VALUES (?, ?, ?, ?, ?)`,
+            (user_id, title, target_amount, current_amount, deadline, category, icon) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
                 req.user.id,
                 title,
                 parseFloat(target_amount),
                 parseFloat(current_amount) || 0,
-                deadline || null
+                deadline || null,
+                category || 'savings',
+                icon || 'fas fa-piggy-bank'
             ]
         );
         
@@ -1354,224 +1212,877 @@ app.post('/api/financial-goals', authMiddleware, async (req, res) => {
     }
 });
 
-// ==================== ЗДОРОВЬЕ ====================
-
-// Получение статистики здоровья
-app.get('/api/health/stats', authMiddleware, async (req, res) => {
+// Пополнение копилки
+app.post('/api/finance/goals/:id/add', authMiddleware, async (req, res) => {
     try {
-        // Последние метрики
-        const currentMetrics = await db.get(
-            `SELECT weight, steps, calories, water_ml, activity_level
-             FROM health_metrics 
-             WHERE user_id = ? 
-             ORDER BY date DESC 
-             LIMIT 1`,
+        const goalId = req.params.id;
+        const { amount } = req.body;
+        
+        if (!amount || amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите корректную сумму'
+            });
+        }
+        
+        // Проверяем существование цели
+        const goal = await db.get(
+            'SELECT * FROM financial_goals WHERE id = ? AND user_id = ?',
+            [goalId, req.user.id]
+        );
+        
+        if (!goal) {
+            return res.status(404).json({
+                success: false,
+                error: 'Цель не найдена'
+            });
+        }
+        
+        // Обновляем текущую сумму
+        const newAmount = goal.current_amount + parseFloat(amount);
+        
+        await db.run(
+            'UPDATE financial_goals SET current_amount = ? WHERE id = ?',
+            [newAmount, goalId]
+        );
+        
+        // Создаем транзакцию перевода
+        await db.run(
+            `INSERT INTO transactions 
+            (user_id, type, amount, category, description) 
+            VALUES (?, 'expense', ?, 'savings', ?)`,
+            [
+                req.user.id,
+                amount,
+                `Пополнение цели: ${goal.title}`
+            ]
+        );
+        
+        // Проверяем достижение цели
+        let achievementMessage = '';
+        if (newAmount >= goal.target_amount) {
+            achievementMessage = '🎉 Цель достигнута! Поздравляем!';
+            
+            // Создаем достижение
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'finance', 'Цель достигнута', 'Накопили на ${goal.title}', 'fas fa-trophy')`,
+                [req.user.id]
+            );
+        }
+        
+        const updatedGoal = await db.get('SELECT * FROM financial_goals WHERE id = ?', [goalId]);
+        
+        res.json({
+            success: true,
+            message: `Средства добавлены в копилку${achievementMessage ? '. ' + achievementMessage : ''}`,
+            data: { goal: updatedGoal }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка пополнения копилки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка пополнения копилки'
+        });
+    }
+});
+
+// ==================== ФИТНЕС И ПОХУДЕНИЕ ====================
+
+// Получение рекомендаций по упражнениям
+app.get('/api/fitness/recommendations', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Получаем данные пользователя
+        const user = await db.get(
+            `SELECT weight, target_weight, activity_level 
+             FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        let recommendations = [];
+        
+        // Рекомендации для похудения
+        if (user.weight > user.target_weight) {
+            const weightLossPrograms = await db.all(
+                `SELECT * FROM exercise_programs 
+                 WHERE for_weight_loss = 1 
+                 AND difficulty = ?
+                 ORDER BY calories DESC
+                 LIMIT 3`,
+                [user.activity_level === 'low' ? 'beginner' : 
+                 user.activity_level === 'medium' ? 'intermediate' : 'advanced']
+            );
+            recommendations = [...recommendations, ...weightLossPrograms];
+        }
+        
+        // Если рекомендаций мало, добавить общие
+        if (recommendations.length < 2) {
+            const generalPrograms = await db.all(
+                `SELECT * FROM exercise_programs 
+                 WHERE difficulty = ?
+                 ORDER BY RANDOM()
+                 LIMIT 2`,
+                [user.activity_level === 'low' ? 'beginner' : 'intermediate']
+            );
+            recommendations = [...recommendations, ...generalPrograms];
+        }
+        
+        // Расчет калорий для похудения
+        const bmr = 10 * user.weight + 6.25 * 170 - 5 * 30 + 5; // Примерный BMR
+        const activityMultiplier = {
+            'low': 1.2,
+            'medium': 1.55,
+            'high': 1.725
+        }[user.activity_level] || 1.55;
+        
+        const dailyCalories = Math.round(bmr * activityMultiplier);
+        const weightLossCalories = Math.max(dailyCalories - 500, 1200);
+        
+        res.json({
+            success: true,
+            data: {
+                recommendations,
+                calorie_info: {
+                    daily_maintenance: dailyCalories,
+                    weight_loss_target: weightLossCalories,
+                    weekly_weight_loss: 0.5, // кг в неделю
+                    target_date: new Date(Date.now() + 
+                        ((user.weight - user.target_weight) / 0.5 * 7 * 24 * 60 * 60 * 1000))
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения рекомендаций:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения рекомендаций'
+        });
+    }
+});
+
+// Старт тренировки
+app.post('/api/fitness/start-workout', authMiddleware, async (req, res) => {
+    try {
+        const { program_id, custom_title, duration } = req.body;
+        
+        let workoutData = {};
+        
+        if (program_id) {
+            // Используем готовую программу
+            const program = await db.get(
+                'SELECT * FROM exercise_programs WHERE id = ?',
+                [program_id]
+            );
+            
+            if (!program) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Программа не найдена'
+                });
+            }
+            
+            workoutData = {
+                user_id: req.user.id,
+                type: 'program',
+                title: program.title,
+                duration: duration || program.duration,
+                calories: program.calories
+            };
+        } else if (custom_title) {
+            // Своя тренировка
+            workoutData = {
+                user_id: req.user.id,
+                type: 'custom',
+                title: custom_title,
+                duration: duration || 30,
+                calories: Math.round((duration || 30) * 8) // Примерный расчет
+            };
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите программу или название тренировки'
+            });
+        }
+        
+        const result = await db.run(
+            `INSERT INTO workouts (user_id, type, title, duration, calories) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+                workoutData.user_id,
+                workoutData.type,
+                workoutData.title,
+                workoutData.duration,
+                workoutData.calories
+            ]
+        );
+        
+        const workoutId = result.lastID;
+        const workout = await db.get('SELECT * FROM workouts WHERE id = ?', [workoutId]);
+        
+        res.status(201).json({
+            success: true,
+            message: 'Тренировка начата',
+            data: { 
+                workout,
+                timer_duration: workout.duration * 60 // в секундах
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка старта тренировки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка старта тренировки'
+        });
+    }
+});
+
+// Завершение тренировки
+app.post('/api/fitness/complete-workout/:id', authMiddleware, async (req, res) => {
+    try {
+        const workoutId = req.params.id;
+        
+        const workout = await db.get(
+            'SELECT * FROM workouts WHERE id = ? AND user_id = ?',
+            [workoutId, req.user.id]
+        );
+        
+        if (!workout) {
+            return res.status(404).json({
+                success: false,
+                error: 'Тренировка не найдена'
+            });
+        }
+        
+        if (workout.completed) {
+            return res.status(400).json({
+                success: false,
+                error: 'Тренировка уже завершена'
+            });
+        }
+        
+        await db.run(
+            'UPDATE workouts SET completed = 1 WHERE id = ?',
+            [workoutId]
+        );
+        
+        // Начисляем монеты
+        await db.run(
+            'UPDATE users SET coins = coins + 15 WHERE id = ?',
             [req.user.id]
         );
         
-        // Дефолтные значения
-        const metrics = currentMetrics || {
-            weight: null,
-            steps: 0,
-            calories: 0,
-            water_ml: 0,
-            activity_level: 'medium'
+        // Проверяем достижения
+        const workoutCount = await db.get(
+            'SELECT COUNT(*) as count FROM workouts WHERE user_id = ? AND completed = 1',
+            [req.user.id]
+        );
+        
+        if (workoutCount.count === 1) {
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'fitness', 'Первая тренировка', 'Завершили первую тренировку!', 'fas fa-dumbbell')`,
+                [req.user.id]
+            );
+        }
+        
+        if (workoutCount.count === 7) {
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'fitness', 'Неделя тренировок', '7 дней подряд тренировок', 'fas fa-trophy')`,
+                [req.user.id]
+            );
+        }
+        
+        res.json({
+            success: true,
+            message: 'Тренировка завершена! +15 монет',
+            data: { 
+                coins_awarded: 15,
+                total_workouts: workoutCount.count
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка завершения тренировки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка завершения тренировки'
+        });
+    }
+});
+
+// ==================== ВРЕДНЫЕ ПРИВЫЧКИ ====================
+
+// Получение практик для отказа
+app.get('/api/habits/practices', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Получаем статус привычек пользователя
+        const user = await db.get(
+            `SELECT smoking_status, alcohol_status 
+             FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        let practices = [];
+        
+        // Практики для курения
+        if (user.smoking_status === 'smoker' || user.smoking_status === 'social_smoker') {
+            const smokingPractices = await db.all(
+                `SELECT * FROM quitting_practices 
+                 WHERE for_habit = 'smoking'
+                 ORDER BY success_rate DESC
+                 LIMIT 3`
+            );
+            practices = [...practices, ...smokingPractices];
+        }
+        
+        // Практики для алкоголя
+        if (user.alcohol_status === 'drinker' || user.alcohol_status === 'social_drinker') {
+            const alcoholPractices = await db.all(
+                `SELECT * FROM quitting_practices 
+                 WHERE for_habit = 'alcohol'
+                 ORDER BY success_rate DESC
+                 LIMIT 3`
+            );
+            practices = [...practices, ...alcoholPractices];
+        }
+        
+        // Если пользователь уже бросил, показываем практики для поддержания
+        if (user.smoking_status === 'former_smoker' || user.alcohol_status === 'former_drinker') {
+            const maintenancePractices = await db.all(
+                `SELECT * FROM quitting_practices 
+                 WHERE for_habit IN ('smoking', 'alcohol') AND difficulty = 'easy'
+                 ORDER BY RANDOM()
+                 LIMIT 2`
+            );
+            practices = [...practices, ...maintenancePractices];
+        }
+        
+        // Добавляем статистику
+        const habitStats = await db.get(
+            `SELECT 
+                CASE WHEN smoking_start_date IS NOT NULL 
+                     THEN JULIANDAY('now') - JULIANDAY(smoking_start_date) 
+                     ELSE 0 END as days_smoke_free,
+                CASE WHEN alcohol_start_date IS NOT NULL 
+                     THEN JULIANDAY('now') - JULIANDAY(alcohol_start_date) 
+                     ELSE 0 END as days_alcohol_free
+             FROM users WHERE id = ?`,
+            [userId]
+        );
+        
+        // Расчет сэкономленных денег
+        const moneySaved = {
+            smoking: Math.round((habitStats.days_smoke_free || 0) * 200), // 200 руб в день на сигареты
+            alcohol: Math.round((habitStats.days_alcohol_free || 0) * 150) // 150 руб в день на алкоголь
         };
         
         res.json({
             success: true,
             data: {
-                current_metrics: metrics
+                practices: practices.slice(0, 5),
+                stats: habitStats,
+                money_saved: moneySaved,
+                health_improvements: this.calculateHealthImprovements(habitStats)
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения статистики здоровья:', error.message);
+        console.error('Ошибка получения практик:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения статистики здоровья'
+            error: 'Ошибка получения практик'
         });
     }
 });
 
-// Сохранение метрик здоровья
-app.post('/api/health/metrics', authMiddleware, async (req, res) => {
+// Начать практику отказа
+app.post('/api/habits/start-practice', authMiddleware, async (req, res) => {
     try {
-        const { weight, steps, calories, water_ml, activity_level } = req.body;
+        const { practice_id, habit_type } = req.body;
         
-        // Проверяем существование записи на сегодня
-        const existingMetric = await db.get(
-            'SELECT id FROM health_metrics WHERE user_id = ? AND date = DATE("now")',
-            [req.user.id]
-        );
-        
-        if (existingMetric) {
-            // Обновляем существующую запись
-            await db.run(
-                `UPDATE health_metrics SET 
-                    weight = COALESCE(?, weight),
-                    steps = COALESCE(?, steps),
-                    calories = COALESCE(?, calories),
-                    water_ml = COALESCE(?, water_ml),
-                    activity_level = COALESCE(?, activity_level)
-                 WHERE id = ?`,
-                [
-                    weight || null,
-                    steps || 0,
-                    calories || 0,
-                    water_ml || 0,
-                    activity_level || 'medium',
-                    existingMetric.id
-                ]
-            );
-        } else {
-            // Создаем новую запись
-            await db.run(
-                `INSERT INTO health_metrics 
-                (user_id, weight, steps, calories, water_ml, activity_level) 
-                VALUES (?, ?, ?, ?, ?, ?)`,
-                [
-                    req.user.id,
-                    weight || null,
-                    steps || 0,
-                    calories || 0,
-                    water_ml || 0,
-                    activity_level || 'medium'
-                ]
-            );
-        }
-        
-        res.json({
-            success: true,
-            message: 'Метрики здоровья сохранены'
-        });
-        
-    } catch (error) {
-        console.error('Ошибка сохранения метрик здоровья:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка сохранения метрик здоровья'
-        });
-    }
-});
-
-// Трекинг воды
-app.post('/api/health/water', authMiddleware, async (req, res) => {
-    try {
-        const { amount } = req.body;
-        
-        if (!amount) {
+        if (!practice_id || !habit_type) {
             return res.status(400).json({
                 success: false,
-                error: 'Укажите количество воды'
+                error: 'Укажите практику и тип привычки'
             });
         }
         
-        // Получаем текущие метрики
-        const currentMetrics = await db.get(
-            'SELECT * FROM health_metrics WHERE user_id = ? AND date = DATE("now")',
+        // Получаем практику
+        const practice = await db.get(
+            'SELECT * FROM quitting_practices WHERE id = ?',
+            [practice_id]
+        );
+        
+        if (!practice) {
+            return res.status(404).json({
+                success: false,
+                error: 'Практика не найдена'
+            });
+        }
+        
+        // Создаем запись в трекере
+        const result = await db.run(
+            `INSERT INTO bad_habits_tracker 
+            (user_id, habit_type, status, start_date) 
+            VALUES (?, ?, 'in_progress', CURRENT_DATE)`,
+            [req.user.id, habit_type]
+        );
+        
+        const trackerId = result.lastID;
+        
+        res.status(201).json({
+            success: true,
+            message: 'Практика начата! Вы на пути к изменениям.',
+            data: {
+                practice: practice,
+                tracker_id: trackerId,
+                estimated_success_rate: practice.success_rate
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка начала практики:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка начала практики'
+        });
+    }
+});
+
+// Отметить день без привычки
+app.post('/api/habits/mark-day', authMiddleware, async (req, res) => {
+    try {
+        const { habit_type } = req.body;
+        
+        const tracker = await db.get(
+            `SELECT * FROM bad_habits_tracker 
+             WHERE user_id = ? AND habit_type = ? AND status = 'in_progress'
+             ORDER BY start_date DESC LIMIT 1`,
+            [req.user.id, habit_type]
+        );
+        
+        if (!tracker) {
+            return res.status(404).json({
+                success: false,
+                error: 'Активный трекер не найден'
+            });
+        }
+        
+        // Обновляем статистику
+        const daysFree = Math.floor((new Date() - new Date(tracker.start_date)) / (1000 * 60 * 60 * 24)) + 1;
+        const moneySaved = daysFree * (habit_type === 'smoking' ? 200 : 150);
+        
+        await db.run(
+            `UPDATE bad_habits_tracker 
+             SET cravings_today = cravings_today + 1,
+                 money_saved = ?
+             WHERE id = ?`,
+            [moneySaved, tracker.id]
+        );
+        
+        // Начисляем монеты
+        await db.run(
+            'UPDATE users SET coins = coins + 20 WHERE id = ?',
             [req.user.id]
         );
         
-        if (currentMetrics) {
-            // Обновляем существующую запись
+        // Проверяем достижения
+        if (daysFree === 1) {
             await db.run(
-                'UPDATE health_metrics SET water_ml = water_ml + ? WHERE id = ?',
-                [amount, currentMetrics.id]
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'habits', 'Первый день', 'Первый день без ${habit_type === "smoking" ? "курения" : "алкоголя"}', 'fas fa-star')`,
+                [req.user.id]
             );
-        } else {
-            // Создаем новую запись
+        }
+        
+        if (daysFree === 7) {
             await db.run(
-                'INSERT INTO health_metrics (user_id, water_ml) VALUES (?, ?)',
-                [req.user.id, amount]
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'habits', 'Неделя свободы', '7 дней без ${habit_type === "smoking" ? "курения" : "алкоголя"}', 'fas fa-trophy')`,
+                [req.user.id]
+            );
+        }
+        
+        if (daysFree === 30) {
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'habits', 'Месяц победителя', '30 дней без ${habit_type === "smoking" ? "курения" : "алкоголя"}!', 'fas fa-crown')`,
+                [req.user.id]
             );
         }
         
         res.json({
             success: true,
-            message: 'Вода добавлена'
+            message: `Отличная работа! День ${daysFree} без ${habit_type === 'smoking' ? 'сигарет' : 'алкоголя'}. +20 монет`,
+            data: {
+                days_free: daysFree,
+                money_saved: moneySaved,
+                coins_awarded: 20
+            }
         });
         
     } catch (error) {
-        console.error('Ошибка добавления воды:', error.message);
+        console.error('Ошибка отметки дня:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка добавления воды'
+            error: 'Ошибка отметки дня'
         });
     }
 });
 
-// Получение трекера воды
-app.get('/api/health/water-tracking', authMiddleware, async (req, res) => {
+// ==================== ЛИЧНАЯ ЭФФЕКТИВНОСТЬ ====================
+
+// Получение методов эффективности
+app.get('/api/productivity/methods', authMiddleware, async (req, res) => {
     try {
-        // Получаем текущее количество воды
-        const currentMetrics = await db.get(
-            'SELECT water_ml FROM health_metrics WHERE user_id = ? AND date = DATE("now")',
+        const methods = await db.all(
+            `SELECT * FROM productivity_methods 
+             ORDER BY category, name`
+        );
+        
+        // Группировка по категориям
+        const groupedMethods = methods.reduce((acc, method) => {
+            if (!acc[method.category]) {
+                acc[method.category] = [];
+            }
+            acc[method.category].push(method);
+            return acc;
+        }, {});
+        
+        res.json({
+            success: true,
+            data: {
+                methods: groupedMethods,
+                total_methods: methods.length
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения методов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения методов'
+        });
+    }
+});
+
+// Старт сессии продуктивности
+app.post('/api/productivity/start-session', authMiddleware, async (req, res) => {
+    try {
+        const { method_id, custom_method, duration } = req.body;
+        
+        let sessionData = {};
+        
+        if (method_id) {
+            const method = await db.get(
+                'SELECT * FROM productivity_methods WHERE id = ?',
+                [method_id]
+            );
+            
+            if (!method) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Метод не найден'
+                });
+            }
+            
+            sessionData = {
+                title: method.name,
+                description: method.description,
+                duration: duration || method.recommended_duration,
+                method: method.name
+            };
+        } else if (custom_method) {
+            sessionData = {
+                title: custom_method,
+                description: 'Пользовательская сессия продуктивности',
+                duration: duration || 25,
+                method: 'custom'
+            };
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите метод или название сессии'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Сессия продуктивности начата',
+            data: {
+                session: sessionData,
+                timer_duration: sessionData.duration * 60, // в секундах
+                start_time: new Date().toISOString(),
+                estimated_end_time: new Date(Date.now() + sessionData.duration * 60 * 1000).toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка старта сессии:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка старта сессии'
+        });
+    }
+});
+
+// Завершение сессии продуктивности
+app.post('/api/productivity/complete-session', authMiddleware, async (req, res) => {
+    try {
+        const { session_title, duration_actual, distractions } = req.body;
+        
+        if (!session_title || !duration_actual) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите название сессии и фактическую длительность'
+            });
+        }
+        
+        // Начисляем монеты
+        const coinsAwarded = Math.min(30, Math.round(duration_actual / 5) * 5);
+        await db.run(
+            'UPDATE users SET coins = coins + ?, tasks_completed = tasks_completed + 1 WHERE id = ?',
+            [coinsAwarded, req.user.id]
+        );
+        
+        // Проверяем достижения
+        const sessionCount = await db.get(
+            'SELECT tasks_completed FROM users WHERE id = ?',
             [req.user.id]
         );
         
-        const waterMl = currentMetrics?.water_ml || 0;
-        const bottlesCount = Math.floor(waterMl / 250);
-        const bottles = Array.from({ length: 8 }, (_, i) => i < bottlesCount);
+        let achievementMessage = '';
+        if (sessionCount.tasks_completed === 10) {
+            achievementMessage = '🎉 10 завершенных сессий!';
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'productivity', 'Мастер фокуса', '10 завершенных сессий продуктивности', 'fas fa-brain')`,
+                [req.user.id]
+            );
+        }
+        
+        if (sessionCount.tasks_completed === 50) {
+            achievementMessage = '🎉 50 завершенных сессий! Вы настоящий профи!';
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'productivity', 'Гуру продуктивности', '50 завершенных сессий продуктивности', 'fas fa-crown')`,
+                [req.user.id]
+            );
+        }
         
         res.json({
             success: true,
+            message: `Сессия "${session_title}" завершена! +${coinsAwarded} монет${achievementMessage ? '. ' + achievementMessage : ''}`,
             data: {
-                water_ml: waterMl,
-                bottles: bottles
+                coins_awarded: coinsAwarded,
+                total_sessions: sessionCount.tasks_completed,
+                distractions: distractions || 0,
+                focus_score: distractions ? Math.round(100 - (distractions * 10)) : 95
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения трекера воды:', error.message);
+        console.error('Ошибка завершения сессии:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения трекера воды'
+            error: 'Ошибка завершения сессии'
         });
     }
 });
 
-// ==================== ЛУЧШИЕ ПРАКТИКИ ====================
+// ==================== РАСПОРЯДОК ДНЯ ====================
 
-// Получение лучших практик
-app.get('/api/best-practices', authMiddleware, async (req, res) => {
+// Генерация распорядка дня
+app.get('/api/schedule/generate', authMiddleware, async (req, res) => {
     try {
-        const practices = await db.all(
-            'SELECT * FROM best_practices WHERE is_active = 1 ORDER BY created_at DESC'
+        const userId = req.user.id;
+        
+        // Получаем предпочтения пользователя
+        const user = await db.get(
+            `SELECT goal_5_schedule, goal_5_deadline 
+             FROM users WHERE id = ?`,
+            [userId]
         );
+        
+        // Базовый распорядок (можно расширить)
+        const baseSchedule = [
+            { time: '07:00', activity: 'Пробуждение и утренние ритуалы', duration: 60, priority: 1 },
+            { time: '08:00', activity: 'Завтрак и планирование дня', duration: 30, priority: 2 },
+            { time: '09:00', activity: 'Работа/учеба (блок 1)', duration: 90, priority: 1 },
+            { time: '10:30', activity: 'Перерыв и физическая активность', duration: 15, priority: 3 },
+            { time: '10:45', activity: 'Работа/учеба (блок 2)', duration: 90, priority: 1 },
+            { time: '12:15', activity: 'Обед', duration: 45, priority: 2 },
+            { time: '13:00', activity: 'Работа/учеба (блок 3)', duration: 90, priority: 1 },
+            { time: '14:30', activity: 'Послеобеденный перерыв', duration: 15, priority: 3 },
+            { time: '14:45', activity: 'Работа/учеба (блок 4)', duration: 90, priority: 1 },
+            { time: '16:15', activity: 'Завершение рабочего дня', duration: 30, priority: 2 },
+            { time: '16:45', activity: 'Спорт/отдых/хобби', duration: 60, priority: 2 },
+            { time: '17:45', activity: 'Ужин', duration: 45, priority: 2 },
+            { time: '18:30', activity: 'Семья/отдых/развитие', duration: 90, priority: 3 },
+            { time: '20:00', activity: 'Вечерние ритуалы', duration: 60, priority: 2 },
+            { time: '21:00', activity: 'Подготовка ко сну', duration: 30, priority: 1 },
+            { time: '21:30', activity: 'Сон', duration: 570, priority: 1 }
+        ];
+        
+        // Очищаем старый распорядок и добавляем новый
+        await db.run('DELETE FROM daily_schedules WHERE user_id = ? AND date = DATE("now")', [userId]);
+        
+        for (const item of baseSchedule) {
+            await db.run(
+                `INSERT INTO daily_schedules 
+                (user_id, day_type, time_slot, activity, duration, priority, date) 
+                VALUES (?, 'weekday', ?, ?, ?, ?, DATE("now"))`,
+                [userId, item.time, item.activity, item.duration, item.priority]
+            );
+        }
+        
+        const todaySchedule = await db.all(
+            `SELECT * FROM daily_schedules 
+             WHERE user_id = ? AND date = DATE("now")
+             ORDER BY time_slot`,
+            [userId]
+        );
+        
+        // Расчет прогресса
+        const totalActivities = todaySchedule.length;
+        const completedActivities = todaySchedule.filter(a => a.completed).length;
+        const progress = totalActivities > 0 ? Math.round((completedActivities / totalActivities) * 100) : 0;
         
         res.json({
             success: true,
             data: {
-                practices,
-                count: practices.length
+                schedule: todaySchedule,
+                progress: progress,
+                total_activities: totalActivities,
+                completed: completedActivities,
+                recommendation: progress > 70 ? 
+                    'Отличный прогресс!' : 
+                    'Продолжайте следовать распорядку!'
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения лучших практик:', error.message);
+        console.error('Ошибка генерации распорядка:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения лучших практик'
+            error: 'Ошибка генерации распорядка'
+        });
+    }
+});
+
+// Отметить активность как выполненную
+app.post('/api/schedule/complete/:id', authMiddleware, async (req, res) => {
+    try {
+        const scheduleId = req.params.id;
+        
+        const activity = await db.get(
+            'SELECT * FROM daily_schedules WHERE id = ? AND user_id = ?',
+            [scheduleId, req.user.id]
+        );
+        
+        if (!activity) {
+            return res.status(404).json({
+                success: false,
+                error: 'Активность не найдена'
+            });
+        }
+        
+        if (activity.completed) {
+            return res.status(400).json({
+                success: false,
+                error: 'Активность уже выполнена'
+            });
+        }
+        
+        await db.run(
+            'UPDATE daily_schedules SET completed = 1 WHERE id = ?',
+            [scheduleId]
+        );
+        
+        // Начисляем монеты в зависимости от приоритета
+        const coinsAwarded = activity.priority === 1 ? 10 : activity.priority === 2 ? 5 : 2;
+        await db.run(
+            'UPDATE users SET coins = coins + ? WHERE id = ?',
+            [coinsAwarded, req.user.id]
+        );
+        
+        // Проверяем выполнение всего распорядка
+        const todaySchedule = await db.all(
+            `SELECT * FROM daily_schedules 
+             WHERE user_id = ? AND date = DATE("now")`,
+            [req.user.id]
+        );
+        
+        const totalActivities = todaySchedule.length;
+        const completedActivities = todaySchedule.filter(a => a.completed).length;
+        const progress = totalActivities > 0 ? Math.round((completedActivities / totalActivities) * 100) : 0;
+        
+        let achievementMessage = '';
+        if (progress === 100) {
+            achievementMessage = '🎉 Весь распорядок дня выполнен!';
+            await db.run(
+                `INSERT INTO achievements (user_id, category, title, description, icon) 
+                 VALUES (?, 'schedule', 'Идеальный день', 'Выполнен весь распорядок дня', 'fas fa-calendar-check')`,
+                [req.user.id]
+            );
+        }
+        
+        res.json({
+            success: true,
+            message: `Активность "${activity.activity}" выполнена! +${coinsAwarded} монет`,
+            data: {
+                coins_awarded: coinsAwarded,
+                progress: progress,
+                completed_activities: completedActivities,
+                total_activities: totalActivities,
+                achievement: achievementMessage
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка отметки активности:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка отметки активности'
         });
     }
 });
 
 // ==================== ДОСТИЖЕНИЯ ====================
 
-// Получение достижений
+// Получение всех достижений пользователя
 app.get('/api/achievements', authMiddleware, async (req, res) => {
     try {
         const achievements = await db.all(
-            'SELECT * FROM achievements WHERE user_id = ? ORDER BY earned_at DESC',
+            `SELECT * FROM achievements 
+             WHERE user_id = ? 
+             ORDER BY earned_at DESC`,
             [req.user.id]
         );
+        
+        // Группировка по категориям
+        const groupedAchievements = achievements.reduce((acc, achievement) => {
+            if (!acc[achievement.category]) {
+                acc[achievement.category] = [];
+            }
+            acc[achievement.category].push(achievement);
+            return acc;
+        }, {});
         
         res.json({
             success: true,
             data: {
-                achievements,
-                count: achievements.length
+                achievements: groupedAchievements,
+                total: achievements.length,
+                categories: Object.keys(groupedAchievements)
             }
         });
         
@@ -1584,100 +2095,8 @@ app.get('/api/achievements', authMiddleware, async (req, res) => {
     }
 });
 
-// Проверка достижений
-app.post('/api/achievements/check', authMiddleware, async (req, res) => {
-    try {
-        const awarded = [];
-        
-        // Проверяем различные достижения
-        
-        // 1. Достижение за задачи
-        const taskCount = await db.get(
-            'SELECT COUNT(*) as count FROM tasks WHERE user_id = ? AND completed = 1',
-            [req.user.id]
-        );
-        
-        if (taskCount.count >= 50) {
-            const existingAchievement = await db.get(
-                'SELECT 1 FROM achievements WHERE user_id = ? AND type = "tasks"',
-                [req.user.id]
-            );
-            
-            if (!existingAchievement) {
-                await db.run(
-                    `INSERT INTO achievements (user_id, type, title, description) 
-                     VALUES (?, 'tasks', 'Трудоголик', 'Выполнено 50 задач')`,
-                    [req.user.id]
-                );
-                awarded.push('Трудоголик');
-            }
-        }
-        
-        // 2. Достижение за привычки
-        const habitStreak = await db.get(
-            'SELECT MAX(streak) as max_streak FROM habits WHERE user_id = ?',
-            [req.user.id]
-        );
-        
-        if (habitStreak.max_streak >= 30) {
-            const existingAchievement = await db.get(
-                'SELECT 1 FROM achievements WHERE user_id = ? AND type = "habits"',
-                [req.user.id]
-            );
-            
-            if (!existingAchievement) {
-                await db.run(
-                    `INSERT INTO achievements (user_id, type, title, description) 
-                     VALUES (?, 'habits', 'Мастер привычек', '30 дней подряд привычки')`,
-                    [req.user.id]
-                );
-                awarded.push('Мастер привычек');
-            }
-        }
-        
-        // 3. Достижение за финансы
-        const userBalance = await db.get(
-            'SELECT balance FROM users WHERE id = ?',
-            [req.user.id]
-        );
-        
-        if (userBalance.balance >= 100000) {
-            const existingAchievement = await db.get(
-                'SELECT 1 FROM achievements WHERE user_id = ? AND type = "finance"',
-                [req.user.id]
-            );
-            
-            if (!existingAchievement) {
-                await db.run(
-                    `INSERT INTO achievements (user_id, type, title, description) 
-                     VALUES (?, 'finance', 'Финансист', 'Накоплено 100,000 ₽')`,
-                    [req.user.id]
-                );
-                awarded.push('Финансист');
-            }
-        }
-        
-        res.json({
-            success: true,
-            data: {
-                awarded: awarded,
-                count: awarded.length
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка проверки достижений:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка проверки достижений'
-        });
-    }
-});
-
 // ==================== SPA МАРШРУТИЗАЦИЯ ====================
-// Важно: это ДОЛЖНО быть ПОСЛЕ всех API маршрутов
 app.get('*', (req, res) => {
-    // Проверяем, не является ли запрос API или статическим файлом
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ 
             success: false, 
@@ -1685,7 +2104,6 @@ app.get('*', (req, res) => {
         });
     }
     
-    // Отдаем index.html для всех остальных маршрутов
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -1693,13 +2111,12 @@ app.get('*', (req, res) => {
 const startServer = async () => {
     try {
         console.log('\n' + '='.repeat(80));
-        console.log('🚀 ЗАПУСК QUANTUMFLOW v1.0.0');
+        console.log('🚀 ЗАПУСК QUANTUMFLOW v2.0 - ПЯТЬ ОСНОВНЫХ ЦЕЛЕЙ');
         console.log('='.repeat(80));
         
         await initDatabase();
         console.log('✅ База данных готова');
         console.log('✅ Все API настроены');
-        console.log('✅ Система готова к работе');
         
         const PORT = process.env.PORT || 3000;
         app.listen(PORT, () => {
@@ -1712,25 +2129,32 @@ const startServer = async () => {
             console.log('👤 Email: demo@quantumflow.test');
             console.log('🔐 Пароль: demo123');
             console.log('='.repeat(50));
-            console.log('\n🚀 СТАРТОВАЯ СТРАНИЦА: http://localhost:3000');
-            console.log('='.repeat(50));
             
-            console.log('\n📊 ОСНОВНЫЕ ФУНКЦИОНАЛЬНОСТИ:');
+            console.log('\n🎯 ПЯТЬ ОСНОВНЫХ ЦЕЛЕЙ:');
             console.log('='.repeat(60));
-            console.log('✅ Управление задачами с тегами и приоритетами');
-            console.log('✅ Трекер привычек');
-            console.log('✅ Финансовый трекер с целями');
-            console.log('✅ Трекер здоровья и воды');
-            console.log('✅ Таймер Pomodoro');
-            console.log('✅ Система достижений и монет');
-            console.log('✅ Ежедневные ревью');
+            console.log('1. 💰 Финансовая грамотность и накопления');
+            console.log('2. 🏋️‍♂️ Спорт, фитнес и похудение');
+            console.log('3. 🚭 Отказ от вредных привычек');
+            console.log('4. ⚡ Личная эффективность и продуктивность');
+            console.log('5. 📅 Распорядок дня и тайм-менеджмент');
+            console.log('='.repeat(60));
+            
+            console.log('\n🌟 ОСНОВНЫЕ ФУНКЦИОНАЛЬНОСТИ:');
+            console.log('='.repeat(60));
+            console.log('✅ Полная система регистрации с выбором целей и сроков');
+            console.log('✅ Страница настроек профиля со статистикой');
+            console.log('✅ Финансовый учет с копилками и визуализацией');
+            console.log('✅ Персонализированные программы тренировок');
+            console.log('✅ Практики для отказа от курения и алкоголя');
+            console.log('✅ Методы личной эффективности (Pomodoro, Эйзенхауэр)');
+            console.log('✅ Генератор распорядка дня с трекингом');
+            console.log('✅ Система достижений и мотивации');
+            console.log('✅ Советы на основе данных пользователя');
             console.log('='.repeat(60));
         });
         
     } catch (error) {
         console.error('❌ Не удалось запустить сервер:', error.message);
-        // Пробуем использовать базу данных в памяти как запасной вариант
-        console.log('🔄 Пробуем использовать базу данных в памяти...');
         
         try {
             db = await open({
@@ -1752,6 +2176,27 @@ const startServer = async () => {
             process.exit(1);
         }
     }
+};
+
+// Вспомогательная функция для расчета улучшений здоровья
+const calculateHealthImprovements = (stats) => {
+    const improvements = [];
+    
+    if (stats.days_smoke_free > 0) {
+        if (stats.days_smoke_free >= 1) improvements.push('Улучшилось кровообращение');
+        if (stats.days_smoke_free >= 2) improvements.push('Нормализовалось давление');
+        if (stats.days_smoke_free >= 3) improvements.push('Восстановилось обоняние и вкус');
+        if (stats.days_smoke_free >= 14) improvements.push('Улучшилась функция легких на 30%');
+        if (stats.days_smoke_free >= 30) improvements.push('Снизился риск сердечных заболеваний');
+    }
+    
+    if (stats.days_alcohol_free > 0) {
+        if (stats.days_alcohol_free >= 1) improvements.push('Улучшилось качество сна');
+        if (stats.days_alcohol_free >= 7) improvements.push('Нормализовался уровень сахара в крови');
+        if (stats.days_alcohol_free >= 30) improvements.push('Улучшилась функция печени');
+    }
+    
+    return improvements;
 };
 
 // Запуск
