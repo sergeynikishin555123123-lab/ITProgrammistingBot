@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
+const fs = require('fs'); // Добавьте эту строку!
 
 const app = express();
 
@@ -25,8 +26,8 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Статические файлы
-app.use(express.static('public'));
+// Статические файлы из public директории
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ==================== БАЗА ДАННЫХ ====================
 let db;
@@ -36,13 +37,13 @@ const initDatabase = async () => {
         console.log('🔄 Инициализация базы данных QuantumFlow...');
         
         // Проверяем и создаем директорию если нужно
-        const dbDir = path.dirname(__dirname);
+        const dbDir = path.join(__dirname, 'data');
         if (!fs.existsSync(dbDir)) {
             fs.mkdirSync(dbDir, { recursive: true });
         }
         
         // Путь к базе данных
-        const dbPath = path.join(__dirname, 'quantumflow.db');
+        const dbPath = path.join(dbDir, 'quantumflow.db');
         console.log(`📁 Путь к базе данных: ${dbPath}`);
         
         db = await open({
@@ -66,6 +67,7 @@ const initDatabase = async () => {
         throw error;
     }
 };
+
 
 const createTables = async () => {
     try {
@@ -1673,6 +1675,7 @@ app.post('/api/achievements/check', authMiddleware, async (req, res) => {
 });
 
 // ==================== SPA МАРШРУТИЗАЦИЯ ====================
+// Важно: это ДОЛЖНО быть ПОСЛЕ всех API маршрутов
 app.get('*', (req, res) => {
     // Проверяем, не является ли запрос API или статическим файлом
     if (req.path.startsWith('/api/')) {
@@ -1684,17 +1687,6 @@ app.get('*', (req, res) => {
     
     // Отдаем index.html для всех остальных маршрутов
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// ==================== ОБРАБОТКА ОШИБОК ====================
-app.use((err, req, res, next) => {
-    console.error('🔥 Ошибка сервера:', err.message);
-    
-    res.status(500).json({
-        success: false,
-        error: 'Внутренняя ошибка сервера',
-        message: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
 });
 
 // ==================== ЗАПУСК СЕРВЕРА ====================
@@ -1719,6 +1711,8 @@ const startServer = async () => {
             console.log('='.repeat(50));
             console.log('👤 Email: demo@quantumflow.test');
             console.log('🔐 Пароль: demo123');
+            console.log('='.repeat(50));
+            console.log('\n🚀 СТАРТОВАЯ СТРАНИЦА: http://localhost:3000');
             console.log('='.repeat(50));
             
             console.log('\n📊 ОСНОВНЫЕ ФУНКЦИОНАЛЬНОСТИ:');
@@ -1746,6 +1740,7 @@ const startServer = async () => {
             
             console.log('✅ Используем базу данных в памяти');
             await createTables();
+            await createDemoData();
             
             const PORT = process.env.PORT || 3000;
             app.listen(PORT, () => {
