@@ -2557,6 +2557,910 @@
                     ` : ''}
                 `;
             },
+
+// Добавьте эти функции в объект QuantumFlow перед закрывающей фигурной скобкой:
+
+// Модальные окна
+showQuickAddMenu: function() {
+    const menuItems = [
+        { icon: 'fas fa-tasks', label: 'Задача', action: () => this.showTaskModal() },
+        { icon: 'fas fa-utensils', label: 'Прием пищи', action: () => this.showMealModal() },
+        { icon: 'fas fa-running', label: 'Активность', action: () => this.showActivityModal() },
+        { icon: 'fas fa-piggy-bank', label: 'Расход', action: () => this.showFinanceModal('expense') }
+    ];
+    
+    // Создаем меню
+    const menu = document.createElement('div');
+    menu.style.position = 'fixed';
+    menu.style.bottom = 'calc(var(--nav-height) + 90px)';
+    menu.style.right = '24px';
+    menu.style.background = 'var(--surface)';
+    menu.style.borderRadius = 'var(--radius)';
+    menu.style.padding = '10px';
+    menu.style.boxShadow = 'var(--shadow-lg)';
+    menu.style.zIndex = '1000';
+    menu.style.border = '1px solid var(--border)';
+    menu.style.minWidth = '180px';
+    
+    menu.innerHTML = `
+        <div style="text-align: center; margin-bottom: 10px; color: var(--text-secondary); font-size: 0.9rem;">
+            Быстрое добавление
+        </div>
+        ${menuItems.map(item => `
+            <div style="display: flex; align-items: center; padding: 10px; cursor: pointer; border-radius: var(--radius-sm); margin-bottom: 5px;"
+                 onclick="${item.action.toString().replace('function ()', '').replace('{', '').replace('}', '')}; this.parentNode.remove()">
+                <i class="${item.icon}" style="margin-right: 10px; color: var(--primary);"></i>
+                <span>${item.label}</span>
+            </div>
+        `).join('')}
+    `;
+    
+    // Удаляем предыдущее меню если есть
+    const existingMenu = document.querySelector('.quick-add-menu');
+    if (existingMenu) existingMenu.remove();
+    
+    menu.classList.add('quick-add-menu');
+    document.body.appendChild(menu);
+    
+    // Закрытие при клике вне меню
+    setTimeout(() => {
+        const closeHandler = (e) => {
+            if (!menu.contains(e.target) && !e.target.closest('.quick-add-btn')) {
+                menu.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        document.addEventListener('click', closeHandler);
+    }, 10);
+},
+
+showGoalModal: function() {
+    this.showFinanceGoalModal();
+},
+
+showFinanceGoalModal: function() {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3 style="color: var(--text-primary); margin-bottom: 20px;">Новая финансовая цель</h3>
+            <form id="newGoalForm">
+                <div class="form-group">
+                    <label class="form-label">Название цели</label>
+                    <input type="text" id="goalTitle" class="form-input" placeholder="Например: Новый ноутбук" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Целевая сумма (₽)</label>
+                    <input type="number" id="goalTarget" class="form-input" placeholder="100000" required min="1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Текущая сумма (₽)</label>
+                    <input type="number" id="goalCurrent" class="form-input" placeholder="0" min="0">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Категория</label>
+                    <select id="goalCategory" class="form-input">
+                        <option value="savings">Накопления</option>
+                        <option value="electronics">Электроника</option>
+                        <option value="travel">Путешествия</option>
+                        <option value="car">Автомобиль</option>
+                        <option value="home">Дом/квартира</option>
+                        <option value="education">Образование</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Дедлайн (опционально)</label>
+                    <input type="date" id="goalDeadline" class="form-input">
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <i class="fas fa-save"></i> Создать цель
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                        Отмена
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('newGoalForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const goalData = {
+            title: document.getElementById('goalTitle').value,
+            target_amount: parseFloat(document.getElementById('goalTarget').value),
+            current_amount: parseFloat(document.getElementById('goalCurrent').value) || 0,
+            category: document.getElementById('goalCategory').value,
+            deadline: document.getElementById('goalDeadline').value || null
+        };
+        
+        try {
+            const response = await fetch('/api/finance/goals', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(goalData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showNotification(data.message);
+                this.loadFinanceData();
+                modal.remove();
+            } else {
+                this.showNotification(data.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error creating goal:', error);
+            this.showNotification('Ошибка создания цели', 'error');
+        }
+    });
+},
+
+showFinanceModal: function(type) {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3 style="color: var(--text-primary); margin-bottom: 20px;">
+                ${type === 'income' ? 'Добавить доход' : 'Добавить расход'}
+            </h3>
+            <form id="financeForm">
+                <div class="form-group">
+                    <label class="form-label">Сумма (₽)</label>
+                    <input type="number" id="financeAmount" class="form-input" placeholder="1000" required min="1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Категория</label>
+                    <select id="financeCategory" class="form-input">
+                        ${type === 'income' ? `
+                            <option value="salary">Зарплата</option>
+                            <option value="freelance">Фриланс</option>
+                            <option value="investment">Инвестиции</option>
+                            <option value="other_income">Другой доход</option>
+                        ` : `
+                            <option value="food">Еда</option>
+                            <option value="transport">Транспорт</option>
+                            <option value="entertainment">Развлечения</option>
+                            <option value="utilities">Коммунальные</option>
+                            <option value="shopping">Шоппинг</option>
+                            <option value="health">Здоровье</option>
+                            <option value="other_expense">Другие расходы</option>
+                        `}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Описание (опционально)</label>
+                    <input type="text" id="financeDescription" class="form-input" placeholder="Краткое описание">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Дата</label>
+                    <input type="date" id="financeDate" class="form-input" value="${new Date().toISOString().split('T')[0]}">
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <i class="fas fa-save"></i> ${type === 'income' ? 'Добавить доход' : 'Добавить расход'}
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                        Отмена
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('financeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const financeData = {
+            type: type,
+            amount: parseFloat(document.getElementById('financeAmount').value),
+            category: document.getElementById('financeCategory').value,
+            description: document.getElementById('financeDescription').value || '',
+            date: document.getElementById('financeDate').value
+        };
+        
+        try {
+            const response = await fetch('/api/finance/transaction', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(financeData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showNotification(data.message);
+                this.loadFinanceData();
+                modal.remove();
+            } else {
+                this.showNotification(data.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error adding transaction:', error);
+            this.showNotification('Ошибка добавления транзакции', 'error');
+        }
+    });
+},
+
+showHabitTrackerModal: function() {
+    document.getElementById('habitTrackerModal').classList.add('active');
+    
+    document.getElementById('habitTrackerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const habitData = {
+            habit_type: document.getElementById('habitType').value,
+            status: document.getElementById('habitStatus').value,
+            start_date: document.getElementById('habitStartDate').value || null,
+            notes: document.getElementById('habitNotes').value || ''
+        };
+        
+        try {
+            const response = await fetch('/api/habits/track', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(habitData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showNotification(data.message);
+                this.loadHabitsData();
+                this.closeAllModals();
+            } else {
+                this.showNotification(data.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error tracking habit:', error);
+            this.showNotification('Ошибка отслеживания привычки', 'error');
+        }
+    });
+},
+
+showReviewModal: function() {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3 style="color: var(--text-primary); margin-bottom: 20px;">Еженедельный ревью</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <h4 style="color: var(--text-secondary); margin-bottom: 10px;">Ваш прогресс за неделю:</h4>
+                <div style="background: var(--surface); padding: 15px; border-radius: var(--radius); margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Финансовые цели:</span>
+                        <span style="color: var(--success);">65%</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Тренировки:</span>
+                        <span style="color: var(--warning);">40%</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Привычки:</span>
+                        <span style="color: var(--primary);">80%</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Продуктивность:</span>
+                        <span style="color: var(--accent);">50%</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Что получилось хорошо?</label>
+                <textarea id="reviewGood" class="form-input" rows="3" placeholder="Опишите ваши успехи за неделю..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Что можно улучшить на следующей неделе?</label>
+                <textarea id="reviewImprove" class="form-input" rows="3" placeholder="Опишите области для улучшения..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Цели на следующую неделю</label>
+                <textarea id="reviewGoals" class="form-input" rows="3" placeholder="Поставьте 2-3 цели на следующую неделю..."></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="app.saveReview()" style="flex: 1;">
+                    <i class="fas fa-save"></i> Сохранить ревью
+                </button>
+                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+},
+
+saveReview: function() {
+    const good = document.getElementById('reviewGood')?.value || '';
+    const improve = document.getElementById('reviewImprove')?.value || '';
+    const goals = document.getElementById('reviewGoals')?.value || '';
+    
+    if (!good && !improve && !goals) {
+        this.showNotification('Заполните хотя бы одно поле', 'warning');
+        return;
+    }
+    
+    const reviewData = {
+        good: good,
+        improve: improve,
+        goals: goals,
+        date: new Date().toISOString()
+    };
+    
+    // Сохраняем в localStorage (в реальном приложении отправляем на сервер)
+    localStorage.setItem(`quantumflow_review_${new Date().toISOString().split('T')[0]}`, JSON.stringify(reviewData));
+    
+    this.showNotification('Ревью сохранено!');
+    
+    // Закрываем модальное окно
+    const modal = document.querySelector('.modal.active');
+    if (modal) modal.remove();
+},
+
+editGoal: function(goalId) {
+    const goalNames = {
+        1: 'Финансовая грамотность',
+        2: 'Фитнес и похудение',
+        3: 'Отказ от вредных привычек',
+        4: 'Личная эффективность',
+        5: 'Распорядок дня'
+    };
+    
+    const goalField = `goal_${goalId}_deadline`;
+    const currentDeadline = this.user[goalField] || (goalId === 1 ? 12 : goalId === 2 ? 6 : goalId === 3 ? 3 : 1);
+    
+    const newDeadline = prompt(`Изменить срок для цели "${goalNames[goalId]}" (в месяцах):`, currentDeadline);
+    
+    if (newDeadline && !isNaN(newDeadline) && parseInt(newDeadline) > 0) {
+        this.updateGoalDeadline(goalId, parseInt(newDeadline));
+    }
+},
+
+updateGoalDeadline: async function(goalId, deadline) {
+    try {
+        const fieldName = `goal_${goalId}_deadline`;
+        const updateData = {};
+        updateData[fieldName] = deadline;
+        
+        const response = await fetch('/api/user/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            this.user[fieldName] = deadline;
+            this.showNotification('Срок цели обновлен');
+            this.loadSettingsData();
+            this.updateActiveGoals();
+        } else {
+            this.showNotification(data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error updating goal deadline:', error);
+        this.showNotification('Ошибка обновления срока', 'error');
+    }
+},
+
+// Таймер Pomodoro
+startTimer: function() {
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+    }
+    
+    const startBtn = document.getElementById('startTimerBtn');
+    const resetBtn = document.getElementById('resetTimerBtn');
+    const display = document.getElementById('timerDisplay');
+    
+    let time = 25 * 60; // 25 минут в секундах
+    let isRunning = true;
+    
+    startBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
+    startBtn.onclick = () => this.pauseTimer();
+    
+    this.timerInterval = setInterval(() => {
+        if (isRunning) {
+            time--;
+            
+            const minutes = Math.floor(time / 60);
+            const seconds = time % 60;
+            display.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (time <= 0) {
+                this.completeTimer();
+                clearInterval(this.timerInterval);
+                this.timerInterval = null;
+            }
+        }
+    }, 1000);
+},
+
+pauseTimer: function() {
+    const startBtn = document.getElementById('startTimerBtn');
+    startBtn.innerHTML = '<i class="fas fa-play"></i> Продолжить';
+    startBtn.onclick = () => this.startTimer();
+    
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+},
+
+resetTimer: function() {
+    if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+    
+    const startBtn = document.getElementById('startTimerBtn');
+    startBtn.innerHTML = '<i class="fas fa-play"></i> Старт';
+    startBtn.onclick = () => this.startTimer();
+    
+    document.getElementById('timerDisplay').textContent = '25:00';
+},
+
+completeTimer: function() {
+    this.showNotification('Сессия Pomodoro завершена! Время для перерыва.', 'success');
+    
+    // Воспроизводим звук (если разрешено)
+    try {
+        const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+        audio.play();
+    } catch (e) {}
+    
+    // Начисляем монеты
+    this.addCoins(10);
+    
+    // Обновляем статистику
+    this.updateProductivityStats();
+},
+
+addCoins: function(amount) {
+    if (!this.user) return;
+    
+    this.user.coins = (this.user.coins || 0) + amount;
+    
+    // Обновляем отображение на главной
+    document.querySelectorAll('.stat-card .stat-value').forEach(el => {
+        if (el.textContent.includes(this.user.coins - amount)) {
+            el.textContent = this.user.coins;
+        }
+    });
+},
+
+updateProductivityStats: function() {
+    const sessionsCompleted = parseInt(document.getElementById('sessionsCompleted').textContent) || 0;
+    document.getElementById('sessionsCompleted').textContent = sessionsCompleted + 1;
+    
+    // Обновляем общее время в фокусе
+    const totalFocusTime = parseInt(document.getElementById('totalFocusTime').textContent) || 0;
+    document.getElementById('totalFocusTime').textContent = totalFocusTime + 25;
+},
+
+// Таймер тренировки
+startWorkoutTimer: function() {
+    if (this.workoutTimerInterval) {
+        clearInterval(this.workoutTimerInterval);
+    }
+    
+    const startBtn = document.getElementById('startWorkoutBtn');
+    const completeBtn = document.getElementById('completeWorkoutBtn');
+    const display = document.getElementById('workoutTimer');
+    
+    let time = this.workoutTimerDuration || (30 * 60); // 30 минут по умолчанию
+    let isRunning = true;
+    
+    startBtn.style.display = 'none';
+    completeBtn.style.display = 'inline-flex';
+    
+    this.workoutTimerInterval = setInterval(() => {
+        if (isRunning) {
+            time--;
+            
+            const minutes = Math.floor(time / 60);
+            const seconds = time % 60;
+            display.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (time <= 0) {
+                this.showNotification('Тренировка завершена! Отличная работа!', 'success');
+                this.completeWorkout();
+                clearInterval(this.workoutTimerInterval);
+                this.workoutTimerInterval = null;
+            }
+        }
+    }, 1000);
+},
+
+resetWorkoutTimer: function() {
+    if (this.workoutTimerInterval) {
+        clearInterval(this.workoutTimerInterval);
+        this.workoutTimerInterval = null;
+    }
+    
+    const startBtn = document.getElementById('startWorkoutBtn');
+    const completeBtn = document.getElementById('completeWorkoutBtn');
+    
+    startBtn.style.display = 'inline-flex';
+    completeBtn.style.display = 'none';
+    
+    document.getElementById('workoutTimer').textContent = this.formatTime(this.workoutTimerDuration || (30 * 60));
+},
+
+completeWorkout: async function() {
+    if (this.workoutTimerInterval) {
+        clearInterval(this.workoutTimerInterval);
+        this.workoutTimerInterval = null;
+    }
+    
+    if (this.activeWorkout) {
+        try {
+            const response = await fetch(`/api/fitness/complete-workout/${this.activeWorkout.id}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showNotification(data.message);
+                this.activeWorkout = null;
+                this.loadFitnessData();
+            } else {
+                this.showNotification(data.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error completing workout:', error);
+            this.showNotification('Тренировка завершена локально!', 'success');
+            this.activeWorkout = null;
+        }
+    } else {
+        this.showNotification('Тренировка завершена! Отличная работа!', 'success');
+        this.addCoins(15);
+    }
+    
+    document.getElementById('workoutTimerContainer').style.display = 'none';
+},
+
+// Экспорт данных
+showExportDataModal: function() {
+    document.getElementById('exportDataModal').classList.add('active');
+},
+
+exportUserData: async function() {
+    try {
+        // Собираем все данные пользователя
+        const exportData = {
+            user: this.user,
+            export_date: new Date().toISOString(),
+            version: this.version
+        };
+        
+        // Получаем дополнительные данные с сервера
+        const endpoints = [
+            '/api/user/stats',
+            '/api/finance/full-stats',
+            '/api/achievements'
+        ];
+        
+        for (const endpoint of endpoints) {
+            try {
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const key = endpoint.split('/').pop();
+                    exportData[key] = data.data;
+                }
+            } catch (e) {
+                console.warn(`Failed to export from ${endpoint}:`, e);
+            }
+        }
+        
+        const exportText = JSON.stringify(exportData, null, 2);
+        
+        document.getElementById('exportDataText').value = exportText;
+        document.getElementById('exportResult').style.display = 'block';
+        
+        this.showNotification('Данные экспортированы');
+        
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        this.showNotification('Ошибка экспорта данных', 'error');
+    }
+},
+
+copyExportData: function() {
+    const textarea = document.getElementById('exportDataText');
+    textarea.select();
+    textarea.setSelectionRange(0, 99999);
+    
+    try {
+        document.execCommand('copy');
+        this.showNotification('Данные скопированы в буфер обмена');
+    } catch (err) {
+        console.error('Copy failed:', err);
+        this.showNotification('Не удалось скопировать', 'error');
+    }
+},
+
+// Загрузка рекомендаций
+loadFitnessRecommendations: function() {
+    this.showNotification('Рекомендации обновляются...', 'info');
+    this.loadFitnessData();
+},
+
+loadProductivityMethods: function() {
+    this.showNotification('Методы загружаются...', 'info');
+    this.loadProductivityData();
+},
+
+// Загрузка данных продуктивности
+loadProductivityData: async function() {
+    try {
+        const response = await fetch('/api/productivity/methods', {
+            headers: {
+                'Authorization': `Bearer ${this.token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            this.updateProductivityMethods(data.data.methods);
+        }
+    } catch (error) {
+        console.error('Error loading productivity data:', error);
+        this.showNotification('Ошибка загрузки данных продуктивности', 'error');
+    }
+},
+
+updateProductivityMethods: function(methods) {
+    const container = document.getElementById('productivityMethods');
+    
+    if (!methods || Object.keys(methods).length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                <i class="fas fa-brain" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
+                <p>Методы продуктивности временно недоступны</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    for (const category in methods) {
+        html += `
+            <div style="margin-bottom: 25px;">
+                <h3 style="color: var(--text-primary); margin-bottom: 15px; text-transform: capitalize;">
+                    ${category === 'focus' ? 'Фокус' : 
+                      category === 'planning' ? 'Планирование' : 
+                      category === 'execution' ? 'Выполнение' : category}
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+        `;
+        
+        methods[category].forEach(method => {
+            html += `
+                <div style="padding: 15px; border: 1px solid var(--border); border-radius: var(--radius);">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <i class="${method.icon}" style="color: var(--primary); font-size: 1.5rem; margin-right: 10px;"></i>
+                        <h4 style="flex: 1;">${method.name}</h4>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 15px;">
+                        ${method.description}
+                    </p>
+                    <div style="font-size: 0.85rem; color: var(--text-tertiary); margin-bottom: 15px;">
+                        <i class="fas fa-clock"></i> ${method.recommended_duration} минут
+                    </div>
+                    <button class="btn btn-primary btn-sm" style="width: 100%;" onclick="app.startProductivityMethod(${method.id})">
+                        <i class="fas fa-play"></i> Начать
+                    </button>
+                </div>
+            `;
+        });
+        
+        html += `</div></div>`;
+    }
+    
+    container.innerHTML = html;
+},
+
+startProductivityMethod: async function(methodId) {
+    try {
+        const response = await fetch('/api/productivity/start-session', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ method_id: methodId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            this.showNotification('Сессия продуктивности начата!');
+            // Можно запустить таймер для этой сессии
+        } else {
+            this.showNotification(data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error starting productivity method:', error);
+        this.showNotification('Ошибка начала сессии', 'error');
+    }
+},
+
+// Расписание
+generateDailySchedule: function() {
+    this.showNotification('Распорядок дня генерируется...', 'info');
+    this.loadScheduleData();
+},
+
+loadScheduleData: async function() {
+    try {
+        const response = await fetch('/api/schedule/generate', {
+            headers: {
+                'Authorization': `Bearer ${this.token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            this.updateScheduleData(data.data);
+        }
+    } catch (error) {
+        console.error('Error loading schedule data:', error);
+        this.showNotification('Ошибка загрузки расписания', 'error');
+    }
+},
+
+updateScheduleData: function(data) {
+    const container = document.getElementById('dailySchedule');
+    const progressCircle = document.querySelector('.progress-circle-fill');
+    const progressText = document.getElementById('scheduleProgress');
+    const statsText = document.getElementById('scheduleStats');
+    
+    // Обновляем прогресс
+    const progress = data.progress || 0;
+    const circumference = 283; // 2 * π * r (r = 45)
+    const offset = circumference - (progress / 100) * circumference;
+    
+    if (progressCircle) {
+        progressCircle.style.strokeDashoffset = offset;
+    }
+    
+    if (progressText) {
+        progressText.textContent = `${progress}%`;
+    }
+    
+    if (statsText) {
+        statsText.textContent = `${data.completed || 0}/${data.total_activities || 0} активностей выполнено`;
+    }
+    
+    // Обновляем расписание
+    if (!data.schedule || data.schedule.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                <i class="fas fa-calendar-alt" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
+                <p>Распорядок дня не сгенерирован</p>
+                <button class="btn btn-primary btn-sm" onclick="app.generateDailySchedule()" style="margin-top: 10px;">
+                    <i class="fas fa-magic"></i> Сгенерировать
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = data.schedule.map(item => `
+        <div style="display: flex; align-items: center; padding: 15px; border-bottom: 1px solid var(--border);">
+            <div style="width: 60px; flex-shrink: 0;">
+                <div style="font-weight: 700; color: var(--text-primary);">${item.time_slot}</div>
+                <div style="font-size: 0.8rem; color: var(--text-tertiary);">${item.duration} мин</div>
+            </div>
+            <div style="flex: 1; margin: 0 15px;">
+                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 5px;">${item.activity}</div>
+                <div style="display: flex; gap: 10px; font-size: 0.8rem;">
+                    <span style="color: ${item.priority === 1 ? 'var(--danger)' : 
+                                        item.priority === 2 ? 'var(--warning)' : 
+                                        'var(--info)'}">
+                        Приоритет: ${item.priority === 1 ? 'Высокий' : 
+                                   item.priority === 2 ? 'Средний' : 
+                                   'Низкий'}
+                    </span>
+                </div>
+            </div>
+            <div>
+                ${item.completed ? 
+                    `<span style="color: var(--success); font-size: 0.9rem;"><i class="fas fa-check-circle"></i> Выполнено</span>` :
+                    `<button class="btn btn-success btn-sm" onclick="app.completeScheduleItem('${item.id}')">
+                        <i class="fas fa-check"></i> Отметить
+                    </button>`
+                }
+            </div>
+        </div>
+    `).join('');
+},
+
+completeScheduleItem: async function(itemId) {
+    try {
+        const response = await fetch(`/api/schedule/complete/${itemId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            this.showNotification(data.message);
+            this.loadScheduleData();
+        } else {
+            this.showNotification(data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Error completing schedule item:', error);
+        this.showNotification('Ошибка отметки активности', 'error');
+    }
+},
+
+// Обновление кнопок таймера тренировки
+updateWorkoutTimerButtons: function() {
+    const startBtn = document.getElementById('startWorkoutBtn');
+    const completeBtn = document.getElementById('completeWorkoutBtn');
+    
+    if (this.workoutTimerActive) {
+        startBtn.style.display = 'none';
+        completeBtn.style.display = 'inline-flex';
+    } else {
+        startBtn.style.display = 'inline-flex';
+        completeBtn.style.display = 'none';
+    }
+}
             
             // Общие методы
             showNotification: function(message, type = 'success') {
