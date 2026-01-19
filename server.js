@@ -2061,11 +2061,19 @@ const startServer = async () => {
         await initDatabase();
         console.log('✅ База данных готова');
         
+        // Получаем информацию о боте
+        try {
+            const botInfo = await bot.telegram.getMe();
+            console.log(`🤖 Telegram бот: @${botInfo.username}`);
+        } catch (botError) {
+            console.log('🤖 Telegram бот: Информация недоступна');
+            console.log('⚠️  Проверьте токен бота');
+        }
+        
         const PORT = process.env.PORT || 3000;
         app.listen(PORT, () => {
             console.log(`🚀 Сервер запущен на порту ${PORT}!`);
             console.log(`🌐 Доступ по адресу: http://localhost:${PORT}`);
-            console.log(`🤖 Telegram бот: @${(await bot.telegram.getMe()).username}`);
             console.log('='.repeat(80));
             console.log('🔧 КОНФИГУРАЦИЯ:');
             console.log('='.repeat(50));
