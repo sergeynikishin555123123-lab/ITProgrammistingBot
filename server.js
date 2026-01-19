@@ -6,11 +6,11 @@ const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
-const axios = require('axios');
+const multer = require('multer');
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const { Telegraf, Markup, session } = require('telegraf');
-const rateLimit = require('express-rate-limit');
 
 const app = express();
 
@@ -29,69 +29,115 @@ const AMOCRM_CONFIG = {
 };
 
 // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM БОТА ====================
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN); // Инициализация бота
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 // Middleware для сессий
 bot.use(session({ defaultSession: () => ({}) }));
+
+// ==================== НАСТРОЙКА CORS И MIDDLEWARE ====================
+
+// CORS настройки
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? [DOMAIN] 
+        : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8080', 'http://localhost:5000', 'http://localhost:5500'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+// Применяем CORS middleware
+app.use(cors(corsOptions));
+
+// Обработка preflight запросов
+app.options('*', cors(corsOptions));
+
+// Парсинг JSON
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Статические файлы
+app.use(express.static('public'));
+
+// Middleware для обработки ошибок CORS
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    if (req.path.startsWith('/api')) {
+        res.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.header('Pragma', 'no-cache');
+        res.header('Expires', '0');
+    }
+    
+    next();
+});
+
+// ==================== БАЗА ДАННЫХ ====================
+let db;
 
 const initDatabase = async () => {
     try {
         console.log('🔄 Инициализация базы данных школы рисования...');
         
-        // Изменяем путь к базе данных - используем текущую директорию
-        const dbDir = path.join(__dirname, 'db');
-        if (!fs.existsSync(dbDir)) {
-            fs.mkdirSync(dbDir, { recursive: true });
-            console.log(`📁 Создана директория: ${dbDir}`);
-        }
-        
-        const dbPath = path.join(dbDir, 'art_school.db');
+        // Простой путь к базе данных в текущей директории
+        const dbPath = './art_school.db';
         console.log(`📁 Путь к базе данных: ${dbPath}`);
         
-        // Также пробуем альтернативный путь для резерва
-        if (!fs.existsSync(dbPath)) {
-            const altPath = './art_school.db';
-            console.log(`📁 Альтернативный путь: ${altPath}`);
+        // Создаем папку db если нужно
+        const dbDir = path.dirname(dbPath);
+        if (!fsSync.existsSync(dbDir) && dbDir !== '.') {
+            fsSync.mkdirSync(dbDir, { recursive: true });
         }
         
+        // Открываем базу данных
         db = await open({
             filename: dbPath,
             driver: sqlite3.Database
         });
 
         console.log('✅ База данных SQLite подключена');
+        
+        // Настраиваем параметры базы данных
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
-
+        
+        // Создаем таблицы
         await createTables();
+        
+        // Создаем демо-данные
         await createDemoData();
+        
+        // Настраиваем вебхук
         await setupWebhook();
+        
+        console.log('🎉 База данных успешно инициализирована!');
         
         return db;
     } catch (error) {
         console.error('❌ Ошибка инициализации базы данных:', error.message);
+        console.error('Стек ошибки:', error.stack);
         
-        // Пробуем альтернативный путь
-        console.log('🔄 Пробуем альтернативный путь...');
+        // Пробуем создать временную базу в памяти как запасной вариант
         try {
+            console.log('🔄 Пробуем создать временную базу данных в памяти...');
             db = await open({
-                filename: './art_school.db',
+                filename: ':memory:',
                 driver: sqlite3.Database
             });
-            console.log('✅ База данных подключена по альтернативному пути');
             
-            // Создаем таблицы
+            console.log('✅ Создана временная база данных в памяти');
+            await db.run('PRAGMA foreign_keys = ON');
             await createTables();
-            await createDemoData();
-            await setupWebhook();
+            console.log('⚠️ ВНИМАНИЕ: Используется база данных в памяти. Данные не сохранятся после перезапуска!');
             
             return db;
-        } catch (fallbackError) {
-            console.error('❌ Альтернативный путь тоже не сработал:', fallbackError.message);
+        } catch (memoryError) {
+            console.error('❌ Не удалось создать даже базу в памяти:', memoryError.message);
             throw error;
         }
     }
 };
+
 const createTables = async () => {
     try {
         console.log('📊 Создание таблиц школы рисования...');
@@ -372,7 +418,6 @@ const createTables = async () => {
         throw error;
     }
 };
-
 // ==================== ДЕМО ДАННЫЕ ====================
 const createDemoData = async () => {
     try {
