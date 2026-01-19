@@ -34,20 +34,25 @@ const bot = new Telegraf(TELEGRAM_BOT_TOKEN); // Инициализация бо
 // Middleware для сессий
 bot.use(session({ defaultSession: () => ({}) }));
 
-// ==================== БАЗА ДАННЫХ ====================
-let db;
-
 const initDatabase = async () => {
     try {
         console.log('🔄 Инициализация базы данных школы рисования...');
         
-        const dbDir = path.join(__dirname, 'data');
+        // Изменяем путь к базе данных - используем текущую директорию
+        const dbDir = path.join(__dirname, 'db');
         if (!fs.existsSync(dbDir)) {
             fs.mkdirSync(dbDir, { recursive: true });
+            console.log(`📁 Создана директория: ${dbDir}`);
         }
         
         const dbPath = path.join(dbDir, 'art_school.db');
         console.log(`📁 Путь к базе данных: ${dbPath}`);
+        
+        // Также пробуем альтернативный путь для резерва
+        if (!fs.existsSync(dbPath)) {
+            const altPath = './art_school.db';
+            console.log(`📁 Альтернативный путь: ${altPath}`);
+        }
         
         db = await open({
             filename: dbPath,
@@ -65,10 +70,28 @@ const initDatabase = async () => {
         return db;
     } catch (error) {
         console.error('❌ Ошибка инициализации базы данных:', error.message);
-        throw error;
+        
+        // Пробуем альтернативный путь
+        console.log('🔄 Пробуем альтернативный путь...');
+        try {
+            db = await open({
+                filename: './art_school.db',
+                driver: sqlite3.Database
+            });
+            console.log('✅ База данных подключена по альтернативному пути');
+            
+            // Создаем таблицы
+            await createTables();
+            await createDemoData();
+            await setupWebhook();
+            
+            return db;
+        } catch (fallbackError) {
+            console.error('❌ Альтернативный путь тоже не сработал:', fallbackError.message);
+            throw error;
+        }
     }
 };
-
 const createTables = async () => {
     try {
         console.log('📊 Создание таблиц школы рисования...');
