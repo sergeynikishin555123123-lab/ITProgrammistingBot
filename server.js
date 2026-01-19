@@ -489,529 +489,88 @@ const createDemoData = async () => {
     }
 };
 
-// ==================== TELEGRAM БОТ КОМАНДЫ ====================
+// ==================== TELEGRAM БОТ КОМАНДЫ (УПРОЩЕННЫЕ) ====================
 
-// Стартовая команда
+// Стартовая команда - только кнопка в приложение
 bot.start(async (ctx) => {
     const telegramId = ctx.from.id;
     const firstName = ctx.from.first_name || '';
     const lastName = ctx.from.last_name || '';
     const username = ctx.from.username || '';
     
-    // Проверяем, зарегистрирован ли пользователь
-    const user = await db.get(
-        'SELECT * FROM telegram_users WHERE telegram_id = ?',
-        [telegramId]
+    // Сохраняем пользователя
+    await saveOrUpdateUser(telegramId, firstName, lastName, username);
+    
+    // Отправляем приветственное сообщение с кнопкой в веб-приложение
+    await ctx.replyWithHTML(
+        `🎨 <b>Добро пожаловать в художественную студию!</b>\n\n` +
+        `Для доступа к вашему расписанию, абонементу и другим функциям перейдите в наше веб-приложение:`,
+        Markup.inlineKeyboard([
+            Markup.button.webApp(
+                '🚀 Открыть приложение',
+                `https://${WEB_APP_URL}`
+            )
+        ])
     );
-    
-    if (!user) {
-        // Предлагаем авторизацию
-        await ctx.replyWithHTML(
-            `🎨 <b>Добро пожаловать в художественную студию!</b>\n\n` +
-            `Для доступа к личному кабинету необходимо авторизоваться.\n\n` +
-            `Пожалуйста, поделитесь своим номером телефона для поиска ваших абонементов:`,
-            Markup.keyboard([
-                [Markup.button.contactRequest('📱 Поделиться номером телефона')]
-            ]).resize()
-        );
-    } else {
-        // Показываем меню
-        await showMainMenu(ctx);
-    }
 });
 
-// Обработка контакта
-bot.on('contact', async (ctx) => {
-    const telegramId = ctx.from.id;
-    const phoneNumber = ctx.message.contact.phone_number;
-    const firstName = ctx.from.first_name || '';
-    const lastName = ctx.from.last_name || '';
-    const username = ctx.from.username || '';
-    
-    try {
-        // Сохраняем/обновляем пользователя
-        let user = await db.get(
-            'SELECT * FROM telegram_users WHERE telegram_id = ?',
-            [telegramId]
-        );
-        
-        if (!user) {
-            const result = await db.run(
-                `INSERT INTO telegram_users (telegram_id, phone_number, first_name, last_name, username) 
-                 VALUES (?, ?, ?, ?, ?)`,
-                [telegramId, phoneNumber, firstName, lastName, username]
-            );
-            user = await db.get(
-                'SELECT * FROM telegram_users WHERE id = ?',
-                [result.lastID]
-            );
-            console.log(`✅ Новый пользователь: ${telegramId}`);
-        } else {
-            await db.run(
-                `UPDATE telegram_users 
-                 SET phone_number = ?, first_name = ?, last_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [phoneNumber, firstName, lastName, username, user.id]
-            );
-        }
-        
-        // Ищем профили для этого телефона
-        const profiles = await findProfilesByPhone(phoneNumber);
-        
-        if (profiles.length === 0) {
-            await ctx.replyWithHTML(
-                `❌ <b>Абонементы не найдены</b>\n\n` +
-                `По вашему номеру телефона не найдены активные абонементы в художественной студии.\n\n` +
-                `Пожалуйста, свяжитесь с администратором для уточнения информации.`,
-                Markup.keyboard([
-                    ['📞 Связаться с администратором'],
-                    ['🏠 Главное меню']
-                ]).resize()
-            );
-            return;
-        }
-        
-        // Сохраняем профили
-        const savedProfiles = await saveProfiles(user.id, profiles);
-        
-        if (savedProfiles.length === 1) {
-            // Автоматически выбираем единственный профиль
-            await db.run(
-                'UPDATE student_profiles SET last_selected = 1 WHERE id = ?',
-                [savedProfiles[0].id]
-            );
-            
-            await ctx.replyWithHTML(
-                `✅ <b>Авторизация успешна!</b>\n\n` +
-                `Найден абонемент для <b>${savedProfiles[0].student_name}</b>\n` +
-                `Филиал: <b>${savedProfiles[0].branch}</b>\n` +
-                `Осталось занятий: <b>${savedProfiles[0].remaining_classes}</b>\n\n` +
-                `Теперь вы можете использовать все функции личного кабинета.`,
-                await getMainMenuKeyboard()
-            );
-        } else {
-            // Предлагаем выбрать профиль
-            await ctx.replyWithHTML(
-                `✅ <b>Найдено несколько абонементов</b>\n\n` +
-                `Пожалуйста, выберите подходящий профиль:`,
-                await getProfilesKeyboard(savedProfiles)
-            );
-        }
-        
-    } catch (error) {
-        console.error('Ошибка обработки контакта:', error);
-        await ctx.reply(
-            '❌ Произошла ошибка при обработке вашего номера телефона. Пожалуйста, попробуйте позже.'
-        );
-    }
-});
-
-// Команда меню
-bot.command('menu', async (ctx) => {
-    await showMainMenu(ctx);
-});
-
-// Команда расписания
-bot.command('schedule', async (ctx) => {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    if (!profile) {
-        await ctx.reply('У вас нет выбранного профиля. Пожалуйста, выберите профиль в меню.');
-        return;
-    }
-    
-    await showSchedule(ctx, profile);
-});
-
-// Команда абонемента
-bot.command('subscription', async (ctx) => {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    if (!profile) {
-        await ctx.reply('У вас нет выбранного профиля. Пожалуйста, выберите профиль в меню.');
-        return;
-    }
-    
-    await showSubscription(ctx, profile);
-});
-
-// Команда преподавателей
-bot.command('teachers', async (ctx) => {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    if (!profile) {
-        await ctx.reply('У вас нет выбранного профиля. Пожалуйста, выберите профиль в меню.');
-        return;
-    }
-    
-    await showTeachers(ctx, profile.branch);
+// Команда для доступа к приложению
+bot.command('app', async (ctx) => {
+    await ctx.replyWithHTML(
+        `🎨 <b>Откройте приложение художественной студии</b>\n\n` +
+        `Перейдите по кнопке ниже, чтобы получить доступ ко всем функциям:`,
+        Markup.inlineKeyboard([
+            Markup.button.webApp(
+                '🚀 Открыть приложение',
+                `https://${WEB_APP_URL}`
+            )
+        ])
+    );
 });
 
 // Команда помощи
 bot.command('help', async (ctx) => {
     await ctx.replyWithHTML(
-        `🎨 <b>Помощь по использованию бота художественной студии</b>\n\n` +
+        `🎨 <b>Помощь по боту художественной студии</b>\n\n` +
         `<b>Основные команды:</b>\n` +
         `/start - Начать работу с ботом\n` +
-        `/menu - Показать главное меню\n` +
-        `/schedule - Показать расписание\n` +
-        `/subscription - Информация об абонементе\n` +
-        `/teachers - Список преподавателей\n` +
+        `/app - Открыть веб-приложение\n` +
         `/help - Эта справка\n\n` +
-        `<b>Как это работает:</b>\n` +
-        `1. При первом использовании поделитесь номером телефона\n` +
-        `2. Система найдет ваши абонементы в художественной студии\n` +
-        `3. Выберите нужный профиль (если их несколько)\n` +
-        `4. Используйте меню для доступа к функциям\n\n` +
-        `<b>Функции:</b>\n` +
+        `<b>Как использовать:</b>\n` +
+        `1. Нажмите /start для начала работы\n` +
+        `2. Нажмите кнопку "Открыть приложение"\n` +
+        `3. В приложении авторизуйтесь через Telegram\n` +
+        `4. Используйте все функции личного кабинета\n\n` +
+        `<b>Функции приложения:</b>\n` +
         `• Просмотр расписания занятий\n` +
-        `• Проверка остатка занятий\n` +
+        `• Информация об абонементе\n` +
         `• История посещений\n` +
-        `• Информация о преподавателях\n` +
         `• Связь с администратором\n` +
         `• Уведомления об изменениях\n\n` +
         `<b>Техническая поддержка:</b>\n` +
-        `Если у вас возникли проблемы, напишите @art_school_support`
+        `Если у вас возникли проблемы, напишите администратору в приложении`
     );
 });
 
-// ==================== TELEGRAM БОТ МЕНЮ ====================
-
-async function showMainMenu(ctx) {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
+// Обработка текстовых сообщений - перенаправляем в приложение
+bot.on('text', async (ctx) => {
+    const text = ctx.message.text;
+    
+    // Игнорируем команды, они обрабатываются отдельно
+    if (text.startsWith('/')) {
         return;
     }
     
-    const profile = await getSelectedProfile(user.id);
-    
-    if (profile) {
-        await ctx.replyWithHTML(
-            `🎨 <b>Главное меню</b>\n\n` +
-            `<b>Текущий профиль:</b> ${profile.student_name}\n` +
-            `<b>Филиал:</b> ${profile.branch}\n` +
-            `<b>Осталось занятий:</b> ${profile.remaining_classes}\n\n` +
-            `Выберите действие:`,
-            await getMainMenuKeyboard()
-        );
-    } else {
-        const profiles = await db.all(
-            'SELECT * FROM student_profiles WHERE telegram_user_id = ? AND is_active = 1',
-            [user.id]
-        );
-        
-        if (profiles.length === 0) {
-            await ctx.replyWithHTML(
-                `❌ <b>Абонементы не найдены</b>\n\n` +
-                `У вас нет активных абонементов в художественной студии.\n\n` +
-                `Для получения доступа свяжитесь с администратором.`,
-                Markup.keyboard([
-                    ['📞 Связаться с администратором'],
-                    ['/start']
-                ]).resize()
-            );
-        } else {
-            await ctx.replyWithHTML(
-                `👤 <b>Выберите профиль</b>\n\n` +
-                `У вас найдено несколько абонементов. Пожалуйста, выберите профиль:`,
-                await getProfilesKeyboard(profiles)
-            );
-        }
-    }
-}
-
-async function showSchedule(ctx, profile) {
-    try {
-        const schedule = await db.all(
-            `SELECT * FROM schedule 
-             WHERE branch = ? AND is_active = 1
-             ORDER BY 
-                 CASE day_of_week 
-                     WHEN 'понедельник' THEN 1
-                     WHEN 'вторник' THEN 2
-                     WHEN 'среда' THEN 3
-                     WHEN 'четверг' THEN 4
-                     WHEN 'пятница' THEN 5
-                     WHEN 'суббота' THEN 6
-                     WHEN 'воскресенье' THEN 7
-                     ELSE 8
-                 END, start_time`,
-            [profile.branch]
-        );
-        
-        if (schedule.length === 0) {
-            await ctx.reply(
-                '📅 Расписание для вашего филиала пока не заполнено.'
-            );
-            return;
-        }
-        
-        let message = `📅 <b>Расписание занятий - ${profile.branch}</b>\n\n`;
-        
-        const days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
-        
-        for (const day of days) {
-            const dayLessons = schedule.filter(lesson => lesson.day_of_week === day);
-            
-            if (dayLessons.length > 0) {
-                message += `\n<b>${day.charAt(0).toUpperCase() + day.slice(1)}:</b>\n`;
-                
-                for (const lesson of dayLessons) {
-                    const statusEmoji = lesson.status === 'cancelled' ? '❌' : 
-                                       lesson.status === 'changed' ? '🔄' : '✅';
-                    
-                    message += `${statusEmoji} <b>${lesson.start_time}-${lesson.end_time}</b>\n`;
-                    message += `   ${lesson.group_name}\n`;
-                    message += `   Преподаватель: ${lesson.teacher_name}\n`;
-                    message += `   Кабинет: ${lesson.room_number}\n`;
-                    
-                    if (lesson.status_note) {
-                        message += `   📌 ${lesson.status_note}\n`;
-                    }
-                    
-                    message += '\n';
-                }
-            }
-        }
-        
-        await ctx.replyWithHTML(message, Markup.inlineKeyboard([
-            [Markup.button.callback('🔄 Обновить', 'refresh_schedule')],
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]));
-        
-    } catch (error) {
-        console.error('Ошибка показа расписания:', error);
-        await ctx.reply('❌ Произошла ошибка при загрузке расписания.');
-    }
-}
-
-async function showSubscription(ctx, profile) {
-    try {
-        // Получаем историю посещений
-        const visits = await db.all(
-            `SELECT * FROM attendance 
-             WHERE student_profile_id = ?
-             ORDER BY attendance_date DESC
-             LIMIT 10`,
-            [profile.id]
-        );
-        
-        const usedClasses = profile.total_classes - profile.remaining_classes;
-        const progressPercent = profile.total_classes > 0 ? 
-            Math.round((usedClasses / profile.total_classes) * 100) : 0;
-        
-        let message = `🎫 <b>Мой абонемент</b>\n\n`;
-        message += `<b>Ученик:</b> ${profile.student_name}\n`;
-        message += `<b>Филиал:</b> ${profile.branch}\n`;
-        message += `<b>Абонемент:</b> ${profile.subscription_type}\n`;
-        message += `<b>Всего занятий:</b> ${profile.total_classes}\n`;
-        message += `<b>Использовано:</b> ${usedClasses}\n`;
-        message += `<b>Осталось:</b> ${profile.remaining_classes}\n`;
-        
-        if (profile.expiration_date) {
-            const expDate = new Date(profile.expiration_date);
-            const today = new Date();
-            const daysLeft = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-            
-            message += `<b>Срок действия:</b> ${expDate.toLocaleDateString('ru-RU')}\n`;
-            message += `<b>Осталось дней:</b> ${daysLeft}\n`;
-        }
-        
-        message += `\n<b>Прогресс:</b>\n`;
-        message += `[${'█'.repeat(Math.floor(progressPercent/10))}${'░'.repeat(10 - Math.floor(progressPercent/10))}] ${progressPercent}%\n`;
-        
-        if (visits.length > 0) {
-            message += `\n<b>Последние посещения:</b>\n`;
-            for (const visit of visits.slice(0, 5)) {
-                const date = new Date(visit.attendance_date);
-                const statusEmoji = visit.status === 'attended' ? '✅' : 
-                                   visit.status === 'missed' ? '❌' : '⏸️';
-                message += `${statusEmoji} ${date.toLocaleDateString('ru-RU')} ${visit.attendance_time || ''}\n`;
-            }
-        }
-        
-        const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('📞 Связаться с администратором', 'contact_admin')],
-            [Markup.button.callback('🔄 Обновить', 'refresh_subscription')],
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]);
-        
-        await ctx.replyWithHTML(message, keyboard);
-        
-    } catch (error) {
-        console.error('Ошибка показа абонемента:', error);
-        await ctx.reply('❌ Произошла ошибка при загрузке информации об абонементе.');
-    }
-}
-
-async function showTeachers(ctx, branch) {
-    try {
-        const teachers = await db.all(
-            `SELECT * FROM teachers 
-             WHERE is_active = 1 
-               AND (branches LIKE ? OR branches LIKE '%"all"%' OR branches IS NULL)
-             ORDER BY display_order, name`,
-            [`%${branch}%`]
-        );
-        
-        if (teachers.length === 0) {
-            await ctx.reply('👨‍🏫 Информация о преподавателях вашего филиала пока не доступна.');
-            return;
-        }
-        
-        let message = `👨‍🏫 <b>Преподаватели - ${branch}</b>\n\n`;
-        
-        for (const teacher of teachers) {
-            message += `<b>${teacher.name}</b>\n`;
-            message += `${teacher.qualification}\n`;
-            message += `<b>Специализация:</b> ${teacher.specialization}\n`;
-            message += `<b>Опыт:</b> ${teacher.experience_years} лет\n\n`;
-        }
-        
-        await ctx.replyWithHTML(message, Markup.inlineKeyboard([
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]));
-        
-    } catch (error) {
-        console.error('Ошибка показа преподавателей:', error);
-        await ctx.reply('❌ Произошла ошибка при загрузке списка преподавателей.');
-    }
-}
-
-// ==================== TELEGRAM БОТ ОБРАБОТЧИКИ ====================
-
-// Обработка callback запросов
-bot.on('callback_query', async (ctx) => {
-    const callbackData = ctx.callbackQuery.data;
-    const userId = ctx.from.id;
-    
-    try {
-        await ctx.answerCbQuery();
-        
-        const user = await getTelegramUser(userId);
-        if (!user) return;
-        
-        switch (callbackData) {
-            case 'back_to_menu':
-                await showMainMenu(ctx);
-                break;
-                
-            case 'refresh_schedule':
-                const profile1 = await getSelectedProfile(user.id);
-                if (profile1) {
-                    await showSchedule(ctx, profile1);
-                }
-                break;
-                
-            case 'refresh_subscription':
-                const profile2 = await getSelectedProfile(user.id);
-                if (profile2) {
-                    await showSubscription(ctx, profile2);
-                }
-                break;
-                
-            case 'contact_admin':
-                const profile3 = await getSelectedProfile(user.id);
-                if (profile3) {
-                    await contactAdmin(ctx, profile3);
-                }
-                break;
-                
-            default:
-                if (callbackData.startsWith('profile_')) {
-                    const profileId = parseInt(callbackData.replace('profile_', ''));
-                    await selectProfile(ctx, user.id, profileId);
-                }
-                break;
-        }
-        
-    } catch (error) {
-        console.error('Ошибка обработки callback:', error);
-        await ctx.reply('❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.');
-    }
-});
-
-// Обработка текстовых сообщений
-bot.on('text', async (ctx) => {
-    const text = ctx.message.text;
-    const userId = ctx.from.id;
-    
-    const user = await getTelegramUser(userId);
-    if (!user) return;
-    
-    switch (text) {
-        case '🏠 Главное меню':
-            await showMainMenu(ctx);
-            break;
-            
-        case '📅 Расписание':
-            const profile1 = await getSelectedProfile(user.id);
-            if (profile1) {
-                await showSchedule(ctx, profile1);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '🎫 Мой абонемент':
-            const profile2 = await getSelectedProfile(user.id);
-            if (profile2) {
-                await showSubscription(ctx, profile2);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '👨‍🏫 Преподаватели':
-            const profile3 = await getSelectedProfile(user.id);
-            if (profile3) {
-                await showTeachers(ctx, profile3.branch);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '📞 Связаться с администратором':
-            const profile4 = await getSelectedProfile(user.id);
-            if (profile4) {
-                await contactAdmin(ctx, profile4);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '❓ Помощь':
-            await ctx.replyWithHTML(
-                `🎨 <b>Помощь по использованию бота</b>\n\n` +
-                `Для навигации используйте кнопки меню:\n\n` +
-                `• <b>Расписание</b> - просмотр занятий\n` +
-                `• <b>Мой абонемент</b> - информация об абонементе\n` +
-                `• <b>Преподаватели</b> - список преподавателей\n` +
-                `• <b>Связь с администратором</b> - задать вопрос\n\n` +
-                `Также вы можете использовать команды:\n` +
-                `/start - начать работу\n` +
-                `/menu - главное меню\n` +
-                `/help - помощь\n\n` +
-                `Для технической поддержки: @art_school_support`
-            );
-            break;
-    }
+    // На любое текстовое сообщение предлагаем перейти в приложение
+    await ctx.replyWithHTML(
+        `🎨 Для работы с функциями художественной студии используйте наше веб-приложение:`,
+        Markup.inlineKeyboard([
+            Markup.button.webApp(
+                '🚀 Открыть приложение',
+                `https://${WEB_APP_URL}`
+            )
+        ])
+    );
 });
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ БОТА ====================
