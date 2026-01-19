@@ -29,7 +29,7 @@ const AMOCRM_CONFIG = {
 };
 
 // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM БОТА ====================
-const TELEGRAM_BOT_TOKEN = '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4';
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN); // Инициализация бота
 
 // Middleware для сессий
 bot.use(session({ defaultSession: () => ({}) }));
