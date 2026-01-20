@@ -144,11 +144,11 @@ body::before {
 
 @media (max-width: 1200px) {
     .container { max-width: 1140px; }
+    html, body { font-size: 15px; }
 }
 
 @media (max-width: 992px) {
     .container { max-width: 960px; }
-    html, body { font-size: 15px; }
 }
 
 @media (max-width: 768px) {
@@ -159,7 +159,6 @@ body::before {
 
 @media (max-width: 576px) {
     .container { max-width: 540px; }
-    html, body { font-size: 14px; }
     .container { padding: 0 10px; }
 }
 
@@ -181,7 +180,7 @@ body::before {
     box-shadow: 0 2px 20px rgba(74, 119, 180, 0.1);
 }
 
-/* Логотип с картиной Дали */
+/* Логотип */
 .logo-container {
     display: flex;
     align-items: center;
@@ -261,7 +260,7 @@ body::before {
     font-family: 'Dancing Script', cursive;
 }
 
-/* Аватар пользователя с Мона Лизой */
+/* Аватар пользователя */
 .user-avatar {
     width: 50px;
     height: 50px;
@@ -368,7 +367,7 @@ body::before {
     padding-left: 20px;
 }
 
-/* Нижняя навигация с художественными иконками */
+/* Нижняя навигация */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -498,7 +497,7 @@ body::before {
     font-family: 'Inter', sans-serif;
 }
 
-/* Художественные карточки */
+/* Карточки */
 .card {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
@@ -528,7 +527,7 @@ body::before {
     border-color: var(--watercolor-purple);
 }
 
-/* ==================== КНОПКИ В ХУДОЖЕСТВЕННОМ СТИЛЕ ==================== */
+/* ==================== КНОПКИ ==================== */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -633,7 +632,7 @@ body::before {
     box-shadow: 0 8px 25px rgba(255, 154, 61, 0.4);
 }
 
-/* ==================== HERO СЕКЦИЯ В ХУДОЖЕСТВЕННОМ СТИЛЕ ==================== */
+/* ==================== HERO СЕКЦИЯ ==================== */
 .hero {
     background: linear-gradient(135deg, rgba(74, 119, 180, 0.15), rgba(156, 106, 222, 0.1), rgba(255, 154, 61, 0.05));
     border-radius: var(--radius-xl);
@@ -708,7 +707,7 @@ body::before {
     flex-wrap: wrap;
 }
 
-/* ==================== КАРТОЧКИ КАТЕГОРИЙ В ХУДОЖЕСТВЕННОМ СТИЛЕ ==================== */
+/* ==================== КАРТОЧКИ КАТЕГОРИЙ ==================== */
 .category-card-main-style {
     display: flex;
     flex-direction: column;
@@ -897,22 +896,15 @@ body::before {
 
 /* Адаптивные сетки */
 @media (min-width: 1200px) {
-    .grid-3-main, .grid-2-main, #allServicesList, #allCategoriesList {
-        grid-template-columns: repeat(3, 1fr);
-    }
+    .grid-3-main { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (min-width: 768px) and (max-width: 1199px) {
-    .grid-3-main, .grid-2-main, #allServicesList, #allCategoriesList {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    .grid-3-main { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 767px) {
-    .grid-3-main, .grid-2-main, #allServicesList, #allCategoriesList {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
+    .grid-3-main { grid-template-columns: 1fr; gap: 20px; }
     
     .category-card-main-style {
         min-height: 280px;
@@ -1056,100 +1048,6 @@ body::before {
 }
 
 /* ==================== ПРОФИЛЬ ==================== */
-.profile-header {
-    background: var(--artistic-gradient);
-    color: white;
-    padding: 30px 20px;
-    border-radius: var(--radius-xl);
-    margin-bottom: 20px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-    box-shadow: var(--shadow-lg);
-}
-
-.profile-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
-    pointer-events: none;
-}
-
-.profile-avatar {
-    width: 100px;
-    height: 100px;
-    background: white;
-    border-radius: 50%;
-    margin: 0 auto 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--acrylic-blue);
-    font-size: 2.5rem;
-    font-weight: 700;
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-    position: relative;
-}
-
-.profile-avatar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(45deg, transparent 40%, rgba(255, 255, 255, 0.3) 50%, transparent 60%);
-    background-size: 200% 100%;
-    animation: brushStroke 3s infinite linear;
-}
-
-.profile-name {
-    font-size: 1.8rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-    font-family: 'Playfair Display', serif;
-}
-
-.profile-email {
-    font-size: 1rem;
-    opacity: 0.9;
-    margin-bottom: 16px;
-}
-
-.profile-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.stat-item {
-    background: rgba(255, 255, 255, 0.15);
-    padding: 12px;
-    border-radius: var(--radius);
-    text-align: center;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.stat-value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    opacity: 0.9;
-}
-
-/* Компактный профиль с Мона Лизой */
 .compact-profile-header {
     background: var(--artistic-gradient);
     color: white;
@@ -1193,20 +1091,6 @@ body::before {
 }
 
 .compact-profile-avatar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/150px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg');
-    background-size: cover;
-    background-position: center;
-    border-radius: 50%;
-    z-index: 1;
-}
-
-.compact-profile-avatar::after {
     content: '';
     position: absolute;
     top: 0;
@@ -1993,44 +1877,6 @@ body::before {
     }
 }
 
-/* ==================== ТЕЛЕГРАМ СТИЛИ ==================== */
-.tg-theme {
-    background: var(--canvas-light);
-    color: var(--sketch-dark);
-}
-
-.tg-btn {
-    background: var(--acrylic-blue);
-    color: white;
-    border: none;
-    border-radius: var(--organic-radius);
-    padding: 14px 28px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    border: 2px solid var(--acrylic-blue-dark);
-}
-
-.tg-btn:hover {
-    background: var(--acrylic-blue-dark);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow);
-}
-
-.tg-btn-secondary {
-    background: transparent;
-    color: var(--acrylic-blue);
-    border: 2px solid var(--acrylic-blue);
-}
-
-.tg-btn-secondary:hover {
-    background: var(--acrylic-blue-light);
-    transform: translateY(-2px);
-}
-
 /* ==================== КНОПКА БЫСТРОЙ СВЯЗИ ==================== */
 .quick-tasks-btn {
     position: fixed;
@@ -2072,86 +1918,6 @@ body::before {
     animation: rotate 20s linear infinite;
 }
 
-/* ==================== ХУДОЖЕСТВЕННЫЕ ЭЛЕМЕНТЫ ==================== */
-.brush-stroke {
-    position: absolute;
-    pointer-events: none;
-    z-index: -1;
-    opacity: 0.1;
-}
-
-.paint-splash {
-    position: absolute;
-    width: 100px;
-    height: 100px;
-    background: radial-gradient(circle, var(--acrylic-blue) 0%, transparent 70%);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: -1;
-    opacity: 0.05;
-}
-
-.color-palette {
-    display: flex;
-    gap: 5px;
-    margin: 10px 0;
-}
-
-.color-chip {
-    width: 25px;
-    height: 25px;
-    border-radius: 4px;
-    border: 2px solid white;
-    box-shadow: var(--shadow-sm);
-}
-
-/* ==================== ДЕКОРАТИВНЫЕ ЭЛЕМЕНТЫ ==================== */
-.decorative-frame {
-    position: relative;
-    padding: 20px;
-    border: 2px solid var(--acrylic-blue);
-    border-radius: var(--radius);
-    background: var(--canvas-light);
-}
-
-.decorative-frame::before,
-.decorative-frame::after {
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--acrylic-blue);
-}
-
-.decorative-frame::before {
-    top: -2px;
-    left: -2px;
-    border-right: none;
-    border-bottom: none;
-}
-
-.decorative-frame::after {
-    bottom: -2px;
-    right: -2px;
-    border-left: none;
-    border-top: none;
-}
-
-/* ==================== АВАТАР С МОНА ЛИЗОЙ ==================== */
-.mona-lisa-avatar {
-    background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/150px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg');
-    background-size: cover;
-    background-position: center;
-}
-
-/* ==================== ЛОГОТИП С ДАЛИ ==================== */
-.dali-logo {
-    background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), 
-                url('https://upload.wikimedia.org/wikipedia/en/thumb/3/31/The_Persistence_of_Memory.jpg/300px-The_Persistence_of_Memory.jpg');
-    background-size: cover;
-    background-position: center;
-}
-
 /* ==================== ЗАГРУЗОЧНАЯ АНИМАЦИЯ ==================== */
 #loading-bar {
     position: fixed;
@@ -2170,26 +1936,17 @@ body::before {
     50% { transform: translateX(0); }
     100% { transform: translateX(100%); }
 }
+
 </style>
 </head>
 <body>
     <!-- Прогресс-бар загрузки -->
     <div id="loading-bar"></div>
     
-    <!-- Оверлей для мобильного меню -->
-    <div id="mobile-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999;"></div>
-    
-    <!-- Художественные элементы -->
-    <div class="brush-stroke" style="top: 10%; left: 5%; width: 200px; height: 100px; background: rgba(156, 106, 222, 0.1); transform: rotate(20deg);"></div>
-    <div class="brush-stroke" style="bottom: 10%; right: 5%; width: 150px; height: 80px; background: rgba(255, 193, 69, 0.1); transform: rotate(-15deg);"></div>
-    <div class="paint-splash" style="top: 30%; right: 10%;"></div>
-    <div class="paint-splash" style="bottom: 40%; left: 15%; background: radial-gradient(circle, var(--watercolor-purple) 0%, transparent 70%);"></div>
-    
     <!-- Верхняя навигация -->
     <nav class="top-nav">
-        <a href="#" class="logo-container" onclick="app.navigateToPage('home')">
-            <div class="logo-frame dali-logo">
-                <!-- Картина Сальвадора Дали -->
+        <a href="#" class="logo-container" onclick="ArtSchoolApp.navigateToPage('home')">
+            <div class="logo-frame">
                 <div style="color: white; font-size: 2rem; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
                     🎨
                 </div>
@@ -2203,12 +1960,8 @@ body::before {
             </div>
         </a>
         
-        <div class="user-avatar mona-lisa-avatar" id="userAvatar" onclick="app.toggleUserMenu()" style="display: none;">
-            <!-- Мона Лиза как аватар -->
-            <img id="userAvatarImg" 
-                 alt="Мона Лиза"
-                 onerror="this.style.display='none'; this.parentElement.classList.add('mona-lisa-avatar');"
-                 style="display: none;">
+        <div class="user-avatar" id="userAvatar" onclick="ArtSchoolApp.toggleUserMenu()" style="display: none;">
+            <img id="userAvatarImg" alt="Аватар">
         </div>
         
         <div class="user-menu" id="userMenu">
@@ -2217,22 +1970,19 @@ body::before {
                 <div style="font-size: 0.9rem; color: var(--sketch-medium);" id="menuUserEmail"></div>
             </div>
             <div style="padding: 5px 0;">
-                <a href="#" class="nav-menu-item" onclick="app.navigateToPage('profile')">
+                <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.navigateToPage('profile')">
                     <i class="fas fa-user" style="color: var(--acrylic-blue);"></i>Профиль
                 </a>
-                <a href="#" class="nav-menu-item" onclick="app.navigateToPage('schedule')">
+                <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.navigateToPage('schedule')">
                     <i class="fas fa-calendar-alt" style="color: var(--acrylic-blue);"></i>Расписание
                 </a>
-                <a href="#" class="nav-menu-item" onclick="app.navigateToPage('subscription')">
+                <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.navigateToPage('subscription')">
                     <i class="fas fa-ticket-alt" style="color: var(--acrylic-blue);"></i>Абонемент
                 </a>
-                <a href="#" class="nav-menu-item" onclick="app.navigateToPage('teachers')">
+                <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.navigateToPage('teachers')">
                     <i class="fas fa-chalkboard-teacher" style="color: var(--acrylic-blue);"></i>Преподаватели
                 </a>
-                <a href="#" class="nav-menu-item" onclick="app.showLoginModal()" id="loginMenuBtn">
-                    <i class="fas fa-sign-in-alt" style="color: var(--acrylic-blue);"></i>Войти
-                </a>
-                <a href="#" class="nav-menu-item" onclick="app.logout()" id="logoutMenuBtn" style="display: none;">
+                <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.logout()" id="logoutMenuBtn" style="display: none;">
                     <i class="fas fa-sign-out-alt" style="color: var(--acrylic-blue);"></i>Выйти
                 </a>
             </div>
@@ -2241,23 +1991,23 @@ body::before {
     
     <!-- Нижняя навигация -->
     <nav class="bottom-nav" id="bottomNav" style="display: none;">
-        <a href="#" class="nav-item active" data-page="home" onclick="app.navigateToPage('home')">
+        <a href="#" class="nav-item active" data-page="home" onclick="ArtSchoolApp.navigateToPage('home')">
             <i class="fas fa-palette"></i>
             <span>Главная</span>
         </a>
-        <a href="#" class="nav-item" data-page="schedule" onclick="app.navigateToPage('schedule')">
+        <a href="#" class="nav-item" data-page="schedule" onclick="ArtSchoolApp.navigateToPage('schedule')">
             <i class="fas fa-calendar-alt"></i>
             <span>Расписание</span>
         </a>
-        <a href="#" class="nav-item" data-page="subscription" onclick="app.navigateToPage('subscription')">
+        <a href="#" class="nav-item" data-page="subscription" onclick="ArtSchoolApp.navigateToPage('subscription')">
             <i class="fas fa-ticket-alt"></i>
             <span>Абонемент</span>
         </a>
-        <a href="#" class="nav-item" data-page="teachers" onclick="app.navigateToPage('teachers')">
+        <a href="#" class="nav-item" data-page="teachers" onclick="ArtSchoolApp.navigateToPage('teachers')">
             <i class="fas fa-paint-brush"></i>
             <span>Преподаватели</span>
         </a>
-        <a href="#" class="nav-item" data-page="profile" onclick="app.navigateToPage('profile')">
+        <a href="#" class="nav-item" data-page="profile" onclick="ArtSchoolApp.navigateToPage('profile')">
             <i class="fas fa-user"></i>
             <span>Профиль</span>
         </a>
@@ -2282,11 +2032,11 @@ body::before {
                             <div style="text-align: center; margin-bottom: 30px;">
                                 <h2 style="color: var(--sketch-dark); margin-bottom: 15px; font-family: 'Playfair Display', serif;">Добро пожаловать в мир искусства!</h2>
                                 <p style="color: var(--sketch-medium); margin-bottom: 25px; line-height: 1.6;">
-                                    Для доступа к личному кабинету художественной студии необходимо авторизоваться через Telegram
+                                    Для доступа к личному кабинету художественной студии необходимо авторизоваться
                                 </p>
                             </div>
                             
-                            <button class="btn btn-artistic" onclick="app.startTelegramAuth()" style="width: 100%; padding: 18px; font-size: 1.1rem;">
+                            <button class="btn btn-artistic" onclick="ArtSchoolApp.initTelegramAuth()" style="width: 100%; padding: 18px; font-size: 1.1rem;">
                                 <i class="fab fa-telegram-plane"></i>
                                 Войти через Telegram
                             </button>
@@ -2296,7 +2046,7 @@ body::before {
                                     <i class="fas fa-info-circle" style="color: var(--acrylic-blue);"></i> Как это работает
                                 </h4>
                                 <p style="color: var(--sketch-medium); font-size: 0.95rem; line-height: 1.6;">
-                                    Система автоматически найдёт ваши абонементы в художественной студии по номеру телефона из Telegram и покажет расписание занятий.
+                                    Система автоматически найдёт ваши абонементы в художественной студии по номеру телефона и покажет расписание занятий.
                                 </p>
                             </div>
                         </div>
@@ -2311,15 +2061,15 @@ body::before {
                 <!-- Hero секция -->
                 <section class="hero">
                     <div class="hero-content">
-                        <h1>Добро пожаловать в художественную студию!</h1>
-                        <div class="tagline">Твори, вдохновляй, создавай</div>
+                        <h1 id="greeting">Добро пожаловать в художественную студию!</h1>
+                        <div class="tagline" id="studentName">Твори, вдохновляй, создавай</div>
                         <p>Ваше личное пространство для управления занятиями, просмотра расписания и связи с преподавателями. Откройте в себе художника!</p>
                         <div class="hero-actions">
-                            <button class="btn btn-artistic" onclick="app.navigateToPage('schedule')">
+                            <button class="btn btn-artistic" onclick="ArtSchoolApp.navigateToPage('schedule')">
                                 <i class="fas fa-calendar-alt"></i>
                                 Расписание
                             </button>
-                            <button class="btn btn-secondary" onclick="app.navigateToPage('subscription')">
+                            <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('subscription')">
                                 <i class="fas fa-ticket-alt"></i>
                                 Мой абонемент
                             </button>
@@ -2331,7 +2081,7 @@ body::before {
                 <section class="section">
                     <h2 class="section-title">Быстрый доступ</h2>
                     <div class="grid grid-3-main">
-                        <div class="category-card-main-style" onclick="app.navigateToPage('schedule')">
+                        <div class="category-card-main-style" onclick="ArtSchoolApp.navigateToPage('schedule')">
                             <div class="category-image-main">
                                 <i class="fas fa-calendar-alt" style="font-size: 2.5rem; color: white; z-index: 2; position: relative;"></i>
                             </div>
@@ -2347,7 +2097,7 @@ body::before {
                             </div>
                         </div>
                         
-                        <div class="category-card-main-style" onclick="app.navigateToPage('subscription')">
+                        <div class="category-card-main-style" onclick="ArtSchoolApp.navigateToPage('subscription')">
                             <div class="category-image-main">
                                 <i class="fas fa-ticket-alt" style="font-size: 2.5rem; color: white; z-index: 2; position: relative;"></i>
                             </div>
@@ -2363,7 +2113,7 @@ body::before {
                             </div>
                         </div>
                         
-                        <div class="category-card-main-style" onclick="app.navigateToPage('teachers')">
+                        <div class="category-card-main-style" onclick="ArtSchoolApp.navigateToPage('teachers')">
                             <div class="category-image-main">
                                 <i class="fas fa-paint-brush" style="font-size: 2.5rem; color: white; z-index: 2; position: relative;"></i>
                             </div>
@@ -2385,7 +2135,6 @@ body::before {
                 <section class="section">
                     <h2 class="section-title">Ближайшие занятия</h2>
                     <div id="upcomingLessons" class="card">
-                        <!-- Занятия загружаются динамически -->
                         <div class="text-center">
                             <div class="spinner"></div>
                             <p class="mt-20" style="color: var(--sketch-medium);">Загрузка расписания...</p>
@@ -2397,12 +2146,15 @@ body::before {
                 <section class="section">
                     <div class="d-flex justify-between align-center mb-20">
                         <h2 class="section-title">Новости студии</h2>
-                        <button class="btn btn-secondary btn-sm" onclick="app.navigateToPage('news')">
+                        <button class="btn btn-secondary btn-sm" onclick="ArtSchoolApp.navigateToPage('news')">
                             Все новости <i class="fas fa-arrow-right"></i>
                         </button>
                     </div>
                     <div id="schoolNews" class="grid news-grid">
-                        <!-- Новости загружаются динамически -->
+                        <div class="text-center" style="grid-column: 1 / -1;">
+                            <div class="spinner"></div>
+                            <p class="mt-20" style="color: var(--sketch-medium);">Загрузка новостей...</p>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -2413,7 +2165,7 @@ body::before {
             <div class="container">
                 <section class="section">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn btn-secondary" onclick="app.navigateToPage('home')" style="padding: 8px 16px;">
+                        <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('home')" style="padding: 8px 16px;">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 class="section-title">Расписание занятий</h2>
@@ -2431,7 +2183,7 @@ body::before {
                                         Неделя с <span id="scheduleWeekStart"></span> по <span id="scheduleWeekEnd"></span>
                                     </p>
                                 </div>
-                                <button class="btn btn-artistic" onclick="app.refreshSchedule()">
+                                <button class="btn btn-artistic" onclick="ArtSchoolApp.refreshSchedule()">
                                     <i class="fas fa-sync-alt"></i>
                                     Обновить
                                 </button>
@@ -2443,7 +2195,6 @@ body::before {
                         </div>
                         
                         <div id="scheduleContainer">
-                            <!-- Расписание загружается динамически -->
                             <div class="text-center">
                                 <div class="spinner"></div>
                                 <p class="mt-20" style="color: var(--sketch-medium);">Загрузка расписания...</p>
@@ -2459,7 +2210,7 @@ body::before {
             <div class="container">
                 <section class="section">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn btn-secondary" onclick="app.navigateToPage('home')" style="padding: 8px 16px;">
+                        <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('home')" style="padding: 8px 16px;">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 class="section-title">Мой абонемент</h2>
@@ -2467,7 +2218,6 @@ body::before {
                     
                     <div class="subscription-card-detailed">
                         <div id="subscriptionInfo">
-                            <!-- Информация об абонементе загружается динамически -->
                             <div class="text-center">
                                 <div class="spinner"></div>
                                 <p class="mt-20" style="color: var(--sketch-medium);">Загрузка информации об абонементе...</p>
@@ -2480,7 +2230,6 @@ body::before {
                             <i class="fas fa-history" style="color: var(--acrylic-blue);"></i> История посещений
                         </h3>
                         <div id="visitsHistory">
-                            <!-- История посещений загружается динамически -->
                             <div class="text-center">
                                 <div class="spinner"></div>
                                 <p class="mt-20" style="color: var(--sketch-medium);">Загрузка истории посещений...</p>
@@ -2489,7 +2238,7 @@ body::before {
                     </div>
                     
                     <div class="mt-20">
-                        <button class="btn btn-artistic w-100" onclick="app.contactAdminForRenewal()">
+                        <button class="btn btn-artistic w-100" onclick="ArtSchoolApp.contactAdminForRenewal()">
                             <i class="fas fa-comments"></i>
                             Связаться с администратором / продлить абонемент
                         </button>
@@ -2503,7 +2252,7 @@ body::before {
             <div class="container">
                 <section class="section">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn btn-secondary" onclick="app.navigateToPage('home')" style="padding: 8px 16px;">
+                        <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('home')" style="padding: 8px 16px;">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 class="section-title">Наши преподаватели</h2>
@@ -2515,7 +2264,6 @@ body::before {
                         </p>
                         
                         <div id="teachersList" class="teachers-grid">
-                            <!-- Преподаватели загружаются динамически -->
                             <div class="text-center" style="grid-column: 1 / -1;">
                                 <div class="spinner"></div>
                                 <p class="mt-20" style="color: var(--sketch-medium);">Загрузка списка преподавателей...</p>
@@ -2531,7 +2279,7 @@ body::before {
             <div class="container">
                 <section class="section">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn btn-secondary" onclick="app.navigateToPage('home')" style="padding: 8px 16px;">
+                        <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('home')" style="padding: 8px 16px;">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 class="section-title">Частые вопросы</h2>
@@ -2539,7 +2287,6 @@ body::before {
                     
                     <div class="card">
                         <div id="faqList" class="faq-list">
-                            <!-- FAQ загружается динамически -->
                             <div class="text-center">
                                 <div class="spinner"></div>
                                 <p class="mt-20" style="color: var(--sketch-medium);">Загрузка часто задаваемых вопросов...</p>
@@ -2555,14 +2302,13 @@ body::before {
             <div class="container">
                 <section class="section">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn btn-secondary" onclick="app.navigateToPage('home')" style="padding: 8px 16px;">
+                        <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('home')" style="padding: 8px 16px;">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 class="section-title">Новости студии</h2>
                     </div>
                     
                     <div id="newsList" class="grid news-grid">
-                        <!-- Новости загружаются динамически -->
                         <div class="text-center" style="grid-column: 1 / -1;">
                             <div class="spinner"></div>
                             <p class="mt-20" style="color: var(--sketch-medium);">Загрузка новостей...</p>
@@ -2577,16 +2323,15 @@ body::before {
             <div class="container">
                 <section class="section">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn btn-secondary" onclick="app.navigateToPage('home')" style="padding: 8px 16px;">
+                        <button class="btn btn-secondary" onclick="ArtSchoolApp.navigateToPage('home')" style="padding: 8px 16px;">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 class="section-title">Мой профиль</h2>
                     </div>
                     
                     <div class="compact-profile-header">
-                        <div class="compact-profile-avatar mona-lisa-avatar" id="profileAvatar">
-                            <!-- Мона Лиза в аватаре профиля -->
-                            <img id="profileAvatarImg" alt="Мона Лиза" onerror="this.style.display='none'; this.parentElement.classList.add('mona-lisa-avatar');">
+                        <div class="compact-profile-avatar" id="profileAvatar">
+                            <img id="profileAvatarImg" alt="Аватар">
                         </div>
                         <div class="compact-profile-name" id="profileName">Загрузка...</div>
                         <div class="compact-profile-email" id="profileEmail">Загрузка...</div>
@@ -2612,17 +2357,17 @@ body::before {
                         </h3>
                         
                         <div id="profileSettingsList">
-                            <a href="#" class="nav-menu-item" onclick="app.navigateToPage('faq')">
+                            <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.navigateToPage('faq')">
                                 <i class="fas fa-question-circle"></i>Частые вопросы
                             </a>
-                            <a href="#" class="nav-menu-item" onclick="app.navigateToPage('news')">
+                            <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.navigateToPage('news')">
                                 <i class="fas fa-newspaper"></i>Новости студии
                             </a>
-                            <a href="#" class="nav-menu-item" onclick="app.contactAdmin()">
+                            <a href="#" class="nav-menu-item" onclick="ArtSchoolApp.contactAdmin()">
                                 <i class="fas fa-headset"></i>Связаться с администратором
                             </a>
                             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--acrylic-blue-light);">
-                                <button class="btn btn-secondary w-100" onclick="app.logout()">
+                                <button class="btn btn-secondary w-100" onclick="ArtSchoolApp.logout()">
                                     <i class="fas fa-sign-out-alt"></i>Выйти из системы
                                 </button>
                             </div>
@@ -2634,7 +2379,7 @@ body::before {
     </main>
     
     <!-- Кнопка быстрой связи с администратором -->
-    <a href="#" class="quick-tasks-btn" onclick="app.contactAdmin()" id="floatingAdminBtn" style="display: none;">
+    <a href="#" class="quick-tasks-btn" onclick="ArtSchoolApp.contactAdmin()" id="floatingAdminBtn" style="display: none;">
         <i class="fas fa-headset"></i>
     </a>
     
@@ -2651,7 +2396,7 @@ body::before {
             </div>
             
             <div class="d-flex gap-10">
-                <button class="btn btn-secondary" style="flex: 1;" onclick="app.closeModal('profileSelectModal')">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="ArtSchoolApp.closeModal('profileSelectModal')">
                     Отмена
                 </button>
             </div>
@@ -2667,7 +2412,7 @@ body::before {
             </p>
             
             <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px;">
-                <button class="btn btn-secondary" onclick="app.selectBranch('Свиблово')" style="justify-content: flex-start; text-align: left; padding: 15px;">
+                <button class="btn btn-secondary" onclick="ArtSchoolApp.selectBranch('Свиблово')" style="justify-content: flex-start; text-align: left; padding: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="width: 40px; height: 40px; background: var(--acrylic-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
                             <i class="fas fa-palette"></i>
@@ -2679,7 +2424,7 @@ body::before {
                     </div>
                 </button>
                 
-                <button class="btn btn-secondary" onclick="app.selectBranch('Чертаново')" style="justify-content: flex-start; text-align: left; padding: 15px;">
+                <button class="btn btn-secondary" onclick="ArtSchoolApp.selectBranch('Чертаново')" style="justify-content: flex-start; text-align: left; padding: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="width: 40px; height: 40px; background: var(--watercolor-purple); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
                             <i class="fas fa-paint-brush"></i>
@@ -2692,7 +2437,7 @@ body::before {
                 </button>
             </div>
             
-            <button class="btn btn-secondary w-100" onclick="app.closeModal('branchSelectModal')">
+            <button class="btn btn-secondary w-100" onclick="ArtSchoolApp.closeModal('branchSelectModal')">
                 Назад
             </button>
         </div>
@@ -2709,12 +2454,12 @@ body::before {
                 </p>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px;">
-                    <button class="btn btn-artistic" onclick="app.openAdminChat()">
+                    <button class="btn btn-artistic" onclick="ArtSchoolApp.openAdminChat()">
                         <i class="fas fa-comments"></i>
                         Написать в чат
                     </button>
                     
-                    <button class="btn btn-success" onclick="app.callAdmin()">
+                    <button class="btn btn-success" onclick="ArtSchoolApp.callAdmin()">
                         <i class="fas fa-phone"></i>
                         Позвонить
                     </button>
@@ -2728,41 +2473,43 @@ body::before {
                 </div>
             </div>
             
-            <button class="btn btn-secondary w-100" onclick="app.closeModal('contactAdminModal')">
+            <button class="btn btn-secondary w-100" onclick="ArtSchoolApp.closeModal('contactAdminModal')">
                 Закрыть
             </button>
         </div>
     </div>
 
 <script>
-// Глобальный объект приложения
-const app = {
+// Основной объект приложения
+const ArtSchoolApp = {
     // ==================== КОНФИГУРАЦИЯ ====================
-    API_BASE_URL: 'https://ваш-сервер.com/api',
-    TELEGRAM_BOT_TOKEN: 'ВАШ_ТЕЛЕГРАМ_БОТ_ТОКЕН',
+    config: {
+        API_BASE_URL: window.location.origin,
+        JWT_SECRET: 'art-school-jwt-secret-2024',
+        isTelegramWebApp: false,
+        telegramUser: null
+    },
     
     // ==================== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ====================
-    currentUser: null,
-    currentToken: null,
-    selectedProfile: null,
-    selectedBranch: null,
-    currentDeal: null,
-    userProfiles: [],
-    userDeals: [],
-    scheduleData: [],
-    subscriptionData: null,
-    teachersData: [],
-    faqData: [],
-    newsData: [],
+    state: {
+        currentUser: null,
+        token: null,
+        selectedProfile: null,
+        selectedBranch: null,
+        profiles: [],
+        schedule: [],
+        subscription: null,
+        teachers: [],
+        faq: [],
+        news: []
+    },
     
     // ==================== ИНИЦИАЛИЗАЦИЯ ====================
     init: function() {
         console.log('🎨 Инициализация художественной студии...');
         
-        // Проверяем, запущено ли в Telegram Web App
-        if (window.Telegram && Telegram.WebApp) {
-            this.setupTelegramWebApp();
-        }
+        // Проверяем Telegram Web App
+        this.checkTelegramWebApp();
         
         // Загружаем сохраненные данные
         this.loadSavedData();
@@ -2776,229 +2523,141 @@ const app = {
         // Обновляем интерфейс
         this.updateUserInterface();
         
-        console.log('🎨 Художественная студия успешно инициализирована');
+        console.log('✅ Художественная студия инициализирована');
+        
+        // Проверяем авторизацию Telegram
+        if (this.config.isTelegramWebApp && this.config.telegramUser) {
+            this.handleTelegramUser(this.config.telegramUser);
+        }
     },
     
     // ==================== TELEGRAM ИНТЕГРАЦИЯ ====================
-    setupTelegramWebApp: function() {
-        const tg = window.Telegram.WebApp;
-        
-        // Расширяем на весь экран
-        tg.expand();
-        
-        // Устанавливаем тему
-        tg.setHeaderColor('#4A77B4');
-        tg.setBackgroundColor('#FFFBF0');
-        
-        // Включаем кнопку "Назад"
-        tg.BackButton.show();
-        tg.BackButton.onClick(() => {
-            this.handleBackButton();
-        });
-        
-        console.log('Telegram Web App инициализирован');
-    },
-    
-    startTelegramAuth: function() {
-        // В Mini App авторизация происходит автоматически через initData
-        if (window.Telegram && Telegram.WebApp) {
-            const tg = Telegram.WebApp;
-            const initData = tg.initData;
-            
-            if (initData) {
-                this.handleTelegramAuth(initData);
-            } else {
-                // Запрашиваем контакт
-                tg.requestContact((contact) => {
-                    if (contact) {
-                        this.processTelegramContact(contact);
-                    }
+    checkTelegramWebApp: function() {
+        try {
+            if (window.Telegram && Telegram.WebApp) {
+                this.config.isTelegramWebApp = true;
+                const tg = Telegram.WebApp;
+                
+                // Расширяем на весь экран
+                tg.expand();
+                
+                // Получаем данные пользователя
+                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    this.config.telegramUser = tg.initDataUnsafe.user;
+                    console.log('✅ Пользователь Telegram найден:', this.config.telegramUser);
+                }
+                
+                // Настраиваем кнопку "Назад"
+                tg.BackButton.onClick(() => {
+                    this.handleBackButton();
                 });
             }
-        } else {
-            // Для разработки без Telegram
-            this.mockTelegramAuth();
-        }
-    },
-    
-    handleTelegramAuth: function(initData) {
-        try {
-            // Парсим initData из Telegram
-            const params = new URLSearchParams(initData);
-            const userJson = params.get('user');
-            
-            if (userJson) {
-                const telegramUser = JSON.parse(userJson);
-                this.processTelegramUser(telegramUser);
-            }
         } catch (error) {
-            console.error('Ошибка обработки Telegram авторизации:', error);
-            this.showNotification('Ошибка авторизации через Telegram', 'error');
+            console.log('ℹ️ Не в Telegram Web App или ошибка:', error.message);
         }
     },
     
-    processTelegramUser: async function(telegramUser) {
+    initTelegramAuth: function() {
+        if (this.config.isTelegramWebApp) {
+            // В Telegram Web App авторизация уже есть
+            if (this.config.telegramUser) {
+                this.handleTelegramUser(this.config.telegramUser);
+            } else {
+                this.showNotification('Ошибка авторизации Telegram', 'error');
+            }
+        } else {
+            // Для веб-версии открываем бота
+            const botUrl = `https://t.me/${this.getBotUsername()}`;
+            window.open(botUrl, '_blank');
+            this.showNotification('Откройте бота в Telegram для авторизации', 'info');
+        }
+    },
+    
+    getBotUsername: function() {
+        // Извлекаем username бота из текущего URL или используем дефолтный
+        const path = window.location.pathname;
+        return 'your_art_bot_username'; // Замените на реальный username бота
+    },
+    
+    handleTelegramUser: async function(telegramUser) {
         try {
-            this.showLoading('Идентификация...');
+            this.showLoading('Авторизация...');
             
-            // Отправляем данные на сервер для поиска в amoCRM
-            const response = await fetch(this.API_BASE_URL + '/api/auth/telegram', {
+            // Отправляем запрос на сервер для поиска профилей
+            const response = await fetch(`${this.config.API_BASE_URL}/api/auth/telegram`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
                     telegram_id: telegramUser.id,
-                    first_name: telegramUser.first_name,
-                    last_name: telegramUser.last_name,
-                    username: telegramUser.username,
-                    phone: telegramUser.phone_number
+                    first_name: telegramUser.first_name || '',
+                    last_name: telegramUser.last_name || '',
+                    username: telegramUser.username || '',
+                    phone: this.getPhoneFromUser(telegramUser)
                 })
             });
             
-            if (!response.ok) throw new Error('Ошибка сервера');
+            if (!response.ok) {
+                throw new Error('Ошибка сервера');
+            }
             
             const result = await response.json();
             
             if (!result.success) {
-                // Если пользователь не найден, запрашиваем телефон
-                if (result.error === 'user_not_found') {
-                    this.requestPhoneNumber();
-                } else {
-                    throw new Error(result.error);
-                }
+                throw new Error(result.error || 'Ошибка авторизации');
+            }
+            
+            // Сохраняем данные пользователя
+            this.state.currentUser = result.data.user;
+            this.state.token = result.data.token;
+            this.state.profiles = result.data.profiles || [];
+            
+            // Сохраняем данные
+            this.saveUserData();
+            
+            if (this.state.profiles.length === 0) {
+                this.showNotification('Профили не найдены', 'warning');
+                this.navigateToPage('home');
+            } else if (this.state.profiles.length === 1) {
+                // Один профиль - выбираем автоматически
+                this.state.selectedProfile = this.state.profiles[0];
+                this.state.selectedBranch = this.state.selectedProfile.branch;
+                await this.loadProfileData();
+                this.showBranchSelectionIfNeeded();
             } else {
-                // Пользователь найден
-                this.handleUserFound(result.data);
+                // Несколько профилей - показываем выбор
+                this.showProfileSelection();
             }
             
-        } catch (error) {
-            console.error('Ошибка обработки пользователя Telegram:', error);
-            this.showNotification(error.message, 'error');
-        } finally {
-            this.hideLoading();
-        }
-    },
-    
-    processTelegramContact: async function(contact) {
-        try {
-            this.showLoading('Поиск в художественной студии...');
-            
-            const response = await fetch(this.API_BASE_URL + '/api/auth/find-by-phone', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: contact.phone_number })
-            });
-            
-            if (!response.ok) throw new Error('Ошибка сервера');
-            
-            const result = await response.json();
-            
-            if (!result.success) {
-                throw new Error(result.error || 'Пользователь не найден в художественной студии');
-            }
-            
-            this.handleUserFound(result.data);
-            
-        } catch (error) {
-            console.error('Ошибка обработки контакта:', error);
-            this.showNotification(error.message, 'error');
-        } finally {
-            this.hideLoading();
-        }
-    },
-    
-    handleUserFound: function(data) {
-        this.currentUser = data.user;
-        this.userDeals = data.deals || [];
-        this.userProfiles = data.profiles || [];
-        
-        // Сохраняем данные
-        this.saveUserData();
-        
-        if (this.userProfiles.length === 0) {
-            this.showNotification('Абонементы в художественной студии не найдены', 'warning');
+            this.updateUserInterface();
             this.navigateToPage('home');
-        } else if (this.userProfiles.length === 1) {
-            // Один профиль - выбираем автоматически
-            this.selectedProfile = this.userProfiles[0];
-            this.selectedBranch = this.selectedProfile.branch;
-            this.loadProfileData();
-            this.showBranchSelectionIfNeeded();
-        } else {
-            // Несколько профилей - показываем выбор
-            this.showProfileSelection();
-        }
-        
-        this.updateUserInterface();
-    },
-    
-    // ==================== ВЫБОР ПРОФИЛЯ И ФИЛИАЛА ====================
-    showProfileSelection: function() {
-        const modal = document.getElementById('profileSelectModal');
-        const list = document.getElementById('profilesList');
-        
-        if (!modal || !list) return;
-        
-        list.innerHTML = '';
-        
-        this.userProfiles.forEach((profile, index) => {
-            const button = document.createElement('button');
-            button.className = 'btn btn-secondary';
-            button.style = 'justify-content: flex-start; text-align: left; padding: 15px;';
-            button.onclick = () => this.selectProfile(profile);
             
-            const branchColor = profile.branch === 'Свиблово' ? 'var(--acrylic-blue)' : 'var(--watercolor-purple)';
+        } catch (error) {
+            console.error('Ошибка авторизации:', error);
+            this.showNotification(error.message, 'error');
             
-            button.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 40px; height: 40px; background: ${branchColor}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                        <i class="fas fa-palette"></i>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; color: var(--sketch-dark);">${profile.student_name || 'Ученик художественной студии'}</div>
-                        <div style="font-size: 0.85rem; color: var(--sketch-medium); margin-top: 4px;">
-                            ${profile.branch} • ${profile.subscription_type || 'Абонемент'} • Осталось: ${profile.remaining_classes || 0} занятий
-                        </div>
-                    </div>
-                    <i class="fas fa-chevron-right" style="color: var(--acrylic-blue);"></i>
-                </div>
-            `;
-            
-            list.appendChild(button);
-        });
-        
-        modal.classList.add('active');
-    },
-    
-    selectProfile: function(profile) {
-        this.selectedProfile = profile;
-        this.selectedBranch = profile.branch;
-        this.closeModal('profileSelectModal');
-        this.loadProfileData();
-        this.showBranchSelectionIfNeeded();
-    },
-    
-    showBranchSelectionIfNeeded: function() {
-        if (!this.selectedBranch) {
-            const modal = document.getElementById('branchSelectModal');
-            if (modal) {
-                modal.classList.add('active');
+            // Для разработки используем мок данные
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                this.useMockData();
             }
+        } finally {
+            this.hideLoading();
         }
     },
     
-    selectBranch: function(branch) {
-        this.selectedBranch = branch;
-        this.closeModal('branchSelectModal');
-        this.loadProfileData();
-        this.navigateToPage('home');
+    getPhoneFromUser: function(telegramUser) {
+        // В реальном приложении телефон должен быть в данных Telegram
+        // Для тестирования используем мок телефон
+        return '+79991234567';
     },
     
     // ==================== ЗАГРУЗКА ДАННЫХ ====================
     loadProfileData: async function() {
-        if (!this.selectedProfile || !this.selectedBranch) return;
+        if (!this.state.selectedProfile) return;
         
         try {
-            // Загружаем данные параллельно
+            // Загружаем все данные параллельно
             await Promise.all([
                 this.loadSchedule(),
                 this.loadSubscription(),
@@ -3010,108 +2669,130 @@ const app = {
             this.updateHomePage();
             
         } catch (error) {
-            console.error('Ошибка загрузки данных профиля:', error);
-            this.showNotification('Ошибка загрузки данных художественной студии', 'error');
+            console.error('Ошибка загрузки данных:', error);
+            this.showNotification('Ошибка загрузки данных', 'error');
         }
     },
     
     loadSchedule: async function() {
         try {
-            const response = await this.fetchWithAuth(this.API_BASE_URL + '/api/schedule', {
+            if (!this.state.selectedBranch) return;
+            
+            const response = await this.fetchWithAuth('/api/schedule', {
                 method: 'POST',
                 body: JSON.stringify({
-                    profile_id: this.selectedProfile.id,
-                    branch: this.selectedBranch
+                    branch: this.state.selectedBranch,
+                    week_start: this.getWeekStartDate()
                 })
             });
             
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    this.scheduleData = result.data.schedule || [];
+                    this.state.schedule = result.data.schedule || [];
                 }
             }
         } catch (error) {
             console.error('Ошибка загрузки расписания:', error);
-            this.scheduleData = this.getMockSchedule();
         }
     },
     
     loadSubscription: async function() {
         try {
-            const response = await this.fetchWithAuth(this.API_BASE_URL + '/api/subscription', {
+            if (!this.state.selectedProfile) return;
+            
+            const response = await this.fetchWithAuth('/api/subscription', {
                 method: 'POST',
                 body: JSON.stringify({
-                    deal_id: this.selectedProfile.deal_id
+                    profile_id: this.state.selectedProfile.id
                 })
             });
             
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    this.subscriptionData = result.data.subscription;
+                    this.state.subscription = result.data.subscription;
                 }
             }
         } catch (error) {
-            console.error('Ошибка загрузки данных абонемента:', error);
-            this.subscriptionData = this.getMockSubscription();
+            console.error('Ошибка загрузки абонемента:', error);
         }
     },
     
     loadTeachers: async function() {
         try {
-            const response = await this.fetchWithAuth(this.API_BASE_URL + '/api/teachers', {
-                method: 'POST',
-                body: JSON.stringify({
-                    branch: this.selectedBranch
-                })
-            });
-            
+            const response = await fetch(`${this.config.API_BASE_URL}/api/teachers?branch=${this.state.selectedBranch || ''}`);
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    this.teachersData = result.data.teachers || [];
+                    this.state.teachers = result.data.teachers || [];
                 }
             }
         } catch (error) {
             console.error('Ошибка загрузки преподавателей:', error);
-            this.teachersData = this.getMockTeachers();
         }
     },
     
     loadFAQ: async function() {
         try {
-            const response = await fetch(this.API_BASE_URL + '/api/faq');
+            const response = await fetch(`${this.config.API_BASE_URL}/api/faq`);
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    this.faqData = result.data.faq || [];
+                    this.state.faq = result.data.faq || [];
                 }
             }
         } catch (error) {
             console.error('Ошибка загрузки FAQ:', error);
-            this.faqData = this.getMockFAQ();
         }
     },
     
     loadNews: async function() {
         try {
-            const response = await fetch(this.API_BASE_URL + '/api/news');
+            const response = await fetch(`${this.config.API_BASE_URL}/api/news?branch=${this.state.selectedBranch || ''}`);
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    this.newsData = result.data.news || [];
+                    this.state.news = result.data.news || [];
                 }
             }
         } catch (error) {
             console.error('Ошибка загрузки новостей:', error);
-            this.newsData = this.getMockNews();
         }
+    },
+    
+    getWeekStartDate: function() {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Понедельник
+        const monday = new Date(now.setDate(diff));
+        return monday.toISOString().split('T')[0];
     },
     
     // ==================== ОТОБРАЖЕНИЕ ДАННЫХ ====================
     updateHomePage: function() {
+        // Обновляем приветствие
+        const greeting = document.getElementById('greeting');
+        const studentName = document.getElementById('studentName');
+        
+        if (greeting && this.state.currentUser) {
+            const hours = new Date().getHours();
+            let timeGreeting = 'Добро пожаловать';
+            if (hours < 12) timeGreeting = 'Доброе утро';
+            else if (hours < 18) timeGreeting = 'Добрый день';
+            else timeGreeting = 'Добрый вечер';
+            
+            greeting.textContent = `${timeGreeting} в художественную студию!`;
+        }
+        
+        if (studentName && this.state.selectedProfile) {
+            studentName.textContent = this.state.selectedProfile.student_name || 'Твори, вдохновляй, создавай';
+        }
+        
+        // Обновляем ближайшие занятия
         this.updateUpcomingLessons();
+        
+        // Обновляем новости
         this.updateSchoolNews();
     },
     
@@ -3119,18 +2800,12 @@ const app = {
         const container = document.getElementById('upcomingLessons');
         if (!container) return;
         
-        if (!this.scheduleData || this.scheduleData.length === 0) {
+        if (!this.state.schedule || this.state.schedule.length === 0) {
             container.innerHTML = `
                 <div style="text-align: center; padding: 40px;">
                     <i class="fas fa-calendar-times" style="font-size: 3rem; color: var(--sketch-light); margin-bottom: 16px;"></i>
                     <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">Расписание отсутствует</h4>
                     <p style="color: var(--sketch-medium);">Расписание художественных занятий будет доступно после выбора профиля</p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3141,10 +2816,13 @@ const app = {
         const threeDaysLater = new Date(today);
         threeDaysLater.setDate(today.getDate() + 3);
         
-        const upcomingLessons = this.scheduleData.filter(lesson => {
-            const lessonDate = new Date(lesson.date);
+        const upcomingLessons = this.state.schedule.filter(lesson => {
+            if (!lesson.day_of_week) return false;
+            
+            // Преобразуем день недели в дату
+            const lessonDate = this.getNextDateForDay(lesson.day_of_week);
             return lessonDate >= today && lessonDate <= threeDaysLater;
-        }).slice(0, 3); // Показываем только 3 ближайших
+        }).slice(0, 3);
         
         if (upcomingLessons.length === 0) {
             container.innerHTML = `
@@ -3152,12 +2830,6 @@ const app = {
                     <i class="fas fa-calendar-check" style="font-size: 3rem; color: var(--pastel-green); margin-bottom: 16px;"></i>
                     <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">Нет ближайших занятий</h4>
                     <p style="color: var(--sketch-medium);">Ближайшие художественные занятия появятся позже</p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3166,31 +2838,20 @@ const app = {
         let html = '<div style="display: flex; flex-direction: column; gap: 20px;">';
         
         upcomingLessons.forEach(lesson => {
-            const lessonDate = new Date(lesson.date);
-            const timeString = lesson.start_time ? lesson.start_time.substring(0, 5) : '';
-            
             html += `
                 <div class="schedule-lesson">
                     <div class="lesson-header">
-                        <div class="lesson-time">${timeString}</div>
+                        <div class="lesson-time">${lesson.start_time || ''}</div>
                         <span class="lesson-status ${lesson.status || 'normal'}">
                             ${this.getLessonStatusText(lesson.status)}
                         </span>
                     </div>
                     <div class="lesson-details">
-                        <div style="font-weight: 600; margin-bottom: 8px; color: var(--sketch-dark); font-family: 'Playfair Display', serif;">${lesson.title || 'Художественное занятие'}</div>
+                        <div style="font-weight: 600; margin-bottom: 8px; color: var(--sketch-dark); font-family: 'Playfair Display', serif;">${lesson.group_name || 'Художественное занятие'}</div>
                         <div class="lesson-teacher">
                             <i class="fas fa-paint-brush" style="color: var(--watercolor-purple);"></i>
                             ${lesson.teacher_name || 'Художник-преподаватель'}
                         </div>
-                        ${lesson.note ? `
-                            <div style="margin-top: 10px; padding: 10px; background: var(--gold-light); border-radius: var(--radius-sm); border-left: 3px solid var(--gold-leaf);">
-                                <div style="display: flex; align-items: center; gap: 8px; color: var(--sketch-dark); font-size: 0.9rem;">
-                                    <i class="fas fa-palette" style="color: var(--gold-leaf);"></i>
-                                    <span>${lesson.note}</span>
-                                </div>
-                            </div>
-                        ` : ''}
                     </div>
                 </div>
             `;
@@ -3204,18 +2865,12 @@ const app = {
         const container = document.getElementById('schoolNews');
         if (!container) return;
         
-        if (!this.newsData || this.newsData.length === 0) {
+        if (!this.state.news || this.state.news.length === 0) {
             container.innerHTML = `
                 <div class="news-card" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
                     <i class="fas fa-newspaper" style="font-size: 3rem; color: var(--sketch-light); margin-bottom: 16px;"></i>
                     <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">Новостей пока нет</h4>
                     <p style="color: var(--sketch-medium);">Следите за обновлениями художественной студии!</p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3224,8 +2879,7 @@ const app = {
         container.innerHTML = '';
         
         // Показываем только последние 3 новости
-        this.newsData.slice(0, 3).forEach(news => {
-            const newsDate = new Date(news.date);
+        this.state.news.slice(0, 3).forEach(news => {
             const card = document.createElement('div');
             card.className = 'news-card';
             card.onclick = () => this.showNewsDetail(news);
@@ -3233,17 +2887,10 @@ const app = {
             card.innerHTML = `
                 <div class="news-date">
                     <i class="far fa-calendar"></i>
-                    ${newsDate.toLocaleDateString('ru-RU')}
+                    ${new Date(news.publish_date).toLocaleDateString('ru-RU')}
                 </div>
                 <div class="news-title">${news.title}</div>
-                <div class="news-preview">${news.preview || news.content.substring(0, 150)}...</div>
-                ${news.category ? `
-                    <div style="margin-top: 15px;">
-                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--acrylic-blue-light); color: var(--acrylic-blue); border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
-                            <i class="fas fa-tag"></i> ${news.category}
-                        </span>
-                    </div>
-                ` : ''}
+                <div class="news-preview">${news.short_description || news.content.substring(0, 150)}...</div>
             `;
             
             container.appendChild(card);
@@ -3252,32 +2899,26 @@ const app = {
     
     renderSchedulePage: function() {
         const branchName = document.getElementById('branchName');
-        const scheduleWeekStart = document.getElementById('scheduleWeekStart');
-        const scheduleWeekEnd = document.getElementById('scheduleWeekEnd');
         const studentInfo = document.getElementById('studentInfo');
         const scheduleContainer = document.getElementById('scheduleContainer');
         
         if (!branchName || !scheduleContainer) return;
         
         // Обновляем заголовки
-        if (branchName) branchName.textContent = this.selectedBranch ? `Художественная студия "${this.selectedBranch}"` : 'Не выбран';
+        branchName.textContent = this.state.selectedBranch || 'Не выбран';
         
         // Рассчитываем текущую неделю
         const now = new Date();
         const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Понедельник
+        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
         const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6); // Воскресенье
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
         
-        if (scheduleWeekStart) {
-            scheduleWeekStart.textContent = startOfWeek.toLocaleDateString('ru-RU');
-        }
-        if (scheduleWeekEnd) {
-            scheduleWeekEnd.textContent = endOfWeek.toLocaleDateString('ru-RU');
-        }
+        document.getElementById('scheduleWeekStart').textContent = startOfWeek.toLocaleDateString('ru-RU');
+        document.getElementById('scheduleWeekEnd').textContent = endOfWeek.toLocaleDateString('ru-RU');
         
         // Информация об ученике
-        if (studentInfo && this.selectedProfile) {
+        if (studentInfo && this.state.selectedProfile) {
             studentInfo.innerHTML = `
                 <div style="display: flex; flex-direction: column; gap: 12px;">
                     <div style="display: flex; align-items: center; gap: 12px;">
@@ -3286,18 +2927,12 @@ const app = {
                         </div>
                         <div style="flex: 1;">
                             <div style="font-weight: 600; color: var(--sketch-dark); font-size: 1.1rem; font-family: 'Playfair Display', serif;">
-                                ${this.selectedProfile.student_name}
+                                ${this.state.selectedProfile.student_name}
                             </div>
                             <div style="font-size: 0.9rem; color: var(--sketch-medium); margin-top: 4px;">
-                                ${this.selectedProfile.subscription_type || 'Абонемент в художественную студию'} • 
-                                Осталось занятий: <strong style="color: var(--acrylic-blue);">${this.selectedProfile.remaining_classes || 0}</strong>
+                                ${this.state.selectedProfile.subscription_type || 'Абонемент'} • 
+                                Осталось занятий: <strong style="color: var(--acrylic-blue);">${this.state.selectedProfile.remaining_classes || 0}</strong>
                             </div>
-                        </div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: white; border-radius: var(--radius); border: 1px solid var(--acrylic-blue);">
-                        <i class="fas fa-paint-brush" style="color: var(--watercolor-purple);"></i>
-                        <div style="font-size: 0.9rem; color: var(--sketch-dark);">
-                            Преподаватель: <strong>${this.selectedProfile.teacher_name || 'Пока не назначен'}</strong>
                         </div>
                     </div>
                 </div>
@@ -3305,7 +2940,7 @@ const app = {
         }
         
         // Рендерим расписание
-        if (!this.scheduleData || this.scheduleData.length === 0) {
+        if (!this.state.schedule || this.state.schedule.length === 0) {
             scheduleContainer.innerHTML = `
                 <div style="text-align: center; padding: 50px;">
                     <i class="fas fa-calendar-times" style="font-size: 3rem; color: var(--sketch-light); margin-bottom: 16px;"></i>
@@ -3313,15 +2948,9 @@ const app = {
                     <p style="color: var(--sketch-medium); margin-bottom: 20px; max-width: 400px; margin-left: auto; margin-right: auto;">
                         Расписание художественных занятий для выбранной студии пока не заполнено
                     </p>
-                    <button class="btn btn-artistic" onclick="app.refreshSchedule()">
+                    <button class="btn btn-artistic" onclick="ArtSchoolApp.refreshSchedule()">
                         <i class="fas fa-sync-alt"></i> Обновить
                     </button>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3331,19 +2960,17 @@ const app = {
         const scheduleByDay = {};
         const daysOfWeek = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
         
-        // Инициализируем пустые массивы для каждого дня
         daysOfWeek.forEach(day => {
             scheduleByDay[day] = [];
         });
         
-        // Заполняем расписание
-        this.scheduleData.forEach(lesson => {
+        this.state.schedule.forEach(lesson => {
             if (lesson.day_of_week && scheduleByDay[lesson.day_of_week]) {
                 scheduleByDay[lesson.day_of_week].push(lesson);
             }
         });
         
-        // Сортируем занятия по времени в каждом дне
+        // Сортируем занятия по времени
         daysOfWeek.forEach(day => {
             scheduleByDay[day].sort((a, b) => {
                 return (a.start_time || '').localeCompare(b.start_time || '');
@@ -3368,37 +2995,23 @@ const app = {
             `;
             
             lessons.forEach(lesson => {
-                const timeString = lesson.start_time ? lesson.start_time.substring(0, 5) : '';
-                const endTimeString = lesson.end_time ? lesson.end_time.substring(0, 5) : '';
-                
                 scheduleHtml += `
                     <div class="schedule-lesson">
                         <div class="lesson-header">
-                            <div class="lesson-time">${timeString}${endTimeString ? ` - ${endTimeString}` : ''}</div>
+                            <div class="lesson-time">${lesson.start_time} - ${lesson.end_time}</div>
                             <span class="lesson-status ${lesson.status || 'normal'}">
                                 ${this.getLessonStatusText(lesson.status)}
                             </span>
                         </div>
                         <div class="lesson-details">
-                            <div style="font-weight: 600; margin-bottom: 8px; color: var(--sketch-dark); font-family: 'Playfair Display', serif;">${lesson.title || 'Художественное занятие'}</div>
+                            <div style="font-weight: 600; margin-bottom: 8px; color: var(--sketch-dark); font-family: 'Playfair Display', serif;">${lesson.group_name || 'Художественное занятие'}</div>
                             <div class="lesson-teacher">
                                 <i class="fas fa-paint-brush" style="color: var(--watercolor-purple);"></i>
                                 ${lesson.teacher_name || 'Художник-преподаватель'}
                             </div>
-                            ${lesson.status_note ? `
-                                <div style="margin-top: 10px; padding: 10px; background: var(--oil-yellow-light); border-radius: var(--radius-sm); border-left: 3px solid var(--oil-yellow);">
-                                    <div style="display: flex; align-items: center; gap: 8px; color: #D68900; font-size: 0.9rem;">
-                                        <i class="fas fa-info-circle"></i>
-                                        <span>${lesson.status_note}</span>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${lesson.materials ? `
-                                <div style="margin-top: 10px; padding: 10px; background: var(--acrylic-blue-light); border-radius: var(--radius-sm);">
-                                    <div style="display: flex; align-items: center; gap: 8px; color: var(--acrylic-blue); font-size: 0.9rem;">
-                                        <i class="fas fa-palette"></i>
-                                        <span>Материалы: ${lesson.materials}</span>
-                                    </div>
+                            ${lesson.room_number ? `
+                                <div style="margin-top: 8px; font-size: 0.9rem; color: var(--sketch-medium);">
+                                    <i class="fas fa-door-open"></i> Кабинет: ${lesson.room_number}
                                 </div>
                             ` : ''}
                         </div>
@@ -3414,14 +3027,8 @@ const app = {
                 <i class="fas fa-calendar-check" style="font-size: 3rem; color: var(--pastel-green); margin-bottom: 16px;"></i>
                 <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">Нет занятий на этой неделе</h4>
                 <p style="color: var(--sketch-medium); max-width: 400px; margin-left: auto; margin-right: auto;">
-                    Художественные занятия появятся в расписании позже. Отличное время для самостоятельной практики!
+                    Художественные занятия появятся в расписании позже
                 </p>
-                <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                    <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                    <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                    <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                    <div class="color-chip" style="background: var(--pastel-green);"></div>
-                </div>
             </div>
         `;
     },
@@ -3432,7 +3039,22 @@ const app = {
         
         if (!subscriptionInfo || !visitsHistory) return;
         
-        if (!this.subscriptionData) {
+        if (!this.state.subscription && this.state.selectedProfile) {
+            // Используем данные из профиля
+            const profile = this.state.selectedProfile;
+            this.state.subscription = {
+                subscription_type: profile.subscription_type,
+                branch: profile.branch,
+                total_classes: profile.total_classes,
+                remaining_classes: profile.remaining_classes,
+                expiration_date: profile.expiration_date,
+                teacher_name: profile.teacher_name,
+                day_of_week: profile.day_of_week,
+                time_slot: profile.time_slot
+            };
+        }
+        
+        if (!this.state.subscription) {
             subscriptionInfo.innerHTML = `
                 <div style="text-align: center; padding: 50px;">
                     <div class="spinner"></div>
@@ -3443,7 +3065,7 @@ const app = {
             return;
         }
         
-        const sub = this.subscriptionData;
+        const sub = this.state.subscription;
         const totalClasses = sub.total_classes || 0;
         const remainingClasses = sub.remaining_classes || 0;
         const usedClasses = totalClasses - remainingClasses;
@@ -3453,10 +3075,10 @@ const app = {
         subscriptionInfo.innerHTML = `
             <div class="subscription-header">
                 <div>
-                    <h3 style="background: var(--artistic-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block;">${sub.subscription_type || 'Абонемент в художественную студию'}</h3>
+                    <h3 style="background: var(--artistic-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block;">${sub.subscription_type || 'Абонемент'}</h3>
                     <p style="color: var(--sketch-medium); font-size: 1rem; margin-top: 8px;">
                         <i class="fas fa-palette" style="color: var(--acrylic-blue);"></i>
-                        Студия: ${sub.branch || this.selectedBranch || 'Не указана'}
+                        Студия: ${sub.branch || this.state.selectedBranch || 'Не указана'}
                     </p>
                 </div>
                 <span style="background: ${remainingClasses > 0 ? 'var(--pastel-green-light)' : 'var(--pastel-red-light)'}; 
@@ -3496,20 +3118,17 @@ const app = {
                 <div style="height: 12px; background: var(--acrylic-blue-light); border-radius: 6px; overflow: hidden; border: 1px solid var(--acrylic-blue);">
                     <div style="width: ${progressPercentage}%; height: 100%; background: var(--artistic-gradient); transition: width 0.8s ease;"></div>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.85rem; color: var(--sketch-light);">
-                    <span>Начало</span>
-                    <span>Завершение</span>
-                </div>
             </div>
             
-            ${sub.next_payment_date ? `
-                <div style="margin-top: 25px; padding: 15px; background: var(--gold-light); border-radius: var(--radius); border: 2px solid var(--gold-leaf);">
+            ${sub.teacher_name ? `
+                <div style="margin-top: 25px; padding: 15px; background: var(--acrylic-blue-light); border-radius: var(--radius);">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-calendar-plus" style="color: var(--gold-leaf); font-size: 1.2rem;"></i>
+                        <i class="fas fa-chalkboard-teacher" style="color: var(--acrylic-blue); font-size: 1.2rem;"></i>
                         <div>
-                            <div style="font-weight: 600; color: var(--sketch-dark);">Следующая оплата</div>
+                            <div style="font-weight: 600; color: var(--sketch-dark);">Преподаватель</div>
                             <div style="color: var(--sketch-medium); font-size: 0.95rem; margin-top: 4px;">
-                                ${new Date(sub.next_payment_date).toLocaleDateString('ru-RU')}
+                                ${sub.teacher_name}
+                                ${sub.day_of_week && sub.time_slot ? ` • ${sub.day_of_week} ${sub.time_slot}` : ''}
                             </div>
                         </div>
                     </div>
@@ -3518,74 +3137,27 @@ const app = {
         `;
         
         // История посещений
-        if (!sub.visits || sub.visits.length === 0) {
-            visitsHistory.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: var(--sketch-medium);">
-                    <i class="fas fa-history" style="font-size: 2.5rem; opacity: 0.2; margin-bottom: 12px;"></i>
-                    <p style="margin-bottom: 8px; font-weight: 500; color: var(--sketch-dark);">История посещений пуста</p>
-                    <p style="font-size: 0.9rem;">Начните посещать художественные занятия, чтобы увидеть историю здесь</p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-        
-        let visitsHtml = '<div style="max-height: 350px; overflow-y: auto; padding-right: 5px;">';
-        
-        sub.visits.slice(0, 10).forEach(visit => { // Показываем последние 10 посещений
-            const visitDate = new Date(visit.date);
-            visitsHtml += `
-                <div class="visit-item">
-                    <div class="visit-date">
-                        <i class="far fa-calendar" style="color: var(--acrylic-blue);"></i>
-                        ${visitDate.toLocaleDateString('ru-RU')} ${visit.time || ''}
-                        ${visit.teacher_name ? `<span style="margin-left: 12px; color: var(--sketch-medium);"><i class="fas fa-paint-brush"></i> ${visit.teacher_name}</span>` : ''}
-                    </div>
-                    <span class="visit-status ${visit.status || 'attended'}">
-                        ${visit.status === 'attended' ? '🎨 Посещено' : '⏱️ Пропущено'}
-                    </span>
-                </div>
-            `;
-        });
-        
-        visitsHtml += '</div>';
-        
-        if (sub.visits.length > 10) {
-            visitsHtml += `
-                <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--acrylic-blue-light);">
-                    <span style="color: var(--sketch-medium); font-size: 0.9rem;">
-                        И еще ${sub.visits.length - 10} посещений
-                    </span>
-                </div>
-            `;
-        }
-        
-        visitsHistory.innerHTML = visitsHtml;
+        visitsHistory.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--sketch-medium);">
+                <i class="fas fa-history" style="font-size: 2.5rem; opacity: 0.2; margin-bottom: 12px;"></i>
+                <p style="margin-bottom: 8px; font-weight: 500; color: var(--sketch-dark);">История посещений</p>
+                <p style="font-size: 0.9rem;">История посещений будет доступна после начала занятий</p>
+            </div>
+        `;
     },
     
     renderTeachersPage: function() {
         const teachersList = document.getElementById('teachersList');
         if (!teachersList) return;
         
-        if (!this.teachersData || this.teachersData.length === 0) {
+        if (!this.state.teachers || this.state.teachers.length === 0) {
             teachersList.innerHTML = `
                 <div class="text-center" style="grid-column: 1 / -1; padding: 50px;">
                     <i class="fas fa-chalkboard-teacher" style="font-size: 3rem; color: var(--sketch-light); margin-bottom: 16px;"></i>
                     <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">Преподаватели не найдены</h4>
                     <p style="color: var(--sketch-medium; max-width: 400px; margin-left: auto; margin-right: auto;">
-                        Информация о художниках-преподавателях временно недоступна
+                        Информация о преподавателях временно недоступна
                     </p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3593,44 +3165,33 @@ const app = {
         
         teachersList.innerHTML = '';
         
-        // Фильтруем преподавателей по филиалу, если выбран
-        const filteredTeachers = this.selectedBranch ? 
-            this.teachersData.filter(teacher => teacher.branch === this.selectedBranch || !teacher.branch) :
-            this.teachersData;
-        
-        filteredTeachers.forEach(teacher => {
+        this.state.teachers.forEach(teacher => {
             const card = document.createElement('div');
             card.className = 'teacher-card';
             
-            // Цвет в зависимости от специализации
-            let teacherColor = 'var(--acrylic-blue)';
-            if (teacher.specialization?.toLowerCase().includes('акварель')) teacherColor = 'var(--watercolor-purple)';
-            if (teacher.specialization?.toLowerCase().includes('масло')) teacherColor = 'var(--oil-yellow)';
-            if (teacher.specialization?.toLowerCase().includes('график')) teacherColor = 'var(--sketch-dark)';
-            
             card.innerHTML = `
-                <div class="teacher-avatar" style="background: ${teacherColor};">
-                    ${teacher.avatar_url ? 
-                        `<img src="${teacher.avatar_url}" alt="${teacher.name}" onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<i class=\\'fas fa-paint-brush\\'></i>';" />` : 
+                <div class="teacher-avatar">
+                    ${teacher.photo_url ? 
+                        `<img src="${teacher.photo_url}" alt="${teacher.name}" onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<i class=\\'fas fa-paint-brush\\'></i>';" />` : 
                         `<i class="fas fa-paint-brush"></i>`
                     }
                 </div>
                 <div class="teacher-name">${teacher.name}</div>
                 <div class="teacher-qualification">${teacher.qualification || 'Профессиональный художник-преподаватель'}</div>
                 <div style="margin-top: 15px;">
-                    <span class="teacher-specialization" style="background: ${teacherColor}15; color: ${teacherColor}; border-color: ${teacherColor};">
+                    <span class="teacher-specialization">
                         <i class="fas fa-palette"></i>
                         ${teacher.specialization || 'Общая художественная подготовка'}
                     </span>
                 </div>
-                ${teacher.branch ? `
+                ${teacher.branches ? `
                     <div style="margin-top: 12px; font-size: 0.9rem; color: var(--sketch-medium); display: flex; align-items: center; gap: 8px; justify-content: center;">
-                        <i class="fas fa-map-marker-alt"></i> ${teacher.branch}
+                        <i class="fas fa-map-marker-alt"></i> ${teacher.branches}
                     </div>
                 ` : ''}
-                ${teacher.experience ? `
+                ${teacher.experience_years ? `
                     <div style="margin-top: 10px; font-size: 0.85rem; color: var(--sketch-light); display: flex; align-items: center; gap: 6px; justify-content: center;">
-                        <i class="fas fa-award"></i> Опыт: ${teacher.experience}
+                        <i class="fas fa-award"></i> Опыт: ${teacher.experience_years} лет
                     </div>
                 ` : ''}
             `;
@@ -3643,20 +3204,14 @@ const app = {
         const faqList = document.getElementById('faqList');
         if (!faqList) return;
         
-        if (!this.faqData || this.faqData.length === 0) {
+        if (!this.state.faq || this.state.faq.length === 0) {
             faqList.innerHTML = `
                 <div style="text-align: center; padding: 50px;">
                     <i class="fas fa-question-circle" style="font-size: 3rem; color: var(--sketch-light); margin-bottom: 16px;"></i>
                     <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">FAQ не найден</h4>
                     <p style="color: var(--sketch-medium; max-width: 400px; margin-left: auto; margin-right: auto;">
-                        Часто задаваемые вопросы о художественной студии временно недоступны
+                        Часто задаваемые вопросы временно недоступны
                     </p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3664,12 +3219,12 @@ const app = {
         
         faqList.innerHTML = '';
         
-        this.faqData.forEach((item, index) => {
+        this.state.faq.forEach((item, index) => {
             const faqItem = document.createElement('div');
             faqItem.className = 'faq-item';
             
             faqItem.innerHTML = `
-                <div class="faq-question" onclick="app.toggleFAQ(${index})">
+                <div class="faq-question" onclick="ArtSchoolApp.toggleFAQ(${index})">
                     <span>${item.question}</span>
                     <i class="fas fa-chevron-down"></i>
                 </div>
@@ -3693,20 +3248,14 @@ const app = {
         const newsList = document.getElementById('newsList');
         if (!newsList) return;
         
-        if (!this.newsData || this.newsData.length === 0) {
+        if (!this.state.news || this.state.news.length === 0) {
             newsList.innerHTML = `
                 <div class="news-card" style="grid-column: 1 / -1; text-align: center; padding: 50px;">
                     <i class="fas fa-newspaper" style="font-size: 3rem; color: var(--sketch-light); margin-bottom: 16px;"></i>
                     <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-family: 'Playfair Display', serif;">Новостей пока нет</h4>
                     <p style="color: var(--sketch-medium; max-width: 400px; margin-left: auto; margin-right: auto;">
-                        Следите за обновлениями художественной студии!
+                        Следите за обновлениями!
                     </p>
-                    <div class="color-palette" style="justify-content: center; margin-top: 20px;">
-                        <div class="color-chip" style="background: var(--acrylic-blue);"></div>
-                        <div class="color-chip" style="background: var(--watercolor-purple);"></div>
-                        <div class="color-chip" style="background: var(--oil-yellow);"></div>
-                        <div class="color-chip" style="background: var(--pastel-green);"></div>
-                    </div>
                 </div>
             `;
             return;
@@ -3714,32 +3263,18 @@ const app = {
         
         newsList.innerHTML = '';
         
-        this.newsData.forEach(news => {
-            const newsDate = new Date(news.date);
+        this.state.news.forEach(news => {
             const card = document.createElement('div');
             card.className = 'news-card';
             card.onclick = () => this.showNewsDetail(news);
             
-            // Определяем цвет категории
-            let categoryColor = 'var(--acrylic-blue)';
-            if (news.category === 'Выставка') categoryColor = 'var(--watercolor-purple)';
-            if (news.category === 'Мастер-класс') categoryColor = 'var(--oil-yellow)';
-            if (news.category === 'Конкурс') categoryColor = 'var(--pastel-green)';
-            
             card.innerHTML = `
                 <div class="news-date">
                     <i class="far fa-calendar"></i>
-                    ${newsDate.toLocaleDateString('ru-RU')}
+                    ${new Date(news.publish_date).toLocaleDateString('ru-RU')}
                 </div>
                 <div class="news-title">${news.title}</div>
-                <div class="news-preview">${news.preview || news.content.substring(0, 150)}...</div>
-                ${news.category ? `
-                    <div style="margin-top: 15px;">
-                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: ${categoryColor}15; color: ${categoryColor}; border-radius: 20px; font-size: 0.8rem; font-weight: 600; border: 1px solid ${categoryColor};">
-                            <i class="fas fa-tag"></i> ${news.category}
-                        </span>
-                    </div>
-                ` : ''}
+                <div class="news-preview">${news.short_description || news.content.substring(0, 150)}...</div>
                 ${news.image_url ? `
                     <div style="margin-top: 15px; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--acrylic-blue);">
                         <img src="${news.image_url}" alt="${news.title}" style="width: 100%; height: 180px; object-fit: cover;" onerror="this.style.display='none'" />
@@ -3751,93 +3286,24 @@ const app = {
         });
     },
     
-    // ==================== СВЯЗЬ С АДМИНИСТРАТОРОМ ====================
-    contactAdmin: function() {
-        if (!this.selectedBranch) {
-            this.showNotification('Сначала выберите художественную студию', 'warning');
-            this.showBranchSelectionIfNeeded();
-            return;
-        }
-        
-        const modal = document.getElementById('contactAdminModal');
-        const branchName = document.getElementById('contactBranchName');
-        const autoMessage = document.getElementById('autoMessage');
-        
-        if (!modal || !branchName || !autoMessage) return;
-        
-        branchName.textContent = this.selectedBranch;
-        
-        // Формируем автоматическое сообщение
-        let message = 'Здравствуйте! У меня вопрос по художественной студии. ';
-        
-        if (this.selectedProfile) {
-            message += `Ученик: ${this.selectedProfile.student_name}. `;
-        }
-        
-        if (this.selectedBranch) {
-            message += `Студия: ${this.selectedBranch}. `;
-        }
-        
-        autoMessage.textContent = message;
-        
-        modal.classList.add('active');
-    },
-    
-    contactAdminForRenewal: function() {
-        this.contactAdmin();
-        
-        // Добавляем информацию о продлении в сообщение
-        setTimeout(() => {
-            const autoMessage = document.getElementById('autoMessage');
-            if (autoMessage) {
-                const currentMessage = autoMessage.textContent;
-                autoMessage.textContent = currentMessage + ' Прошу помочь с продлением абонемента в художественную студию.';
-            }
-        }, 100);
-    },
-    
-    openAdminChat: function() {
-        // В Telegram Mini App открываем чат с ботом
-        if (window.Telegram && Telegram.WebApp) {
-            const tg = Telegram.WebApp;
-            
-            // Открываем чат с ботом
-            tg.openTelegramLink('https://t.me/your_art_bot_username');
-            
-            // Можно также отправить сообщение через бота
-            const message = document.getElementById('autoMessage').textContent;
-            tg.sendData(JSON.stringify({
-                action: 'contact_admin',
-                message: message,
-                branch: this.selectedBranch,
-                student_name: this.selectedProfile ? this.selectedProfile.student_name : ''
-            }));
-        } else {
-            // Для веб-версии показываем сообщение
-            this.showNotification('Чат с администратором художественной студии доступен только в Telegram', 'info');
-        }
-        
-        this.closeModal('contactAdminModal');
-    },
-    
-    callAdmin: function() {
-        // Номера телефонов для художественных студий
-        const phoneNumbers = {
-            'Свиблово': '+7 (XXX) XXX-XX-XX',
-            'Чертаново': '+7 (XXX) XXX-XX-XX'
-        };
-        
-        const phoneNumber = phoneNumbers[this.selectedBranch] || '+7 (XXX) XXX-XX-XX';
-        
-        if (confirm(`Позвонить администратору художественной студии ${this.selectedBranch}?\n${phoneNumber}`)) {
-            // В реальном приложении здесь будет window.location.href = 'tel:' + phoneNumber;
-            this.showNotification(`Телефон администратора художественной студии: ${phoneNumber}`, 'info');
-        }
-        
-        this.closeModal('contactAdminModal');
-    },
-    
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+    getNextDateForDay: function(dayOfWeek) {
+        const days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+        const dayIndex = days.indexOf(dayOfWeek.toLowerCase());
+        
+        if (dayIndex === -1) return new Date();
+        
+        const today = new Date();
+        const todayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // Преобразуем воскресенье из 0 в 6
+        
+        let daysToAdd = dayIndex - todayIndex;
+        if (daysToAdd < 0) daysToAdd += 7;
+        
+        const nextDate = new Date(today);
+        nextDate.setDate(today.getDate() + daysToAdd);
+        return nextDate;
+    },
+    
     getLessonStatusText: function(status) {
         const statusMap = {
             'normal': 'По расписанию',
@@ -3885,8 +3351,6 @@ const app = {
         modal.className = 'modal';
         modal.style.display = 'flex';
         
-        const newsDate = new Date(news.date);
-        
         modal.innerHTML = `
             <div class="modal-content" style="max-width: 700px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
@@ -3898,13 +3362,7 @@ const app = {
                 
                 <div style="color: var(--sketch-light); font-size: 0.95rem; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
                     <i class="far fa-calendar" style="color: var(--acrylic-blue);"></i>
-                    ${newsDate.toLocaleDateString('ru-RU')}
-                    ${news.author ? `
-                        <span style="display: flex; align-items: center; gap: 6px; margin-left: 15px;">
-                            <i class="fas fa-user" style="color: var(--watercolor-purple);"></i>
-                            ${news.author}
-                        </span>
-                    ` : ''}
+                    ${new Date(news.publish_date).toLocaleDateString('ru-RU')}
                 </div>
                 
                 ${news.image_url ? `
@@ -3917,18 +3375,6 @@ const app = {
                     ${news.content}
                 </div>
                 
-                ${news.tags ? `
-                    <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--acrylic-blue-light);">
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            ${news.tags.split(',').map(tag => `
-                                <span style="padding: 6px 12px; background: var(--acrylic-blue-light); color: var(--acrylic-blue); border-radius: 20px; font-size: 0.85rem;">
-                                    #${tag.trim()}
-                                </span>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-                
                 <div style="margin-top: 30px;">
                     <button class="btn btn-artistic w-100" onclick="this.closest('.modal').remove()">
                         Закрыть
@@ -3940,157 +3386,139 @@ const app = {
         document.body.appendChild(modal);
     },
     
-    refreshSchedule: function() {
-        this.loadSchedule().then(() => {
-            this.renderSchedulePage();
-            this.showNotification('Расписание художественной студии обновлено', 'success');
+    // ==================== ВЫБОР ПРОФИЛЯ И ФИЛИАЛА ====================
+    showProfileSelection: function() {
+        const modal = document.getElementById('profileSelectModal');
+        const list = document.getElementById('profilesList');
+        
+        if (!modal || !list) return;
+        
+        list.innerHTML = '';
+        
+        this.state.profiles.forEach((profile, index) => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-secondary';
+            button.style = 'justify-content: flex-start; text-align: left; padding: 15px;';
+            button.onclick = () => this.selectProfile(profile);
+            
+            const branchColor = profile.branch === 'Свиблово' ? 'var(--acrylic-blue)' : 'var(--watercolor-purple)';
+            
+            button.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; background: ${branchColor}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-palette"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: var(--sketch-dark);">${profile.student_name || 'Ученик'}</div>
+                        <div style="font-size: 0.85rem; color: var(--sketch-medium); margin-top: 4px;">
+                            ${profile.branch} • ${profile.subscription_type || 'Абонемент'} • Осталось: ${profile.remaining_classes || 0} занятий
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right" style="color: var(--acrylic-blue);"></i>
+                </div>
+            `;
+            
+            list.appendChild(button);
         });
-    },
-    
-    // ==================== УПРАВЛЕНИЕ ДАННЫМИ ====================
-    saveUserData: function() {
-        if (this.currentUser) {
-            localStorage.setItem('artStudio_user', JSON.stringify(this.currentUser));
-        }
-        if (this.selectedProfile) {
-            localStorage.setItem('artStudio_profile', JSON.stringify(this.selectedProfile));
-        }
-        if (this.selectedBranch) {
-            localStorage.setItem('artStudio_branch', this.selectedBranch);
-        }
-    },
-    
-    loadSavedData: function() {
-        const savedUser = localStorage.getItem('artStudio_user');
-        const savedProfile = localStorage.getItem('artStudio_profile');
-        const savedBranch = localStorage.getItem('artStudio_branch');
         
-        if (savedUser) {
-            this.currentUser = JSON.parse(savedUser);
-        }
-        if (savedProfile) {
-            this.selectedProfile = JSON.parse(savedProfile);
-        }
-        if (savedBranch) {
-            this.selectedBranch = savedBranch;
+        modal.classList.add('active');
+    },
+    
+    selectProfile: function(profile) {
+        this.state.selectedProfile = profile;
+        this.state.selectedBranch = profile.branch;
+        this.closeModal('profileSelectModal');
+        this.saveUserData();
+        this.loadProfileData();
+        this.showBranchSelectionIfNeeded();
+    },
+    
+    showBranchSelectionIfNeeded: function() {
+        if (!this.state.selectedBranch && this.state.selectedProfile) {
+            const modal = document.getElementById('branchSelectModal');
+            if (modal) {
+                modal.classList.add('active');
+            }
         }
     },
     
-    // ==================== УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ ====================
-    updateUserInterface: function() {
-        const userAvatar = document.getElementById('userAvatar');
-        const menuUserName = document.getElementById('menuUserName');
-        const menuUserEmail = document.getElementById('menuUserEmail');
-        const loginMenuBtn = document.getElementById('loginMenuBtn');
-        const logoutMenuBtn = document.getElementById('logoutMenuBtn');
-        const bottomNav = document.getElementById('bottomNav');
-        const floatingBtn = document.getElementById('floatingAdminBtn');
-        
-        if (this.currentUser) {
-            // Показываем аватар с Мона Лизой
-            if (userAvatar) {
-                userAvatar.style.display = 'flex';
-                userAvatar.classList.add('mona-lisa-avatar');
-                
-                // Если есть ссылка на аватар, пробуем загрузить
-                if (this.currentUser.avatar_url) {
-                    const avatarImg = userAvatar.querySelector('img');
-                    if (avatarImg) {
-                        avatarImg.src = this.currentUser.avatar_url;
-                        avatarImg.style.display = 'block';
-                        avatarImg.onerror = function() {
-                            avatarImg.style.display = 'none';
-                            userAvatar.classList.add('mona-lisa-avatar');
-                        };
-                    }
-                }
-            }
-            
-            // Обновляем меню
-            if (menuUserName) menuUserName.textContent = this.currentUser.first_name || 'Художник';
-            if (menuUserEmail) menuUserEmail.textContent = this.currentUser.email || this.currentUser.phone || '';
-            
-            if (loginMenuBtn) loginMenuBtn.style.display = 'none';
-            if (logoutMenuBtn) logoutMenuBtn.style.display = 'block';
-            
-            // Показываем навигацию и кнопку админа если выбран профиль и филиал
-            if (this.selectedProfile && this.selectedBranch) {
-                if (bottomNav) bottomNav.style.display = 'flex';
-                if (floatingBtn) floatingBtn.style.display = 'flex';
-                
-                // Обновляем статистику в профиле
-                this.updateProfileStats();
-            } else {
-                if (bottomNav) bottomNav.style.display = 'none';
-                if (floatingBtn) floatingBtn.style.display = 'none';
-            }
-            
-        } else {
-            // Гость
-            if (userAvatar) {
-                userAvatar.style.display = 'none';
-                userAvatar.classList.remove('mona-lisa-avatar');
-            }
-            if (menuUserName) menuUserName.textContent = 'Гость';
-            if (menuUserEmail) menuUserEmail.textContent = '';
-            
-            if (loginMenuBtn) loginMenuBtn.style.display = 'block';
-            if (logoutMenuBtn) logoutMenuBtn.style.display = 'none';
-            if (bottomNav) bottomNav.style.display = 'none';
-            if (floatingBtn) floatingBtn.style.display = 'none';
-        }
+    selectBranch: function(branch) {
+        this.state.selectedBranch = branch;
+        this.closeModal('branchSelectModal');
+        this.saveUserData();
+        this.loadProfileData();
+        this.navigateToPage('home');
     },
     
-    updateProfileStats: function() {
-        const statVisits = document.getElementById('statVisits');
-        const statRemaining = document.getElementById('statRemaining');
-        const statBranch = document.getElementById('statBranch');
-        const profileName = document.getElementById('profileName');
-        const profileEmail = document.getElementById('profileEmail');
-        const profileAvatar = document.getElementById('profileAvatar');
-        
-        if (statVisits && this.subscriptionData) {
-            const totalVisits = this.subscriptionData.visits ? this.subscriptionData.visits.length : 0;
-            statVisits.textContent = totalVisits;
+    // ==================== СВЯЗЬ С АДМИНИСТРАТОРОМ ====================
+    contactAdmin: function() {
+        if (!this.state.selectedBranch) {
+            this.showNotification('Сначала выберите филиал', 'warning');
+            this.showBranchSelectionIfNeeded();
+            return;
         }
         
-        if (statRemaining && this.subscriptionData) {
-            statRemaining.textContent = this.subscriptionData.remaining_classes || 0;
+        const modal = document.getElementById('contactAdminModal');
+        const branchName = document.getElementById('contactBranchName');
+        const autoMessage = document.getElementById('autoMessage');
+        
+        if (!modal || !branchName || !autoMessage) return;
+        
+        branchName.textContent = this.state.selectedBranch;
+        
+        // Формируем автоматическое сообщение
+        let message = 'Здравствуйте! У меня вопрос по художественной студии. ';
+        
+        if (this.state.selectedProfile) {
+            message += `Ученик: ${this.state.selectedProfile.student_name}. `;
         }
         
-        if (statBranch) {
-            statBranch.textContent = this.selectedBranch ? this.selectedBranch.substring(0, 10) + (this.selectedBranch.length > 10 ? '...' : '') : '-';
+        if (this.state.selectedBranch) {
+            message += `Студия: ${this.state.selectedBranch}. `;
         }
         
-        if (profileName) {
-            profileName.textContent = this.currentUser?.first_name || 'Художник';
-        }
+        autoMessage.textContent = message;
         
-        if (profileEmail) {
-            profileEmail.textContent = this.currentUser?.email || this.currentUser?.phone || '';
-        }
+        modal.classList.add('active');
+    },
+    
+    contactAdminForRenewal: function() {
+        this.contactAdmin();
         
-        if (profileAvatar && this.currentUser) {
-            profileAvatar.classList.add('mona-lisa-avatar');
-            
-            if (this.currentUser.avatar_url) {
-                const avatarImg = profileAvatar.querySelector('img');
-                if (avatarImg) {
-                    avatarImg.src = this.currentUser.avatar_url;
-                    avatarImg.style.display = 'block';
-                    avatarImg.onerror = function() {
-                        avatarImg.style.display = 'none';
-                        profileAvatar.classList.add('mona-lisa-avatar');
-                    };
-                }
+        setTimeout(() => {
+            const autoMessage = document.getElementById('autoMessage');
+            if (autoMessage) {
+                const currentMessage = autoMessage.textContent;
+                autoMessage.textContent = currentMessage + ' Прошу помочь с продлением абонемента.';
             }
+        }, 100);
+    },
+    
+    openAdminChat: function() {
+        // В реальном приложении здесь будет открытие чата с администратором
+        this.showNotification('Чат с администратором доступен в рабочее время', 'info');
+        this.closeModal('contactAdminModal');
+    },
+    
+    callAdmin: function() {
+        const phoneNumbers = {
+            'Свиблово': '+7 (495) 123-45-67',
+            'Чертаново': '+7 (495) 765-43-21'
+        };
+        
+        const phoneNumber = phoneNumbers[this.state.selectedBranch] || '+7 (XXX) XXX-XX-XX';
+        
+        if (confirm(`Позвонить администратору студии ${this.state.selectedBranch}?\n${phoneNumber}`)) {
+            window.location.href = `tel:${phoneNumber}`;
         }
+        
+        this.closeModal('contactAdminModal');
     },
     
     // ==================== НАВИГАЦИЯ ====================
     navigateToPage: function(pageId) {
         // Скрываем все страницы
-        document.querySelectorAll('.page').forEach(function(page) {
+        document.querySelectorAll('.page').forEach(page => {
             page.classList.remove('active');
         });
         
@@ -4100,7 +3528,7 @@ const app = {
             targetPage.classList.add('active');
             
             // Обновляем активную кнопку в нижней навигации
-            document.querySelectorAll('.nav-item').forEach(function(item) {
+            document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
                 if (item.getAttribute('data-page') === pageId) {
                     item.classList.add('active');
@@ -4138,7 +3566,7 @@ const app = {
     },
     
     determineInitialScreen: function() {
-        if (this.currentUser && this.selectedProfile && this.selectedBranch) {
+        if (this.state.currentUser && this.state.selectedProfile && this.state.selectedBranch) {
             this.navigateToPage('home');
         } else {
             this.navigateToPage('auth');
@@ -4146,11 +3574,10 @@ const app = {
     },
     
     handleBackButton: function() {
-        // Логика кнопки "Назад" в Telegram Web App
         const currentPage = document.querySelector('.page.active').id.replace('-page', '');
         
         if (currentPage === 'home') {
-            if (window.Telegram && Telegram.WebApp) {
+            if (this.config.isTelegramWebApp) {
                 Telegram.WebApp.close();
             }
         } else {
@@ -4158,29 +3585,237 @@ const app = {
         }
     },
     
-    // ==================== УВЕДОМЛЕНИЯ ====================
-    showNotification: function(message, type) {
+    // ==================== УПРАВЛЕНИЕ ДАННЫМИ ====================
+    saveUserData: function() {
+        if (this.state.currentUser) {
+            localStorage.setItem('artSchool_user', JSON.stringify(this.state.currentUser));
+        }
+        if (this.state.token) {
+            localStorage.setItem('artSchool_token', this.state.token);
+        }
+        if (this.state.selectedProfile) {
+            localStorage.setItem('artSchool_profile', JSON.stringify(this.state.selectedProfile));
+        }
+        if (this.state.selectedBranch) {
+            localStorage.setItem('artSchool_branch', this.state.selectedBranch);
+        }
+    },
+    
+    loadSavedData: function() {
+        try {
+            const savedUser = localStorage.getItem('artSchool_user');
+            const savedToken = localStorage.getItem('artSchool_token');
+            const savedProfile = localStorage.getItem('artSchool_profile');
+            const savedBranch = localStorage.getItem('artSchool_branch');
+            
+            if (savedUser) this.state.currentUser = JSON.parse(savedUser);
+            if (savedToken) this.state.token = savedToken;
+            if (savedProfile) this.state.selectedProfile = JSON.parse(savedProfile);
+            if (savedBranch) this.state.selectedBranch = savedBranch;
+        } catch (error) {
+            console.error('Ошибка загрузки сохраненных данных:', error);
+        }
+    },
+    
+    // ==================== ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ====================
+    updateUserInterface: function() {
+        const userAvatar = document.getElementById('userAvatar');
+        const menuUserName = document.getElementById('menuUserName');
+        const menuUserEmail = document.getElementById('menuUserEmail');
+        const logoutMenuBtn = document.getElementById('logoutMenuBtn');
+        const bottomNav = document.getElementById('bottomNav');
+        const floatingBtn = document.getElementById('floatingAdminBtn');
+        
+        if (this.state.currentUser) {
+            // Показываем аватар
+            if (userAvatar) {
+                userAvatar.style.display = 'flex';
+                
+                // Создаем аватар с инициалами
+                const initials = this.getUserInitials(this.state.currentUser);
+                userAvatar.textContent = initials;
+                userAvatar.style.background = this.getUserColor(this.state.currentUser);
+            }
+            
+            // Обновляем меню
+            if (menuUserName) menuUserName.textContent = this.state.currentUser.first_name || 'Пользователь';
+            if (menuUserEmail) menuUserEmail.textContent = this.state.currentUser.email || this.state.currentUser.phone_number || '';
+            
+            if (logoutMenuBtn) logoutMenuBtn.style.display = 'block';
+            
+            // Показываем навигацию если есть профиль
+            if (this.state.selectedProfile) {
+                if (bottomNav) bottomNav.style.display = 'flex';
+                if (floatingBtn) floatingBtn.style.display = 'flex';
+            } else {
+                if (bottomNav) bottomNav.style.display = 'none';
+                if (floatingBtn) floatingBtn.style.display = 'none';
+            }
+            
+        } else {
+            // Гость
+            if (userAvatar) userAvatar.style.display = 'none';
+            if (menuUserName) menuUserName.textContent = 'Гость';
+            if (menuUserEmail) menuUserEmail.textContent = '';
+            if (logoutMenuBtn) logoutMenuBtn.style.display = 'none';
+            if (bottomNav) bottomNav.style.display = 'none';
+            if (floatingBtn) floatingBtn.style.display = 'none';
+        }
+    },
+    
+    updateProfileStats: function() {
+        const statVisits = document.getElementById('statVisits');
+        const statRemaining = document.getElementById('statRemaining');
+        const statBranch = document.getElementById('statBranch');
+        const profileName = document.getElementById('profileName');
+        const profileEmail = document.getElementById('profileEmail');
+        const profileAvatar = document.getElementById('profileAvatar');
+        
+        if (statVisits && this.state.subscription) {
+            // В реальном приложении здесь должна быть история посещений
+            statVisits.textContent = '0';
+        }
+        
+        if (statRemaining && this.state.selectedProfile) {
+            statRemaining.textContent = this.state.selectedProfile.remaining_classes || 0;
+        }
+        
+        if (statBranch) {
+            statBranch.textContent = this.state.selectedBranch || '-';
+        }
+        
+        if (profileName && this.state.currentUser) {
+            profileName.textContent = this.state.currentUser.first_name || 'Пользователь';
+        }
+        
+        if (profileEmail && this.state.currentUser) {
+            profileEmail.textContent = this.state.currentUser.email || this.state.currentUser.phone_number || '';
+        }
+        
+        if (profileAvatar && this.state.currentUser) {
+            const initials = this.getUserInitials(this.state.currentUser);
+            profileAvatar.innerHTML = `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2.5rem; font-weight: 700; background: ${this.getUserColor(this.state.currentUser)}; border-radius: 50%;">${initials}</div>`;
+        }
+    },
+    
+    getUserInitials: function(user) {
+        let initials = '';
+        if (user.first_name) initials += user.first_name[0];
+        if (user.last_name) initials += user.last_name[0];
+        return initials || '?';
+    },
+    
+    getUserColor: function(user) {
+        // Генерируем цвет на основе имени пользователя
+        const name = (user.first_name || '') + (user.last_name || '');
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        
+        const colors = [
+            'var(--acrylic-blue)',
+            'var(--watercolor-purple)',
+            'var(--pastel-green)',
+            'var(--pastel-orange)',
+            'var(--gold-leaf)'
+        ];
+        
+        return colors[Math.abs(hash) % colors.length];
+    },
+    
+    // ==================== API ВЗАИМОДЕЙСТВИЕ ====================
+    fetchWithAuth: async function(url, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+        
+        if (this.state.token) {
+            headers['Authorization'] = `Bearer ${this.state.token}`;
+        }
+        
+        try {
+            const response = await fetch(`${this.config.API_BASE_URL}${url}`, {
+                ...options,
+                headers
+            });
+            
+            if (response.status === 401) {
+                // Сессия истекла
+                this.logout();
+                throw new Error('Сессия истекла');
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('Ошибка запроса:', error);
+            throw error;
+        }
+    },
+    
+    refreshSchedule: async function() {
+        try {
+            this.showLoading('Обновление расписания...');
+            await this.loadSchedule();
+            this.renderSchedulePage();
+            this.showNotification('Расписание обновлено', 'success');
+        } catch (error) {
+            this.showNotification('Ошибка обновления расписания', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    },
+    
+    // ==================== ВЫХОД ====================
+    logout: function() {
+        // Очищаем состояние
+        this.state.currentUser = null;
+        this.state.token = null;
+        this.state.selectedProfile = null;
+        this.state.selectedBranch = null;
+        this.state.profiles = [];
+        this.state.schedule = [];
+        this.state.subscription = null;
+        this.state.teachers = [];
+        this.state.faq = [];
+        this.state.news = [];
+        
+        // Очищаем localStorage
+        localStorage.removeItem('artSchool_user');
+        localStorage.removeItem('artSchool_token');
+        localStorage.removeItem('artSchool_profile');
+        localStorage.removeItem('artSchool_branch');
+        
+        // Обновляем интерфейс
+        this.updateUserInterface();
+        
+        // Переходим на страницу авторизации
+        this.navigateToPage('auth');
+        
+        this.showNotification('Вы успешно вышли из системы', 'success');
+    },
+    
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+    showNotification: function(message, type = 'info') {
         const oldNotifications = document.querySelectorAll('.notification');
-        oldNotifications.forEach(function(notif) {
-            notif.remove();
-        });
+        oldNotifications.forEach(notif => notif.remove());
         
         const notification = document.createElement('div');
-        notification.className = 'notification ' + (type || 'success');
+        notification.className = `notification ${type}`;
         
-        let icon = 'fas fa-palette';
+        let icon = 'fas fa-info-circle';
         if (type === 'error') icon = 'fas fa-exclamation-circle';
         if (type === 'warning') icon = 'fas fa-exclamation-triangle';
-        if (type === 'info') icon = 'fas fa-info-circle';
         if (type === 'success') icon = 'fas fa-check-circle';
         
-        notification.innerHTML = '<i class="' + icon + '"></i><span>' + message + '</span>';
+        notification.innerHTML = `<i class="${icon}"></i><span>${message}</span>`;
         document.body.appendChild(notification);
         
-        setTimeout(function() {
+        setTimeout(() => {
             if (notification.parentNode) {
                 notification.classList.add('hiding');
-                setTimeout(function() {
+                setTimeout(() => {
                     if (notification.parentNode) notification.remove();
                 }, 300);
             }
@@ -4191,7 +3826,7 @@ const app = {
         const loadingEl = document.createElement('div');
         loadingEl.id = 'globalLoading';
         loadingEl.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 251, 240, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(5px);';
-        loadingEl.innerHTML = '<div class="spinner"></div><p style="margin-top: 20px; color: var(--sketch-dark); font-weight: 500; font-family: \'Playfair Display\', serif;">' + (message || 'Загрузка...') + '</p>';
+        loadingEl.innerHTML = `<div class="spinner"></div><p style="margin-top: 20px; color: var(--sketch-dark); font-weight: 500; font-family: \'Playfair Display\', serif;">${message || 'Загрузка...'}</p>`;
         document.body.appendChild(loadingEl);
     },
     
@@ -4200,7 +3835,6 @@ const app = {
         if (loadingEl) loadingEl.remove();
     },
     
-    // ==================== МОДАЛЬНЫЕ ОКНА ====================
     closeModal: function(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) modal.classList.remove('active');
@@ -4216,265 +3850,6 @@ const app = {
         if (menu) {
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
-    },
-    
-    // ==================== API ВЗАИМОДЕЙСТВИЕ ====================
-    fetchWithAuth: async function(url, options = {}) {
-        const headers = {
-            'Content-Type': 'application/json',
-            ...options.headers
-        };
-        
-        if (this.currentToken) {
-            headers['Authorization'] = 'Bearer ' + this.currentToken;
-        }
-        
-        if (this.currentUser && this.currentUser.id) {
-            headers['X-User-Id'] = this.currentUser.id;
-        }
-        
-        try {
-            const response = await fetch(url, {
-                ...options,
-                headers
-            });
-            
-            if (response.status === 401) {
-                // Неавторизован - разлогиниваем
-                this.logout();
-                throw new Error('Сессия истекла. Пожалуйста, войдите снова.');
-            }
-            
-            return response;
-        } catch (error) {
-            console.error('Ошибка запроса:', error);
-            throw error;
-        }
-    },
-    
-    // ==================== ВЫХОД ====================
-    logout: function() {
-        localStorage.removeItem('artStudio_user');
-        localStorage.removeItem('artStudio_profile');
-        localStorage.removeItem('artStudio_branch');
-        localStorage.removeItem('token');
-        
-        this.currentUser = null;
-        this.selectedProfile = null;
-        this.selectedBranch = null;
-        this.currentToken = null;
-        
-        this.updateUserInterface();
-        this.navigateToPage('auth');
-        
-        this.showNotification('Вы успешно вышли из системы художественной студии', 'success');
-    },
-    
-    // ==================== МОК ДАННЫЕ ДЛЯ РАЗРАБОТКИ ====================
-    mockTelegramAuth: function() {
-        this.showNotification('Режим разработки: имитация авторизации в художественной студии', 'info');
-        
-        // Создаем мок пользователя
-        this.currentUser = {
-            id: 1,
-            first_name: 'Творческий',
-            last_name: 'Художник',
-            phone: '+79999999999',
-            email: 'artist@example.com',
-            avatar_url: ''
-        };
-        
-        // Мок данные об абонементах в художественной студии
-        this.userProfiles = [
-            {
-                id: 1,
-                deal_id: 101,
-                student_name: 'Иван Иванов',
-                branch: 'Свиблово',
-                subscription_type: 'Художественный курс',
-                remaining_classes: 5,
-                total_classes: 12,
-                teacher_name: 'Анна Петрова',
-                expiration_date: '2024-12-31'
-            },
-            {
-                id: 2,
-                deal_id: 102,
-                student_name: 'Мария Иванова',
-                branch: 'Чертаново',
-                subscription_type: 'Интенсив по акварели',
-                remaining_classes: 8,
-                total_classes: 16,
-                teacher_name: 'Сергей Смирнов',
-                expiration_date: '2024-11-30'
-            }
-        ];
-        
-        if (this.userProfiles.length === 1) {
-            this.selectedProfile = this.userProfiles[0];
-            this.selectedBranch = this.selectedProfile.branch;
-            this.loadProfileData();
-        } else {
-            this.showProfileSelection();
-        }
-        
-        this.updateUserInterface();
-    },
-    
-    getMockSchedule: function() {
-        return [
-            {
-                id: 1,
-                date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-                day_of_week: 'понедельник',
-                start_time: '16:00',
-                end_time: '17:30',
-                title: 'Основы академического рисунка',
-                teacher_name: 'Анна Петрова',
-                status: 'normal',
-                materials: 'Бумага А3, графитные карандаши, ластик'
-            },
-            {
-                id: 2,
-                date: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0],
-                day_of_week: 'вторник',
-                start_time: '17:00',
-                end_time: '18:30',
-                title: 'Акварельная живопись: пейзаж',
-                teacher_name: 'Сергей Смирнов',
-                status: 'normal',
-                materials: 'Акварельная бумага, кисти, акварельные краски'
-            },
-            {
-                id: 3,
-                date: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-                day_of_week: 'среда',
-                start_time: '15:30',
-                end_time: '17:00',
-                title: 'Портретная графика',
-                teacher_name: 'Анна Петрова',
-                status: 'changed',
-                status_note: 'Замена преподавателя: вместо Анны Петровой занятие ведет Елена Ковалева',
-                materials: 'Бумага для пастели, уголь, сангина'
-            }
-        ];
-    },
-    
-    getMockSubscription: function() {
-        return {
-            subscription_type: 'Художественный курс',
-            branch: this.selectedBranch || 'Свиблово',
-            total_classes: 12,
-            remaining_classes: 5,
-            expiration_date: '2024-12-31',
-            next_payment_date: '2024-10-15',
-            visits: [
-                { date: '2024-01-15', time: '16:00', status: 'attended', teacher_name: 'Анна Петрова' },
-                { date: '2024-01-22', time: '16:00', status: 'attended', teacher_name: 'Анна Петрова' },
-                { date: '2024-01-29', time: '16:00', status: 'attended', teacher_name: 'Анна Петрова' },
-                { date: '2024-02-05', time: '16:00', status: 'attended', teacher_name: 'Анна Петрова' },
-                { date: '2024-02-12', time: '16:00', status: 'attended', teacher_name: 'Анна Петрова' },
-                { date: '2024-02-19', time: '16:00', status: 'attended', teacher_name: 'Анна Петрова' },
-                { date: '2024-02-26', time: '16:00', status: 'missed', teacher_name: 'Анна Петрова' },
-                { date: '2024-03-04', time: '16:00', status: 'attended', teacher_name: 'Елена Ковалева' },
-                { date: '2024-03-11', time: '16:00', status: 'attended', teacher_name: 'Елена Ковалева' }
-            ]
-        };
-    },
-    
-    getMockTeachers: function() {
-        return [
-            {
-                id: 1,
-                name: 'Анна Петрова',
-                qualification: 'Художник-педагог, член Союза художников России',
-                specialization: 'Академический рисунок, графика, портрет',
-                branch: 'Свиблово',
-                experience: '12 лет',
-                avatar_url: 'https://via.placeholder.com/150/4A77B4/FFFFFF?text=АП'
-            },
-            {
-                id: 2,
-                name: 'Сергей Смирнов',
-                qualification: 'Художник-живописец, преподаватель с 15-летним стажем',
-                specialization: 'Акварель, масляная живопись, пейзаж',
-                branch: 'Чертаново',
-                experience: '15 лет',
-                avatar_url: 'https://via.placeholder.com/150/9C6ADE/FFFFFF?text=СС'
-            },
-            {
-                id: 3,
-                name: 'Елена Ковалева',
-                qualification: 'Иллюстратор, дизайнер, участник международных выставок',
-                specialization: 'Скетчинг, иллюстрация, комикс',
-                branch: 'Свиблово',
-                experience: '8 лет',
-                avatar_url: 'https://via.placeholder.com/150/FFC145/FFFFFF?text=ЕК'
-            }
-        ];
-    },
-    
-    getMockFAQ: function() {
-        return [
-            {
-                question: 'Как продлить абонемент в художественной студии?',
-                answer: 'Для продления абонемента свяжитесь с администратором вашей художественной студии через кнопку "Связаться с администратором" в разделе "Абонемент". Вы можете выбрать удобный способ связи: чат или телефонный звонок.',
-                category: 'Абонемент'
-            },
-            {
-                question: 'Что делать, если нужно пропустить художественное занятие?',
-                answer: 'Если вы пропускаете занятие по уважительной причине, сообщите об этом администратору за 24 часа. В некоторых случаях возможно перенести занятие или получить компенсацию. Пожалуйста, уточняйте условия в вашей студии.',
-                category: 'Занятия'
-            },
-            {
-                question: 'Какие художественные материалы нужны для занятий?',
-                answer: 'Основные материалы (бумага, краски, карандаши, кисти) предоставляются художественной студией. Для некоторых специализированных занятий могут потребоваться дополнительные материалы, о чем преподаватель сообщит заранее. Рекомендуем иметь личный набор для домашней практики.',
-                category: 'Материалы'
-            },
-            {
-                question: 'Можно ли посещать художественные занятия в другой студии?',
-                answer: 'Да, по предварительному согласованию с администраторами обеих студий возможно разовое посещение занятий в другой студии. Пожалуйста, уточняйте возможность заранее.',
-                category: 'Студии'
-            }
-        ];
-    },
-    
-    getMockNews: function() {
-        return [
-            {
-                id: 1,
-                title: 'Выставка работ учеников "Осенние мотивы"',
-                date: new Date(Date.now() - 7 * 86400000).toISOString(),
-                preview: 'Приглашаем на выставку лучших работ наших учеников, посвященную осенней тематике',
-                content: 'С 15 по 30 октября в холле художественной студии будет проходить выставка работ наших учеников "Осенние мотивы". Вы сможете увидеть прогресс учеников за прошедший год и познакомиться с различными художественными техниками: акварель, масло, графика. Открытие выставки состоится 15 октября в 18:00.',
-                image_url: 'https://via.placeholder.com/600x300/4A77B4/FFFFFF?text=Осенняя+выставка',
-                category: 'Выставка',
-                author: 'Администрация студии',
-                tags: 'выставка,осень,ученики'
-            },
-            {
-                id: 2,
-                title: 'Мастер-класс по акварели "Городской пейзаж"',
-                date: new Date(Date.now() - 3 * 86400000).toISOString(),
-                preview: 'Бесплатный мастер-класс по акварельной живописи для всех желающих',
-                content: '20 октября в 18:00 состоится бесплатный мастер-класс по акварельной живописи "Городской пейзаж" для взрослых. Ведущий - художник Сергей Смирнов. Все материалы предоставляются. Количество мест ограничено, необходима предварительная регистрация у администратора.',
-                image_url: 'https://via.placeholder.com/600x300/9C6ADE/FFFFFF?text=Акварельный+мастер-класс',
-                category: 'Мастер-класс',
-                author: 'Сергей Смирнов',
-                tags: 'мастер-класс,акварель,пейзаж'
-            },
-            {
-                id: 3,
-                title: 'Летний интенсив по рисованию для начинающих',
-                date: new Date().toISOString(),
-                preview: 'Запись на летние интенсивные художественные курсы открыта',
-                content: 'С 1 июня стартуют летние интенсивные курсы для детей и взрослых. За месяц вы освоите основы рисунка и живописи: композиция, перспектива, работа с цветом, различные техники. Группы формируются по возрасту и уровню подготовки. Спешите записаться!',
-                image_url: 'https://via.placeholder.com/600x300/FFC145/FFFFFF?text=Летний+художественный+курс',
-                category: 'Курсы',
-                author: 'Администрация студии',
-                tags: 'курсы,лето,для начинающих'
-            }
-        ];
     },
     
     // ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
@@ -4512,19 +3887,157 @@ const app = {
         document.querySelectorAll('.modal').forEach(modal => {
             modal.classList.remove('active');
         });
+    },
+    
+    // ==================== МОК ДАННЫЕ ДЛЯ РАЗРАБОТКИ ====================
+    useMockData: function() {
+        console.log('Использую мок данные для разработки');
+        
+        // Мок пользователь
+        this.state.currentUser = {
+            id: 1,
+            first_name: 'Иван',
+            last_name: 'Иванов',
+            phone_number: '+79991234567',
+            email: 'ivan@example.com'
+        };
+        
+        // Мок профили
+        this.state.profiles = [
+            {
+                id: 1,
+                student_name: 'Иван Иванов',
+                parent_name: 'Мария Иванова',
+                phone_number: '+79991234567',
+                email: 'ivan@example.com',
+                branch: 'Свиблово',
+                subscription_type: 'Художественный курс для начинающих',
+                total_classes: 12,
+                remaining_classes: 5,
+                expiration_date: '2024-12-31',
+                teacher_name: 'Анна Петрова',
+                day_of_week: 'понедельник',
+                time_slot: '16:00-17:30'
+            }
+        ];
+        
+        this.state.selectedProfile = this.state.profiles[0];
+        this.state.selectedBranch = this.state.selectedProfile.branch;
+        
+        // Мок расписание
+        this.state.schedule = [
+            {
+                id: 1,
+                branch: 'Свиблово',
+                day_of_week: 'понедельник',
+                start_time: '16:00',
+                end_time: '17:30',
+                teacher_id: 1,
+                teacher_name: 'Анна Петрова',
+                group_name: 'Дети 7-9 лет',
+                room_number: 'Кабинет 1',
+                max_students: 8,
+                current_students: 6,
+                status: 'normal'
+            },
+            {
+                id: 2,
+                branch: 'Свиблово',
+                day_of_week: 'среда',
+                start_time: '17:00',
+                end_time: '18:30',
+                teacher_id: 3,
+                teacher_name: 'Елена Ковалева',
+                group_name: 'Дети 5-7 лет',
+                room_number: 'Кабинет 2',
+                max_students: 6,
+                current_students: 4,
+                status: 'normal'
+            }
+        ];
+        
+        // Мок абонемент
+        this.state.subscription = {
+            subscription_type: 'Художественный курс для начинающих',
+            branch: 'Свиблово',
+            total_classes: 12,
+            remaining_classes: 5,
+            expiration_date: '2024-12-31',
+            teacher_name: 'Анна Петрова',
+            day_of_week: 'понедельник',
+            time_slot: '16:00-17:30'
+        };
+        
+        // Мок преподаватели
+        this.state.teachers = [
+            {
+                id: 1,
+                name: 'Анна Петрова',
+                photo_url: 'https://via.placeholder.com/150/4A77B4/FFFFFF?text=АП',
+                qualification: 'Художник-педагог, член Союза художников России',
+                specialization: 'Академический рисунок, графика',
+                experience_years: 8,
+                description: 'Опытный преподаватель с 8-летним стажем',
+                branches: '["Свиблово"]',
+                display_order: 1
+            },
+            {
+                id: 2,
+                name: 'Сергей Смирнов',
+                photo_url: 'https://via.placeholder.com/150/9C6ADE/FFFFFF?text=СС',
+                qualification: 'Художник-живописец, преподаватель с 10-летним стажем',
+                specialization: 'Акварель, масляная живопись',
+                experience_years: 10,
+                description: 'Эксперт в акварельной и масляной живописи',
+                branches: '["Чертаново"]',
+                display_order: 2
+            }
+        ];
+        
+        // Мок FAQ
+        this.state.faq = [
+            {
+                id: 1,
+                question: 'Как продлить абонемент?',
+                answer: 'Для продления абонемента свяжитесь с администратором вашего филиала.',
+                category: 'subscription',
+                display_order: 1
+            },
+            {
+                id: 2,
+                question: 'Что делать, если нужно пропустить занятие?',
+                answer: 'Если вы пропускаете занятие по уважительной причине, сообщите об этом администратору за 24 часа.',
+                category: 'attendance',
+                display_order: 2
+            }
+        ];
+        
+        // Мок новости
+        this.state.news = [
+            {
+                id: 1,
+                title: 'Новая выставка работ учеников',
+                content: 'С 15 по 30 марта в холле школы будет проходить выставка работ наших учеников.',
+                short_description: 'Приглашаем на выставку лучших работ наших учеников',
+                image_url: 'https://via.placeholder.com/600x300/4A77B4/FFFFFF?text=Выставка+работ',
+                branch: null,
+                publish_date: new Date().toISOString()
+            }
+        ];
+        
+        this.updateUserInterface();
+        this.navigateToPage('home');
+        this.showNotification('Используются демо-данные для разработки', 'info');
     }
 };
 
-// Инициализация приложения
+// Инициализация приложения при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    // Запускаем приложение с небольшой задержкой
-    setTimeout(function() {
-        app.init();
-    }, 100);
+    ArtSchoolApp.init();
 });
 
-// Делаем app глобально доступным
-window.app = app;
+// Делаем объект глобально доступным
+window.ArtSchoolApp = ArtSchoolApp;
 </script>
 </body>
 </html>
