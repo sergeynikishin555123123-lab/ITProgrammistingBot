@@ -1425,7 +1425,137 @@ app.post('/api/auth/telegram', async (req, res) => {
         });
     }
 });
+// В server.js добавляем новый endpoint для проверки телефона
+app.post('/api/auth/phone', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        
+        if (!phone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите номер телефона'
+            });
+        }
+        
+        console.log(`🔍 Поиск по телефону: ${phone}`);
+        
+        // Ищем профили по телефону
+        const profiles = await findProfilesByPhone(phone);
+        
+        if (!profiles || profiles.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден',
+                message: 'Номер телефона не найден в системе. Если у вас есть абонемент, свяжитесь с администратором.'
+            });
+        }
+        
+        // Создаем временного пользователя для сессии
+        const tempUser = {
+            id: Date.now(), // Временный ID
+            phone_number: phone,
+            first_name: profiles[0].student_name.split(' ')[0] || 'Ученик',
+            last_name: profiles[0].student_name.split(' ')[1] || '',
+            is_temp: true
+        };
+        
+        // Сохраняем сессию в базу
+        const existingSession = await db.get(
+            'SELECT * FROM user_sessions WHERE session_data LIKE ?',
+            [`%${phone}%`]
+        );
+        
+        const sessionId = require('crypto').randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 дней
+        
+        await db.run(
+            `INSERT INTO user_sessions (session_id, session_data, ip_address, user_agent, expires_at) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+                sessionId,
+                JSON.stringify({ phone, user: tempUser, profiles }),
+                req.ip || '',
+                req.headers['user-agent'] || '',
+                expiresAt.toISOString()
+            ]
+        );
+        
+        // Создаем JWT токен
+        const token = jwt.sign(
+            {
+                session_id: sessionId,
+                phone: phone,
+                is_temp: true
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.json({
+            success: true,
+            message: profiles.length > 0 ? 'Авторизация успешна' : 'Профили не найдены',
+            data: {
+                user: tempUser,
+                profiles: profiles,
+                total_profiles: profiles.length,
+                amocrm_connected: amoCrmService.isInitialized,
+                using_demo_data: !amoCrmService.isInitialized,
+                token: token
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка проверки телефона:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка проверки телефона'
+        });
+    }
+});
 
+// Также обновляем middleware для проверки токена
+const authenticateToken = async (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            error: 'Токен не предоставлен'
+        });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        // Проверяем сессию в базе
+        const session = await db.get(
+            'SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?',
+            [decoded.session_id, new Date().toISOString()]
+        );
+        
+        if (!session) {
+            return res.status(401).json({
+                success: false,
+                error: 'Сессия истекла'
+            });
+        }
+        
+        req.user = decoded;
+        next();
+        
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            error: 'Неверный токен'
+        });
+    }
+};
+
+// Защищаем API endpoints этим middleware
+app.use('/api/schedule', authenticateToken);
+app.use('/api/subscription', authenticateToken);
+// ... другие защищенные endpoints
 // Расписание
 app.post('/api/schedule', async (req, res) => {
     try {
