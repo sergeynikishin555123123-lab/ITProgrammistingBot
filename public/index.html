@@ -2827,28 +2827,28 @@ handlePhoneLogin: async function(event) {
     this.showLoading('Поиск ваших данных в системе...');
     
     try {
+        console.log('Отправка запроса на авторизацию по телефону:', formattedPhone);
+        
         // Отправляем запрос на сервер для проверки номера
         const response = await fetch(`${this.config.API_BASE_URL}/api/auth/phone`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
                 phone: formattedPhone
             })
         });
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server response:', errorText);
-            throw new Error('Ошибка соединения с сервером');
-        }
+        console.log('Ответ сервера:', response.status, response.statusText);
         
         const result = await response.json();
+        console.log('Результат:', result);
         
         if (!result.success) {
             // Если профиль не найден, показываем информацию для новых клиентов
-            if (result.error === 'Профиль не найден' || response.status === 404) {
+            if (response.status === 404 || result.message?.includes('не найден')) {
                 document.getElementById('newClientInfo').style.display = 'block';
                 phoneInput.focus();
                 this.showNotification('Номер не найден в системе', 'warning');
@@ -2864,7 +2864,10 @@ handlePhoneLogin: async function(event) {
         this.state.token = result.data.token;
         this.state.profiles = result.data.profiles || [];
         
+        // Сохраняем в localStorage
         this.saveUserData();
+        
+        console.log('Профилей найдено:', this.state.profiles.length);
         
         if (this.state.profiles.length === 0) {
             this.showNotification('Профили не найдены', 'warning');
@@ -2886,7 +2889,7 @@ handlePhoneLogin: async function(event) {
         }
         
     } catch (error) {
-        console.error('Ошибка авторизации:', error);
+        console.error('❌ Ошибка авторизации:', error);
         this.showNotification(error.message, 'error');
         
         // Для разработки используем демо-данные
@@ -2903,7 +2906,6 @@ handlePhoneLogin: async function(event) {
     
     return false;
 },
-
 telegramLogin: function() {
     // Старая логика Telegram авторизации (опционально)
     if (this.config.isTelegramWebApp) {
