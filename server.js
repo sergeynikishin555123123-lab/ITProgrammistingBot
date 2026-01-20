@@ -24,9 +24,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'art-school-jwt-secret-2024';
 const AMOCRM_CLIENT_ID = process.env.AMOCRM_CLIENT_ID;
 const AMOCRM_CLIENT_SECRET = process.env.AMOCRM_CLIENT_SECRET;
 const AMOCRM_REDIRECT_URI = process.env.AMOCRM_REDIRECT_URI;
-const AMOCRM_DOMAIN = process.env.AMOCRM_DOMAIN;
+const AMOCRM_DOMAIN = process.env.AMOCRM_DOMAIN;  // <-- здесь должен быть твой домен
 const AMOCRM_AUTH_CODE = process.env.AMOCRM_AUTH_CODE;
-const AMOCRM_ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;
+const AMOCRM_ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;  // <-- добавь эту строку
 // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM БОТА ====================
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 bot.use(session({ defaultSession: () => ({}) }));
@@ -45,42 +45,33 @@ async initialize() {
     try {
         console.log('🔄 Инициализация amoCRM...');
         
-        // Используем access token, если он есть
+        // Проверяем, есть ли access token
         if (AMOCRM_ACCESS_TOKEN) {
             this.accessToken = AMOCRM_ACCESS_TOKEN;
-            // Устанавливаем срок действия (например, на 10 дней)
+            // Устанавливаем срок действия (на 10 дней)
             this.tokenExpires = Date.now() + (10 * 24 * 60 * 60 * 1000);
             this.isInitialized = true;
             console.log('✅ amoCRM инициализирован с access token');
+            console.log(`🌐 Домен: ${AMOCRM_DOMAIN}`);  // <-- добавить для отладки
             return true;
         }
-            
-            // Проверяем сохраненные токены в базе
-            const tokens = await this.getStoredTokens();
-            if (tokens && tokens.access_token) {
-                this.accessToken = tokens.access_token;
-                this.refreshToken = tokens.refresh_token;
-                this.tokenExpires = tokens.expires_at;
-                
-                // Проверяем, не истек ли токен
-                if (Date.now() >= this.tokenExpires) {
-                    console.log('🔄 Токен amoCRM истек, обновляем...');
-                    await this.refreshAccessToken();
-                } else {
-                    console.log('✅ amoCRM инициализирован с сохраненными токенами');
-                    this.isInitialized = true;
-                }
-                return true;
-            }
-            
-            console.log('⚠️ amoCRM не инициализирован: нет токенов');
-            return false;
-            
-        } catch (error) {
-            console.error('❌ Ошибка инициализации amoCRM:', error.message);
-            return false;
+        
+        // Если нет токена, пробуем через код авторизации
+        if (AMOCRM_AUTH_CODE) {
+            await this.exchangeCodeForToken(AMOCRM_AUTH_CODE);
+            console.log('✅ amoCRM инициализирован с кодом авторизации');
+            this.isInitialized = true;
+            return true;
         }
+        
+        console.log('⚠️ amoCRM не инициализирован: нет токенов');
+        return false;
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации amoCRM:', error.message);
+        return false;
     }
+}
 
     async getStoredTokens() {
         try {
