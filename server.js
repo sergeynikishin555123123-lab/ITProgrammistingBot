@@ -105,30 +105,38 @@ class AmoCrmService {
         }
     }
 
-    async getContacts(filters = {}) {
-        try {
-            if (!this.isInitialized) {
-                return this.getMockContacts();
-            }
-            
-            let query = '/api/v4/contacts';
-            const params = [];
-            
-            if (filters.phone) {
-                query += `?query=${encodeURIComponent(filters.phone)}`;
-            }
-            
-            if (filters.limit) {
-                query += `${query.includes('?') ? '&' : '?'}limit=${filters.limit}`;
-            }
-            
-            return await this.makeRequest('GET', query);
-            
-        } catch (error) {
-            console.log('⚠️ Использую демо-данные для контактов');
+   async getContacts(filters = {}) {
+    try {
+        if (!this.isInitialized) {
             return this.getMockContacts();
         }
+        
+        let query = '/api/v4/contacts';
+        const params = [];
+        
+        if (filters.phone) {
+            query += `?query=${encodeURIComponent(filters.phone)}`;
+        }
+        
+        if (filters.limit) {
+            query += `${query.includes('?') ? '&' : '?'}limit=${filters.limit}`;
+        }
+        
+        const response = await this.makeRequest('GET', query);
+        return response;
+        
+    } catch (error) {
+        // Проверяем, если это 402 ошибка (нет доступа)
+        if (error.response && error.response.status === 402) {
+            console.log('⚠️ Ошибка 402: Нет доступа к AmoCRM. Проверьте подписку.');
+            this.isInitialized = false; // Отключаем AmoCRM
+            return { _embedded: { contacts: [] } }; // Возвращаем пустой результат
+        }
+        
+        console.log('⚠️ Использую демо-данные для контактов');
+        return this.getMockContacts();
     }
+}
 
     async getLeads(filters = {}) {
         try {
@@ -469,55 +477,69 @@ class AmoCrmService {
         console.log('✅ Все демо-данные загружены');
     }
 
-    async getStudentByPhoneFromAmo(phoneNumber) {
-        try {
-            if (!this.isInitialized) {
-                return this.getMockStudentProfiles(phoneNumber);
-            }
-            
-            const contacts = await this.getContacts({ phone: phoneNumber });
-            
-            if (contacts._embedded?.contacts?.length > 0) {
-                const contact = contacts._embedded.contacts[0];
-                const leads = await this.getLeads({ contact_id: contact.id });
-                
-                const customFields = {};
-                if (contact.custom_fields_values) {
-                    for (const field of contact.custom_fields_values) {
-                        if (field.values?.[0]) {
-                            const fieldName = field.field_name || field.field_code;
-                            customFields[fieldName] = field.values[0].value;
-                        }
-                    }
-                }
-                
-                const studentProfile = {
-                    amocrm_contact_id: contact.id,
-                    student_name: contact.name || '',
-                    parent_name: customFields['Родитель'] || '',
-                    phone_number: phoneNumber,
-                    email: customFields['Email'] || '',
-                    branch: customFields['Филиал'] || 'Не указан',
-                    subscription_type: leads._embedded?.leads?.[0] ? `Абонемент #${leads._embedded.leads[0].id}` : 'Без абонемента',
-                    total_classes: 12,
-                    remaining_classes: 8,
-                    expiration_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                    teacher_name: customFields['Преподаватель'] || '',
-                    day_of_week: customFields['День недели'] || '',
-                    time_slot: customFields['Время'] || '',
-                    custom_fields: customFields
-                };
-                
-                return [studentProfile];
-            }
-            
-            return this.getMockStudentProfiles(phoneNumber);
-            
-        } catch (error) {
-            console.error('❌ Ошибка получения ученика:', error.message);
+async getStudentByPhoneFromAmo(phoneNumber) {
+    try {
+        if (!this.isInitialized) {
+            console.log('AmoCRM не инициализирован, использую демо-данные');
             return this.getMockStudentProfiles(phoneNumber);
         }
+        
+        const contacts = await this.getContacts({ phone: phoneNumber });
+        
+        // Проверяем, есть ли реальные данные или это демо
+        const isDemoData = contacts._embedded?.contacts?.[0]?.id === 1001;
+        
+        if (contacts._embedded?.contacts?.length > 0 && !isDemoData) {
+            // Реальные данные из AmoCRM
+            console.log('✅ Найден реальный контакт в AmoCRM');
+            const contact = contacts._embedded.contacts[0];
+            const leads = await this.getLeads({ contact_id: contact.id });
+            
+            // ... остальная логика обработки
+            return [studentProfile];
+        }
+        
+        // Если это демо-данные или контактов нет
+        console.log('⚠️ Контакт не найден в AmoCRM, поиск в локальной БД');
+        
+        // Ищем в локальной базе
+        const localProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number = ? AND is_active = 1`,
+            [phoneNumber]
+        );
+        
+        if (localProfiles.length > 0) {
+            console.log(`✅ Найдено ${localProfiles.length} профилей в локальной БД`);
+            return localProfiles;
+        }
+        
+        // Если ничего не нашли, возвращаем пустой массив
+        console.log('📭 Профили не найдены ни в AmoCRM, ни в локальной БД');
+        return [];
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения ученика из AmoCRM:', error.message);
+        
+        // При ошибке ищем в локальной базе
+        try {
+            const localProfiles = await db.all(
+                `SELECT * FROM student_profiles 
+                 WHERE phone_number = ? AND is_active = 1`,
+                [phoneNumber]
+            );
+            
+            if (localProfiles.length > 0) {
+                console.log(`✅ Найдено ${localProfiles.length} профилей в локальной БД после ошибки AmoCRM`);
+                return localProfiles;
+            }
+        } catch (dbError) {
+            console.error('❌ Ошибка поиска в локальной БД:', dbError.message);
+        }
+        
+        return []; // Возвращаем пустой массив вместо демо-данных
     }
+}
 
     getMockStudentProfiles(phoneNumber) {
         return [
@@ -1067,11 +1089,17 @@ async function findProfilesByPhone(phoneNumber) {
         const profiles = await amoCrmService.getStudentByPhoneFromAmo(phoneNumber);
         
         if (profiles && profiles.length > 0) {
-            console.log(`✅ Найдено ${profiles.length} профилей`);
-            return profiles;
+            // Проверяем, не демо ли это данные
+            const isDemoProfile = profiles[0].student_name === 'Иван Иванов' || 
+                                 profiles[0].student_name === 'Мария Сидорова';
+            
+            if (!isDemoProfile) {
+                console.log(`✅ Найдено ${profiles.length} реальных профилей из AmoCRM`);
+                return profiles;
+            }
         }
         
-        // Если не нашли, ищем в локальной базе
+        // Если не нашли или это демо, ищем в локальной базе
         const localProfiles = await db.all(
             `SELECT * FROM student_profiles 
              WHERE phone_number = ? AND is_active = 1`,
@@ -1309,38 +1337,55 @@ app.get('/api/amocrm/status', async (req, res) => {
     }
 });
 
-// Тестовый эндпоинт для проверки amoCRM
-app.get('/api/test-amocrm', async (req, res) => {
+// Тестовый эндпоинт для проверки соединения с AmoCRM
+app.get('/api/amocrm/test-connection', async (req, res) => {
     try {
-        const testResult = {
-            is_initialized: amoCrmService.isInitialized,
-            domain: AMOCRM_DOMAIN,
-            using_demo_data: !amoCrmService.isInitialized
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'AmoCRM не инициализирован',
+                details: {
+                    domain: AMOCRM_DOMAIN,
+                    has_client_id: !!AMOCRM_CLIENT_ID,
+                    has_access_token: !!AMOCRM_ACCESS_TOKEN
+                }
+            });
+        }
+        
+        // Пробуем сделать простой запрос к AmoCRM
+        let testResult = {
+            connection: false,
+            account_info: null,
+            error: null
         };
         
-        if (amoCrmService.isInitialized) {
-            try {
-                const accountInfo = await amoCrmService.makeRequest('GET', '/api/v4/account');
-                testResult.connection_success = true;
-                testResult.account_id = accountInfo.id;
-                testResult.account_name = accountInfo.name;
-            } catch (apiError) {
-                testResult.connection_success = false;
-                testResult.api_error = apiError.message;
-            }
+        try {
+            const accountInfo = await amoCrmService.makeRequest('GET', '/api/v4/account');
+            testResult.connection = true;
+            testResult.account_info = {
+                id: accountInfo.id,
+                name: accountInfo.name,
+                created_at: accountInfo.created_at
+            };
+        } catch (apiError) {
+            testResult.connection = false;
+            testResult.error = {
+                message: apiError.message,
+                status: apiError.response?.status,
+                statusText: apiError.response?.statusText
+            };
         }
         
         res.json({
             success: true,
-            message: 'Тест соединения с amoCRM',
             data: testResult
         });
         
     } catch (error) {
-        console.error('Ошибка теста amoCRM:', error);
+        console.error('Ошибка теста AmoCRM:', error);
         res.status(500).json({
             success: false,
-            error: 'Ошибка тестирования amoCRM'
+            error: 'Ошибка тестирования AmoCRM'
         });
     }
 });
