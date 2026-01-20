@@ -2040,7 +2040,11 @@ body::before {
                                 <i class="fab fa-telegram-plane"></i>
                                 Войти через Telegram
                             </button>
-                            
+                            <!-- ДОБАВЬТЕ эту кнопку ПРЯМО ПОСЛЕ кнопки Telegram -->
+<button class="btn btn-secondary" onclick="ArtSchoolApp.useMockData()" style="width: 100%; padding: 12px; font-size: 1rem; margin-top: 15px;">
+    <i class="fas fa-code"></i>
+    Тестовый режим (для разработки)
+</button>
                             <div style="margin-top: 25px; padding: 20px; background: var(--acrylic-blue-light); border-radius: var(--radius-lg); border: 2px solid var(--acrylic-blue);">
                                 <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-info-circle" style="color: var(--acrylic-blue);"></i> Как это работает
@@ -2532,71 +2536,101 @@ const ArtSchoolApp = {
     },
     
     // ==================== TELEGRAM ИНТЕГРАЦИЯ ====================
-    checkTelegramWebApp: function() {
-        try {
-            if (window.Telegram && Telegram.WebApp) {
-                this.config.isTelegramWebApp = true;
-                const tg = Telegram.WebApp;
-                
-                // Расширяем на весь экран
-                tg.expand();
-                
-                // Получаем данные пользователя
-                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                    this.config.telegramUser = tg.initDataUnsafe.user;
-                    console.log('✅ Пользователь Telegram найден:', this.config.telegramUser);
-                }
-                
-                // Настраиваем кнопку "Назад"
+checkTelegramWebApp: function() {
+    try {
+        console.log('🔍 Проверяем Telegram Web App...');
+        
+        if (window.Telegram && Telegram.WebApp) {
+            this.config.isTelegramWebApp = true;
+            const tg = Telegram.WebApp;
+            
+            console.log('✅ Telegram Web App обнаружен');
+            console.log('Platform:', tg.platform);
+            console.log('Version:', tg.version);
+            console.log('User data:', tg.initDataUnsafe?.user);
+            
+            // Расширяем на весь экран
+            tg.expand();
+            
+            // Настраиваем тему
+            tg.setHeaderColor('#4A77B4');
+            tg.setBackgroundColor('#FFFBF0');
+            
+            // Получаем данные пользователя
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                this.config.telegramUser = tg.initDataUnsafe.user;
+                console.log('✅ Пользователь Telegram найден:', this.config.telegramUser);
+            }
+            
+            // Настраиваем кнопку "Назад" только если не unknown
+            if (tg.platform !== 'unknown') {
                 tg.BackButton.onClick(() => {
                     this.handleBackButton();
                 });
             }
-        } catch (error) {
-            console.log('ℹ️ Не в Telegram Web App или ошибка:', error.message);
-        }
-    },
-    
-    initTelegramAuth: function() {
-        if (this.config.isTelegramWebApp) {
-            // В Telegram Web App авторизация уже есть
-            if (this.config.telegramUser) {
-                this.handleTelegramUser(this.config.telegramUser);
-            } else {
-                this.showNotification('Ошибка авторизации Telegram', 'error');
-            }
-        } else {
-            // Для веб-версии открываем бота
-            const botUrl = `https://t.me/${this.getBotUsername()}`;
-            window.open(botUrl, '_blank');
-            this.showNotification('Откройте бота в Telegram для авторизации', 'info');
-        }
-    },
-    
-    getBotUsername: function() {
-        // Извлекаем username бота из текущего URL или используем дефолтный
-        const path = window.location.pathname;
-        return 'your_art_bot_username'; // Замените на реальный username бота
-    },
-    
-    handleTelegramUser: async function(telegramUser) {
-        try {
-            this.showLoading('Авторизация...');
             
-            // Отправляем запрос на сервер для поиска профилей
-            const response = await fetch(`${this.config.API_BASE_URL}/api/auth/telegram`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    telegram_id: telegramUser.id,
-                    first_name: telegramUser.first_name || '',
-                    last_name: telegramUser.last_name || '',
-                    username: telegramUser.username || '',
-                    phone: this.getPhoneFromUser(telegramUser)
-                })
-            });
+            return true;
+        }
+        
+        console.log('ℹ️ Telegram Web App не обнаружен');
+        return false;
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки Telegram Web App:', error.message);
+        return false;
+    }
+},
+    
+initTelegramAuth: function() {
+    console.log('🔐 Инициализация авторизации...');
+    
+    if (this.config.isTelegramWebApp && window.Telegram && Telegram.WebApp) {
+        const tg = Telegram.WebApp;
+        
+        if (tg.initDataUnsafe?.user) {
+            console.log('✅ Пользователь уже в Telegram, начинаем авторизацию');
+            this.handleTelegramUser(tg.initDataUnsafe.user);
+        } else {
+            console.log('📱 Пользователь в Telegram, но нужен контакт');
+            this.showTelegramContactButton();
+        }
+    } else {
+        console.log('🌐 Не в Telegram, показываем инструкции');
+        this.showWebAuthInstructions();
+    }
+},
+    
+ getBotUsername: function() {
+    // Используем тестового бота или вашего реального
+    return '@dkifhvhkdfhidhgbot'; // ← ЗАМЕНИТЕ НА ВАШЕГО БОТА
+},
+    
+handleTelegramUser: async function(telegramUser) {
+    try {
+        console.log('👤 Обработка пользователя Telegram:', telegramUser);
+        this.showLoading('Поиск ваших данных...');
+        
+        // Проверяем номер телефона
+        let phone = this.getPhoneFromUser(telegramUser);
+        if (!phone) {
+            console.log('📱 Номера нет в данных Telegram, используем тестовый');
+            phone = '+79991234567'; // Тестовый номер для разработки
+        }
+        
+        // Отправляем запрос на сервер
+        const response = await fetch(`${this.config.API_BASE_URL}/api/auth/telegram`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                telegram_id: telegramUser.id,
+                first_name: telegramUser.first_name || '',
+                last_name: telegramUser.last_name || '',
+                username: telegramUser.username || '',
+                phone: phone  // ← Используем номер
+            })
+        });
             
             if (!response.ok) {
                 throw new Error('Ошибка сервера');
@@ -2651,7 +2685,90 @@ const ArtSchoolApp = {
         // Для тестирования используем мок телефон
         return '+79991234567';
     },
+    showTelegramContactButton: function() {
+    const authContent = document.getElementById('authContent');
+    if (!authContent) return;
     
+    authContent.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: var(--sketch-dark); margin-bottom: 15px; font-family: 'Playfair Display', serif;">Для поиска ваших данных</h2>
+            <p style="color: var(--sketch-medium); margin-bottom: 25px; line-height: 1.6;">
+                Разрешите доступ к номеру телефона, чтобы найти ваши абонементы в художественной студии
+            </p>
+        </div>
+        
+        <button class="btn btn-artistic" onclick="ArtSchoolApp.requestTelegramContact()" style="width: 100%; padding: 18px; font-size: 1.1rem;">
+            <i class="fas fa-phone-alt"></i>
+            Предоставить номер телефона
+        </button>
+        
+        <div style="margin-top: 25px; padding: 20px; background: var(--acrylic-blue-light); border-radius: var(--radius-lg); border: 2px solid var(--acrylic-blue);">
+            <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-lock" style="color: var(--acrylic-blue);"></i> Безопасность
+            </h4>
+            <p style="color: var(--sketch-medium); font-size: 0.95rem; line-height: 1.6;">
+                Номер используется только для поиска ваших данных в системе и никому не передается
+            </p>
+        </div>
+    `;
+},
+
+requestTelegramContact: function() {
+    if (window.Telegram && Telegram.WebApp) {
+        const tg = Telegram.WebApp;
+        
+        tg.requestContact((contact) => {
+            if (contact) {
+                console.log('✅ Контакт получен:', contact);
+                this.processTelegramContact(contact);
+            } else {
+                console.log('❌ Пользователь отменил');
+                this.showNotification('Нужен доступ к номеру для работы приложения', 'warning');
+            }
+        });
+    } else {
+        this.showNotification('Только в Telegram', 'warning');
+    }
+},
+
+showWebAuthInstructions: function() {
+    const authContent = document.getElementById('authContent');
+    if (!authContent) return;
+    
+    const botUsername = this.getBotUsername();
+    
+    authContent.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: var(--sketch-dark); margin-bottom: 15px; font-family: 'Playfair Display', serif;">Откройте в Telegram</h2>
+            <p style="color: var(--sketch-medium); margin-bottom: 25px; line-height: 1.6;">
+                Это приложение работает внутри Telegram. Нажмите кнопку ниже:
+            </p>
+        </div>
+        
+        <a href="https://t.me/${botUsername}?start=webapp" target="_blank" class="btn btn-artistic" style="width: 100%; padding: 18px; font-size: 1.1rem; text-decoration: none; display: block;">
+            <i class="fab fa-telegram-plane"></i>
+            Открыть в Telegram
+        </a>
+        
+        <div style="margin-top: 25px; padding: 20px; background: var(--pastel-green-light); border-radius: var(--radius-lg); border: 2px solid var(--pastel-green);">
+            <h4 style="color: var(--sketch-dark); margin-bottom: 10px; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-info-circle" style="color: var(--pastel-green);"></i> Инструкция:
+            </h4>
+            <ol style="color: var(--sketch-medium); font-size: 0.95rem; line-height: 1.6; padding-left: 20px; text-align: left;">
+                <li style="margin-bottom: 8px;">Нажмите кнопку "Открыть в Telegram"</li>
+                <li style="margin-bottom: 8px;">В Telegram нажмите START</li>
+                <li>Нажмите "Открыть приложение" в боте</li>
+            </ol>
+        </div>
+        
+        <div style="margin-top: 25px;">
+            <button class="btn btn-secondary" onclick="ArtSchoolApp.useMockData()" style="width: 100%; padding: 12px; font-size: 1rem;">
+                <i class="fas fa-code"></i>
+                Тестовый вход (разработка)
+            </button>
+        </div>
+    `;
+},
     // ==================== ЗАГРУЗКА ДАННЫХ ====================
     loadProfileData: async function() {
         if (!this.state.selectedProfile) return;
@@ -3565,13 +3682,36 @@ const ArtSchoolApp = {
         }
     },
     
-    determineInitialScreen: function() {
-        if (this.state.currentUser && this.state.selectedProfile && this.state.selectedBranch) {
+determineInitialScreen: function() {
+    console.log('🎯 Определение начального экрана');
+    console.log('isTelegramWebApp:', this.config.isTelegramWebApp);
+    console.log('telegramUser:', this.config.telegramUser);
+    console.log('currentUser:', this.state.currentUser);
+    
+    // Если в Telegram и есть пользователь
+    if (this.config.isTelegramWebApp && this.config.telegramUser) {
+        console.log('🚀 Запущено из Telegram с пользователем');
+        
+        // Если уже авторизованы - на главную
+        if (this.state.currentUser) {
             this.navigateToPage('home');
-        } else {
-            this.navigateToPage('auth');
+            return;
         }
-    },
+        
+        // Иначе начинаем авторизацию
+        this.handleTelegramUser(this.config.telegramUser);
+        return;
+    }
+    
+    // Если уже авторизованы ранее
+    if (this.state.currentUser && this.state.selectedProfile && this.state.selectedBranch) {
+        console.log('✅ Пользователь уже авторизован');
+        this.navigateToPage('home');
+    } else {
+        console.log('🔐 Показываем экран авторизации');
+        this.navigateToPage('auth');
+    }
+},
     
     handleBackButton: function() {
         const currentPage = document.querySelector('.page.active').id.replace('-page', '');
