@@ -161,7 +161,78 @@ body::before {
     .container { max-width: 540px; }
     .container { padding: 0 10px; }
 }
+/* Стили для формы входа */
+#phoneLoginForm .form-input {
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+    padding: 16px 20px 16px 45px;
+}
 
+#phoneLoginForm .form-input:focus {
+    border-color: var(--watercolor-purple);
+    box-shadow: 0 0 0 3px rgba(156, 106, 222, 0.2);
+}
+
+/* Стили для модального окна поддержки */
+.support-contact-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.support-contact-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: var(--acrylic-blue-light);
+    border-radius: var(--radius);
+    border: 2px solid var(--acrylic-blue);
+    text-decoration: none;
+    color: var(--sketch-dark);
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.support-contact-item:hover {
+    background: var(--acrylic-blue);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.support-contact-item i {
+    font-size: 1.3rem;
+    margin-right: 12px;
+    min-width: 24px;
+}
+
+/* Анимация появления информации */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#newClientInfo {
+    animation: fadeInUp 0.5s ease;
+}
+
+/* Форматирование телефона */
+.phone-prefix {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--acrylic-blue);
+    font-weight: 600;
+    font-size: 1.1rem;
+    pointer-events: none;
+}
 /* ==================== НАВИГАЦИЯ ==================== */
 .top-nav {
     position: fixed;
