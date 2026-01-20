@@ -1465,7 +1465,7 @@ async function saveProfiles(telegramUserId, profiles) {
 
 // ==================== TELEGRAM БОТ КОМАНДЫ ====================
 
-const WEB_APP_URL = 'sergeynikishin555123123-lab-itprogrammistingbot-8f42.twc1.net';
+const WEB_APP_URL = 'sergeynikishin555123123-lab-itprogrammistingbot-6406.twc1.net';
 
 bot.start(async (ctx) => {
     const telegramId = ctx.from.id;
