@@ -1242,6 +1242,7 @@ app.get('/api/amocrm/status', async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Ошибка статуса amoCRM:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения статуса amoCRM'
@@ -1277,6 +1278,7 @@ app.get('/api/test-amocrm', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка теста amoCRM:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка тестирования amoCRM'
@@ -1288,8 +1290,6 @@ app.get('/api/test-amocrm', async (req, res) => {
 app.post('/api/amocrm/sync', async (req, res) => {
     try {
         const { sync_type } = req.body;
-        
-        let result;
         
         switch (sync_type) {
             case 'teachers':
@@ -1303,7 +1303,7 @@ app.post('/api/amocrm/sync', async (req, res) => {
                 break;
             case 'all':
             default:
-                result = await amoCrmService.syncAllData();
+                await amoCrmService.syncAllData();
                 break;
         }
         
@@ -1314,6 +1314,7 @@ app.post('/api/amocrm/sync', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка синхронизации:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка синхронизации с amoCRM',
@@ -1336,6 +1337,48 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// Middleware для проверки JWT токена
+const authenticateToken = async (req, res, next) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                error: 'Токен не предоставлен'
+            });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        // Проверяем сессию в базе (если есть session_id)
+        if (decoded.session_id) {
+            const session = await db.get(
+                'SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?',
+                [decoded.session_id, new Date().toISOString()]
+            );
+            
+            if (!session) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Сессия истекла'
+                });
+            }
+        }
+        
+        req.user = decoded;
+        next();
+        
+    } catch (error) {
+        console.error('Ошибка аутентификации токена:', error.message);
+        return res.status(401).json({
+            success: false,
+            error: 'Неверный токен'
+        });
+    }
+};
+
 // Авторизация через Telegram
 app.post('/api/auth/telegram', async (req, res) => {
     try {
@@ -1347,6 +1390,8 @@ app.post('/api/auth/telegram', async (req, res) => {
                 error: 'Необходимы telegram_id и номер телефона'
             });
         }
+        
+        console.log(`🔐 Авторизация Telegram: ${telegram_id}, телефон: ${phone}`);
         
         // Проверяем существующего пользователя
         let telegramUser = await db.get(
@@ -1398,7 +1443,8 @@ app.post('/api/auth/telegram', async (req, res) => {
             {
                 id: telegramUser.id,
                 telegram_id: telegramUser.telegram_id,
-                phone: telegramUser.phone_number
+                phone: telegramUser.phone_number,
+                is_telegram_auth: true
             },
             JWT_SECRET,
             { expiresIn: '30d' }
@@ -1418,14 +1464,15 @@ app.post('/api/auth/telegram', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Ошибка авторизации:', error.message);
+        console.error('❌ Ошибка авторизации через Telegram:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка авторизации'
+            error: 'Ошибка авторизации через Telegram'
         });
     }
 });
-// В server.js добавляем новый endpoint для проверки телефона
+
+// Авторизация по номеру телефона
 app.post('/api/auth/phone', async (req, res) => {
     try {
         const { phone } = req.body;
@@ -1439,44 +1486,60 @@ app.post('/api/auth/phone', async (req, res) => {
         
         console.log(`🔍 Поиск по телефону: ${phone}`);
         
-        // Ищем профили по телефону
-        const profiles = await findProfilesByPhone(phone);
-        
-        if (!profiles || profiles.length === 0) {
-            return res.status(404).json({
+        // Очищаем номер телефона
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.length < 10) {
+            return res.status(400).json({
                 success: false,
+                error: 'Неверный номер телефона'
+            });
+        }
+        
+        // Форматируем номер
+        const formattedPhone = '+7' + cleanPhone.substring(cleanPhone.length - 10);
+        
+        // Ищем профили по телефону
+        const profiles = await findProfilesByPhone(formattedPhone);
+        
+        console.log(`Найдено профилей: ${profiles.length}`);
+        
+        if (profiles.length === 0) {
+            return res.status(404).json({
+                success: true, // Успешный ответ, но профилей нет
                 error: 'Профиль не найден',
-                message: 'Номер телефона не найден в системе. Если у вас есть абонемент, свяжитесь с администратором.'
+                message: 'Номер телефона не найден в системе. Если у вас есть абонемент, свяжитесь с администратором.',
+                data: {
+                    profiles: [],
+                    total_profiles: 0,
+                    amocrm_connected: amoCrmService.isInitialized,
+                    using_demo_data: !amoCrmService.isInitialized
+                }
             });
         }
         
         // Создаем временного пользователя для сессии
         const tempUser = {
             id: Date.now(), // Временный ID
-            phone_number: phone,
-            first_name: profiles[0].student_name.split(' ')[0] || 'Ученик',
-            last_name: profiles[0].student_name.split(' ')[1] || '',
+            phone_number: formattedPhone,
+            first_name: profiles[0].student_name?.split(' ')[0] || 'Ученик',
+            last_name: profiles[0].student_name?.split(' ')[1] || '',
             is_temp: true
         };
         
-        // Сохраняем сессию в базу
-        const existingSession = await db.get(
-            'SELECT * FROM user_sessions WHERE session_data LIKE ?',
-            [`%${phone}%`]
-        );
-        
+        // Создаем сессию в базе
         const sessionId = require('crypto').randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 дней
         
         await db.run(
-            `INSERT INTO user_sessions (session_id, session_data, ip_address, user_agent, expires_at) 
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO user_sessions (session_id, session_data, ip_address, user_agent, expires_at, is_active) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
                 sessionId,
-                JSON.stringify({ phone, user: tempUser, profiles }),
+                JSON.stringify({ phone: formattedPhone, user: tempUser, profiles }),
                 req.ip || '',
                 req.headers['user-agent'] || '',
-                expiresAt.toISOString()
+                expiresAt.toISOString(),
+                1
             ]
         );
         
@@ -1484,8 +1547,9 @@ app.post('/api/auth/phone', async (req, res) => {
         const token = jwt.sign(
             {
                 session_id: sessionId,
-                phone: phone,
-                is_temp: true
+                phone: formattedPhone,
+                is_temp: true,
+                profiles_count: profiles.length
             },
             JWT_SECRET,
             { expiresIn: '30d' }
@@ -1493,7 +1557,7 @@ app.post('/api/auth/phone', async (req, res) => {
         
         res.json({
             success: true,
-            message: profiles.length > 0 ? 'Авторизация успешна' : 'Профили не найдены',
+            message: 'Авторизация успешна',
             data: {
                 user: tempUser,
                 profiles: profiles,
@@ -1505,58 +1569,17 @@ app.post('/api/auth/phone', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Ошибка проверки телефона:', error.message);
+        console.error('❌ Ошибка проверки телефона:', error.message);
+        console.error('Stack trace:', error.stack);
         res.status(500).json({
             success: false,
-            error: 'Ошибка проверки телефона'
+            error: 'Ошибка проверки телефона',
+            details: error.message
         });
     }
 });
 
-// Также обновляем middleware для проверки токена
-const authenticateToken = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({
-            success: false,
-            error: 'Токен не предоставлен'
-        });
-    }
-    
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        // Проверяем сессию в базе
-        const session = await db.get(
-            'SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?',
-            [decoded.session_id, new Date().toISOString()]
-        );
-        
-        if (!session) {
-            return res.status(401).json({
-                success: false,
-                error: 'Сессия истекла'
-            });
-        }
-        
-        req.user = decoded;
-        next();
-        
-    } catch (error) {
-        return res.status(401).json({
-            success: false,
-            error: 'Неверный токен'
-        });
-    }
-};
-
-// Защищаем API endpoints этим middleware
-app.use('/api/schedule', authenticateToken);
-app.use('/api/subscription', authenticateToken);
-// ... другие защищенные endpoints
-// Расписание
+// Расписание (не требует аутентификации при первом входе)
 app.post('/api/schedule', async (req, res) => {
     try {
         const { branch, week_start } = req.body;
@@ -1594,6 +1617,7 @@ app.post('/api/schedule', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка получения расписания:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения расписания'
@@ -1601,22 +1625,30 @@ app.post('/api/schedule', async (req, res) => {
     }
 });
 
-// Абонемент
-app.post('/api/subscription', async (req, res) => {
+// Абонемент (требует аутентификации)
+app.post('/api/subscription', authenticateToken, async (req, res) => {
     try {
         const { profile_id } = req.body;
         
-        if (!profile_id) {
+        if (!profile_id && !req.user.phone) {
             return res.status(400).json({
                 success: false,
-                error: 'Укажите ID профиля'
+                error: 'Укажите ID профиля или номер телефона'
             });
         }
         
-        const profile = await db.get(
-            `SELECT * FROM student_profiles WHERE id = ?`,
-            [profile_id]
-        );
+        let profile;
+        if (profile_id) {
+            profile = await db.get(
+                `SELECT * FROM student_profiles WHERE id = ?`,
+                [profile_id]
+            );
+        } else if (req.user.phone) {
+            profile = await db.get(
+                `SELECT * FROM student_profiles WHERE phone_number = ? AND is_active = 1 LIMIT 1`,
+                [req.user.phone]
+            );
+        }
         
         if (!profile) {
             return res.status(404).json({
@@ -1644,6 +1676,7 @@ app.post('/api/subscription', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка получения абонемента:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения информации об абонементе'
@@ -1651,7 +1684,7 @@ app.post('/api/subscription', async (req, res) => {
     }
 });
 
-// Преподаватели
+// Преподаватели (не требует аутентификации)
 app.get('/api/teachers', async (req, res) => {
     try {
         const { branch } = req.query;
@@ -1682,6 +1715,7 @@ app.get('/api/teachers', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка получения преподавателей:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения преподавателей'
@@ -1689,7 +1723,7 @@ app.get('/api/teachers', async (req, res) => {
     }
 });
 
-// FAQ
+// FAQ (не требует аутентификации)
 app.get('/api/faq', async (req, res) => {
     try {
         const faq = await db.all(
@@ -1706,6 +1740,7 @@ app.get('/api/faq', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка получения FAQ:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения FAQ'
@@ -1713,7 +1748,7 @@ app.get('/api/faq', async (req, res) => {
     }
 });
 
-// Новости
+// Новости (не требует аутентификации)
 app.get('/api/news', async (req, res) => {
     try {
         const { branch } = req.query;
@@ -1739,6 +1774,7 @@ app.get('/api/news', async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Ошибка получения новостей:', error);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения новостей'
