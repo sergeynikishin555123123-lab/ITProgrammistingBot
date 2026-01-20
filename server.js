@@ -574,6 +574,16 @@ const initDatabase = async () => {
         const dbPath = path.join(dbDir, 'art_school.db');
         console.log(`📁 Путь к базе данных: ${dbPath}`);
         
+        // Удаляем старую базу данных для пересоздания
+        try {
+            await fs.access(dbPath);
+            console.log('🗑️  Удаляем старую базу данных для пересоздания...');
+            await fs.unlink(dbPath);
+        } catch (error) {
+            // Базы данных нет, продолжаем
+            console.log('📝 Создаем новую базу данных...');
+        }
+        
         db = await open({
             filename: dbPath,
             driver: sqlite3.Database
@@ -823,12 +833,15 @@ const createTables = async () => {
             )
         `);
 
-        // Сессии пользователей
+        // Сессии пользователей (обновленная версия)
         await db.exec(`
             CREATE TABLE IF NOT EXISTS user_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_user_id INTEGER NOT NULL,
                 session_id TEXT UNIQUE NOT NULL,
+                user_id INTEGER,
+                telegram_user_id INTEGER,
+                session_data TEXT,
+                phone_number TEXT,
                 ip_address TEXT,
                 user_agent TEXT,
                 is_active INTEGER DEFAULT 1,
@@ -853,9 +866,55 @@ const createTables = async () => {
 
         console.log('✅ Все таблицы созданы');
         
+        // Проверяем и обновляем существующие таблицы
+        await updateExistingTables();
+        
     } catch (error) {
         console.error('❌ Ошибка создания таблиц:', error.message);
         throw error;
+    }
+};
+
+// Функция для обновления существующих таблиц
+const updateExistingTables = async () => {
+    try {
+        console.log('🔄 Проверка структуры таблиц...');
+        
+        // Проверяем существование столбцов в user_sessions
+        const sessionColumns = await db.all(`
+            PRAGMA table_info(user_sessions);
+        `);
+        
+        const columnNames = sessionColumns.map(col => col.name);
+        console.log('Столбцы user_sessions:', columnNames);
+        
+        // Добавляем отсутствующие столбцы
+        if (!columnNames.includes('session_data')) {
+            console.log('🔄 Добавляем столбец session_data в user_sessions');
+            await db.run(`
+                ALTER TABLE user_sessions ADD COLUMN session_data TEXT;
+            `);
+        }
+        
+        if (!columnNames.includes('phone_number')) {
+            console.log('🔄 Добавляем столбец phone_number в user_sessions');
+            await db.run(`
+                ALTER TABLE user_sessions ADD COLUMN phone_number TEXT;
+            `);
+        }
+        
+        if (!columnNames.includes('user_id')) {
+            console.log('🔄 Добавляем столбец user_id в user_sessions');
+            await db.run(`
+                ALTER TABLE user_sessions ADD COLUMN user_id INTEGER;
+            `);
+        }
+        
+        console.log('✅ Структура таблиц проверена и обновлена');
+        
+    } catch (error) {
+        console.error('⚠️ Ошибка обновления таблиц:', error.message);
+        // Игнорируем ошибки, так как таблицы могут быть уже обновлены
     }
 };
 
@@ -1530,18 +1589,58 @@ app.post('/api/auth/phone', async (req, res) => {
         const sessionId = require('crypto').randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 дней
         
-        await db.run(
-            `INSERT INTO user_sessions (session_id, session_data, ip_address, user_agent, expires_at, is_active) 
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-                sessionId,
-                JSON.stringify({ phone: formattedPhone, user: tempUser, profiles }),
-                req.ip || '',
-                req.headers['user-agent'] || '',
-                expiresAt.toISOString(),
-                1
-            ]
-        );
+        try {
+            await db.run(
+                `INSERT INTO user_sessions (session_id, session_data, phone_number, ip_address, user_agent, expires_at, is_active) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    sessionId,
+                    JSON.stringify({ user: tempUser, profiles }),
+                    formattedPhone,
+                    req.ip || '',
+                    req.headers['user-agent'] || '',
+                    expiresAt.toISOString(),
+                    1
+                ]
+            );
+        } catch (dbError) {
+            console.error('Ошибка создания сессии:', dbError);
+            // Если ошибка из-за отсутствия столбца, создаем новую таблицу
+            if (dbError.message.includes('no column named')) {
+                console.log('🔄 Пересоздаем таблицу user_sessions');
+                await db.exec(`DROP TABLE IF EXISTS user_sessions;`);
+                await db.exec(`
+                    CREATE TABLE user_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id TEXT UNIQUE NOT NULL,
+                        session_data TEXT,
+                        phone_number TEXT,
+                        ip_address TEXT,
+                        user_agent TEXT,
+                        is_active INTEGER DEFAULT 1,
+                        expires_at TIMESTAMP NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+                
+                // Повторно вставляем данные
+                await db.run(
+                    `INSERT INTO user_sessions (session_id, session_data, phone_number, ip_address, user_agent, expires_at, is_active) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        sessionId,
+                        JSON.stringify({ user: tempUser, profiles }),
+                        formattedPhone,
+                        req.ip || '',
+                        req.headers['user-agent'] || '',
+                        expiresAt.toISOString(),
+                        1
+                    ]
+                );
+            } else {
+                throw dbError;
+            }
+        }
         
         // Создаем JWT токен
         const token = jwt.sign(
