@@ -26,7 +26,7 @@ const AMOCRM_CLIENT_SECRET = process.env.AMOCRM_CLIENT_SECRET;
 const AMOCRM_REDIRECT_URI = process.env.AMOCRM_REDIRECT_URI;
 const AMOCRM_DOMAIN = process.env.AMOCRM_DOMAIN;
 const AMOCRM_AUTH_CODE = process.env.AMOCRM_AUTH_CODE;
-
+const AMOCRM_ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;
 // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM БОТА ====================
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 bot.use(session({ defaultSession: () => ({}) }));
@@ -41,16 +41,19 @@ class AmoCrmService {
         this.isInitialized = false;
     }
 
-    async initialize() {
-        try {
-            console.log('🔄 Инициализация amoCRM...');
-            
-            if (AMOCRM_AUTH_CODE) {
-                await this.exchangeCodeForToken(AMOCRM_AUTH_CODE);
-                console.log('✅ amoCRM инициализирован с кодом авторизации');
-                this.isInitialized = true;
-                return true;
-            }
+async initialize() {
+    try {
+        console.log('🔄 Инициализация amoCRM...');
+        
+        // Используем access token, если он есть
+        if (AMOCRM_ACCESS_TOKEN) {
+            this.accessToken = AMOCRM_ACCESS_TOKEN;
+            // Устанавливаем срок действия (например, на 10 дней)
+            this.tokenExpires = Date.now() + (10 * 24 * 60 * 60 * 1000);
+            this.isInitialized = true;
+            console.log('✅ amoCRM инициализирован с access token');
+            return true;
+        }
             
             // Проверяем сохраненные токены в базе
             const tokens = await this.getStoredTokens();
