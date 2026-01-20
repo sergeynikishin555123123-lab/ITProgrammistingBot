@@ -48,7 +48,7 @@ for (const [key, value] of Object.entries(ENV_VARS)) {
 }
 
 // Проверка конкретных ошибок
-if (ENV_VARS.AMOCRM_DOMAIN === 'yourcompany.amocrm.ru') {
+if (ENV_VARS.AMOCRM_DOMAIN === 'pismovbanu.amocrm.ru') {
     console.log('\n🚨 КРИТИЧЕСКАЯ ОШИБКА:');
     console.log('   AMOCRM_DOMAIN установлен как "yourcompany.amocrm.ru"');
     console.log('   Исправьте на: AMOCRM_DOMAIN=pismovbanu.amocrm.ru');
