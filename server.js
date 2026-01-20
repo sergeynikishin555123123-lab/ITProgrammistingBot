@@ -1790,13 +1790,18 @@ app.get('/oauth/callback', async (req, res) => {
     }
 });
 
-// Статические файлы
+// В разделе статических файлов (строка ~730 в вашем коде)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Добавьте этот маршрут ДО 404 обработчика:
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // 404 обработчик
