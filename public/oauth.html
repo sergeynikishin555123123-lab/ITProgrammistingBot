@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OAuth amoCRM</title>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
+    <h1>🔐 Авторизация amoCRM</h1>
+    
+    <h2>Шаг 1: Получите ссылку для авторизации</h2>
+    <button onclick="getAuthLink()">Получить ссылку</button>
+    <div id="authLink"></div>
+    
+    <h2>Шаг 2: Скопируйте код авторизации</h2>
+    <input type="text" id="authCode" placeholder="Код авторизации" style="width: 100%; padding: 10px; margin: 10px 0;">
+    <button onclick="useAuthCode()">Использовать код</button>
+    
+    <script>
+    async function getAuthLink() {
+        try {
+            const response = await fetch('/api/amocrm/oauth-link');
+            const data = await response.json();
+            
+            if (data.success) {
+                const link = document.getElementById('authLink');
+                link.innerHTML = `
+                    <p><strong>Ссылка для авторизации:</strong></p>
+                    <p><a href="${data.data.oauth_url}" target="_blank">${data.data.oauth_url}</a></p>
+                    <p>Откройте ссылку, авторизуйтесь и скопируйте код.</p>
+                `;
+                
+                // Открываем в новом окне
+                window.open(data.data.oauth_url, '_blank');
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+    
+    async function useAuthCode() {
+        const code = document.getElementById('authCode').value;
+        if (!code) {
+            alert('Введите код авторизации');
+            return;
+        }
+        
+        try {
+            window.location.href = `/oauth/callback?code=${encodeURIComponent(code)}`;
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    }
+    </script>
+</body>
+</html>
