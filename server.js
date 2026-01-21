@@ -242,7 +242,56 @@ class AmoCrmService {
             throw error;
         }
     }
-
+// Добавьте этот метод в класс AmoCrmService
+async debugContactFields(contactId) {
+    console.log(`\n🔧 ДЕБАГГИНГ ПОЛЕЙ КОНТАКТА ${contactId}`);
+    
+    try {
+        // Получаем контакт с полями
+        const contact = await this.makeRequest('GET', `/api/v4/contacts/${contactId}`);
+        
+        console.log('📋 ОСНОВНАЯ ИНФОРМАЦИЯ:');
+        console.log(`   ID: ${contact.id}`);
+        console.log(`   Имя: ${contact.name}`);
+        console.log(`   Дата создания: ${new Date(contact.created_at * 1000).toLocaleString()}`);
+        
+        console.log('\n🎯 КАСТОМНЫЕ ПОЛЯ КОНТАКТА:');
+        console.log('='.repeat(80));
+        
+        if (contact.custom_fields_values && contact.custom_fields_values.length > 0) {
+            // Получаем информацию о всех полях
+            const allFields = await this.getContactCustomFields();
+            const fieldNameMap = {};
+            allFields.forEach(field => {
+                fieldNameMap[field.id] = field.name;
+            });
+            
+            for (const field of contact.custom_fields_values) {
+                const fieldName = fieldNameMap[field.field_id] || `Unknown (${field.field_id})`;
+                const values = field.values || [];
+                
+                console.log(`\n📍 ${fieldName}:`);
+                console.log(`   ID поля: ${field.field_id}`);
+                console.log(`   Количество значений: ${values.length}`);
+                
+                values.forEach((val, index) => {
+                    console.log(`   Значение ${index + 1}:`);
+                    console.log(`     value: "${val.value}"`);
+                    console.log(`     enum_id: ${val.enum_id}`);
+                });
+            }
+        } else {
+            console.log('⚠️  Нет кастомных полей');
+        }
+        
+        console.log('='.repeat(80));
+        
+        return contact;
+    } catch (error) {
+        console.error(`❌ Ошибка дебаггинга контакта: ${error.message}`);
+        throw error;
+    }
+}
     async saveTokensToDatabase(accessToken, refreshToken, expiresAt) {
         try {
             console.log('\n💾 СОХРАНЕНИЕ ТОКЕНОВ В БАЗУ ДАННЫХ');
@@ -518,168 +567,232 @@ class AmoCrmService {
     }
 
     async parseContactToStudentProfile(contact) {
-        console.log(`\n🔍 ПАРСИНГ КОНТАКТА В ПРОФИЛЬ УЧЕНИКА`);
-        console.log(`👤 Контакт: ${contact.name || 'Без имени'} (ID: ${contact.id})`);
-        
-        const profile = {
-            amocrm_contact_id: contact.id,
-            student_name: contact.name || 'Не указано',
-            parent_name: '',
-            phone_number: '',
-            email: '',
-            branch: 'Не указан',
-            subscription_type: 'Без абонемента',
-            total_classes: 0,
-            remaining_classes: 0,
-            expiration_date: null,
-            teacher_name: '',
-            day_of_week: '',
-            time_slot: '',
-            custom_fields: contact.custom_fields_values || [],
-            raw_contact_data: JSON.stringify(contact, null, 2),
-            created_at: contact.created_at ? new Date(contact.created_at * 1000).toISOString() : null,
-            updated_at: contact.updated_at ? new Date(contact.updated_at * 1000).toISOString() : null
+    console.log(`\n🔍 ПАРСИНГ КОНТАКТА В ПРОФИЛЬ УЧЕНИКА`);
+    console.log(`👤 Контакт: ${contact.name || 'Без имени'} (ID: ${contact.id})`);
+    
+    const profile = {
+        amocrm_contact_id: contact.id,
+        student_name: contact.name || 'Не указано',
+        parent_name: '',
+        phone_number: '',
+        email: '',
+        branch: 'Не указан',
+        subscription_type: 'Без абонемента',
+        subscription_status: 'Не активен',
+        total_classes: 0,
+        remaining_classes: 0,
+        used_classes: 0,
+        expiration_date: null,
+        teacher_name: '',
+        day_of_week: '',
+        time_slot: '',
+        custom_fields: contact.custom_fields_values || [],
+        raw_contact_data: JSON.stringify(contact, null, 2),
+        created_at: contact.created_at ? new Date(contact.created_at * 1000).toISOString() : null,
+        updated_at: contact.updated_at ? new Date(contact.updated_at * 1000).toISOString() : null
+    };
+    
+    // Получаем информацию о полях для лучшего парсинга
+    console.log(`\n📋 ПОЛУЧЕНИЕ ИНФОРМАЦИИ О КАСТОМНЫХ ПОЛЯХ`);
+    const customFields = await this.getContactCustomFields();
+    const fieldMap = {};
+    customFields.forEach(field => {
+        fieldMap[field.id] = {
+            name: field.name,
+            type: field.type,
+            enums: field.enums
         };
-        
-        // Парсим кастомные поля
-        if (contact.custom_fields_values) {
-            console.log(`\n📋 ПАРСИНГ КАСТОМНЫХ ПОЛЕЙ:`);
+    });
+    
+    // Парсим кастомные поля контакта
+    console.log(`\n🎯 АНАЛИЗ КАСТОМНЫХ ПОЛЕЙ КОНТАКТА:`);
+    
+    if (contact.custom_fields_values) {
+        for (const field of contact.custom_fields_values) {
+            const fieldInfo = fieldMap[field.field_id];
+            const fieldName = fieldInfo ? fieldInfo.name : '';
+            const fieldValues = field.values || [];
             
-            // Сначала получим информацию о полях для лучшего парсинга
-            const customFields = await this.getContactCustomFields();
-            const fieldMap = {};
-            customFields.forEach(field => {
-                fieldMap[field.id] = field.name;
-            });
-            
-            for (const field of contact.custom_fields_values) {
-                const fieldName = fieldMap[field.field_id] || '';
-                const fieldValues = field.values || [];
+            if (fieldValues.length > 0) {
+                const value = fieldValues[0].value;
+                const enumValue = fieldValues[0].enum_id;
                 
-                if (fieldValues.length > 0) {
-                    const value = fieldValues[0].value;
-                    
-                    // Телефоны
-                    if (fieldName.includes('Телефон') || fieldName.toLowerCase().includes('phone')) {
-                        profile.phone_number = value;
-                        console.log(`   📞 Телефон: ${value}`);
+                // Для отладки
+                console.log(`   📍 ${fieldName || 'Unknown'}: ${value} (ID: ${field.field_id})`);
+                
+                // ФИЛИАЛ
+                if (fieldName.includes('ФИЛИАЛ') || fieldName.includes('Филиал') || 
+                    fieldName.toLowerCase().includes('филиал')) {
+                    profile.branch = value;
+                    console.log(`   🏢 Филиал определен: ${value}`);
+                }
+                
+                // СТАТУС АБОНЕМЕНТА
+                else if (fieldName.includes('Статус') || fieldName.includes('СТАТУС') ||
+                        fieldName.toLowerCase().includes('активен')) {
+                    profile.subscription_status = value;
+                    console.log(`   ✅ Статус абонемента: ${value}`);
+                }
+                
+                // АКТИВНЫЙ АБОНЕМЕНТ (булевое поле)
+                else if (fieldName.includes('Активный абонемент') || 
+                        fieldName.toLowerCase().includes('активный абонемент')) {
+                    if (value === 'да' || value === 'ДА' || value === 'Да' || value === true || value === 'true') {
+                        profile.subscription_type = 'Активный абонемент';
+                        console.log(`   🎫 Активный абонемент: Да`);
                     }
-                    
-                    // Email
-                    else if (fieldName.includes('Email') || fieldName.includes('почта')) {
-                        profile.email = value;
-                        console.log(`   📧 Email: ${value}`);
+                }
+                
+                // ТЕЛЕФОН
+                else if (fieldName.includes('Телефон') || fieldName.toLowerCase().includes('телефон')) {
+                    profile.phone_number = value;
+                    console.log(`   📞 Телефон: ${value}`);
+                }
+                
+                // EMAIL
+                else if (fieldName.includes('Email') || fieldName.includes('EMAIL') || 
+                        fieldName.toLowerCase().includes('почта')) {
+                    profile.email = value;
+                    console.log(`   📧 Email: ${value}`);
+                }
+                
+                // ПРЕПОДАВАТЕЛЬ
+                else if (fieldName.includes('Преподаватель') || 
+                        fieldName.toLowerCase().includes('преподаватель')) {
+                    profile.teacher_name = value;
+                    console.log(`   👩‍🏫 Преподаватель: ${value}`);
+                }
+                
+                // ДЕНЬ НЕДЕЛИ
+                else if (fieldName.includes('День недели') || 
+                        fieldName.toLowerCase().includes('день недели')) {
+                    profile.day_of_week = value;
+                    console.log(`   📅 День недели: ${value}`);
+                }
+                
+                // ВРЕМЯ ЗАНЯТИЙ
+                else if (fieldName.includes('Время') || fieldName.toLowerCase().includes('время')) {
+                    profile.time_slot = value;
+                    console.log(`   ⏰ Время: ${value}`);
+                }
+                
+                // КОЛИЧЕСТВО ЗАНЯТИЙ (общее)
+                else if (fieldName.includes('Всего занятий') || 
+                        fieldName.includes('Количество занятий') ||
+                        fieldName.toLowerCase().includes('всего занятий')) {
+                    const num = parseInt(value);
+                    if (!isNaN(num) && num > 0) {
+                        profile.total_classes = num;
+                        console.log(`   📊 Всего занятий: ${num}`);
                     }
-                    
-                    // Филиал
-                    else if (fieldName.includes('Филиал') || fieldName.includes('Отделение')) {
-                        profile.branch = value;
-                        console.log(`   🏢 Филиал: ${value}`);
+                }
+                
+                // ОСТАЛОСЬ ЗАНЯТИЙ
+                else if (fieldName.includes('Осталось занятий') || 
+                        fieldName.includes('Остаток') ||
+                        fieldName.toLowerCase().includes('осталось')) {
+                    const num = parseInt(value);
+                    if (!isNaN(num)) {
+                        profile.remaining_classes = num;
+                        console.log(`   🎯 Осталось занятий: ${num}`);
                     }
-                    
-                    // Абонемент (из поля "Есть активный абонемент")
-                    else if (fieldName.includes('активный абонемент')) {
-                        if (value === 'ДА' || value === 'Да' || value === 'да') {
-                            profile.subscription_type = 'Активный абонемент';
-                            console.log(`   ✅ Активный абонемент: Да`);
+                }
+                
+                // ИСПОЛЬЗОВАНО ЗАНЯТИЙ
+                else if (fieldName.includes('Использовано') || 
+                        fieldName.toLowerCase().includes('использовано')) {
+                    const num = parseInt(value);
+                    if (!isNaN(num)) {
+                        profile.used_classes = num;
+                        console.log(`   📈 Использовано занятий: ${num}`);
+                    }
+                }
+                
+                // СРОК ДЕЙСТВИЯ АБОНЕМЕНТА
+                else if (fieldName.includes('Срок действия') || 
+                        fieldName.includes('Действует до') ||
+                        fieldName.toLowerCase().includes('срок')) {
+                    try {
+                        // Пробуем разные форматы дат
+                        let date;
+                        if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                            date = new Date(value);
+                        } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                            const parts = value.split('.');
+                            date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                        } else if (value.match(/^\d{1,2} \w+ \d{4}$/)) {
+                            date = new Date(value);
                         }
-                    }
-                    
-                    // День недели
-                    else if (fieldName.includes('День недели')) {
-                        profile.day_of_week = value;
-                        console.log(`   📅 День недели: ${value}`);
-                    }
-                    
-                    // Преподаватель
-                    else if (fieldName.includes('Преподаватель')) {
-                        profile.teacher_name = value;
-                        console.log(`   👩‍🏫 Преподаватель: ${value}`);
-                    }
-                    
-                    // Дата последнего визита
-                    else if (fieldName.includes('Дата последнего визита')) {
-                        try {
-                            const date = new Date(value);
-                            if (!isNaN(date)) {
-                                profile.last_visit_date = value;
-                                console.log(`   📅 Последний визит: ${value}`);
-                            }
-                        } catch (e) {}
-                    }
-                    
-                    // Возраст группы
-                    else if (fieldName.includes('Возраст группы')) {
-                        profile.age_group = value;
-                        console.log(`   👶 Возрастная группа: ${value}`);
-                    }
-                    
-                    // Постоянный клиент
-                    else if (fieldName.includes('Постоянный клиент')) {
-                        profile.is_regular = (value === 'ДА' || value === 'Да' || value === 'да');
-                        console.log(`   👑 Постоянный клиент: ${value}`);
-                    }
-                    
-                    // Количество покупок
-                    else if (fieldName.includes('Количество покупок')) {
-                        const num = parseInt(value);
-                        if (!isNaN(num)) {
-                            profile.purchase_count = num;
-                            console.log(`   🛒 Количество покупок: ${num}`);
+                        
+                        if (date && !isNaN(date.getTime())) {
+                            profile.expiration_date = date.toISOString().split('T')[0];
+                            console.log(`   📅 Срок действия: ${profile.expiration_date}`);
                         }
+                    } catch (e) {
+                        console.log(`   ⚠️  Не удалось распарсить дату: ${value}`);
                     }
-                    
-                    // Сумма покупок
-                    else if (fieldName.includes('Сумма покупок')) {
-                        const num = parseInt(value);
-                        if (!isNaN(num)) {
-                            profile.total_purchase_amount = num;
-                            console.log(`   💰 Сумма покупок: ${num}`);
-                        }
-                    }
-                    
-                    // Доступно бесплатных занятий
-                    else if (fieldName.includes('Доступно бесплатных занятий')) {
-                        const num = parseInt(value);
-                        if (!isNaN(num) && num > 0) {
-                            profile.remaining_classes = num;
-                            console.log(`   🎁 Бесплатных занятий: ${num}`);
-                        }
-                    }
-                    
-                    // Счетчик занятий за месяц
-                    else if (fieldName.includes('Счетчик занятий за месяц')) {
-                        const num = parseInt(value);
-                        if (!isNaN(num)) {
-                            profile.month_classes = num;
-                            console.log(`   📈 Занятий в месяце: ${num}`);
-                        }
-                    }
+                }
+                
+                // ТИП АБОНЕМЕНТА
+                else if (fieldName.includes('Тип абонемента') || 
+                        fieldName.includes('Абонемент') && 
+                        !fieldName.includes('Активный')) {
+                    profile.subscription_type = value;
+                    console.log(`   🎫 Тип абонемента: ${value}`);
                 }
             }
         }
+    }
+    
+    // ЛОГИЧЕСКИЙ ВЫВОД: Если есть активный абонемент, но нет данных о занятиях
+    if (profile.subscription_type === 'Активный абонемент') {
+        console.log(`\n🔍 АНАЛИЗ ДАННЫХ АБОНЕМЕНТА:`);
         
-        // Если есть активный абонемент, но не указано количество занятий
-        if (profile.subscription_type === 'Активный абонемент' && profile.remaining_classes === 0) {
-            // Устанавливаем разумные значения по умолчанию
-            profile.total_classes = 8; // Стандартный абонемент
-            profile.remaining_classes = 4; // Половина использовано
-            profile.expiration_date = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // Если осталось занятий есть, но нет общего количества
+        if (profile.remaining_classes > 0 && profile.total_classes === 0) {
+            // Пробуем восстановить данные
+            if (profile.used_classes > 0) {
+                profile.total_classes = profile.remaining_classes + profile.used_classes;
+                console.log(`   🧮 Вычислено общее количество: ${profile.total_classes} = ${profile.remaining_classes} + ${profile.used_classes}`);
+            } else {
+                // Устанавливаем разумное значение по умолчанию
+                profile.total_classes = 8;
+                console.log(`   🧮 Установлено общее количество по умолчанию: ${profile.total_classes}`);
+            }
         }
         
-        console.log(`\n✅ ПРОФИЛЬ СОЗДАН:`);
-        console.log('='.repeat(50));
-        console.log(`   👤 Ученик: ${profile.student_name}`);
-        console.log(`   📞 Телефон: ${profile.phone_number}`);
-        console.log(`   📧 Email: ${profile.email}`);
-        console.log(`   🏢 Филиал: ${profile.branch}`);
-        console.log(`   📋 Абонемент: ${profile.subscription_type}`);
-        console.log(`   🎯 Занятий: ${profile.remaining_classes}/${profile.total_classes}`);
-        console.log(`   📅 Действует до: ${profile.expiration_date}`);
-        console.log('='.repeat(50));
+        // Если есть общее количество, но нет использованных
+        if (profile.total_classes > 0 && profile.used_classes === 0) {
+            profile.used_classes = profile.total_classes - profile.remaining_classes;
+            console.log(`   🧮 Вычислено использованных: ${profile.used_classes} = ${profile.total_classes} - ${profile.remaining_classes}`);
+        }
         
-        return profile;
+        // Если нет срока действия, устанавливаем разумный срок
+        if (!profile.expiration_date) {
+            const futureDate = new Date();
+            futureDate.setDate(futureDate.getDate() + 30); // 30 дней от текущей даты
+            profile.expiration_date = futureDate.toISOString().split('T')[0];
+            console.log(`   📅 Установлена дата истечения по умолчанию: ${profile.expiration_date}`);
+        }
     }
+    
+    console.log(`\n✅ ПРОФИЛЬ УЧЕНИКА СОЗДАН:`);
+    console.log('='.repeat(60));
+    console.log(`   👤 Ученик: ${profile.student_name}`);
+    console.log(`   📞 Телефон: ${profile.phone_number}`);
+    console.log(`   🏢 Филиал: ${profile.branch}`);
+    console.log(`   🎫 Тип абонемента: ${profile.subscription_type}`);
+    console.log(`   ✅ Статус: ${profile.subscription_status}`);
+    console.log(`   📊 Занятий: ${profile.remaining_classes}/${profile.total_classes}`);
+    console.log(`   📈 Использовано: ${profile.used_classes}`);
+    console.log(`   📅 Действует до: ${profile.expiration_date}`);
+    console.log(`   👩‍🏫 Преподаватель: ${profile.teacher_name}`);
+    console.log(`   📅 День недели: ${profile.day_of_week}`);
+    console.log(`   ⏰ Время: ${profile.time_slot}`);
+    console.log('='.repeat(60));
+    
+    return profile;
+}
 
     async getStudentsByPhone(phoneNumber) {
         console.log(`\n🎯 ПОЛНЫЙ ПОИСК УЧЕНИКОВ ПО ТЕЛЕФОНУ`);
