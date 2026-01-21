@@ -2000,6 +2000,63 @@ app.get('/api/debug/phone/:phone', async (req, res) => {
     }
 });
 
+// Маршрут для проверки воронок
+app.get('/api/debug/pipelines', async (req, res) => {
+    try {
+        console.log(`\n🔍 ПОЛУЧЕНИЕ СПИСКА ВОРОНОК`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем все воронки
+        const pipelines = await amoCrmService.makeRequest('GET', '/api/v4/leads/pipelines');
+        
+        console.log('\n📋 ВСЕ ВОРОНКИ:');
+        console.log('='.repeat(80));
+        
+        if (pipelines && pipelines._embedded && pipelines._embedded.pipelines) {
+            pipelines._embedded.pipelines.forEach(pipeline => {
+                console.log(`🏷️  ${pipeline.id}: "${pipeline.name}"`);
+                
+                // Получаем статусы для этой воронки
+                amoCrmService.makeRequest('GET', `/api/v4/leads/pipelines/${pipeline.id}/statuses`)
+                    .then(statuses => {
+                        if (statuses && statuses._embedded && statuses._embedded.statuses) {
+                            console.log(`   Статусы (${statuses._embedded.statuses.length}):`);
+                            statuses._embedded.statuses.forEach(status => {
+                                console.log(`     • ${status.id}: "${status.name}"`);
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        console.log(`   ❌ Ошибка получения статусов: ${err.message}`);
+                    });
+            });
+        }
+        
+        res.json({
+            success: true,
+            pipelines_count: pipelines._embedded?.pipelines?.length || 0,
+            pipelines: pipelines._embedded?.pipelines?.map(p => ({
+                id: p.id,
+                name: p.name,
+                is_main: p.is_main
+            })) || []
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения воронок:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 app.get('/api/profile/:id', async (req, res) => {
     try {
         const profileId = req.params.id;
