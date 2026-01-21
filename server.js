@@ -805,6 +805,141 @@ parseClassesCount(value) {
         const leadName = lead.name || '';
         
         console.log(`\n🔍 Анализ абонемента в сделке: "${leadName}"`);
+        console.log(`📊 ID статуса: ${lead.status_id}, ID воронки: ${lead.pipeline_id}`);
+        
+        // ============ ВАЖНОЕ ИЗМЕНЕНИЕ ============
+        // Проверяем название сделки и статус на наличие признаков абонемента
+        
+        const leadNameLower = leadName.toLowerCase();
+        
+        // Если в названии есть признаки абонемента
+        if (leadNameLower.includes('абонемент') || 
+            leadNameLower.includes('подписка') ||
+            leadNameLower.includes('занятий') ||
+            leadNameLower.includes('курс')) {
+            subscriptionInfo.hasSubscription = true;
+            
+            // Пытаемся извлечь количество из названия
+            const nameMatch = leadName.match(/(\d+)\s*занятий?/i);
+            if (nameMatch) {
+                subscriptionInfo.totalClasses = parseInt(nameMatch[1]);
+                console.log(`📊 Найдено в названии: ${subscriptionInfo.totalClasses} занятий`);
+            }
+        }
+        
+        // Проверяем статус сделки
+        // Статус 143 обычно "Успешно реализовано", 142 - "Закрыто и не реализовано"
+        // Нужен активный статус (например, в воронке абонементов)
+        const isClosedStatus = [142, 143].includes(lead.status_id);
+        console.log(`📊 Статус закрытый: ${isClosedStatus}`);
+        
+        // ============ ПРОВЕРЯЕМ КАСТОМНЫЕ ПОЛЯ ============
+        
+        for (const field of customFields) {
+            const fieldName = this.getFieldName(field).toLowerCase();
+            const fieldValue = this.getFieldValue(field);
+            
+            if (!fieldValue || fieldValue.trim() === '') continue;
+            
+            console.log(`   📋 Поле: "${fieldName}" = "${fieldValue}"`);
+            
+            // Ищем все возможные варианты названий полей
+            if (fieldName.includes('количество занятий') || 
+                fieldName.includes('занятий в абонементе') ||
+                fieldName.includes('всего занятий') ||
+                fieldName.includes('абонемент на') ||
+                (fieldName.includes('абонемент') && fieldName.includes('занятий'))) {
+                
+                subscriptionInfo.totalClasses = this.parseClassesCount(fieldValue);
+                subscriptionInfo.hasSubscription = true;
+                console.log(`   📊 Всего занятий: ${subscriptionInfo.totalClasses}`);
+            }
+            
+            else if (fieldName.includes('использовано') ||
+                     fieldName.includes('пройдено') ||
+                     fieldName.includes('посещено') ||
+                     fieldName.includes('счетчик')) {
+                
+                subscriptionInfo.usedClasses = this.parseClassesCount(fieldValue);
+                subscriptionInfo.hasSubscription = true;
+                console.log(`   📊 Использовано занятий: ${subscriptionInfo.usedClasses}`);
+            }
+            
+            else if (fieldName.includes('остаток') ||
+                     fieldName.includes('осталось') ||
+                     fieldName.includes('баланс')) {
+                
+                subscriptionInfo.remainingClasses = this.parseClassesCount(fieldValue);
+                subscriptionInfo.hasSubscription = true;
+                console.log(`   📊 Остаток занятий: ${subscriptionInfo.remainingClasses}`);
+            }
+            
+            else if (fieldName.includes('дата окончания') ||
+                     fieldName.includes('окончание') ||
+                     fieldName.includes('действует до')) {
+                
+                subscriptionInfo.expirationDate = this.parseDate(fieldValue);
+                subscriptionInfo.hasSubscription = true;
+                console.log(`   📅 Дата окончания: ${subscriptionInfo.expirationDate}`);
+            }
+        }
+        
+        // ============ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ============
+        // Если сделка активна (не закрыта) И есть признаки абонемента
+        if (!isClosedStatus && subscriptionInfo.hasSubscription) {
+            console.log(`🎯 Сделка активна и содержит абонемент!`);
+            
+            // Если нет данных о занятиях, но есть абонемент
+            if (subscriptionInfo.totalClasses === 0 && subscriptionInfo.hasSubscription) {
+                // Попробуем установить дефолтное значение
+                subscriptionInfo.totalClasses = 8; // или 12, или другое типичное значение
+                console.log(`ℹ️  Установлено дефолтное значение: ${subscriptionInfo.totalClasses} занятий`);
+            }
+        }
+        
+        // Рассчитываем недостающие значения
+        if (subscriptionInfo.hasSubscription) {
+            // Если есть общее количество и использовано, но нет остатка
+            if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.usedClasses > 0 && subscriptionInfo.remainingClasses === 0) {
+                subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
+                console.log(`ℹ️  Рассчитан остаток: ${subscriptionInfo.remainingClasses}`);
+            }
+            
+            // Если есть общее количество и остаток, но нет использованных
+            else if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.remainingClasses > 0 && subscriptionInfo.usedClasses === 0) {
+                subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
+                console.log(`ℹ️  Рассчитано использованных: ${subscriptionInfo.usedClasses}`);
+            }
+            
+            // Формируем статус
+            if (isClosedStatus) {
+                subscriptionInfo.subscriptionStatus = 'Абонемент завершен';
+                subscriptionInfo.subscriptionBadge = 'expired';
+                subscriptionInfo.subscriptionActive = false;
+            } else if (subscriptionInfo.remainingClasses > 0) {
+                subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses} занятий)`;
+                subscriptionInfo.subscriptionBadge = 'active';
+                subscriptionInfo.subscriptionActive = true;
+            } else if (subscriptionInfo.totalClasses > 0) {
+                subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
+                subscriptionInfo.subscriptionBadge = 'has_subscription';
+                subscriptionInfo.subscriptionActive = true;
+            } else {
+                subscriptionInfo.subscriptionStatus = 'Активный абонемент';
+                subscriptionInfo.subscriptionBadge = 'active';
+                subscriptionInfo.subscriptionActive = true;
+            }
+        }
+        
+        console.log(`🎯 Итоговый статус: ${subscriptionInfo.subscriptionStatus}`);
+        console.log(`🏷️  Бейдж: ${subscriptionInfo.subscriptionBadge}`);
+        
+    } catch (error) {
+        console.error('❌ Ошибка извлечения информации об абонементе:', error);
+    }
+    
+    return subscriptionInfo;
+}
         
         // ============ КОНФИГУРАЦИЯ ПОЛЕЙ AMOCRM ============
         const FIELD_MAPPINGS = {
@@ -1704,6 +1839,107 @@ app.get('/api/debug/lead/:id', async (req, res) => {
                 status: error.response.status,
                 data: error.response.data
             } : null
+        });
+    }
+});
+
+// Быстрая проверка нескольких сделок
+app.get('/api/debug/check-leads', async (req, res) => {
+    try {
+        console.log(`\n🔍 ПРОВЕРКА СДЕЛОК НА НАЛИЧИЕ АБОНЕМЕНТОВ`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Возьмем несколько ID сделок для проверки
+        const leadIds = [
+            18153229, // "Круглова" - интересное название
+            20104751, // "Рассылка май 24" - другая воронка (5951374)
+            20263225  // "Новый лид от Tilda"
+        ];
+        
+        const results = [];
+        
+        for (const leadId of leadIds) {
+            console.log(`\n📋 Проверка сделки ID: ${leadId}`);
+            
+            try {
+                const lead = await amoCrmService.makeRequest(
+                    'GET',
+                    `/api/v4/leads/${leadId}?with=custom_fields_values`
+                );
+                
+                console.log(`   Название: "${lead.name}"`);
+                console.log(`   Воронка: ${lead.pipeline_id}, Статус: ${lead.status_id}`);
+                
+                const leadInfo = {
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id,
+                    has_fields: lead.custom_fields_values ? lead.custom_fields_values.length > 0 : false,
+                    fields: []
+                };
+                
+                // Проверяем поля на наличие информации об абонементе
+                if (lead.custom_fields_values && lead.custom_fields_values.length > 0) {
+                    console.log(`   Поля (${lead.custom_fields_values.length}):`);
+                    
+                    lead.custom_fields_values.forEach(field => {
+                        const fieldName = amoCrmService.getFieldName(field).toLowerCase();
+                        const fieldValue = amoCrmService.getFieldValue(field);
+                        
+                        // Показываем только интересные поля
+                        if (fieldName.includes('абонемент') || 
+                            fieldName.includes('занят') || 
+                            fieldName.includes('счетчик') ||
+                            fieldName.includes('остаток') ||
+                            fieldName.includes('ученик') ||
+                            fieldName.includes('ребенок')) {
+                            console.log(`      • "${fieldName}": ${fieldValue}`);
+                            
+                            leadInfo.fields.push({
+                                name: fieldName,
+                                value: fieldValue
+                            });
+                        }
+                    });
+                }
+                
+                // Проверяем парсинг абонемента
+                const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                leadInfo.subscription = subscriptionInfo;
+                console.log(`   Парсинг абонемента: ${subscriptionInfo.hasSubscription ? '✅ Найден' : '❌ Не найден'}`);
+                if (subscriptionInfo.hasSubscription) {
+                    console.log(`      Занятий: ${subscriptionInfo.totalClasses}/${subscriptionInfo.usedClasses}/${subscriptionInfo.remainingClasses}`);
+                }
+                
+                results.push(leadInfo);
+                
+            } catch (leadError) {
+                console.log(`   ❌ Ошибка: ${leadError.message}`);
+                results.push({
+                    id: leadId,
+                    error: leadError.message
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            leads_checked: results.length,
+            results: results
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки сделок:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
