@@ -377,148 +377,148 @@ class AmoCrmService {
     }
 
     // ОСНОВНОЙ МЕТОД: Получение всех профилей учеников по телефону
-  async getStudentsByPhone(phoneNumber) {
-    console.log(`\n🎯 ПОЛУЧЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
-    
-    const studentProfiles = [];
-    
-    if (!this.isInitialized) {
-        console.log('❌ amoCRM не инициализирован');
-        return studentProfiles;
-    }
-    
-    try {
-        // 1. Ищем контакты по телефону
-        const contactsResponse = await this.searchContactsByPhone(phoneNumber);
-        const contacts = contactsResponse._embedded?.contacts || [];
+    async getStudentsByPhone(phoneNumber) {
+        console.log(`\n🎯 ПОЛУЧЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
         
-        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        const studentProfiles = [];
         
-        for (const contact of contacts) {
-            console.log(`\n👤 Анализ контакта: ${contact.name} (ID: ${contact.id})`);
+        if (!this.isInitialized) {
+            console.log('❌ amoCRM не инициализирован');
+            return studentProfiles;
+        }
+        
+        try {
+            // 1. Ищем контакты по телефону
+            const contactsResponse = await this.searchContactsByPhone(phoneNumber);
+            const contacts = contactsResponse._embedded?.contacts || [];
             
-            // 2. Получаем полную информацию о контакте
-            const fullContact = await this.getFullContactInfo(contact.id);
-            if (!fullContact) continue;
+            console.log(`📊 Найдено контактов: ${contacts.length}`);
             
-            // 3. Ищем активные абонементы
-            const activeSubscriptions = await this.findActiveSubscriptions(contact.id);
-            
-            // 4. Если нет активных абонементов, берем последнюю сделку с абонементом
-            let subscriptionsToUse = activeSubscriptions;
-            if (activeSubscriptions.length === 0) {
-                console.log(`⚠️  Активных абонементов не найдено, ищем любые абонементы...`);
+            for (const contact of contacts) {
+                console.log(`\n👤 Анализ контакта: ${contact.name} (ID: ${contact.id})`);
                 
-                // Получаем все сделки
-                const allLeads = await this.getContactLeads(contact.id);
+                // 2. Получаем полную информацию о контакте
+                const fullContact = await this.getFullContactInfo(contact.id);
+                if (!fullContact) continue;
                 
-                // Ищем сделки с полями абонемента
-                const leadsWithSubscription = allLeads.filter(lead => 
-                    lead.custom_fields_values?.some(f => {
-                        const fieldId = f.field_id || f.id;
-                        return [850241, 850257, 890163].includes(fieldId);
-                    })
-                );
+                // 3. Ищем активные абонементы
+                const activeSubscriptions = await this.findActiveSubscriptions(contact.id);
                 
-                // Берем последнюю
-                if (leadsWithSubscription.length > 0) {
-                    leadsWithSubscription.sort((a, b) => 
-                        new Date(b.created_at) - new Date(a.created_at)
+                // 4. Если нет активных абонементов, берем последнюю сделку с абонементом
+                let subscriptionsToUse = activeSubscriptions;
+                if (activeSubscriptions.length === 0) {
+                    console.log(`⚠️  Активных абонементов не найдено, ищем любые абонементы...`);
+                    
+                    // Получаем все сделки
+                    const allLeads = await this.getContactLeads(contact.id);
+                    
+                    // Ищем сделки с полями абонемента
+                    const leadsWithSubscription = allLeads.filter(lead => 
+                        lead.custom_fields_values?.some(f => {
+                            const fieldId = f.field_id || f.id;
+                            return [850241, 850257, 890163].includes(fieldId);
+                        })
                     );
                     
-                    const latestLead = leadsWithSubscription[0];
-                    const subscriptionInfo = this.extractSubscriptionInfo(latestLead);
-                    
-                    subscriptionsToUse = [{
-                        lead_id: latestLead.id,
-                        lead_name: latestLead.name,
-                        status_id: latestLead.status_id,
-                        subscription: subscriptionInfo
-                    }];
-                }
-            }
-            
-            // 5. Извлекаем информацию о детях из контакта
-            const childrenFromContact = this.extractStudentsFromContact(fullContact);
-            
-            // 6. Если в контакте нет детей, создаем одного из основной информации
-            if (childrenFromContact.length === 0) {
-                const mainStudent = this.extractStudentInfoFromContact(fullContact);
-                if (mainStudent.studentName && mainStudent.studentName.trim() !== '') {
-                    childrenFromContact.push(mainStudent);
-                }
-            }
-            
-            console.log(`📊 Найдено детей в контакте: ${childrenFromContact.length}`);
-            console.log(`📊 Найдено абонементов для обработки: ${subscriptionsToUse.length}`);
-            
-            // 7. Создаем профили для каждого ребенка
-            for (const childInfo of childrenFromContact) {
-                console.log(`\n👤 Создание профиля для: ${childInfo.studentName}`);
-                
-                // 8. Находим подходящий абонемент для этого ребенка
-                let bestSubscription = subscriptionsToUse[0]; // Берем первый/последний
-                
-                // Если есть несколько абонементов, пытаемся найти подходящий по имени
-                if (subscriptionsToUse.length > 1 && childInfo.studentName) {
-                    for (const sub of subscriptionsToUse) {
-                        // Получаем сделку для анализа имени ученика в ней
-                        const lead = await this.getFullLeadInfo(sub.lead_id);
-                        if (lead) {
-                            const leadStudentInfo = this.extractStudentInfoFromLead(lead);
-                            if (leadStudentInfo.studentName && 
-                                leadStudentInfo.studentName.includes(childInfo.studentName.split(' ')[0])) {
-                                bestSubscription = sub;
-                                break;
-                            }
-                        }
+                    // Берем последнюю
+                    if (leadsWithSubscription.length > 0) {
+                        leadsWithSubscription.sort((a, b) => 
+                            new Date(b.created_at) - new Date(a.created_at)
+                        );
+                        
+                        const latestLead = leadsWithSubscription[0];
+                        const subscriptionInfo = this.extractSubscriptionInfo(latestLead);
+                        
+                        subscriptionsToUse = [{
+                            lead_id: latestLead.id,
+                            lead_name: latestLead.name,
+                            status_id: latestLead.status_id,
+                            subscription: subscriptionInfo
+                        }];
                     }
                 }
                 
-                // 9. Создаем профиль
-                let leadData = null;
-                if (bestSubscription) {
-                    leadData = await this.getFullLeadInfo(bestSubscription.lead_id);
+                // 5. Извлекаем информацию о детях из контакта
+                const childrenFromContact = this.extractStudentsFromContact(fullContact);
+                
+                // 6. Если в контакте нет детей, создаем одного из основной информации
+                if (childrenFromContact.length === 0) {
+                    const mainStudent = this.extractStudentInfoFromContact(fullContact);
+                    if (mainStudent.studentName && mainStudent.studentName.trim() !== '') {
+                        childrenFromContact.push(mainStudent);
+                    }
                 }
                 
-                const studentProfile = this.createStudentProfile(
-                    fullContact,
-                    phoneNumber,
-                    childInfo,
-                    bestSubscription ? bestSubscription.subscription : this.extractSubscriptionInfo(null),
-                    leadData
-                );
+                console.log(`📊 Найдено детей в контакте: ${childrenFromContact.length}`);
+                console.log(`📊 Найдено абонементов для обработки: ${subscriptionsToUse.length}`);
                 
-                studentProfiles.push(studentProfile);
-                console.log(`✅ Профиль создан: ${childInfo.studentName}`);
-                
-                // Ограничиваем одним профилем на ребенка (берем самый подходящий абонемент)
-                break;
+                // 7. Создаем профили для каждого ребенка
+                for (const childInfo of childrenFromContact) {
+                    console.log(`\n👤 Создание профиля для: ${childInfo.studentName}`);
+                    
+                    // 8. Находим подходящий абонемент для этого ребенка
+                    let bestSubscription = subscriptionsToUse[0]; // Берем первый/последний
+                    
+                    // Если есть несколько абонементов, пытаемся найти подходящий по имени
+                    if (subscriptionsToUse.length > 1 && childInfo.studentName) {
+                        for (const sub of subscriptionsToUse) {
+                            // Получаем сделку для анализа имени ученика в ней
+                            const lead = await this.getFullLeadInfo(sub.lead_id);
+                            if (lead) {
+                                const leadStudentInfo = this.extractStudentInfoFromLead(lead);
+                                if (leadStudentInfo.studentName && 
+                                    leadStudentInfo.studentName.includes(childInfo.studentName.split(' ')[0])) {
+                                    bestSubscription = sub;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 9. Создаем профиль
+                    let leadData = null;
+                    if (bestSubscription) {
+                        leadData = await this.getFullLeadInfo(bestSubscription.lead_id);
+                    }
+                    
+                    const studentProfile = this.createStudentProfile(
+                        fullContact,
+                        phoneNumber,
+                        childInfo,
+                        bestSubscription ? bestSubscription.subscription : this.extractSubscriptionInfo(null),
+                        leadData
+                    );
+                    
+                    studentProfiles.push(studentProfile);
+                    console.log(`✅ Профиль создан: ${childInfo.studentName}`);
+                    
+                    // Ограничиваем одним профилем на ребенка (берем самый подходящий абонемент)
+                    break;
+                }
             }
+            
+            console.log(`\n🎯 ИТОГО создано профилей: ${studentProfiles.length}`);
+            
+        } catch (crmError) {
+            console.error(`❌ Ошибка получения данных из amoCRM:`, crmError.message);
+            return [];
         }
         
-        console.log(`\n🎯 ИТОГО создано профилей: ${studentProfiles.length}`);
-        
-    } catch (crmError) {
-        console.error(`❌ Ошибка получения данных из amoCRM:`, crmError.message);
-        return [];
+        return studentProfiles;
     }
-    
-    return studentProfiles;
-}
 
-// Вспомогательный метод для получения полной информации о сделке
-async getFullLeadInfo(leadId) {
-    try {
-        return await this.makeRequest(
-            'GET',
-            `/api/v4/leads/${leadId}?with=custom_fields_values`
-        );
-    } catch (error) {
-        console.error(`❌ Ошибка получения сделки ${leadId}:`, error.message);
-        return null;
+    // Вспомогательный метод для получения полной информации о сделке
+    async getFullLeadInfo(leadId) {
+        try {
+            return await this.makeRequest(
+                'GET',
+                `/api/v4/leads/${leadId}?with=custom_fields_values`
+            );
+        } catch (error) {
+            console.error(`❌ Ошибка получения сделки ${leadId}:`, error.message);
+            return null;
+        }
     }
-}
 
     // Метод для извлечения информации об ученике из сделки
     extractStudentInfoFromLead(lead) {
@@ -798,243 +798,243 @@ async getFullLeadInfo(leadId) {
         }
     }
 
-// В методе extractSubscriptionInfo добавим логику для вашей системы:
-extractSubscriptionInfo(lead) {
-    const subscriptionInfo = {
-        hasSubscription: false,
-        totalClasses: 0,
-        usedClasses: 0,
-        remainingClasses: 0,
-        subscriptionType: '',
-        subscriptionActive: false,
-        activationDate: '',
-        expirationDate: '',
-        lastVisitDate: '',
-        subscriptionStatus: 'Нет абонемента',
-        subscriptionBadge: 'inactive'
-    };
-    
-    if (!lead) {
-        return subscriptionInfo;
-    }
-    
-    try {
-        const customFields = lead.custom_fields_values || [];
-        const leadName = lead.name || '';
-        const isClosedDeal = [142, 143].includes(lead.status_id);
-        
-        console.log(`\n🔍 Анализ абонемента в сделке: "${leadName}" (ID: ${lead.id})`);
-        console.log(`📊 Статус сделки: ${lead.status_id} (${isClosedDeal ? 'Закрыта' : 'Активна'})`);
-        
-        // ВАЖНО: Константы с ID полей ВАШЕЙ системы
-        const FIELD_IDS = {
-            // Сделки
-            TOTAL_CLASSES: 850241,    // "Абонемент занятий:"
-            USED_CLASSES: 850257,     // "Счетчик занятий:"
-            REMAINING_CLASSES: 890163, // "Остаток занятий"
-            EXPIRATION_DATE: 850255,  // "Окончание абонемента:"
-            ACTIVATION_DATE: 851565,  // "Дата активации абонемента:"
-            SUBSCRIPTION_TYPE: 891007, // "Тип абонемента"
-            LAST_VISIT_DATE: 850259,  // "Дата последнего визита:" (в сделках)
-            FREEZE: 867693,           // "Заморозка абонемента:"
-            SUBSCRIPTION_OWNER: 805465 // "Принадлежность абонемента:"
+    // В методе extractSubscriptionInfo добавим логику для вашей системы:
+    extractSubscriptionInfo(lead) {
+        const subscriptionInfo = {
+            hasSubscription: false,
+            totalClasses: 0,
+            usedClasses: 0,
+            remainingClasses: 0,
+            subscriptionType: '',
+            subscriptionActive: false,
+            activationDate: '',
+            expirationDate: '',
+            lastVisitDate: '',
+            subscriptionStatus: 'Нет абонемента',
+            subscriptionBadge: 'inactive'
         };
         
-        let foundAnySubscriptionData = false;
-        
-        // Собираем все данные из полей
-        for (const field of customFields) {
-            const fieldId = field.field_id || field.id;
-            const fieldName = this.getFieldName(field);
-            const fieldValue = this.getFieldValue(field);
-            
-            if (!fieldValue || fieldValue.trim() === '') continue;
-            
-            console.log(`   📋 Поле ID ${fieldId}: "${fieldName}" = "${fieldValue}"`);
-            
-            // Общее количество занятий
-            if (fieldId === FIELD_IDS.TOTAL_CLASSES) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                
-                if (fieldValue.includes('4 занятия')) subscriptionInfo.totalClasses = 4;
-                else if (fieldValue.includes('8 занятий')) subscriptionInfo.totalClasses = 8;
-                else if (fieldValue.includes('16 занятий')) subscriptionInfo.totalClasses = 16;
-                else if (fieldValue.includes('24 занятия')) subscriptionInfo.totalClasses = 24;
-                else if (fieldValue.includes('2 занятия')) subscriptionInfo.totalClasses = 2;
-                else if (fieldValue.includes('3 занятия')) subscriptionInfo.totalClasses = 3;
-                else {
-                    const match = fieldValue.match(/\d+/);
-                    if (match) subscriptionInfo.totalClasses = parseInt(match[0]);
-                }
-            }
-            
-            // Счетчик занятий (использовано)
-            else if (fieldId === FIELD_IDS.USED_CLASSES) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                subscriptionInfo.usedClasses = parseInt(fieldValue) || 0;
-            }
-            
-            // Остаток занятий
-            else if (fieldId === FIELD_IDS.REMAINING_CLASSES) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                subscriptionInfo.remainingClasses = parseInt(fieldValue) || 0;
-            }
-            
-            // Дата окончания
-            else if (fieldId === FIELD_IDS.EXPIRATION_DATE) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                subscriptionInfo.expirationDate = this.parseDate(fieldValue);
-            }
-            
-            // Дата активации
-            else if (fieldId === FIELD_IDS.ACTIVATION_DATE) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                subscriptionInfo.activationDate = this.parseDate(fieldValue);
-            }
-            
-            // Дата последнего визита (в сделке)
-            else if (fieldId === FIELD_IDS.LAST_VISIT_DATE) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                subscriptionInfo.lastVisitDate = this.parseDate(fieldValue);
-            }
-            
-            // Тип абонемента
-            else if (fieldId === FIELD_IDS.SUBSCRIPTION_TYPE) {
-                subscriptionInfo.hasSubscription = true;
-                foundAnySubscriptionData = true;
-                subscriptionInfo.subscriptionType = fieldValue;
-            }
+        if (!lead) {
+            return subscriptionInfo;
         }
         
-        // Если нашли данные об абонементе
-        if (subscriptionInfo.hasSubscription) {
-            console.log(`📊 Данные абонемента:`);
-            console.log(`   • Всего занятий: ${subscriptionInfo.totalClasses}`);
-            console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
-            console.log(`   • Остаток: ${subscriptionInfo.remainingClasses}`);
-            if (subscriptionInfo.activationDate) console.log(`   • Активация: ${subscriptionInfo.activationDate}`);
-            if (subscriptionInfo.expirationDate) console.log(`   • Окончание: ${subscriptionInfo.expirationDate}`);
-            if (subscriptionInfo.lastVisitDate) console.log(`   • Последний визит: ${subscriptionInfo.lastVisitDate}`);
+        try {
+            const customFields = lead.custom_fields_values || [];
+            const leadName = lead.name || '';
+            const isClosedDeal = [142, 143].includes(lead.status_id);
             
-            // ============ ЛОГИКА РАСЧЕТА ============
+            console.log(`\n🔍 Анализ абонемента в сделке: "${leadName}" (ID: ${lead.id})`);
+            console.log(`📊 Статус сделки: ${lead.status_id} (${isClosedDeal ? 'Закрыта' : 'Активна'})`);
             
-            // 1. Если есть счетчик ИЛИ остаток - используем их
-            if (subscriptionInfo.usedClasses > 0 || subscriptionInfo.remainingClasses > 0) {
-                // Если есть использованные, но нет остатка
-                if (subscriptionInfo.usedClasses > 0 && subscriptionInfo.remainingClasses === 0 && subscriptionInfo.totalClasses > 0) {
-                    subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
-                    console.log(`ℹ️  Рассчитан остаток: ${subscriptionInfo.remainingClasses}`);
+            // ВАЖНО: Константы с ID полей ВАШЕЙ системы
+            const FIELD_IDS = {
+                // Сделки
+                TOTAL_CLASSES: 850241,    // "Абонемент занятий:"
+                USED_CLASSES: 850257,     // "Счетчик занятий:"
+                REMAINING_CLASSES: 890163, // "Остаток занятий"
+                EXPIRATION_DATE: 850255,  // "Окончание абонемента:"
+                ACTIVATION_DATE: 851565,  // "Дата активации абонемента:"
+                SUBSCRIPTION_TYPE: 891007, // "Тип абонемента"
+                LAST_VISIT_DATE: 850259,  // "Дата последнего визита:" (в сделках)
+                FREEZE: 867693,           // "Заморозка абонемента:"
+                SUBSCRIPTION_OWNER: 805465 // "Принадлежность абонемента:"
+            };
+            
+            let foundAnySubscriptionData = false;
+            
+            // Собираем все данные из полей
+            for (const field of customFields) {
+                const fieldId = field.field_id || field.id;
+                const fieldName = this.getFieldName(field);
+                const fieldValue = this.getFieldValue(field);
+                
+                if (!fieldValue || fieldValue.trim() === '') continue;
+                
+                console.log(`   📋 Поле ID ${fieldId}: "${fieldName}" = "${fieldValue}"`);
+                
+                // Общее количество занятий
+                if (fieldId === FIELD_IDS.TOTAL_CLASSES) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    
+                    if (fieldValue.includes('4 занятия')) subscriptionInfo.totalClasses = 4;
+                    else if (fieldValue.includes('8 занятий')) subscriptionInfo.totalClasses = 8;
+                    else if (fieldValue.includes('16 занятий')) subscriptionInfo.totalClasses = 16;
+                    else if (fieldValue.includes('24 занятия')) subscriptionInfo.totalClasses = 24;
+                    else if (fieldValue.includes('2 занятия')) subscriptionInfo.totalClasses = 2;
+                    else if (fieldValue.includes('3 занятия')) subscriptionInfo.totalClasses = 3;
+                    else {
+                        const match = fieldValue.match(/\d+/);
+                        if (match) subscriptionInfo.totalClasses = parseInt(match[0]);
+                    }
                 }
                 
-                // Если есть остаток, но нет использованных
-                else if (subscriptionInfo.remainingClasses > 0 && subscriptionInfo.usedClasses === 0 && subscriptionInfo.totalClasses > 0) {
-                    subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
-                    console.log(`ℹ️  Рассчитано использованных: ${subscriptionInfo.usedClasses}`);
+                // Счетчик занятий (использовано)
+                else if (fieldId === FIELD_IDS.USED_CLASSES) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    subscriptionInfo.usedClasses = parseInt(fieldValue) || 0;
+                }
+                
+                // Остаток занятий
+                else if (fieldId === FIELD_IDS.REMAINING_CLASSES) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    subscriptionInfo.remainingClasses = parseInt(fieldValue) || 0;
+                }
+                
+                // Дата окончания
+                else if (fieldId === FIELD_IDS.EXPIRATION_DATE) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    subscriptionInfo.expirationDate = this.parseDate(fieldValue);
+                }
+                
+                // Дата активации
+                else if (fieldId === FIELD_IDS.ACTIVATION_DATE) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    subscriptionInfo.activationDate = this.parseDate(fieldValue);
+                }
+                
+                // Дата последнего визита (в сделке)
+                else if (fieldId === FIELD_IDS.LAST_VISIT_DATE) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    subscriptionInfo.lastVisitDate = this.parseDate(fieldValue);
+                }
+                
+                // Тип абонемента
+                else if (fieldId === FIELD_IDS.SUBSCRIPTION_TYPE) {
+                    subscriptionInfo.hasSubscription = true;
+                    foundAnySubscriptionData = true;
+                    subscriptionInfo.subscriptionType = fieldValue;
                 }
             }
-            // 2. Если нет данных о счетчике и остатке
-            else if (subscriptionInfo.totalClasses > 0) {
-                // ============ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ============
-                // Проверяем дату последнего визита
-                if (subscriptionInfo.lastVisitDate) {
-                    const lastVisit = new Date(subscriptionInfo.lastVisitDate);
-                    const now = new Date();
-                    const daysSinceLastVisit = (now - lastVisit) / (1000 * 60 * 60 * 24);
+            
+            // Если нашли данные об абонементе
+            if (subscriptionInfo.hasSubscription) {
+                console.log(`📊 Данные абонемента:`);
+                console.log(`   • Всего занятий: ${subscriptionInfo.totalClasses}`);
+                console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
+                console.log(`   • Остаток: ${subscriptionInfo.remainingClasses}`);
+                if (subscriptionInfo.activationDate) console.log(`   • Активация: ${subscriptionInfo.activationDate}`);
+                if (subscriptionInfo.expirationDate) console.log(`   • Окончание: ${subscriptionInfo.expirationDate}`);
+                if (subscriptionInfo.lastVisitDate) console.log(`   • Последний визит: ${subscriptionInfo.lastVisitDate}`);
+                
+                // ============ ЛОГИКА РАСЧЕТА ============
+                
+                // 1. Если есть счетчик ИЛИ остаток - используем их
+                if (subscriptionInfo.usedClasses > 0 || subscriptionInfo.remainingClasses > 0) {
+                    // Если есть использованные, но нет остатка
+                    if (subscriptionInfo.usedClasses > 0 && subscriptionInfo.remainingClasses === 0 && subscriptionInfo.totalClasses > 0) {
+                        subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
+                        console.log(`ℹ️  Рассчитан остаток: ${subscriptionInfo.remainingClasses}`);
+                    }
                     
-                    // Если был визит недавно, предполагаем использованные занятия
-                    if (daysSinceLastVisit < 30) {
-                        // Примерная логика: 1 занятие в неделю
-                        const weeksSinceActivation = subscriptionInfo.activationDate 
-                            ? (now - new Date(subscriptionInfo.activationDate)) / (1000 * 60 * 60 * 24 * 7)
-                            : 8; // примерно 2 месяца
+                    // Если есть остаток, но нет использованных
+                    else if (subscriptionInfo.remainingClasses > 0 && subscriptionInfo.usedClasses === 0 && subscriptionInfo.totalClasses > 0) {
+                        subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
+                        console.log(`ℹ️  Рассчитано использованных: ${subscriptionInfo.usedClasses}`);
+                    }
+                }
+                // 2. Если нет данных о счетчике и остатке
+                else if (subscriptionInfo.totalClasses > 0) {
+                    // ============ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ============
+                    // Проверяем дату последнего визита
+                    if (subscriptionInfo.lastVisitDate) {
+                        const lastVisit = new Date(subscriptionInfo.lastVisitDate);
+                        const now = new Date();
+                        const daysSinceLastVisit = (now - lastVisit) / (1000 * 60 * 60 * 24);
                         
-                        const estimatedUsed = Math.min(
-                            subscriptionInfo.totalClasses,
-                            Math.max(1, Math.floor(weeksSinceActivation))
-                        );
-                        
-                        subscriptionInfo.usedClasses = estimatedUsed;
-                        subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - estimatedUsed);
-                        
-                        console.log(`ℹ️  Был визит ${Math.round(daysSinceLastVisit)} дней назад, предполагаем ${estimatedUsed} использованных занятий`);
+                        // Если был визит недавно, предполагаем использованные занятия
+                        if (daysSinceLastVisit < 30) {
+                            // Примерная логика: 1 занятие в неделю
+                            const weeksSinceActivation = subscriptionInfo.activationDate 
+                                ? (now - new Date(subscriptionInfo.activationDate)) / (1000 * 60 * 60 * 24 * 7)
+                                : 8; // примерно 2 месяца
+                            
+                            const estimatedUsed = Math.min(
+                                subscriptionInfo.totalClasses,
+                                Math.max(1, Math.floor(weeksSinceActivation))
+                            );
+                            
+                            subscriptionInfo.usedClasses = estimatedUsed;
+                            subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - estimatedUsed);
+                            
+                            console.log(`ℹ️  Был визит ${Math.round(daysSinceLastVisit)} дней назад, предполагаем ${estimatedUsed} использованных занятий`);
+                        } else {
+                            // Если давно не было визитов, показываем все доступными
+                            subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
+                            subscriptionInfo.usedClasses = 0;
+                            console.log(`ℹ️  Давно не было визитов, показываем все занятия доступными`);
+                        }
                     } else {
-                        // Если давно не было визитов, показываем все доступными
+                        // Если нет данных о визитах, показываем все доступными
                         subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
                         subscriptionInfo.usedClasses = 0;
-                        console.log(`ℹ️  Давно не было визитов, показываем все занятия доступными`);
+                        console.log(`ℹ️  Нет данных о визитах, показываем все занятия доступными`);
                     }
-                } else {
-                    // Если нет данных о визитах, показываем все доступными
-                    subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
-                    subscriptionInfo.usedClasses = 0;
-                    console.log(`ℹ️  Нет данных о визитах, показываем все занятия доступными`);
                 }
-            }
-            
-            // ============ ОПРЕДЕЛЕНИЕ СТАТУСА ============
-            
-            // Проверяем дату окончания
-            let isExpiredByDate = false;
-            if (subscriptionInfo.expirationDate) {
-                const expiration = new Date(subscriptionInfo.expirationDate);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
                 
-                if (expiration < today) {
-                    isExpiredByDate = true;
-                    console.log(`⚠️  Абонемент просрочен по дате`);
+                // ============ ОПРЕДЕЛЕНИЕ СТАТУСА ============
+                
+                // Проверяем дату окончания
+                let isExpiredByDate = false;
+                if (subscriptionInfo.expirationDate) {
+                    const expiration = new Date(subscriptionInfo.expirationDate);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    if (expiration < today) {
+                        isExpiredByDate = true;
+                        console.log(`⚠️  Абонемент просрочен по дате`);
+                    }
                 }
+                
+                // Проверяем остаток занятий
+                const hasRemainingClasses = subscriptionInfo.remainingClasses > 0;
+                
+                // Определяем статус
+                if (isExpiredByDate) {
+                    subscriptionInfo.subscriptionStatus = `Абонемент истек`;
+                    subscriptionInfo.subscriptionBadge = 'expired';
+                    subscriptionInfo.subscriptionActive = false;
+                } 
+                else if (!hasRemainingClasses && subscriptionInfo.usedClasses > 0) {
+                    subscriptionInfo.subscriptionStatus = `Занятия закончились`;
+                    subscriptionInfo.subscriptionBadge = 'expired';
+                    subscriptionInfo.subscriptionActive = false;
+                }
+                else if (hasRemainingClasses) {
+                    subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
+                    subscriptionInfo.subscriptionBadge = 'active';
+                    subscriptionInfo.subscriptionActive = true;
+                }
+                else if (subscriptionInfo.totalClasses > 0) {
+                    subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
+                    subscriptionInfo.subscriptionBadge = 'has_subscription';
+                    subscriptionInfo.subscriptionActive = true;
+                }
+                
+                // Если тип не указан
+                if (!subscriptionInfo.subscriptionType || subscriptionInfo.subscriptionType.trim() === '') {
+                    subscriptionInfo.subscriptionType = subscriptionInfo.totalClasses > 0 
+                        ? `Абонемент на ${subscriptionInfo.totalClasses} занятий`
+                        : 'Активный абонемент';
+                }
+                
+                console.log(`🎯 Итоговый статус: ${subscriptionInfo.subscriptionStatus}`);
+                console.log(`🏷️  Бейдж: ${subscriptionInfo.subscriptionBadge}`);
+                console.log(`✅ Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
             }
             
-            // Проверяем остаток занятий
-            const hasRemainingClasses = subscriptionInfo.remainingClasses > 0;
-            
-            // Определяем статус
-            if (isExpiredByDate) {
-                subscriptionInfo.subscriptionStatus = `Абонемент истек`;
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            } 
-            else if (!hasRemainingClasses && subscriptionInfo.usedClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `Занятия закончились`;
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            }
-            else if (hasRemainingClasses) {
-                subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
-                subscriptionInfo.subscriptionBadge = 'active';
-                subscriptionInfo.subscriptionActive = true;
-            }
-            else if (subscriptionInfo.totalClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
-                subscriptionInfo.subscriptionBadge = 'has_subscription';
-                subscriptionInfo.subscriptionActive = true;
-            }
-            
-            // Если тип не указан
-            if (!subscriptionInfo.subscriptionType || subscriptionInfo.subscriptionType.trim() === '') {
-                subscriptionInfo.subscriptionType = subscriptionInfo.totalClasses > 0 
-                    ? `Абонемент на ${subscriptionInfo.totalClasses} занятий`
-                    : 'Активный абонемент';
-            }
-            
-            console.log(`🎯 Итоговый статус: ${subscriptionInfo.subscriptionStatus}`);
-            console.log(`🏷️  Бейдж: ${subscriptionInfo.subscriptionBadge}`);
-            console.log(`✅ Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        } catch (error) {
+            console.error('❌ Ошибка извлечения информации об абонементе:', error);
         }
         
-    } catch (error) {
-        console.error('❌ Ошибка извлечения информации об абонементе:', error);
+        return subscriptionInfo;
     }
-    
-    return subscriptionInfo;
-}
 
     // Метод для поиска email в контакте
     findEmail(contact) {
@@ -1109,6 +1109,96 @@ extractSubscriptionInfo(lead) {
         console.log(`   📊 Занятия: ${profile.used_classes}/${profile.total_classes} (осталось: ${profile.remaining_classes})`);
         
         return profile;
+    }
+
+    // Улучшенный метод для поиска активных абонементов
+    async findActiveSubscriptions(contactId) {
+        console.log(`\n🔍 ПОИСК АКТИВНЫХ АБОНЕМЕНТОВ ДЛЯ КОНТАКТА ID: ${contactId}`);
+        
+        try {
+            // Получаем ВСЕ сделки контакта
+            const leadsResponse = await this.makeRequest(
+                'GET',
+                `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&limit=250`
+            );
+            
+            const allLeads = leadsResponse._embedded?.leads || [];
+            console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+            
+            const activeSubscriptions = [];
+            
+            // Проверяем каждую сделку
+            for (const lead of allLeads) {
+                // Ключевые поля, которые должны быть заполнены для активного абонемента
+                const hasTotalClasses = lead.custom_fields_values?.some(f => 
+                    (f.field_id === 850241 || f.id === 850241) && 
+                    f.values && f.values.length > 0 && 
+                    this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
+                );
+                
+                const hasCounter = lead.custom_fields_values?.some(f => 
+                    (f.field_id === 850257 || f.id === 850257) && 
+                    f.values && f.values.length > 0 && 
+                    this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
+                );
+                
+                const hasRemaining = lead.custom_fields_values?.some(f => 
+                    (f.field_id === 890163 || f.id === 890163) && 
+                    f.values && f.values.length > 0 && 
+                    this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
+                );
+                
+                // Если есть хотя бы одно ключевое поле, анализируем дальше
+                if (hasTotalClasses || hasCounter || hasRemaining) {
+                    console.log(`\n📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+                    console.log(`   Статус: ${lead.status_id}, Есть поля: total=${hasTotalClasses}, counter=${hasCounter}, remaining=${hasRemaining}`);
+                    
+                    // Извлекаем данные об абонементе
+                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                    
+                    // Показываем все заполненные поля
+                    if (lead.custom_fields_values) {
+                        lead.custom_fields_values.forEach(field => {
+                            const fieldId = field.field_id || field.id;
+                            const fieldName = this.getFieldName(field);
+                            const fieldValue = this.getFieldValue(field);
+                            
+                            if (fieldValue && fieldValue.trim() !== '') {
+                                console.log(`   • ${fieldName}: ${fieldValue}`);
+                            }
+                        });
+                    }
+                    
+                    // Если абонемент активен, добавляем в список
+                    if (subscriptionInfo.hasSubscription && subscriptionInfo.subscriptionActive) {
+                        activeSubscriptions.push({
+                            lead_id: lead.id,
+                            lead_name: lead.name,
+                            status_id: lead.status_id,
+                            subscription: subscriptionInfo
+                        });
+                        
+                        console.log(`   🎯 АКТИВНЫЙ АБОНЕМЕНТ НАЙДЕН!`);
+                        console.log(`      ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий осталось`);
+                    }
+                }
+            }
+            
+            console.log(`\n🎯 Найдено активных абонементов: ${activeSubscriptions.length}`);
+            
+            // Сортируем по дате создания (новые сначала)
+            activeSubscriptions.sort((a, b) => {
+                const leadA = allLeads.find(l => l.id === a.lead_id);
+                const leadB = allLeads.find(l => l.id === b.lead_id);
+                return new Date(leadB.created_at) - new Date(leadA.created_at);
+            });
+            
+            return activeSubscriptions;
+            
+        } catch (error) {
+            console.error(`❌ Ошибка поиска активных абонементов: ${error.message}`);
+            return [];
+        }
     }
 }
 
@@ -1251,96 +1341,6 @@ const createTables = async () => {
         throw error;
     }
 };
-
-// Улучшенный метод для поиска активных абонементов
-async findActiveSubscriptions(contactId) {
-    console.log(`\n🔍 ПОИСК АКТИВНЫХ АБОНЕМЕНТОВ ДЛЯ КОНТАКТА ID: ${contactId}`);
-    
-    try {
-        // Получаем ВСЕ сделки контакта
-        const leadsResponse = await this.makeRequest(
-            'GET',
-            `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&limit=250`
-        );
-        
-        const allLeads = leadsResponse._embedded?.leads || [];
-        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
-        
-        const activeSubscriptions = [];
-        
-        // Проверяем каждую сделку
-        for (const lead of allLeads) {
-            // Ключевые поля, которые должны быть заполнены для активного абонемента
-            const hasTotalClasses = lead.custom_fields_values?.some(f => 
-                (f.field_id === 850241 || f.id === 850241) && 
-                f.values && f.values.length > 0 && 
-                this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
-            );
-            
-            const hasCounter = lead.custom_fields_values?.some(f => 
-                (f.field_id === 850257 || f.id === 850257) && 
-                f.values && f.values.length > 0 && 
-                this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
-            );
-            
-            const hasRemaining = lead.custom_fields_values?.some(f => 
-                (f.field_id === 890163 || f.id === 890163) && 
-                f.values && f.values.length > 0 && 
-                this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
-            );
-            
-            // Если есть хотя бы одно ключевое поле, анализируем дальше
-            if (hasTotalClasses || hasCounter || hasRemaining) {
-                console.log(`\n📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
-                console.log(`   Статус: ${lead.status_id}, Есть поля: total=${hasTotalClasses}, counter=${hasCounter}, remaining=${hasRemaining}`);
-                
-                // Извлекаем данные об абонементе
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                
-                // Показываем все заполненные поля
-                if (lead.custom_fields_values) {
-                    lead.custom_fields_values.forEach(field => {
-                        const fieldId = field.field_id || field.id;
-                        const fieldName = this.getFieldName(field);
-                        const fieldValue = this.getFieldValue(field);
-                        
-                        if (fieldValue && fieldValue.trim() !== '') {
-                            console.log(`   • ${fieldName}: ${fieldValue}`);
-                        }
-                    });
-                }
-                
-                // Если абонемент активен, добавляем в список
-                if (subscriptionInfo.hasSubscription && subscriptionInfo.subscriptionActive) {
-                    activeSubscriptions.push({
-                        lead_id: lead.id,
-                        lead_name: lead.name,
-                        status_id: lead.status_id,
-                        subscription: subscriptionInfo
-                    });
-                    
-                    console.log(`   🎯 АКТИВНЫЙ АБОНЕМЕНТ НАЙДЕН!`);
-                    console.log(`      ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий осталось`);
-                }
-            }
-        }
-        
-        console.log(`\n🎯 Найдено активных абонементов: ${activeSubscriptions.length}`);
-        
-        // Сортируем по дате создания (новые сначала)
-        activeSubscriptions.sort((a, b) => {
-            const leadA = allLeads.find(l => l.id === a.lead_id);
-            const leadB = allLeads.find(l => l.id === b.lead_id);
-            return new Date(leadB.created_at) - new Date(leadA.created_at);
-        });
-        
-        return activeSubscriptions;
-        
-    } catch (error) {
-        console.error(`❌ Ошибка поиска активных абонементов: ${error.message}`);
-        return [];
-    }
-}
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
@@ -1745,7 +1745,6 @@ app.post('/api/subscription', async (req, res) => {
 });
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
-
 
 app.get('/api/debug/contact-subscription-status/:contactId', async (req, res) => {
     try {
@@ -2356,8 +2355,6 @@ app.get('/api/debug/find-active-subscription/:phone', async (req, res) => {
         });
     }
 });
-
-
 
 // Поиск активных сделок контакта
 app.get('/api/debug/contact/:id/active-leads', async (req, res) => {
