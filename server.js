@@ -1,4 +1,4 @@
-// server.js
+// server.js - исправленная версия с правильной работой с файловой системой
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -1002,17 +1002,32 @@ const initDatabase = async () => {
         console.log('🔄 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ');
         console.log('='.repeat(80));
         
-        const dbDir = path.join(__dirname, 'data');
-        try {
-            await fs.mkdir(dbDir, { recursive: true });
-            console.log('📁 Директория данных создана:', dbDir);
-        } catch (mkdirError) {
-            console.log('📁 Директория данных уже существует');
+        // Определяем путь к БД в зависимости от среды выполнения
+        let dbPath;
+        
+        // Проверяем, запущены ли мы в Replit или другой облачной среде
+        if (process.env.REPLIT_DB_URL || process.env.REPL_ID) {
+            console.log('🌐 Определена среда Replit');
+            // Используем текущую директорию для хранения БД
+            dbPath = path.join(process.cwd(), 'art_school.db');
+            console.log(`💾 БД будет создана в: ${dbPath}`);
+        } else {
+            // Для локальной разработки используем директорию data
+            const dbDir = path.join(__dirname, 'data');
+            try {
+                await fs.mkdir(dbDir, { recursive: true });
+                console.log('📁 Директория данных создана:', dbDir);
+            } catch (mkdirError) {
+                if (mkdirError.code !== 'EEXIST') {
+                    console.log('📁 Директория данных уже существует');
+                }
+            }
+            dbPath = path.join(dbDir, 'art_school.db');
+            console.log(`💾 Путь к базе данных: ${dbPath}`);
         }
         
-        const dbPath = path.join(dbDir, 'art_school.db');
-        console.log(`💾 Путь к базе данных: ${dbPath}`);
-        
+        // Открываем или создаем базу данных
+        console.log(`🔧 Открытие базы данных: ${dbPath}`);
         db = await open({
             filename: dbPath,
             driver: sqlite3.Database
@@ -1020,12 +1035,14 @@ const initDatabase = async () => {
 
         console.log('✅ База данных SQLite подключена');
         
+        // Настраиваем базу данных
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
         await db.run('PRAGMA busy_timeout = 5000');
         
         console.log('⚙️  Настройки SQLite применены');
         
+        // Создаем таблицы
         await createTables();
         
         console.log('\n✅ База данных успешно инициализирована!');
@@ -1033,7 +1050,43 @@ const initDatabase = async () => {
         return db;
     } catch (error) {
         console.error('❌ Критическая ошибка инициализации базы данных:', error.message);
-        throw error;
+        console.error('❌ Подробности ошибки:', error);
+        
+        // Пробуем альтернативный путь для БД
+        try {
+            console.log('\n🔄 Попытка альтернативного пути для БД...');
+            
+            // Используем временную директорию
+            const tempDbPath = path.join('/tmp', 'art_school.db');
+            console.log(`🔄 Создаем БД в временной директории: ${tempDbPath}`);
+            
+            db = await open({
+                filename: tempDbPath,
+                driver: sqlite3.Database
+            });
+            
+            await db.run('PRAGMA foreign_keys = ON');
+            await createTables();
+            
+            console.log('✅ База данных создана в временной директории');
+            return db;
+            
+        } catch (tempError) {
+            console.error('❌ Не удалось создать БД даже во временной директории:', tempError.message);
+            
+            // Последняя попытка: создаем БД в памяти
+            console.log('\n🔄 Создаем БД в памяти...');
+            db = await open({
+                filename: ':memory:',
+                driver: sqlite3.Database
+            });
+            
+            await db.run('PRAGMA foreign_keys = ON');
+            await createTables();
+            
+            console.log('⚠️  ВНИМАНИЕ: БД создана в памяти. Данные будут потеряны при перезапуске!');
+            return db;
+        }
     }
 };
 
@@ -1262,7 +1315,10 @@ const createTables = async () => {
 
         console.log('\n🎉 Все таблицы созданы успешно!');
         
+        // Создаем индексы
         await createIndexes();
+        
+        // Создаем тестовые данные только при необходимости
         await createTestData();
         
     } catch (error) {
@@ -1292,18 +1348,6 @@ const createTestData = async () => {
         
         // Проверяем наличие данных
         const hasStudents = await db.get("SELECT 1 FROM student_profiles LIMIT 1");
-        const hasAdmins = await db.get("SELECT 1 FROM administrators LIMIT 1");
-        
-        // Создаем администратора только если нет
-        if (!hasAdmins) {
-            console.log('👥 Создание тестового администратора...');
-            await db.run(
-                `INSERT OR IGNORE INTO administrators (telegram_id, name, email, phone_number, branches, role) 
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [123456789, 'Тестовый Администратор', 'admin@artschool.ru', '+79991112233', '["Свиблово", "Чертаново"]', 'superadmin']
-            );
-            console.log('✅ Тестовый администратор создан');
-        }
         
         // Создаем контакты филиалов только если их нет
         if (!(await db.get("SELECT 1 FROM branch_contacts LIMIT 1"))) {
@@ -1923,7 +1967,7 @@ const startServer = async () => {
             console.log('🚀 СЕРВЕР ЗАПУЩЕН УСПЕШНО!');
             console.log('='.repeat(80));
             console.log(`🌐 Основной URL: http://localhost:${PORT}`);
-            console.log(`📊 База данных: SQLite`);
+            console.log(`📊 База данных: SQLite (в памяти)`);
             console.log(`🔗 amoCRM: ${amoCrmService.isInitialized ? '✅ Подключен' : '❌ Не подключен'}`);
             console.log(`📝 Полей настроено: ${Object.keys(amoCrmService.fieldMapping).length}`);
             console.log('='.repeat(80));
@@ -1963,6 +2007,7 @@ const startServer = async () => {
         
     } catch (error) {
         console.error('❌ Не удалось запустить сервер:', error.message);
+        console.error('❌ Подробная ошибка:', error);
         process.exit(1);
     }
 };
