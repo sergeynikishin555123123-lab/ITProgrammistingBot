@@ -74,140 +74,382 @@ class AmoCrmService {
         this.tokenExpiresAt = 0;
         this.accountInfo = null;
         
-        // Карта полей amoCRM для парсинга
+        // Карта полей amoCRM для парсинга - ОБНОВЛЕННАЯ ВЕРСИЯ
         this.fieldMapping = {
-            // Основная информация
-            'student_name': { source: 'contact_name' }, // Из названия контакта
-            'phone_number': { fields: ['Телефон', 'Мобильный телефон', 'Phone'], priority: 0 },
-            'email': { fields: ['Email', 'Электронная почта', 'Почта'], priority: 0 },
-            'branch': { fields: ['Филиал', 'Отделение', 'Branch'], priority: 0 },
+            // Основная информация (КРИТИЧЕСКО ВАЖНЫЕ ПОЛЯ)
+            'student_name': { 
+                fields: ['Имя ученика', 'Имя', 'ФИО ученика', 'ФИО', 'Имя клиента', 'Имя ребенка'], 
+                priority: 0 
+            },
+            'phone_number': { 
+                fields: ['Телефон', 'Мобильный телефон', 'Phone', 'Телефон клиента', 'Основной телефон'], 
+                priority: 0 
+            },
+            'email': { 
+                fields: ['Email', 'Электронная почта', 'Почта', 'Email клиента'], 
+                priority: 0 
+            },
+            'branch': { 
+                fields: ['Филиал', 'Отделение', 'Branch', 'Студия', 'Место занятий'], 
+                priority: 0 
+            },
             
-            // Информация об абонементе
-            'subscription_active': { fields: ['Активный абонемент', 'Есть активный абонемент'], priority: 0 },
-            'subscription_type': { fields: ['Тип абонемента', 'Абонемент', 'Subscription type'], priority: 1 },
-            'total_classes': { fields: ['Количество занятий', 'Всего занятий', 'Total classes'], priority: 0 },
-            'used_classes': { fields: ['Использовано занятий', 'Пройденные занятия', 'Used classes'], priority: 0 },
-            'remaining_classes': { fields: ['Осталось занятий', 'Доступно занятий', 'Remaining classes'], priority: 0 },
-            'expiration_date': { fields: ['Срок действия', 'Действует до', 'Expiration date'], priority: 0 },
+            // Информация об абонементе (КРИТИЧЕСКО ВАЖНЫЕ ПОЛЯ)
+            'subscription_active': { 
+                fields: ['Активный абонемент', 'Есть активный абонемент', 'Статус абонемента', 'Абонемент активен'], 
+                priority: 0,
+                type: 'boolean'
+            },
+            'subscription_type': { 
+                fields: ['Тип абонемента', 'Абонемент', 'Вид абонемента', 'Тариф', 'Тип занятия'], 
+                priority: 0 
+            },
+            'total_classes': { 
+                fields: ['Количество занятий', 'Всего занятий', 'Кол-во занятий', 'Всего в абонементе'], 
+                priority: 0,
+                type: 'numeric'
+            },
+            'used_classes': { 
+                fields: ['Использовано занятий', 'Пройденные занятия', 'Занятий посещено', 'Использовано'], 
+                priority: 0,
+                type: 'numeric'
+            },
+            'remaining_classes': { 
+                fields: ['Осталось занятий', 'Доступно занятий', 'Остаток занятий', 'Баланс'], 
+                priority: 0,
+                type: 'numeric'
+            },
+            'expiration_date': { 
+                fields: ['Срок действия', 'Действует до', 'Дата окончания', 'Активен до'], 
+                priority: 0,
+                type: 'date'
+            },
             
             // Расписание
-            'day_of_week': { fields: ['День недели', 'День занятий', 'Day of week'], priority: 0 },
-            'teacher_name': { fields: ['Преподаватель', 'Учитель', 'Teacher'], priority: 0 },
-            'time_slot': { fields: ['Время занятия', 'Время', 'Time slot'], priority: 0 },
-            'group_age': { fields: ['Возраст группы', 'Группа возраст', 'Age group'], priority: 0 },
-            
-            // Статистика и аналитика
-            'last_visit_date': { fields: ['Дата последнего визита', 'Последнее посещение', 'Last visit'], priority: 0 },
-            'first_purchase_date': { fields: ['Дата первой покупки', 'Первая покупка', 'First purchase'], priority: 0 },
-            'purchase_count': { fields: ['Количество покупок', 'Число покупок', 'Purchase count'], priority: 0 },
-            'total_purchase_amount': { fields: ['Сумма покупок', 'Общая сумма', 'Total amount'], priority: 0 },
-            'average_check': { fields: ['Средний чек', 'Ср. чек', 'Average check'], priority: 1 },
-            'free_classes_available': { fields: ['Доступно бесплатных занятий', 'Бесплатные занятия', 'Free classes'], priority: 0 },
-            'month_classes_count': { fields: ['Счетчик занятий за месяц', 'Занятий в месяце', 'Month classes'], priority: 0 },
+            'day_of_week': { 
+                fields: ['День недели', 'День занятий', 'Расписание', 'День'], 
+                priority: 0 
+            },
+            'teacher_name': { 
+                fields: ['Преподаватель', 'Учитель', 'Инструктор', 'Педагог'], 
+                priority: 0 
+            },
+            'time_slot': { 
+                fields: ['Время занятия', 'Время', 'Время посещения', 'Время урока'], 
+                priority: 0 
+            },
+            'group_age': { 
+                fields: ['Возраст группы', 'Группа возраст', 'Возраст', 'Возрастная категория'], 
+                priority: 0 
+            },
             
             // Дополнительная информация
-            'is_regular': { fields: ['Постоянный клиент', 'Лояльный клиент', 'Regular client'], priority: 0 },
-            'attendance_status': { fields: ['Посещаемость', 'Attendance', 'Attendance rate'], priority: 0 },
-            'trial_date': { fields: ['Дата пробного занятия', 'Пробное занятие', 'Trial date'], priority: 0 },
-            'trial_type': { fields: ['Тип пробного', 'Пробное', 'Trial type'], priority: 1 },
-            'comment': { fields: ['Комментарий', 'Заметки', 'Comment'], priority: 0 },
-            'allergy_info': { fields: ['Аллергия и особенности', 'Особенности', 'Allergy'], priority: 1 },
-            
-            // Маркетинг
-            'marketing_channel': { fields: ['Рекламный канал', 'Канал привлечения', 'Marketing channel'], priority: 0 },
-            'communication_channel': { fields: ['Канал связи', 'Основной канал', 'Communication channel'], priority: 0 },
-            'telegram_subscribed': { fields: ['Подписан на Телеграм Бот', 'Telegram подписка', 'Telegram subscribed'], priority: 0 }
+            'last_visit_date': { 
+                fields: ['Дата последнего визита', 'Последнее посещение', 'Последний визит'], 
+                priority: 1,
+                type: 'date'
+            },
+            'first_purchase_date': { 
+                fields: ['Дата первой покупки', 'Первая покупка', 'Дата прихода'], 
+                priority: 1,
+                type: 'date'
+            },
+            'comment': { 
+                fields: ['Комментарий', 'Заметки', 'Примечание', 'Дополнительно'], 
+                priority: 2 
+            }
         };
+        
+        // Кеш для найденных полей
+        this.fieldCache = {};
         
         this.logConfig();
     }
 
-    logConfig() {
-        console.log('\n📋 КОНФИГУРАЦИЯ AMOCRM:');
-        console.log('='.repeat(50));
-        console.log(`🏢 Домен: ${AMOCRM_DOMAIN || '❌ Не установлен'}`);
-        console.log(`🔗 Base URL: ${this.baseUrl}`);
-        console.log(`🔑 Client ID: ${this.clientId ? '✅ Установлен' : '❌ Не установлен'}`);
-        console.log(`🔐 Client Secret: ${this.clientSecret ? '✅ Установлен' : '❌ Не установлен'}`);
-        console.log(`🔄 Redirect URI: ${this.redirectUri}`);
-        console.log(`🔑 Access Token: ${this.accessToken ? '✅ Установлен (' + this.accessToken.substring(0, 20) + '...)' : '❌ Не установлен'}`);
-        console.log('='.repeat(50));
-    }
-
-    async initialize() {
-        console.log('\n🔄 ИНИЦИАЛИЗАЦИЯ AMOCRM СЕРВИСА');
-        console.log('='.repeat(50));
-        
-        // 1. Проверяем минимальные требования
-        if (!AMOCRM_DOMAIN) {
-            console.log('❌ AMOCRM_DOMAIN не указан в .env файле');
-            console.log('ℹ️  Добавьте в .env: AMOCRM_DOMAIN=pismovbanu.amocrm.ru');
-            return false;
+    // Улучшенный метод поиска поля
+    async findFieldId(fieldName, customFields) {
+        if (!customFields || !Array.isArray(customFields)) {
+            return null;
         }
         
-        if (!this.accessToken) {
-            console.log('❌ Отсутствует access token');
-            console.log('ℹ️  Добавьте AMOCRM_ACCESS_TOKEN в .env файл или пройдите OAuth авторизацию');
-            return false;
+        // Проверяем кеш
+        const cacheKey = fieldName.toLowerCase();
+        if (this.fieldCache[cacheKey] !== undefined) {
+            return this.fieldCache[cacheKey];
         }
         
-        // 2. Проверяем валидность токена
-        try {
-            const isValid = await this.checkTokenValidity(this.accessToken);
-            if (isValid) {
-                console.log('✅ Токен валиден');
-                this.isInitialized = true;
-                
-                // Сохраняем токен в БД
-                await this.saveTokensToDatabase(this.accessToken, null, Date.now() + 24 * 60 * 60 * 1000);
-                
-                // Получаем и кешируем кастомные поля для парсинга
-                await this.cacheCustomFields();
-                
-                return true;
-            }
-        } catch (tokenError) {
-            console.log('❌ Токен невалиден:', tokenError.message);
-            
-            // Пробуем загрузить токен из базы данных
-            try {
-                const tokensLoaded = await this.loadTokensFromDatabase();
-                if (tokensLoaded) {
-                    console.log('✅ Токены успешно загружены из базы данных');
-                    this.isInitialized = true;
-                    
-                    // Получаем и кешируем кастомные поля для парсинга
-                    await this.cacheCustomFields();
-                    
-                    return true;
+        // Ищем точное совпадение
+        let foundField = customFields.find(field => 
+            field.name && field.name.toLowerCase() === cacheKey
+        );
+        
+        // Если не нашли точное, ищем частичное совпадение
+        if (!foundField) {
+            foundField = customFields.find(field => 
+                field.name && field.name.toLowerCase().includes(cacheKey)
+            );
+        }
+        
+        // Если все еще не нашли, ищем среди enum значений
+        if (!foundField) {
+            for (const field of customFields) {
+                if (field.enums) {
+                    for (const enumValue of Object.values(field.enums)) {
+                        if (enumValue.value && enumValue.value.toLowerCase().includes(cacheKey)) {
+                            foundField = field;
+                            break;
+                        }
+                    }
                 }
-            } catch (dbError) {
-                console.log('⚠️  Не удалось загрузить токены из БД:', dbError.message);
+                if (foundField) break;
             }
         }
         
-        console.log('\n❌ НЕ УДАЛОСЬ ИНИЦИАЛИЗИРОВАТЬ AMOCRM');
-        console.log('\n📋 ВАРИАНТЫ РЕШЕНИЯ:');
-        console.log('='.repeat(60));
-        console.log('1. Получите новый токен через OAuth:');
-        console.log(`   Перейдите по ссылке для авторизации:`);
-        console.log(`   ${DOMAIN}/oauth/link`);
-        console.log('\n2. Или добавьте в .env файл:');
-        console.log(`   AMOCRM_ACCESS_TOKEN=ваш_долгосрочный_токен`);
-        console.log('='.repeat(60));
+        // Сохраняем в кеш
+        this.fieldCache[cacheKey] = foundField ? foundField.id : null;
         
-        this.isInitialized = false;
-        return false;
+        return foundField ? foundField.id : null;
     }
 
+    // Улучшенный метод получения значения поля
+    getFieldValue(fieldId, customFields, fieldType = 'text') {
+        if (!fieldId || !customFields) {
+            return null;
+        }
+        
+        const field = customFields.find(f => f.field_id === fieldId);
+        if (!field || !field.values || field.values.length === 0) {
+            return null;
+        }
+        
+        const value = field.values[0].value;
+        
+        if (!value) return null;
+        
+        switch (fieldType) {
+            case 'boolean':
+                const lowerValue = value.toLowerCase();
+                return lowerValue === 'да' || lowerValue === 'yes' || lowerValue === 'true' || value === '1';
+            case 'numeric':
+                const num = parseFloat(value.replace(/\s/g, '').replace(',', '.'));
+                return isNaN(num) ? null : num;
+            case 'date':
+                try {
+                    // Если это timestamp
+                    if (/^\d+$/.test(value)) {
+                        return new Date(parseInt(value) * 1000).toISOString().split('T')[0];
+                    }
+                    // Если это строка даты
+                    const date = new Date(value);
+                    return date.toISOString().split('T')[0];
+                } catch (e) {
+                    return value;
+                }
+            default:
+                return value;
+        }
+    }
+
+    // Улучшенный метод получения значения поля по нескольким возможным названиям
+    async getMappedFieldValue(fieldKey, customFields) {
+        const mapping = this.fieldMapping[fieldKey];
+        if (!mapping || !mapping.fields) {
+            return null;
+        }
+        
+        // Ищем поле по всем возможным названиям
+        for (const fieldName of mapping.fields) {
+            const fieldId = await this.findFieldId(fieldName, customFields);
+            if (fieldId) {
+                const value = this.getFieldValue(fieldId, customFields, mapping.type || 'text');
+                if (value !== null) {
+                    console.log(`✅ Найдено поле "${fieldName}" (ID: ${fieldId}) для ${fieldKey}: ${value}`);
+                    return value;
+                }
+            }
+        }
+        
+        console.log(`⚠️  Не найдено поле для ${fieldKey} в списке: ${mapping.fields.join(', ')}`);
+        return null;
+    }
+
+    // Улучшенный поиск по телефону
+    async searchContactsByPhone(phoneNumber) {
+        console.log(`\n🔍 УЛУЧШЕННЫЙ ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ`);
+        console.log(`📞 Исходный номер: ${phoneNumber}`);
+        
+        const cleanPhone = phoneNumber.replace(/\D/g, '');
+        
+        if (!cleanPhone || cleanPhone.length < 10) {
+            console.log('❌ Номер телефона слишком короткий');
+            return { _embedded: { contacts: [] } };
+        }
+        
+        try {
+            // Форматируем номер для поиска
+            let searchPhone;
+            if (cleanPhone.length === 11 && cleanPhone.startsWith('7')) {
+                searchPhone = `+${cleanPhone}`;
+            } else if (cleanPhone.length === 10) {
+                searchPhone = `+7${cleanPhone}`;
+            } else {
+                searchPhone = cleanPhone;
+            }
+            
+            console.log(`🔍 Ищем контакт с телефоном: ${searchPhone}`);
+            
+            // Ищем через API с фильтром
+            const response = await this.makeRequest('GET', `/api/v4/contacts?with=custom_fields_values`);
+            
+            if (!response._embedded?.contacts) {
+                console.log('📭 Контакты не найдены');
+                return { _embedded: { contacts: [] } };
+            }
+            
+            // Фильтруем контакты, у которых есть нужный телефон в кастомных полях
+            const filteredContacts = response._embedded.contacts.filter(contact => {
+                if (!contact.custom_fields_values) return false;
+                
+                // Ищем поле "Телефон" или аналогичное
+                const phoneFields = contact.custom_fields_values.filter(field => {
+                    const fieldName = this.fieldIdToName?.[field.field_id]?.toLowerCase() || '';
+                    return fieldName.includes('телефон') || fieldName.includes('phone');
+                });
+                
+                // Проверяем значения полей телефона
+                for (const phoneField of phoneFields) {
+                    for (const valueObj of phoneField.values) {
+                        if (valueObj.value) {
+                            const contactPhone = valueObj.value.replace(/\D/g, '');
+                            if (contactPhone.includes(cleanPhone.slice(-10))) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                return false;
+            });
+            
+            console.log(`📊 Найдено контактов после фильтрации: ${filteredContacts.length}`);
+            
+            return {
+                _embedded: {
+                    contacts: filteredContacts
+                }
+            };
+            
+        } catch (error) {
+            console.error(`❌ Ошибка поиска контактов: ${error.message}`);
+            return { _embedded: { contacts: [] } };
+        }
+    }
+
+    // Улучшенный метод парсинга контакта
+    async parseContactToStudentProfile(contact) {
+        console.log(`\n🎯 ПАРСИНГ КОНТАКТА В ПРОФИЛЬ УЧЕНИКА`);
+        console.log(`👤 Контакт ID: ${contact.id}`);
+        
+        const customFields = contact.custom_fields_values || [];
+        
+        // ИМЯ УЧЕНИКА - КРИТИЧЕСКО ВАЖНО!
+        // Сначала ищем в кастомных полях "Имя ученика"
+        let studentName = await this.getMappedFieldValue('student_name', customFields);
+        
+        // Если не нашли в кастомных полях, используем имя контакта
+        if (!studentName) {
+            studentName = contact.name || 'Не указано';
+            console.log(`⚠️  Имя не найдено в кастомных полях, используем имя контакта: ${studentName}`);
+        } else {
+            console.log(`✅ Имя ученика найдено в кастомных полях: ${studentName}`);
+        }
+        
+        // Получаем все остальные поля
+        const profile = {
+            // Основная информация
+            amocrm_contact_id: contact.id,
+            student_name: studentName,
+            parent_name: '', // Можно добавить поле "Имя родителя" при необходимости
+            
+            // Контактные данные
+            phone_number: await this.getMappedFieldValue('phone_number', customFields) || '',
+            email: await this.getMappedFieldValue('email', customFields) || '',
+            branch: await this.getMappedFieldValue('branch', customFields) || 'Не указан',
+            
+            // Расписание
+            day_of_week: await this.getMappedFieldValue('day_of_week', customFields) || '',
+            time_slot: await this.getMappedFieldValue('time_slot', customFields) || '',
+            teacher_name: await this.getMappedFieldValue('teacher_name', customFields) || '',
+            group_age: await this.getMappedFieldValue('group_age', customFields) || '',
+            
+            // Информация об абонементе
+            subscription_type: await this.getMappedFieldValue('subscription_type', customFields) || 'Без абонемента',
+            subscription_active: await this.getMappedFieldValue('subscription_active', customFields) || false,
+            total_classes: await this.getMappedFieldValue('total_classes', customFields) || 0,
+            used_classes: await this.getMappedFieldValue('used_classes', customFields) || 0,
+            remaining_classes: await this.getMappedFieldValue('remaining_classes', customFields) || 0,
+            expiration_date: await this.getMappedFieldValue('expiration_date', customFields),
+            
+            // Статистика
+            last_visit_date: await this.getMappedFieldValue('last_visit_date', customFields),
+            first_purchase_date: await this.getMappedFieldValue('first_purchase_date', customFields),
+            
+            // Дополнительная информация
+            comment: await this.getMappedFieldValue('comment', customFields) || '',
+            
+            // Технические поля
+            custom_fields: JSON.stringify(customFields),
+            raw_contact_data: JSON.stringify(contact, null, 2),
+            is_demo: 0,
+            source: 'amocrm',
+            created_at: contact.created_at ? new Date(contact.created_at * 1000).toISOString() : null,
+            updated_at: contact.updated_at ? new Date(contact.updated_at * 1000).toISOString() : null
+        };
+        
+        // Если нет информации об остатке занятий, но есть общее количество и использованные
+        if (profile.remaining_classes === 0 && profile.total_classes > 0 && profile.used_classes > 0) {
+            profile.remaining_classes = profile.total_classes - profile.used_classes;
+            console.log(`🔄 Вычислен остаток занятий: ${profile.remaining_classes} = ${profile.total_classes} - ${profile.used_classes}`);
+        }
+        
+        // Логируем результат
+        console.log('\n📊 РЕЗУЛЬТАТ ПАРСИНГА:');
+        console.log('='.repeat(80));
+        console.log(`👤 Ученик: ${profile.student_name}`);
+        console.log(`📞 Телефон: ${profile.phone_number}`);
+        console.log(`🏢 Филиал: ${profile.branch}`);
+        console.log(`🎫 Абонемент: ${profile.subscription_type}`);
+        console.log(`✅ Активный: ${profile.subscription_active ? 'Да' : 'Нет'}`);
+        console.log(`📊 Занятий: ${profile.remaining_classes}/${profile.total_classes} (использовано: ${profile.used_classes})`);
+        console.log(`📅 Срок действия: ${profile.expiration_date || 'не указан'}`);
+        console.log('='.repeat(80));
+        
+        // Дополнительная отладка - выводим все кастомные поля
+        console.log('\n🔍 ВСЕ КАСТОМНЫЕ ПОЛЯ КОНТАКТА:');
+        console.log('='.repeat(80));
+        customFields.forEach((field, index) => {
+            const fieldName = this.fieldIdToName?.[field.field_id] || `Поле ${field.field_id}`;
+            console.log(`${index + 1}. ${fieldName}:`);
+            if (field.values && field.values.length > 0) {
+                field.values.forEach((value, i) => {
+                    console.log(`   ${i + 1}) ${value.value} (enum: ${value.enum_id || '-'})`);
+                });
+            }
+        });
+        console.log('='.repeat(80));
+        
+        return profile;
+    }
+
+    // Улучшенный метод кеширования полей
     async cacheCustomFields() {
-        console.log('\n🗃️  КЕШИРОВАНИЕ КАСТОМНЫХ ПОЛЕЙ ДЛЯ ПАРСИНГА');
+        console.log('\n🗃️  УЛУЧШЕННОЕ КЕШИРОВАНИЕ КАСТОМНЫХ ПОЛЕЙ');
         
         try {
             const fields = await this.getContactCustomFields();
             this.cachedFields = fields;
             
-            // Создаем обратное отображение ID поля -> название для быстрого поиска
+            // Создаем обратное отображение ID поля -> название
             this.fieldIdToName = {};
             fields.forEach(field => {
                 this.fieldIdToName[field.id] = field.name;
@@ -215,20 +457,37 @@ class AmoCrmService {
             
             console.log(`✅ Закешировано ${fields.length} полей`);
             
-            // Логируем маппинг полей для отладки
-            console.log('\n🔍 СВЯЗЬ ПОЛЕЙ ДЛЯ ПАРСИНГА:');
+            // Ищем конкретные поля из маппинга
+            console.log('\n🔍 ПОИСК КОНКРЕТНЫХ ПОЛЕЙ ИЗ МАППИНГА:');
             console.log('='.repeat(80));
-            Object.entries(this.fieldMapping).forEach(([profileField, mapping]) => {
+            
+            for (const [profileField, mapping] of Object.entries(this.fieldMapping)) {
                 if (mapping.fields) {
-                    console.log(`${profileField}: ищем поля [${mapping.fields.join(', ')}]`);
+                    console.log(`\n🔎 Ищем поле для "${profileField}":`);
+                    let found = false;
+                    
+                    for (const fieldName of mapping.fields) {
+                        const fieldId = await this.findFieldId(fieldName, fields);
+                        if (fieldId) {
+                            console.log(`   ✅ "${fieldName}" -> ID: ${fieldId}`);
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!found) {
+                        console.log(`   ❌ Не найдено ни одно из полей: ${mapping.fields.join(', ')}`);
+                    }
                 }
-            });
+            }
+            
             console.log('='.repeat(80));
             
         } catch (error) {
             console.error('❌ Ошибка кеширования полей:', error.message);
         }
     }
+}
 
     async getContactCustomFields() {
         console.log('\n📋 ПОЛУЧЕНИЕ КАСТОМНЫХ ПОЛЕЙ КОНТАКТОВ');
@@ -1807,7 +2066,192 @@ app.post('/api/auth/phone', async (req, res) => {
         });
     }
 });
+// Диагностика конкретного поля
+app.get('/api/debug/field-search', async (req, res) => {
+    try {
+        const { field_name } = req.query;
+        
+        if (!field_name) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите field_name'
+            });
+        }
+        
+        console.log(`\n🔍 ПОИСК ПОЛЯ "${field_name}"`);
+        
+        if (!amoCrmService.isInitialized || !amoCrmService.cachedFields) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не инициализирован или поля не закешированы'
+            });
+        }
+        
+        // Ищем поле
+        const fieldId = await amoCrmService.findFieldId(field_name, amoCrmService.cachedFields);
+        const foundField = amoCrmService.cachedFields.find(f => f.id === fieldId);
+        
+        // Ищем все похожие поля
+        const similarFields = amoCrmService.cachedFields.filter(field => 
+            field.name && field.name.toLowerCase().includes(field_name.toLowerCase())
+        );
+        
+        res.json({
+            success: true,
+            data: {
+                requested_field: field_name,
+                exact_match: foundField ? {
+                    id: foundField.id,
+                    name: foundField.name,
+                    type: foundField.type,
+                    enums: foundField.enums
+                } : null,
+                similar_fields: similarFields.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    type: f.type,
+                    has_enums: !!f.enums
+                })),
+                total_fields: amoCrmService.cachedFields.length
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска поля:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка поиска поля',
+            details: error.message
+        });
+    }
+});
 
+// Полный дамп всех полей amoCRM
+app.get('/api/debug/all-fields', async (req, res) => {
+    try {
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        const fields = amoCrmService.cachedFields || [];
+        
+        // Группируем поля по типу
+        const fieldsByType = {};
+        fields.forEach(field => {
+            if (!fieldsByType[field.type]) {
+                fieldsByType[field.type] = [];
+            }
+            fieldsByType[field.type].push({
+                id: field.id,
+                name: field.name,
+                enums: field.enums ? Object.values(field.enums).map(e => e.value) : []
+            });
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                total_fields: fields.length,
+                fields_by_type: fieldsByType,
+                all_fields: fields.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    type: f.type,
+                    code: f.code
+                }))
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения полей:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения полей',
+            details: error.message
+        });
+    }
+});
+
+// Тестовый парсинг с реальными данными
+app.post('/api/debug/test-parse', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        
+        if (!phone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите телефон'
+            });
+        }
+        
+        console.log(`\n🧪 ТЕСТОВЫЙ ПАРСИНГ ДЛЯ ТЕЛЕФОНА: ${phone}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Ищем контакты
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        const results = [];
+        
+        for (const contact of contacts) {
+            try {
+                console.log(`\n🔄 Обработка контакта ${contact.id}: ${contact.name}`);
+                
+                // Получаем детали контакта
+                const contactDetails = await amoCrmService.getContactDetails(contact.id);
+                
+                // Парсим в профиль
+                const profile = await amoCrmService.parseContactToStudentProfile(contactDetails);
+                
+                results.push({
+                    contact_id: contact.id,
+                    contact_name: contact.name,
+                    parsed_profile: profile,
+                    success: true
+                });
+                
+            } catch (contactError) {
+                console.error(`❌ Ошибка обработки контакта ${contact.id}: ${contactError.message}`);
+                results.push({
+                    contact_id: contact.id,
+                    contact_name: contact.name,
+                    error: contactError.message,
+                    success: false
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                phone: phone,
+                contacts_found: contacts.length,
+                results: results,
+                mapping_stats: {
+                    total_mapped_fields: Object.keys(amoCrmService.fieldMapping).length,
+                    amocrm_status: amoCrmService.isInitialized ? 'connected' : 'disconnected'
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестового парсинга:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка тестового парсинга',
+            details: error.message
+        });
+    }
+});
 // ==================== ДИАГНОСТИЧЕСКИЕ API ====================
 
 // Подробная диагностика amoCRM
