@@ -1708,6 +1708,117 @@ app.get('/api/debug/lead/:id', async (req, res) => {
     }
 });
 
+// Маршрут для диагностики контакта по ID
+app.get('/api/debug/contact/:id', async (req, res) => {
+    try {
+        const contactId = req.params.id;
+        
+        console.log(`\n🔍 ДИАГНОСТИКА КОНТАКТА ID: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            console.log('❌ amoCRM не инициализирован');
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем контакт
+        const contact = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/contacts/${contactId}?with=custom_fields_values`
+        );
+        
+        console.log('\n📊 ИМЯ КОНТАКТА:', contact.name);
+        console.log(`📊 ID контакта: ${contact.id}`);
+        
+        console.log('\n📋 ВСЕ ПОЛЯ КОНТАКТА:');
+        console.log('='.repeat(80));
+        
+        if (contact.custom_fields_values && contact.custom_fields_values.length > 0) {
+            contact.custom_fields_values.forEach((field, index) => {
+                const fieldId = field.field_id || field.id || 'unknown';
+                const fieldName = amoCrmService.getFieldName(field);
+                const fieldValue = amoCrmService.getFieldValue(field);
+                console.log(`[${index + 1}] ID: ${fieldId} | "${fieldName}": "${fieldValue}"`);
+            });
+        } else {
+            console.log('❌ Нет кастомных полей в контакте');
+        }
+        
+        console.log('='.repeat(80));
+        
+        // Получаем сделки этого контакта
+        console.log('\n🔍 ПОИСК СДЕЛОК ЭТОГО КОНТАКТА...');
+        try {
+            const leadsResponse = await amoCrmService.makeRequest(
+                'GET',
+                `/api/v4/contacts/${contactId}/leads?with=custom_fields_values`
+            );
+            
+            const leads = leadsResponse._embedded?.leads || [];
+            console.log(`📊 Найдено сделок: ${leads.length}`);
+            
+            leads.forEach(lead => {
+                console.log(`\n📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+                console.log(`   Статус ID: ${lead.status_id}, Воронка ID: ${lead.pipeline_id}`);
+                
+                if (lead.custom_fields_values && lead.custom_fields_values.length > 0) {
+                    console.log(`   Кастомные поля (${lead.custom_fields_values.length}):`);
+                    lead.custom_fields_values.forEach(field => {
+                        const fieldName = amoCrmService.getFieldName(field).toLowerCase();
+                        const fieldValue = amoCrmService.getFieldValue(field);
+                        console.log(`      • "${fieldName}": ${fieldValue}`);
+                    });
+                } else {
+                    console.log(`   ❌ Нет кастомных полей в сделке`);
+                }
+            });
+            
+            // Показываем сырые данные первой сделки
+            if (leads.length > 0) {
+                console.log('\n📄 СЫРЫЕ ДАННЫЕ ПЕРВОЙ СДЕЛКИ (первые 1000 символов):');
+                const rawData = JSON.stringify(leads[0], null, 2);
+                console.log(rawData.substring(0, 1000) + (rawData.length > 1000 ? '...' : ''));
+            }
+            
+        } catch (leadError) {
+            console.error(`❌ Ошибка получения сделок: ${leadError.message}`);
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                contact_id: contact.id,
+                contact_name: contact.name,
+                fields_count: contact.custom_fields_values ? contact.custom_fields_values.length : 0,
+                fields: contact.custom_fields_values ? contact.custom_fields_values.map((f, i) => ({
+                    index: i,
+                    field_id: f.field_id || f.id,
+                    field_name: amoCrmService.getFieldName(f),
+                    field_value: amoCrmService.getFieldValue(f)
+                })) : [],
+                leads_found: leads ? leads.length : 0
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики контакта:', error.message);
+        if (error.response) {
+            console.error('📊 Ответ сервера:', error.response.status, error.response.data);
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: error.response ? {
+                status: error.response.status,
+                data: error.response.data
+            } : null
+        });
+    }
+});
+
 // Маршрут для поиска полей по ключевым словам
 app.get('/api/debug/fields/search/:keyword', async (req, res) => {
     try {
