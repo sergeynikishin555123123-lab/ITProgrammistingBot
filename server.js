@@ -2137,6 +2137,75 @@ app.get('/api/debug/search/subscription-fields', async (req, res) => {
     }
 });
 
+// Добавьте этот маршрут для поиска ID полей
+app.get('/api/debug/find-field-id/:name', async (req, res) => {
+    try {
+        const fieldName = req.params.name;
+        
+        console.log(`\n🔍 ПОИСК ID ПОЛЯ ПО НАЗВАНИЮ: "${fieldName}"`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Ищем в полях контактов
+        const contactFields = await amoCrmService.makeRequest('GET', '/api/v4/contacts/custom_fields');
+        const leadFields = await amoCrmService.makeRequest('GET', '/api/v4/leads/custom_fields');
+        
+        const foundFields = [];
+        
+        // Ищем в полях контактов
+        if (contactFields._embedded && contactFields._embedded.custom_fields) {
+            contactFields._embedded.custom_fields.forEach(field => {
+                if (field.name.toLowerCase().includes(fieldName.toLowerCase())) {
+                    foundFields.push({
+                        source: 'contact',
+                        id: field.id,
+                        name: field.name,
+                        type: field.type
+                    });
+                }
+            });
+        }
+        
+        // Ищем в полях сделок
+        if (leadFields._embedded && leadFields._embedded.custom_fields) {
+            leadFields._embedded.custom_fields.forEach(field => {
+                if (field.name.toLowerCase().includes(fieldName.toLowerCase())) {
+                    foundFields.push({
+                        source: 'lead',
+                        id: field.id,
+                        name: field.name,
+                        type: field.type
+                    });
+                }
+            });
+        }
+        
+        console.log(`📊 Найдено полей: ${foundFields.length}`);
+        foundFields.forEach(f => {
+            console.log(`   • ${f.source.toUpperCase()}: ID ${f.id} - "${f.name}" (${f.type})`);
+        });
+        
+        res.json({
+            success: true,
+            search_name: fieldName,
+            found_count: foundFields.length,
+            fields: foundFields
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска поля:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Маршрут для диагностики контакта по ID
 app.get('/api/debug/contact/:id', async (req, res) => {
     try {
