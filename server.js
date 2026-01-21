@@ -285,96 +285,97 @@ class AmoCrmService {
         }
     }
 
-// Улучшенный парсинг количества занятий
-parseClassesCount(value) {
-    if (!value) return 0;
-    
-    const str = String(value).toLowerCase().trim();
-    
-    console.log(`🔢 Парсим значение: "${str}"`);
-    
-    // Пытаемся найти число в строке
-    const numberMatch = str.match(/(\d+)/);
-    if (numberMatch) {
-        const result = parseInt(numberMatch[1]);
-        console.log(`   → Найдено число: ${result}`);
-        return result;
-    }
-    
-    // Пытаемся распознать текстовые значения
-    const textToNumber = {
-        'одно': 1, 'один': 1, '1': 1,
-        'два': 2, 'две': 2, '2': 2,
-        'три': 3, '3': 3,
-        'четыре': 4, '4': 4,
-        'пять': 5, '5': 5,
-        'шесть': 6, '6': 6,
-        'семь': 7, '7': 7,
-        'восемь': 8, '8': 8,
-        'девять': 9, '9': 9,
-        'десять': 10, '10': 10,
-        'одиннадцать': 11, '11': 11,
-        'двенадцать': 12, '12': 12,
-        'тринадцать': 13, '13': 13,
-        'четырнадцать': 14, '14': 14,
-        'пятнадцать': 15, '15': 15,
-        'шестнадцать': 16, '16': 16,
-        'семнадцать': 17, '17': 17,
-        'восемнадцать': 18, '18': 18,
-        'девятнадцать': 19, '19': 19,
-        'двадцать': 20, '20': 20
-    };
-    
-    for (const [text, num] of Object.entries(textToNumber)) {
-        if (str.includes(text)) {
-            console.log(`   → Распознано текстовое значение: ${num}`);
-            return num;
-        }
-    }
-    
-    console.log(`   → Число не найдено, возвращаем 0`);
-    return 0;
-}
-
-   parseDate(value) {
-    if (!value) return null;
-    
-    try {
-        const dateStr = String(value).trim();
-        console.log(`📅 Парсим дату: "${dateStr}"`);
+    // Улучшенный парсинг количества занятий
+    parseClassesCount(value) {
+        if (!value) return 0;
         
-        // Формат DD.MM.YYYY или DD.MM.YY
-        if (dateStr.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
-            const parts = dateStr.split('.');
-            let day = parts[0].padStart(2, '0');
-            let month = parts[1].padStart(2, '0');
-            let year = parts[2];
+        const str = String(value).toLowerCase().trim();
+        
+        console.log(`🔢 Парсим значение: "${str}"`);
+        
+        // Пытаемся найти число в строке
+        const numberMatch = str.match(/(\d+)/);
+        if (numberMatch) {
+            const result = parseInt(numberMatch[1]);
+            console.log(`   → Найдено число: ${result}`);
+            return result;
+        }
+        
+        // Пытаемся распознать текстовые значения
+        const textToNumber = {
+            'одно': 1, 'один': 1, '1': 1,
+            'два': 2, 'две': 2, '2': 2,
+            'три': 3, '3': 3,
+            'четыре': 4, '4': 4,
+            'пять': 5, '5': 5,
+            'шесть': 6, '6': 6,
+            'семь': 7, '7': 7,
+            'восемь': 8, '8': 8,
+            'девять': 9, '9': 9,
+            'десять': 10, '10': 10,
+            'одиннадцать': 11, '11': 11,
+            'двенадцать': 12, '12': 12,
+            'тринадцать': 13, '13': 13,
+            'четырнадцать': 14, '14': 14,
+            'пятнадцать': 15, '15': 15,
+            'шестнадцать': 16, '16': 16,
+            'семнадцать': 17, '17': 17,
+            'восемнадцать': 18, '18': 18,
+            'девятнадцать': 19, '19': 19,
+            'двадцать': 20, '20': 20
+        };
+        
+        for (const [text, num] of Object.entries(textToNumber)) {
+            if (str.includes(text)) {
+                console.log(`   → Распознано текстовое значение: ${num}`);
+                return num;
+            }
+        }
+        
+        console.log(`   → Число не найдено, возвращаем 0`);
+        return 0;
+    }
+
+    parseDate(value) {
+        if (!value) return null;
+        
+        try {
+            const dateStr = String(value).trim();
+            console.log(`📅 Парсим дату: "${dateStr}"`);
             
-            if (year.length === 2) {
-                year = '20' + year;
+            // Формат DD.MM.YYYY или DD.MM.YY
+            if (dateStr.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+                const parts = dateStr.split('.');
+                let day = parts[0].padStart(2, '0');
+                let month = parts[1].padStart(2, '0');
+                let year = parts[2];
+                
+                if (year.length === 2) {
+                    year = '20' + year;
+                }
+                
+                const result = `${year}-${month}-${day}`;
+                console.log(`   → Преобразовано в: ${result}`);
+                return result;
             }
             
-            const result = `${year}-${month}-${day}`;
-            console.log(`   → Преобразовано в: ${result}`);
-            return result;
+            // Формат YYYY-MM-DD
+            if (dateStr.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+                const parts = dateStr.split('-');
+                const result = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                console.log(`   → Стандартизировано: ${result}`);
+                return result;
+            }
+            
+            console.log(`   → Формат не распознан, возвращаем как есть`);
+            return dateStr;
+            
+        } catch (error) {
+            console.error('❌ Ошибка парсинга даты:', error);
+            return value;
         }
-        
-        // Формат YYYY-MM-DD
-        if (dateStr.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
-            const parts = dateStr.split('-');
-            const result = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            console.log(`   → Стандартизировано: ${result}`);
-            return result;
-        }
-        
-        console.log(`   → Формат не распознан, возвращаем как есть`);
-        return dateStr;
-        
-    } catch (error) {
-        console.error('❌ Ошибка парсинга даты:', error);
-        return value;
     }
-}
+
     // ОСНОВНОЙ МЕТОД: Получение всех профилей учеников по телефону
     async getStudentsByPhone(phoneNumber) {
         console.log(`\n🎯 ПОЛУЧЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
@@ -782,351 +783,164 @@ parseClassesCount(value) {
     }
 
     extractSubscriptionInfo(lead) {
-    const subscriptionInfo = {
-        hasSubscription: false,
-        totalClasses: 0,
-        usedClasses: 0,
-        remainingClasses: 0,
-        subscriptionType: '',
-        subscriptionActive: false,
-        activationDate: '',
-        expirationDate: '',
-        lastVisitDate: '',
-        subscriptionStatus: 'Нет абонемента',
-        subscriptionBadge: 'inactive'
-    };
-    
-    if (!lead) {
-        return subscriptionInfo;
-    }
-    
-    try {
-        const customFields = lead.custom_fields_values || [];
-        const leadName = lead.name || '';
-        
-        console.log(`\n🔍 Анализ абонемента в сделке: "${leadName}"`);
-        console.log(`📊 ID статуса: ${lead.status_id}, ID воронки: ${lead.pipeline_id}`);
-        
-        // ============ ВАЖНОЕ ИЗМЕНЕНИЕ ============
-        // Проверяем название сделки и статус на наличие признаков абонемента
-        
-        const leadNameLower = leadName.toLowerCase();
-        
-        // Если в названии есть признаки абонемента
-        if (leadNameLower.includes('абонемент') || 
-            leadNameLower.includes('подписка') ||
-            leadNameLower.includes('занятий') ||
-            leadNameLower.includes('курс')) {
-            subscriptionInfo.hasSubscription = true;
-            
-            // Пытаемся извлечь количество из названия
-            const nameMatch = leadName.match(/(\d+)\s*занятий?/i);
-            if (nameMatch) {
-                subscriptionInfo.totalClasses = parseInt(nameMatch[1]);
-                console.log(`📊 Найдено в названии: ${subscriptionInfo.totalClasses} занятий`);
-            }
-        }
-        
-        // Проверяем статус сделки
-        // Статус 143 обычно "Успешно реализовано", 142 - "Закрыто и не реализовано"
-        // Нужен активный статус (например, в воронке абонементов)
-        const isClosedStatus = [142, 143].includes(lead.status_id);
-        console.log(`📊 Статус закрытый: ${isClosedStatus}`);
-        
-        // ============ ПРОВЕРЯЕМ КАСТОМНЫЕ ПОЛЯ ============
-        
-        for (const field of customFields) {
-            const fieldName = this.getFieldName(field).toLowerCase();
-            const fieldValue = this.getFieldValue(field);
-            
-            if (!fieldValue || fieldValue.trim() === '') continue;
-            
-            console.log(`   📋 Поле: "${fieldName}" = "${fieldValue}"`);
-            
-            // Ищем все возможные варианты названий полей
-            if (fieldName.includes('количество занятий') || 
-                fieldName.includes('занятий в абонементе') ||
-                fieldName.includes('всего занятий') ||
-                fieldName.includes('абонемент на') ||
-                (fieldName.includes('абонемент') && fieldName.includes('занятий'))) {
-                
-                subscriptionInfo.totalClasses = this.parseClassesCount(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📊 Всего занятий: ${subscriptionInfo.totalClasses}`);
-            }
-            
-            else if (fieldName.includes('использовано') ||
-                     fieldName.includes('пройдено') ||
-                     fieldName.includes('посещено') ||
-                     fieldName.includes('счетчик')) {
-                
-                subscriptionInfo.usedClasses = this.parseClassesCount(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📊 Использовано занятий: ${subscriptionInfo.usedClasses}`);
-            }
-            
-            else if (fieldName.includes('остаток') ||
-                     fieldName.includes('осталось') ||
-                     fieldName.includes('баланс')) {
-                
-                subscriptionInfo.remainingClasses = this.parseClassesCount(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📊 Остаток занятий: ${subscriptionInfo.remainingClasses}`);
-            }
-            
-            else if (fieldName.includes('дата окончания') ||
-                     fieldName.includes('окончание') ||
-                     fieldName.includes('действует до')) {
-                
-                subscriptionInfo.expirationDate = this.parseDate(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📅 Дата окончания: ${subscriptionInfo.expirationDate}`);
-            }
-        }
-        
-        // ============ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ============
-        // Если сделка активна (не закрыта) И есть признаки абонемента
-        if (!isClosedStatus && subscriptionInfo.hasSubscription) {
-            console.log(`🎯 Сделка активна и содержит абонемент!`);
-            
-            // Если нет данных о занятиях, но есть абонемент
-            if (subscriptionInfo.totalClasses === 0 && subscriptionInfo.hasSubscription) {
-                // Попробуем установить дефолтное значение
-                subscriptionInfo.totalClasses = 8; // или 12, или другое типичное значение
-                console.log(`ℹ️  Установлено дефолтное значение: ${subscriptionInfo.totalClasses} занятий`);
-            }
-        }
-        
-        // Рассчитываем недостающие значения
-        if (subscriptionInfo.hasSubscription) {
-            // Если есть общее количество и использовано, но нет остатка
-            if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.usedClasses > 0 && subscriptionInfo.remainingClasses === 0) {
-                subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
-                console.log(`ℹ️  Рассчитан остаток: ${subscriptionInfo.remainingClasses}`);
-            }
-            
-            // Если есть общее количество и остаток, но нет использованных
-            else if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.remainingClasses > 0 && subscriptionInfo.usedClasses === 0) {
-                subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
-                console.log(`ℹ️  Рассчитано использованных: ${subscriptionInfo.usedClasses}`);
-            }
-            
-            // Формируем статус
-            if (isClosedStatus) {
-                subscriptionInfo.subscriptionStatus = 'Абонемент завершен';
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            } else if (subscriptionInfo.remainingClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses} занятий)`;
-                subscriptionInfo.subscriptionBadge = 'active';
-                subscriptionInfo.subscriptionActive = true;
-            } else if (subscriptionInfo.totalClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
-                subscriptionInfo.subscriptionBadge = 'has_subscription';
-                subscriptionInfo.subscriptionActive = true;
-            } else {
-                subscriptionInfo.subscriptionStatus = 'Активный абонемент';
-                subscriptionInfo.subscriptionBadge = 'active';
-                subscriptionInfo.subscriptionActive = true;
-            }
-        }
-        
-        console.log(`🎯 Итоговый статус: ${subscriptionInfo.subscriptionStatus}`);
-        console.log(`🏷️  Бейдж: ${subscriptionInfo.subscriptionBadge}`);
-        
-    } catch (error) {
-        console.error('❌ Ошибка извлечения информации об абонементе:', error);
-    }
-    
-    return subscriptionInfo;
-}
-        
-        // ============ КОНФИГУРАЦИЯ ПОЛЕЙ AMOCRM ============
-        const FIELD_MAPPINGS = {
-            // Основные поля из вашего описания
-            TOTAL_CLASSES: [
-                'абонемент занятий',
-                'количество занятий', 
-                'занятий в абонементе',
-                'всего занятий'
-            ],
-            USED_CLASSES: [
-                'счетчик занятий',
-                'использовано занятий',
-                'пройдено занятий',
-                'посещено занятий'
-            ],
-            REMAINING_CLASSES: [
-                'остаток занятий',
-                'осталось занятий',
-                'баланс занятий'
-            ],
-            SUBSCRIPTION_TYPE: [
-                'тип абонемента',
-                'вид абонемента'
-            ],
-            ACTIVATION_DATE: [
-                'дата активации абонемента',
-                'активация абонемента',
-                'начало абонемента'
-            ],
-            EXPIRATION_DATE: [
-                'окончание абонемента',
-                'дата окончания абонемента',
-                'действует до'
-            ],
-            LAST_VISIT: [
-                'дата последнего визита',
-                'последний визит',
-                'последнее посещение'
-            ],
-            SUBSCRIPTION_OWNER: [
-                'принадлежность абонемента',
-                'владелец абонемента'
-            ]
+        const subscriptionInfo = {
+            hasSubscription: false,
+            totalClasses: 0,
+            usedClasses: 0,
+            remainingClasses: 0,
+            subscriptionType: '',
+            subscriptionActive: false,
+            activationDate: '',
+            expirationDate: '',
+            lastVisitDate: '',
+            subscriptionStatus: 'Нет абонемента',
+            subscriptionBadge: 'inactive'
         };
         
-        // Сначала проверяем статус сделки
-        const pipelineId = lead.pipeline_id;
-        const statusId = lead.status_id;
-        const isActiveLead = statusId !== 142 && statusId !== 143; // Пример: 142 и 143 - закрытые статусы
-        
-        console.log(`📊 Статус сделки: ID=${statusId}, Активна=${isActiveLead}`);
-        
-        // Анализируем название сделки
-        const leadNameLower = leadName.toLowerCase();
-        if (leadNameLower.includes('абонемент')) {
-            subscriptionInfo.hasSubscription = true;
-            
-            // Пытаемся извлечь количество из названия
-            const nameMatch = leadName.match(/(\d+)\s*занятий?/i);
-            if (nameMatch) {
-                subscriptionInfo.totalClasses = parseInt(nameMatch[1]);
-                console.log(`📊 Найдено в названии: ${subscriptionInfo.totalClasses} занятий`);
-            }
+        if (!lead) {
+            return subscriptionInfo;
         }
         
-        // Анализируем кастомные поля
-        for (const field of customFields) {
-            const fieldName = this.getFieldName(field).toLowerCase();
-            const fieldValue = this.getFieldValue(field);
+        try {
+            const customFields = lead.custom_fields_values || [];
+            const leadName = lead.name || '';
             
-            if (!fieldValue || fieldValue.trim() === '') continue;
+            console.log(`\n🔍 Анализ абонемента в сделке: "${leadName}"`);
+            console.log(`📊 ID статуса: ${lead.status_id}, ID воронки: ${lead.pipeline_id}`);
             
-            console.log(`   📋 Поле: "${fieldName}" = "${fieldValue}"`);
+            // ============ ВАЖНОЕ ИЗМЕНЕНИЕ ============
+            // Проверяем название сделки и статус на наличие признаков абонемента
             
-            // Общее количество занятий
-            if (FIELD_MAPPINGS.TOTAL_CLASSES.some(term => fieldName.includes(term))) {
-                subscriptionInfo.totalClasses = this.parseClassesCount(fieldValue);
+            const leadNameLower = leadName.toLowerCase();
+            
+            // Если в названии есть признаки абонемента
+            if (leadNameLower.includes('абонемент') || 
+                leadNameLower.includes('подписка') ||
+                leadNameLower.includes('занятий') ||
+                leadNameLower.includes('курс')) {
                 subscriptionInfo.hasSubscription = true;
-                console.log(`   📊 Всего занятий: ${subscriptionInfo.totalClasses}`);
-            }
-            // Использованные занятия
-            else if (FIELD_MAPPINGS.USED_CLASSES.some(term => fieldName.includes(term))) {
-                subscriptionInfo.usedClasses = this.parseClassesCount(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📊 Использовано занятий: ${subscriptionInfo.usedClasses}`);
-            }
-            // Остаток занятий
-            else if (FIELD_MAPPINGS.REMAINING_CLASSES.some(term => fieldName.includes(term))) {
-                subscriptionInfo.remainingClasses = this.parseClassesCount(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📊 Остаток занятий: ${subscriptionInfo.remainingClasses}`);
-            }
-            // Тип абонемента
-            else if (FIELD_MAPPINGS.SUBSCRIPTION_TYPE.some(term => fieldName.includes(term))) {
-                subscriptionInfo.subscriptionType = fieldValue;
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   🎫 Тип абонемента: ${subscriptionInfo.subscriptionType}`);
-            }
-            // Дата активации
-            else if (FIELD_MAPPINGS.ACTIVATION_DATE.some(term => fieldName.includes(term))) {
-                subscriptionInfo.activationDate = this.parseDate(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📅 Дата активации: ${subscriptionInfo.activationDate}`);
-            }
-            // Дата окончания
-            else if (FIELD_MAPPINGS.EXPIRATION_DATE.some(term => fieldName.includes(term))) {
-                subscriptionInfo.expirationDate = this.parseDate(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📅 Дата окончания: ${subscriptionInfo.expirationDate}`);
-            }
-            // Дата последнего визита
-            else if (FIELD_MAPPINGS.LAST_VISIT.some(term => fieldName.includes(term))) {
-                subscriptionInfo.lastVisitDate = this.parseDate(fieldValue);
-                subscriptionInfo.hasSubscription = true;
-                console.log(`   📅 Дата последнего визита: ${subscriptionInfo.lastVisitDate}`);
-            }
-        }
-        
-        // Если счетчик занятий не найден, но есть общее количество и остаток
-        if (subscriptionInfo.usedClasses === 0 && 
-            subscriptionInfo.totalClasses > 0 && 
-            subscriptionInfo.remainingClasses > 0) {
-            subscriptionInfo.usedClasses = subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses;
-            console.log(`ℹ️  Рассчитано использованных занятий: ${subscriptionInfo.usedClasses}`);
-        }
-        
-        // Если остаток не найден, но есть общее количество и счетчик
-        if (subscriptionInfo.remainingClasses === 0 && 
-            subscriptionInfo.totalClasses > 0 && 
-            subscriptionInfo.usedClasses > 0) {
-            subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses - subscriptionInfo.usedClasses;
-            console.log(`ℹ️  Рассчитан остаток занятий: ${subscriptionInfo.remainingClasses}`);
-        }
-        
-        // Определяем статус абонемента
-        if (subscriptionInfo.hasSubscription) {
-            // Проверяем дату окончания
-            let isExpired = false;
-            if (subscriptionInfo.expirationDate) {
-                const expiration = new Date(subscriptionInfo.expirationDate);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
                 
-                if (expiration < today) {
-                    isExpired = true;
-                    console.log('⚠️  Абонемент просрочен по дате');
+                // Пытаемся извлечь количество из названия
+                const nameMatch = leadName.match(/(\d+)\s*занятий?/i);
+                if (nameMatch) {
+                    subscriptionInfo.totalClasses = parseInt(nameMatch[1]);
+                    console.log(`📊 Найдено в названии: ${subscriptionInfo.totalClasses} занятий`);
                 }
             }
             
-            // Проверяем остаток занятий
-            const hasRemainingClasses = subscriptionInfo.remainingClasses > 0;
+            // Проверяем статус сделки
+            // Статус 143 обычно "Успешно реализовано", 142 - "Закрыто и не реализовано"
+            // Нужен активный статус (например, в воронке абонементов)
+            const isClosedStatus = [142, 143].includes(lead.status_id);
+            console.log(`📊 Статус закрытый: ${isClosedStatus}`);
             
-            // Формируем статус
-            if (isExpired) {
-                subscriptionInfo.subscriptionStatus = 'Абонемент истек';
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            } else if (!hasRemainingClasses) {
-                subscriptionInfo.subscriptionStatus = 'Занятия закончились';
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            } else if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.remainingClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
-                subscriptionInfo.subscriptionBadge = 'active';
-                subscriptionInfo.subscriptionActive = true;
-            } else if (subscriptionInfo.totalClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `${subscriptionInfo.totalClasses} занятий`;
-                subscriptionInfo.subscriptionBadge = 'has_subscription';
-                subscriptionInfo.subscriptionActive = true;
-            } else {
-                subscriptionInfo.subscriptionStatus = 'Активный абонемент';
-                subscriptionInfo.subscriptionBadge = 'active';
-                subscriptionInfo.subscriptionActive = true;
+            // ============ ПРОВЕРЯЕМ КАСТОМНЫЕ ПОЛЯ ============
+            
+            for (const field of customFields) {
+                const fieldName = this.getFieldName(field).toLowerCase();
+                const fieldValue = this.getFieldValue(field);
+                
+                if (!fieldValue || fieldValue.trim() === '') continue;
+                
+                console.log(`   📋 Поле: "${fieldName}" = "${fieldValue}"`);
+                
+                // Ищем все возможные варианты названий полей
+                if (fieldName.includes('количество занятий') || 
+                    fieldName.includes('занятий в абонементе') ||
+                    fieldName.includes('всего занятий') ||
+                    fieldName.includes('абонемент на') ||
+                    (fieldName.includes('абонемент') && fieldName.includes('занятий'))) {
+                    
+                    subscriptionInfo.totalClasses = this.parseClassesCount(fieldValue);
+                    subscriptionInfo.hasSubscription = true;
+                    console.log(`   📊 Всего занятий: ${subscriptionInfo.totalClasses}`);
+                }
+                
+                else if (fieldName.includes('использовано') ||
+                         fieldName.includes('пройдено') ||
+                         fieldName.includes('посещено') ||
+                         fieldName.includes('счетчик')) {
+                    
+                    subscriptionInfo.usedClasses = this.parseClassesCount(fieldValue);
+                    subscriptionInfo.hasSubscription = true;
+                    console.log(`   📊 Использовано занятий: ${subscriptionInfo.usedClasses}`);
+                }
+                
+                else if (fieldName.includes('остаток') ||
+                         fieldName.includes('осталось') ||
+                         fieldName.includes('баланс')) {
+                    
+                    subscriptionInfo.remainingClasses = this.parseClassesCount(fieldValue);
+                    subscriptionInfo.hasSubscription = true;
+                    console.log(`   📊 Остаток занятий: ${subscriptionInfo.remainingClasses}`);
+                }
+                
+                else if (fieldName.includes('дата окончания') ||
+                         fieldName.includes('окончание') ||
+                         fieldName.includes('действует до')) {
+                    
+                    subscriptionInfo.expirationDate = this.parseDate(fieldValue);
+                    subscriptionInfo.hasSubscription = true;
+                    console.log(`   📅 Дата окончания: ${subscriptionInfo.expirationDate}`);
+                }
+            }
+            
+            // ============ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ============
+            // Если сделка активна (не закрыта) И есть признаки абонемента
+            if (!isClosedStatus && subscriptionInfo.hasSubscription) {
+                console.log(`🎯 Сделка активна и содержит абонемент!`);
+                
+                // Если нет данных о занятиях, но есть абонемент
+                if (subscriptionInfo.totalClasses === 0 && subscriptionInfo.hasSubscription) {
+                    // Попробуем установить дефолтное значение
+                    subscriptionInfo.totalClasses = 8; // или 12, или другое типичное значение
+                    console.log(`ℹ️  Установлено дефолтное значение: ${subscriptionInfo.totalClasses} занятий`);
+                }
+            }
+            
+            // Рассчитываем недостающие значения
+            if (subscriptionInfo.hasSubscription) {
+                // Если есть общее количество и использовано, но нет остатка
+                if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.usedClasses > 0 && subscriptionInfo.remainingClasses === 0) {
+                    subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
+                    console.log(`ℹ️  Рассчитан остаток: ${subscriptionInfo.remainingClasses}`);
+                }
+                
+                // Если есть общее количество и остаток, но нет использованных
+                else if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.remainingClasses > 0 && subscriptionInfo.usedClasses === 0) {
+                    subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
+                    console.log(`ℹ️  Рассчитано использованных: ${subscriptionInfo.usedClasses}`);
+                }
+                
+                // Формируем статус
+                if (isClosedStatus) {
+                    subscriptionInfo.subscriptionStatus = 'Абонемент завершен';
+                    subscriptionInfo.subscriptionBadge = 'expired';
+                    subscriptionInfo.subscriptionActive = false;
+                } else if (subscriptionInfo.remainingClasses > 0) {
+                    subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses} занятий)`;
+                    subscriptionInfo.subscriptionBadge = 'active';
+                    subscriptionInfo.subscriptionActive = true;
+                } else if (subscriptionInfo.totalClasses > 0) {
+                    subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
+                    subscriptionInfo.subscriptionBadge = 'has_subscription';
+                    subscriptionInfo.subscriptionActive = true;
+                } else {
+                    subscriptionInfo.subscriptionStatus = 'Активный абонемент';
+                    subscriptionInfo.subscriptionBadge = 'active';
+                    subscriptionInfo.subscriptionActive = true;
+                }
             }
             
             console.log(`🎯 Итоговый статус: ${subscriptionInfo.subscriptionStatus}`);
             console.log(`🏷️  Бейдж: ${subscriptionInfo.subscriptionBadge}`);
-            console.log(`✅ Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+            
+        } catch (error) {
+            console.error('❌ Ошибка извлечения информации об абонементе:', error);
         }
         
-    } catch (error) {
-        console.error('❌ Ошибка извлечения информации об абонементе:', error);
+        return subscriptionInfo;
     }
-    
-    return subscriptionInfo;
-}
 
     // Метод для поиска email в контакте
     findEmail(contact) {
@@ -1637,8 +1451,6 @@ app.post('/api/auth/phone', async (req, res) => {
         });
     }
 });
-
-
 
 app.post('/api/subscription', async (req, res) => {
     try {
