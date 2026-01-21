@@ -1574,6 +1574,55 @@ app.post('/api/subscription', async (req, res) => {
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
 
+
+app.get('/api/debug/contact-subscription-status/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.id;
+        
+        console.log(`\n🔍 ПРОВЕРКА СТАТУСА АБОНЕМЕНТА В КОНТАКТЕ ID: ${contactId}`);
+        
+        // Получаем контакт
+        const contact = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/contacts/${contactId}?with=custom_fields_values`
+        );
+        
+        // Ищем поле "Есть активный абонемент"
+        let hasActiveSubscription = false;
+        let lastVisitDate = '';
+        
+        if (contact.custom_fields_values) {
+            contact.custom_fields_values.forEach(field => {
+                const fieldName = amoCrmService.getFieldName(field).toLowerCase();
+                const fieldValue = amoCrmService.getFieldValue(field);
+                
+                if (fieldName.includes('есть активный абонемент')) {
+                    hasActiveSubscription = fieldValue.toLowerCase() === 'да';
+                }
+                
+                if (fieldName.includes('дата последнего визита')) {
+                    lastVisitDate = fieldValue;
+                }
+            });
+        }
+        
+        res.json({
+            success: true,
+            contact_id: contactId,
+            contact_name: contact.name,
+            has_active_subscription: hasActiveSubscription,
+            last_visit_date: lastVisitDate
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки контакта:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Маршрут для диагностики сделки по ID
 app.get('/api/debug/lead/:id', async (req, res) => {
     try {
