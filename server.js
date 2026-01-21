@@ -2356,6 +2356,145 @@ app.get('/api/debug/find-active-subscription/:phone', async (req, res) => {
     }
 });
 
+// Специальный маршрут для поиска полей, нужных для школы рисования
+app.get('/api/debug/school-fields', async (req, res) => {
+    try {
+        console.log(`\n🎨 ПОИСК ПОЛЕЙ ДЛЯ ШКОЛЫ РИСОВАНИЯ`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Ключевые слова для школы рисования
+        const schoolKeywords = [
+            // Ученики
+            'ученик', 'ребенок', 'фио', 'имя', 'дети', 
+            // Абонементы
+            'абонемент', 'занят', 'счетчик', 'остаток', 'посещен',
+            // Расписание
+            'филиал', 'преподаватель', 'педагог', 'группа', 'курс',
+            // Даты
+            'дата', 'активац', 'окончан', 'визит', 'посещен', 'рождения',
+            // Дополнительно
+            'аллерг', 'особенност', 'родитель', 'возраст', 'направлен',
+            // Оплата
+            'оплат', 'чек', 'сертификат', 'заморозк'
+        ];
+        
+        const foundFields = [];
+        
+        // Ищем в контактах и сделках
+        const [contactFieldsRes, leadFieldsRes] = await Promise.all([
+            amoCrmService.makeRequest('GET', '/api/v4/contacts/custom_fields'),
+            amoCrmService.makeRequest('GET', '/api/v4/leads/custom_fields')
+        ]);
+        
+        const contactFields = contactFieldsRes._embedded?.custom_fields || [];
+        const leadFields = leadFieldsRes._embedded?.custom_fields || [];
+        
+        console.log('\n🎯 ПОЛЯ СДЕЛОК (АБОНЕМЕНТЫ):');
+        console.log('='.repeat(80));
+        
+        leadFields.forEach(field => {
+            const fieldName = field.name.toLowerCase();
+            schoolKeywords.forEach(keyword => {
+                if (fieldName.includes(keyword)) {
+                    foundFields.push({
+                        entity: 'lead',
+                        id: field.id,
+                        name: field.name,
+                        type: field.type,
+                        is_critical: ['абонемент', 'счетчик', 'остаток', 'занят'].some(k => fieldName.includes(k))
+                    });
+                    
+                    const criticalMarker = ['абонемент', 'счетчик', 'остаток', 'занят'].some(k => fieldName.includes(k)) ? ' 🔑' : '';
+                    console.log(`📋 ID ${field.id}: "${field.name}" (${field.type})${criticalMarker}`);
+                    
+                    if (field.enums && field.enums.length > 0) {
+                        console.log(`   Варианты: ${field.enums.slice(0, 5).map(e => e.value).join(', ')}${field.enums.length > 5 ? '...' : ''}`);
+                    }
+                }
+            });
+        });
+        
+        console.log('\n🎯 ПОЛЯ КОНТАКТОВ (УЧЕНИКИ):');
+        console.log('='.repeat(80));
+        
+        contactFields.forEach(field => {
+            const fieldName = field.name.toLowerCase();
+            schoolKeywords.forEach(keyword => {
+                if (fieldName.includes(keyword)) {
+                    foundFields.push({
+                        entity: 'contact',
+                        id: field.id,
+                        name: field.name,
+                        type: field.type,
+                        is_critical: ['ученик', 'ребенок', 'фио', 'филиал', 'преподаватель'].some(k => fieldName.includes(k))
+                    });
+                    
+                    const criticalMarker = ['ученик', 'ребенок', 'фио', 'филиал', 'преподаватель'].some(k => fieldName.includes(k)) ? ' 🔑' : '';
+                    console.log(`👤 ID ${field.id}: "${field.name}" (${field.type})${criticalMarker}`);
+                }
+            });
+        });
+        
+        // Группируем по категориям
+        const categorized = {
+            subscription: foundFields.filter(f => 
+                f.name.toLowerCase().includes('абонемент') || 
+                f.name.toLowerCase().includes('занят') ||
+                f.name.toLowerCase().includes('счетчик') ||
+                f.name.toLowerCase().includes('остаток')
+            ),
+            student: foundFields.filter(f => 
+                f.name.toLowerCase().includes('ученик') || 
+                f.name.toLowerCase().includes('ребенок') ||
+                f.name.toLowerCase().includes('фио')
+            ),
+            schedule: foundFields.filter(f => 
+                f.name.toLowerCase().includes('филиал') || 
+                f.name.toLowerCase().includes('преподаватель') ||
+                f.name.toLowerCase().includes('педагог') ||
+                f.name.toLowerCase().includes('группа')
+            ),
+            dates: foundFields.filter(f => 
+                f.name.toLowerCase().includes('дата')
+            ),
+            other: foundFields.filter(f => 
+                !categorized.subscription.includes(f) &&
+                !categorized.student.includes(f) &&
+                !categorized.schedule.includes(f) &&
+                !categorized.dates.includes(f)
+            )
+        };
+        
+        console.log(`\n📊 ИТОГО найдено: ${foundFields.length} полей`);
+        console.log(`   🔑 Критических: ${foundFields.filter(f => f.is_critical).length}`);
+        console.log(`   📋 Абонементы: ${categorized.subscription.length}`);
+        console.log(`   👤 Ученики: ${categorized.student.length}`);
+        console.log(`   📅 Расписание: ${categorized.schedule.length}`);
+        console.log(`   📅 Даты: ${categorized.dates.length}`);
+        
+        res.json({
+            success: true,
+            total_found: foundFields.length,
+            categorized: categorized,
+            all_fields: foundFields,
+            critical_fields: foundFields.filter(f => f.is_critical)
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска полей школы:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Поиск активных сделок контакта
 app.get('/api/debug/contact/:id/active-leads', async (req, res) => {
     try {
