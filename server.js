@@ -74,24 +74,35 @@ class AmoCrmService {
         this.cachedFields = [];
         this.fieldIdToName = {};
         
-        // Упрощенная карта полей amoCRM
+        // Упрощенная карта полей
         this.fieldMapping = {
-            'student_name': ['ФИО ребенка', 'Имя ребенка', 'ФИО ученика', 'ФИО', 'Имя', 'Имя клиента', 'name'],
-            'phone_number': ['Телефон', 'Мобильный телефон', 'Phone', 'Телефон клиента'],
-            'email': ['Email', 'Электронная почта', 'Почта'],
+            'student_name': ['ФИО ребенка', 'Имя ребенка', 'ФИО ученика', 'ФИО', 'Имя', 'Имя клиента', 'ФИО ребенка*'],
+            'phone_number': ['Телефон', 'Мобильный телефон', 'Phone', 'Телефон клиента', 'Основной телефон', 'Телефон для связи'],
+            'email': ['Email', 'Электронная почта', 'Почта', 'Email клиента'],
             'birth_date': ['День рождения', 'Дата рождения', 'Birthday'],
-            'branch': ['Филиал', 'Отделение', 'Branch', 'Студия', 'Место занятий'],
+            
+            'branch': ['Филиал', 'Отделение', 'Branch', 'Студия', 'Место занятий', 'Филиал:'],
             'course_type': ['Базовый курс/продвинутый', 'Тип курса', 'Курс', 'Программа'],
+            'age_group': ['Возраст группы', 'Возрастная категория', 'Возраст', 'Группа возраст'],
+            
             'day_of_week': ['День недели', 'День занятий', 'Расписание'],
             'teacher_name': ['Преподаватель', 'Учитель', 'Инструктор', 'Педагог'],
-            'time_slot': ['Время занятия', 'Время', 'Время посещения'],
+            'time_slot': ['Время занятия', 'Время', 'Время посещения', 'Время урока'],
+            
             'subscription_active': ['Есть активный абонемент', 'Активный абонемент', 'Статус абонемента'],
             'subscription_type': ['Тип абонемента', 'Абонемент', 'Вид абонемента', 'Тариф'],
             'total_classes': ['Количество занятий', 'Всего занятий', 'Кол-во занятий'],
             'remaining_classes': ['Осталось занятий', 'Доступно занятий', 'Остаток занятий', 'Баланс'],
             'expiration_date': ['Срок действия', 'Действует до', 'Дата окончания'],
+            
             'last_visit_date': ['Дата последнего визита', 'Последнее посещение'],
-            'comment': ['Комментарий', 'Заметки', 'Примечание']
+            'first_purchase_date': ['Дата первой покупки', 'Первая покупка'],
+            'purchase_count': ['Количество покупок', 'Число покупок'],
+            'total_purchase_amount': ['Сумма покупок, руб.', 'Общая сумма покупок'],
+            
+            'comment': ['Комментарий', 'Заметки', 'Примечание'],
+            'address': ['Адрес', 'Адрес проживания'],
+            'parent_name': ['Имя родителя', 'ФИО родителя']
         };
         
         this.logConfig();
@@ -116,7 +127,6 @@ class AmoCrmService {
                 if (isValid) {
                     this.isInitialized = true;
                     console.log('✅ Токен валиден');
-                    await this.cacheCustomFields();
                     return true;
                 } else {
                     console.log('❌ Токен невалиден');
@@ -156,40 +166,6 @@ class AmoCrmService {
         }
     }
 
-    async cacheCustomFields() {
-        console.log('\n🗃️  КЕШИРОВАНИЕ КАСТОМНЫХ ПОЛЕЙ');
-        
-        try {
-            const fields = await this.getContactCustomFields();
-            this.cachedFields = fields;
-            
-            this.fieldIdToName = {};
-            fields.forEach(field => {
-                this.fieldIdToName[field.id] = field.name;
-            });
-            
-            console.log(`✅ Закешировано ${fields.length} полей`);
-            return true;
-        } catch (error) {
-            console.error('❌ Ошибка кеширования полей:', error.message);
-            return false;
-        }
-    }
-
-    async getContactCustomFields() {
-        console.log('\n📋 ПОЛУЧЕНИЕ КАСТОМНЫХ ПОЛЕЙ КОНТАКТОВ');
-        try {
-            const response = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
-            const fields = response._embedded?.custom_fields || [];
-            
-            console.log(`✅ Получено кастомных полей: ${fields.length}`);
-            return fields;
-        } catch (error) {
-            console.error('❌ Ошибка получения кастомных полей:', error.message);
-            return [];
-        }
-    }
-
     async makeRequest(method, endpoint, data = null) {
         if (!this.isInitialized || !this.accessToken) {
             throw new Error('amoCRM не инициализирован или токен отсутствует');
@@ -220,26 +196,11 @@ class AmoCrmService {
         } catch (error) {
             console.error(`❌ ОШИБКА ЗАПРОСА К AMOCRM: ${error.message}`);
             
-            if (error.response) {
-                console.error(`   Статус: ${error.response.status}`);
-                if (error.response.status === 401) {
-                    console.log('❌ Токен невалиден или истек');
-                    this.isInitialized = false;
-                }
+            if (error.response?.status === 401) {
+                console.log('❌ Токен невалиден или истек');
+                this.isInitialized = false;
             }
             
-            throw error;
-        }
-    }
-
-    async getAccountInfo() {
-        console.log('\n📊 ПОЛУЧЕНИЕ ИНФОРМАЦИИ ОБ АККАУНТЕ');
-        try {
-            const info = await this.makeRequest('GET', '/api/v4/account');
-            this.accountInfo = info;
-            return info;
-        } catch (error) {
-            console.error('❌ Ошибка получения информации об аккаунте:', error.message);
             throw error;
         }
     }
@@ -247,6 +208,7 @@ class AmoCrmService {
     async searchContactsByPhone(phoneNumber) {
         console.log(`\n🔍 ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
         
+        // Очищаем номер телефона
         const cleanPhone = phoneNumber.replace(/\D/g, '');
         
         if (!cleanPhone || cleanPhone.length < 10) {
@@ -255,6 +217,7 @@ class AmoCrmService {
         }
         
         try {
+            // Форматируем номер для поиска
             let searchPhone;
             if (cleanPhone.length === 11 && cleanPhone.startsWith('7')) {
                 searchPhone = `+${cleanPhone}`;
@@ -266,6 +229,7 @@ class AmoCrmService {
             
             console.log(`🔍 Ищем контакт с телефоном: ${searchPhone}`);
             
+            // Ищем через API с фильтром по телефону
             const response = await this.makeRequest('GET', `/api/v4/contacts?query=${encodeURIComponent(searchPhone)}&limit=10&with=custom_fields_values`);
             
             if (!response._embedded?.contacts) {
@@ -274,6 +238,7 @@ class AmoCrmService {
             }
             
             console.log(`📊 Найдено контактов: ${response._embedded.contacts.length}`);
+            
             return response;
             
         } catch (error) {
@@ -294,118 +259,112 @@ class AmoCrmService {
         }
     }
 
-    findFieldByName(fieldNames, customFields) {
+    // Улучшенный метод поиска значения поля
+    findFieldValue(fieldNames, customFields) {
         if (!customFields || !Array.isArray(customFields)) {
             return null;
         }
         
         for (const fieldName of fieldNames) {
             const field = customFields.find(f => {
-                const name = this.fieldIdToName[f.field_id];
-                return name && name.toLowerCase().includes(fieldName.toLowerCase());
+                const name = f.field_name?.toLowerCase() || '';
+                const valueName = f.name?.toLowerCase() || '';
+                return name.includes(fieldName.toLowerCase()) || 
+                       valueName.includes(fieldName.toLowerCase());
             });
             
-            if (field) {
-                return field;
+            if (field && field.values && field.values.length > 0) {
+                return field.values[0].value;
             }
         }
         
         return null;
     }
 
-    extractFieldValue(fieldValues, fieldType = 'text') {
-        if (!fieldValues || !Array.isArray(fieldValues) || fieldValues.length === 0) {
-            return null;
-        }
-        
-        const firstValue = fieldValues[0];
-        
-        if (!firstValue.value) {
-            return null;
-        }
-        
-        switch (fieldType) {
-            case 'boolean':
-                const val = firstValue.value.toString().toLowerCase();
-                return val === 'да' || val === 'yes' || val === 'true' || val === '1';
-            case 'numeric':
-                const num = parseFloat(firstValue.value.toString().replace(/\s/g, '').replace(',', '.'));
-                return isNaN(num) ? null : num;
-            case 'date':
-                try {
-                    const dateStr = firstValue.value.toString();
-                    if (/^\d+$/.test(dateStr)) {
-                        return new Date(parseInt(dateStr) * 1000).toISOString().split('T')[0];
-                    }
-                    return dateStr;
-                } catch (e) {
-                    return firstValue.value;
-                }
-            default:
-                return firstValue.value;
-        }
-    }
-
-    getFieldValueByNames(fieldNames, customFields, fieldType = 'text') {
-        const field = this.findFieldByName(fieldNames, customFields);
-        if (field && field.values && field.values.length > 0) {
-            return this.extractFieldValue(field.values, fieldType);
-        }
-        return null;
-    }
-
+    // Парсим контакт в профиль ученика
     async parseContactToStudentProfile(contact) {
         console.log(`\n🎯 ПАРСИНГ КОНТАКТА В ПРОФИЛЬ УЧЕНИКА`);
+        console.log(`👤 Контакт: ${contact.name || 'Без имени'} (ID: ${contact.id})`);
         
         const customFields = contact.custom_fields_values || [];
         
+        // Создаем профиль
         const profile = {
-            // Основные поля для БД
+            // Основная информация
             amocrm_contact_id: contact.id,
             student_name: contact.name || 'Не указано',
-            phone_number: this.getFieldValueByNames(this.fieldMapping.phone_number, customFields, 'phone') || '',
-            email: this.getFieldValueByNames(this.fieldMapping.email, customFields, 'email') || '',
-            branch: this.getFieldValueByNames(this.fieldMapping.branch, customFields, 'text') || 'Не указан',
+            parent_name: this.findFieldValue(['Имя родителя', 'ФИО родителя'], customFields) || '',
+            
+            // Контактные данные
+            phone_number: this.findFieldValue(['Телефон', 'Мобильный телефон'], customFields) || '',
+            email: this.findFieldValue(['Email', 'Электронная почта'], customFields) || '',
+            birth_date: this.findFieldValue(['День рождения', 'Дата рождения'], customFields) || '',
+            
+            // Филиал и направления
+            branch: this.findFieldValue(['Филиал', 'Филиал:'], customFields) || 'Не указан',
+            course_type: this.findFieldValue(['Базовый курс/продвинутый', 'Тип курса'], customFields) || '',
+            age_group: this.findFieldValue(['Возраст группы', 'Возрастная категория'], customFields) || '',
             
             // Расписание
-            day_of_week: this.getFieldValueByNames(this.fieldMapping.day_of_week, customFields, 'text') || '',
-            time_slot: this.getFieldValueByNames(this.fieldMapping.time_slot, customFields, 'text') || '',
-            teacher_name: this.getFieldValueByNames(this.fieldMapping.teacher_name, customFields, 'text') || '',
+            day_of_week: this.findFieldValue(['День недели'], customFields) || '',
+            time_slot: this.findFieldValue(['Время занятия', 'Время'], customFields) || '',
+            teacher_name: this.findFieldValue(['Преподаватель', 'Педагог'], customFields) || '',
             
-            // Абонемент
-            subscription_type: this.getFieldValueByNames(this.fieldMapping.subscription_type, customFields, 'text') || 'Без абонемента',
-            subscription_active: this.getFieldValueByNames(this.fieldMapping.subscription_active, customFields, 'boolean') || false,
-            total_classes: this.getFieldValueByNames(this.fieldMapping.total_classes, customFields, 'numeric') || 0,
-            remaining_classes: this.getFieldValueByNames(this.fieldMapping.remaining_classes, customFields, 'numeric') || 0,
-            expiration_date: this.getFieldValueByNames(this.fieldMapping.expiration_date, customFields, 'date') || '',
-            last_visit_date: this.getFieldValueByNames(this.fieldMapping.last_visit_date, customFields, 'date') || '',
+            // Информация об абонементе
+            subscription_active: this.findFieldValue(['Есть активный абонемент', 'Активный абонемент'], customFields) || '',
+            subscription_type: this.findFieldValue(['Тип абонемента', 'Абонемент'], customFields) || 'Без абонемента',
             
-            // Дополнительные поля
-            birth_date: this.getFieldValueByNames(this.fieldMapping.birth_date, customFields, 'date') || '',
-            course_type: this.getFieldValueByNames(this.fieldMapping.course_type, customFields, 'text') || '',
-            comment: this.getFieldValueByNames(this.fieldMapping.comment, customFields, 'text') || '',
+            // Количественные данные
+            total_classes: parseInt(this.findFieldValue(['Количество занятий', 'Всего занятий'], customFields) || 0),
+            remaining_classes: parseInt(this.findFieldValue(['Осталось занятий', 'Доступно занятий'], customFields) || 0),
+            expiration_date: this.findFieldValue(['Срок действия', 'Действует до'], customFields) || '',
             
-            // Технические поля
+            // Статистика
+            last_visit_date: this.findFieldValue(['Дата последнего визита', 'Последнее посещение'], customFields) || '',
+            first_purchase_date: this.findFieldValue(['Дата первой покупки', 'Первая покупка'], customFields) || '',
+            
+            // Дополнительная информация
+            comment: this.findFieldValue(['Комментарий', 'Заметки'], customFields) || '',
+            address: this.findFieldValue(['Адрес', 'Адрес проживания'], customFields) || '',
+            
+            // Технические данные
+            custom_fields: JSON.stringify(customFields),
+            raw_contact_data: JSON.stringify(contact),
             is_demo: 0,
             source: 'amocrm',
-            is_active: 1,
-            created_at: contact.created_at ? new Date(contact.created_at * 1000).toISOString() : null,
-            updated_at: contact.updated_at ? new Date(contact.updated_at * 1000).toISOString() : null
+            is_active: 1
         };
         
         // Вычисляем использованные занятия
-        profile.used_classes = profile.total_classes - profile.remaining_classes;
-        if (profile.used_classes < 0) profile.used_classes = 0;
+        if (profile.total_classes > 0 && profile.remaining_classes > 0) {
+            profile.used_classes = profile.total_classes - profile.remaining_classes;
+        } else {
+            profile.used_classes = 0;
+        }
         
-        // Логируем результат
+        // Преобразуем boolean значения
+        if (profile.subscription_active) {
+            profile.subscription_active = profile.subscription_active.toString().toLowerCase() === 'true' || 
+                                         profile.subscription_active.toString().toLowerCase() === 'да' ||
+                                         profile.subscription_active === true ? 1 : 0;
+        } else {
+            profile.subscription_active = 0;
+        }
+        
+        // Логируем извлеченные данные
         console.log('\n📊 ИЗВЛЕЧЕННЫЕ ДАННЫЕ:');
-        console.log('='.repeat(50));
+        console.log('='.repeat(80));
         console.log(`👤 Ученик: ${profile.student_name}`);
         console.log(`📞 Телефон: ${profile.phone_number}`);
         console.log(`🏢 Филиал: ${profile.branch}`);
+        console.log(`📅 День недели: ${profile.day_of_week}`);
+        console.log(`⏰ Время: ${profile.time_slot}`);
+        console.log(`👩‍🏫 Преподаватель: ${profile.teacher_name}`);
         console.log(`🎫 Абонемент: ${profile.subscription_type}`);
+        console.log(`✅ Активный: ${profile.subscription_active ? 'Да' : 'Нет'}`);
         console.log(`📊 Занятий: ${profile.remaining_classes}/${profile.total_classes}`);
-        console.log('='.repeat(50));
+        console.log(`📅 Срок действия: ${profile.expiration_date}`);
+        console.log('='.repeat(80));
         
         return profile;
     }
@@ -438,8 +397,6 @@ class AmoCrmService {
                         
                         // Создаем профиль
                         let profile = await this.parseContactToStudentProfile(contactDetails);
-                        profile.is_demo = 0;
-                        profile.source = 'amocrm';
                         
                         profiles.push(profile);
                         console.log(`✅ Профиль добавлен: ${profile.student_name}`);
@@ -495,6 +452,7 @@ const initDatabase = async () => {
         console.log('🔄 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ');
         console.log('='.repeat(80));
         
+        // Определяем путь к БД
         let dbPath;
         
         if (process.env.REPLIT_DB_URL || process.env.REPL_ID) {
@@ -504,15 +462,16 @@ const initDatabase = async () => {
             const dbDir = path.join(__dirname, 'data');
             try {
                 await fs.mkdir(dbDir, { recursive: true });
+                console.log('📁 Директория данных создана:', dbDir);
             } catch (mkdirError) {
-                if (mkdirError.code !== 'EEXIST') {
-                    console.log('📁 Директория данных уже существует');
-                }
+                console.log('📁 Директория данных уже существует');
             }
             dbPath = path.join(dbDir, 'art_school.db');
         }
         
         console.log(`💾 Путь к базе данных: ${dbPath}`);
+        
+        // Открываем базу данных
         db = await open({
             filename: dbPath,
             driver: sqlite3.Database
@@ -520,6 +479,7 @@ const initDatabase = async () => {
 
         console.log('✅ База данных SQLite подключена');
         
+        // Настраиваем базу данных
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
         
@@ -532,10 +492,28 @@ const initDatabase = async () => {
         
         return db;
     } catch (error) {
-        console.error('❌ Ошибка инициализации базы данных:', error.message);
+        console.error('❌ Критическая ошибка инициализации базы данных:', error.message);
         
-        // Создаем БД в памяти как fallback
+        // Пробуем альтернативный путь для БД
         try {
+            console.log('\n🔄 Попытка альтернативного пути для БД...');
+            const tempDbPath = path.join('/tmp', 'art_school.db');
+            
+            db = await open({
+                filename: tempDbPath,
+                driver: sqlite3.Database
+            });
+            
+            await db.run('PRAGMA foreign_keys = ON');
+            await createTables();
+            
+            console.log('✅ База данных создана в временной директории');
+            return db;
+            
+        } catch (tempError) {
+            console.error('❌ Не удалось создать БД даже во временной директории');
+            
+            // Создаем БД в памяти
             console.log('\n🔄 Создаем БД в памяти...');
             db = await open({
                 filename: ':memory:',
@@ -547,9 +525,6 @@ const initDatabase = async () => {
             
             console.log('⚠️  ВНИМАНИЕ: БД создана в памяти. Данные будут потеряны при перезапуске!');
             return db;
-        } catch (memoryError) {
-            console.error('❌ Не удалось создать БД даже в памяти:', memoryError.message);
-            throw memoryError;
         }
     }
 };
@@ -569,124 +544,55 @@ const createTables = async () => {
                 phone_number TEXT NOT NULL,
                 email TEXT,
                 birth_date TEXT,
-                branch TEXT NOT NULL DEFAULT 'Не указан',
+                branch TEXT,
                 
                 -- Расписание
                 day_of_week TEXT,
                 time_slot TEXT,
                 teacher_name TEXT,
                 
-                -- Информация об абонементе
-                subscription_type TEXT DEFAULT 'Без абонемента',
+                -- Абонемент
+                subscription_type TEXT,
                 subscription_active INTEGER DEFAULT 0,
                 total_classes INTEGER DEFAULT 0,
                 used_classes INTEGER DEFAULT 0,
                 remaining_classes INTEGER DEFAULT 0,
                 expiration_date TEXT,
-                last_visit_date TEXT,
                 
                 -- Дополнительная информация
-                course_type TEXT,
+                parent_name TEXT,
                 comment TEXT,
+                address TEXT,
+                
+                -- Статистика
+                last_visit_date TEXT,
+                first_purchase_date TEXT,
                 
                 -- Технические данные
+                custom_fields TEXT,
+                raw_contact_data TEXT,
                 is_demo INTEGER DEFAULT 0,
-                source TEXT DEFAULT 'unknown',
+                source TEXT DEFAULT 'amocrm',
                 is_active INTEGER DEFAULT 1,
-                last_selected INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
         console.log('✅ Таблица student_profiles создана');
 
-        // Telegram пользователи
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS telegram_users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id INTEGER UNIQUE NOT NULL,
-                phone_number TEXT NOT NULL,
-                first_name TEXT,
-                last_name TEXT,
-                username TEXT,
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        console.log('✅ Таблица telegram_users создана');
-
-        // Расписание
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS schedule (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT NOT NULL,
-                day_of_week TEXT NOT NULL,
-                start_time TEXT NOT NULL,
-                end_time TEXT NOT NULL,
-                teacher_name TEXT,
-                group_name TEXT,
-                room_number TEXT,
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        console.log('✅ Таблица schedule создана');
-
-        // Посещения
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS attendance (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_profile_id INTEGER NOT NULL,
-                schedule_id INTEGER,
-                attendance_date DATE NOT NULL,
-                attendance_time TIME,
-                status TEXT DEFAULT 'attended',
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (student_profile_id) REFERENCES student_profiles(id) ON DELETE CASCADE
-            )
-        `);
-        console.log('✅ Таблица attendance создана');
-
-        // Сессии пользователей
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS user_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT UNIQUE NOT NULL,
-                user_id INTEGER,
-                phone_number TEXT,
-                session_data TEXT,
-                expires_at TIMESTAMP NOT NULL,
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        console.log('✅ Таблица user_sessions создана');
-
+        // Индексы
+        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_phone ON student_profiles(phone_number)');
+        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_amocrm_id ON student_profiles(amocrm_contact_id)');
+        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_active ON student_profiles(is_active)');
+        
         console.log('\n🎉 Все таблицы созданы успешно!');
         
-        // Создаем индексы
-        await createIndexes();
-        
-        // Создаем тестовые данные если нужно
+        // Создаем тестовые данные только при необходимости
         await createTestData();
         
     } catch (error) {
         console.error('❌ Ошибка создания таблиц:', error.message);
         throw error;
-    }
-};
-
-const createIndexes = async () => {
-    try {
-        console.log('\n📈 СОЗДАНИЕ ИНДЕКСОВ');
-        
-        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_phone ON student_profiles(phone_number)');
-        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_amocrm_id ON student_profiles(amocrm_contact_id)');
-        
-        console.log('✅ Индексы созданы');
-    } catch (error) {
-        console.error('⚠️  Ошибка создания индексов:', error.message);
     }
 };
 
@@ -698,70 +604,49 @@ const createTestData = async () => {
         // Проверяем наличие данных
         const hasStudents = await db.get("SELECT 1 FROM student_profiles LIMIT 1");
         
-        // Создаем тестовых учеников только если нет реальных данных из amoCRM
+        // Создаем тестового ученика только если нет реальных данных из amoCRM
         if (!hasStudents && !amoCrmService.isInitialized) {
             console.log('👤 Создание тестовых учеников (для демо)...');
             
-            const students = [
-                {
-                    student_name: 'Иванов Иван',
-                    phone_number: '+79154761409',
-                    email: 'ivanov@example.com',
-                    branch: 'Свиблово',
-                    subscription_type: 'Активный абонемент',
-                    subscription_active: 1,
-                    total_classes: 8,
-                    remaining_classes: 6,
-                    used_classes: 2,
-                    day_of_week: 'Суббота',
-                    time_slot: '12:00',
-                    teacher_name: 'Саша М',
-                    is_demo: 1,
-                    source: 'demo'
-                },
-                {
-                    student_name: 'Петрова Мария',
-                    phone_number: '+79161234567',
-                    email: 'petrova@example.com',
-                    branch: 'Чертаново',
-                    subscription_type: 'Продвинутый курс',
-                    subscription_active: 1,
-                    total_classes: 12,
-                    remaining_classes: 8,
-                    used_classes: 4,
-                    day_of_week: 'Понедельник',
-                    time_slot: '18:00',
-                    teacher_name: 'Анна В',
-                    is_demo: 1,
-                    source: 'demo'
-                }
-            ];
+            const student = {
+                student_name: 'Иванов Иван',
+                phone_number: '+79680175895',
+                email: 'ivanov@example.com',
+                branch: 'Свиблово',
+                subscription_type: 'Активный абонемент',
+                subscription_active: 1,
+                total_classes: 8,
+                remaining_classes: 6,
+                used_classes: 2,
+                day_of_week: 'понедельник',
+                time_slot: '18:00',
+                teacher_name: 'Саша М',
+                is_demo: 1
+            };
             
-            for (const student of students) {
-                await db.run(
-                    `INSERT OR IGNORE INTO student_profiles 
-                     (student_name, phone_number, email, branch, subscription_type, subscription_active,
-                      total_classes, remaining_classes, used_classes, day_of_week, time_slot, 
-                      teacher_name, is_demo, source) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        student.student_name,
-                        student.phone_number,
-                        student.email,
-                        student.branch,
-                        student.subscription_type,
-                        student.subscription_active,
-                        student.total_classes,
-                        student.remaining_classes,
-                        student.used_classes,
-                        student.day_of_week,
-                        student.time_slot,
-                        student.teacher_name,
-                        student.is_demo,
-                        student.source
-                    ]
-                );
-            }
+            await db.run(
+                `INSERT OR IGNORE INTO student_profiles 
+                 (student_name, phone_number, email, branch, subscription_type, subscription_active,
+                  total_classes, remaining_classes, used_classes,
+                  day_of_week, time_slot, teacher_name, is_demo, source) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    student.student_name,
+                    student.phone_number,
+                    student.email,
+                    student.branch,
+                    student.subscription_type,
+                    student.subscription_active,
+                    student.total_classes,
+                    student.remaining_classes,
+                    student.used_classes,
+                    student.day_of_week,
+                    student.time_slot,
+                    student.teacher_name,
+                    student.is_demo,
+                    'demo'
+                ]
+            );
             console.log('⚠️  Созданы ТЕСТОВЫЕ данные (используются только при отключенном amoCRM)');
         }
         
@@ -778,10 +663,11 @@ const createTestData = async () => {
 app.get('/api/status', (req, res) => {
     res.json({
         success: true,
-        message: 'Сервер художественной школы работает',
+        message: 'Сервер школы рисования работает',
         timestamp: new Date().toISOString(),
-        version: '2.2.0',
+        version: '2.1.0',
         amocrm_connected: amoCrmService.isInitialized,
+        amocrm_account: amoCrmService.accountInfo?.name || null,
         data_source: amoCrmService.isInitialized ? 'Реальные данные из amoCRM' : 'Локальные данные'
     });
 });
@@ -814,10 +700,14 @@ app.post('/api/auth/phone', async (req, res) => {
         let formattedPhone;
         if (cleanPhone.length === 10) {
             formattedPhone = '+7' + cleanPhone;
-        } else if (cleanPhone.length === 11 && cleanPhone.startsWith('8')) {
-            formattedPhone = '+7' + cleanPhone.slice(1);
-        } else if (cleanPhone.length === 11 && cleanPhone.startsWith('7')) {
-            formattedPhone = '+' + cleanPhone;
+        } else if (cleanPhone.length === 11) {
+            if (cleanPhone.startsWith('8')) {
+                formattedPhone = '+7' + cleanPhone.slice(1);
+            } else if (cleanPhone.startsWith('7')) {
+                formattedPhone = '+' + cleanPhone;
+            } else {
+                formattedPhone = '+7' + cleanPhone.slice(-10);
+            }
         } else {
             formattedPhone = '+7' + cleanPhone.slice(-10);
         }
@@ -834,7 +724,8 @@ app.post('/api/auth/phone', async (req, res) => {
         const tempUser = {
             id: Date.now(),
             phone_number: formattedPhone,
-            first_name: profiles.length > 0 ? profiles[0].student_name?.split(' ')[0] || 'Ученик' : 'Гость'
+            first_name: profiles.length > 0 ? profiles[0].student_name?.split(' ')[0] || 'Ученик' : 'Гость',
+            is_temp: true
         };
         
         // Создаем сессию
@@ -843,13 +734,14 @@ app.post('/api/auth/phone', async (req, res) => {
         
         try {
             await db.run(
-                `INSERT INTO user_sessions (session_id, session_data, phone_number, expires_at) 
-                 VALUES (?, ?, ?, ?)`,
+                `INSERT INTO user_sessions (session_id, session_data, phone_number, expires_at, is_active) 
+                 VALUES (?, ?, ?, ?, ?)`,
                 [
                     sessionId,
                     JSON.stringify({ user: tempUser, profiles }),
                     formattedPhone,
-                    expiresAt.toISOString()
+                    expiresAt.toISOString(),
+                    1
                 ]
             );
         } catch (dbError) {
@@ -861,6 +753,7 @@ app.post('/api/auth/phone', async (req, res) => {
             {
                 session_id: sessionId,
                 phone: formattedPhone,
+                is_temp: true,
                 profiles_count: profiles.length,
                 amocrm_connected: amoCrmService.isInitialized
             },
@@ -873,54 +766,52 @@ app.post('/api/auth/phone', async (req, res) => {
             console.log(`💾 Сохранение профилей в БД...`);
             for (const profile of profiles) {
                 try {
-                    // Проверяем существующий профиль по amocrm_contact_id или телефону+имени
+                    // Проверяем существующий профиль
                     const existingProfile = await db.get(
                         `SELECT id FROM student_profiles 
-                         WHERE (amocrm_contact_id = ?) OR 
-                               (phone_number = ? AND student_name = ?)`,
-                        [profile.amocrm_contact_id, profile.phone_number, profile.student_name]
+                         WHERE phone_number = ? AND student_name = ?`,
+                        [profile.phone_number, profile.student_name]
                     );
                     
                     if (!existingProfile) {
                         // Вставляем новый профиль
-                        const columns = [
-                            'amocrm_contact_id', 'student_name', 'phone_number', 'email', 'birth_date', 'branch',
-                            'day_of_week', 'time_slot', 'teacher_name',
-                            'subscription_type', 'subscription_active', 'total_classes', 'used_classes', 'remaining_classes',
-                            'expiration_date', 'last_visit_date',
-                            'course_type', 'comment',
-                            'is_demo', 'source', 'is_active'
-                        ];
-                        
-                        const placeholders = columns.map(() => '?').join(', ');
-                        const values = [
-                            profile.amocrm_contact_id || null,
-                            profile.student_name,
-                            profile.phone_number,
-                            profile.email || '',
-                            profile.birth_date || '',
-                            profile.branch || 'Не указан',
-                            profile.day_of_week || '',
-                            profile.time_slot || '',
-                            profile.teacher_name || '',
-                            profile.subscription_type || 'Без абонемента',
-                            profile.subscription_active ? 1 : 0,
-                            profile.total_classes || 0,
-                            profile.used_classes || 0,
-                            profile.remaining_classes || 0,
-                            profile.expiration_date || null,
-                            profile.last_visit_date || null,
-                            profile.course_type || '',
-                            profile.comment || '',
-                            profile.is_demo || 0,
-                            profile.source || 'unknown',
-                            1
-                        ];
-                        
                         await db.run(
-                            `INSERT INTO student_profiles (${columns.join(', ')}) 
-                             VALUES (${placeholders})`,
-                            values
+                            `INSERT INTO student_profiles 
+                             (amocrm_contact_id, student_name, parent_name, phone_number, email, birth_date, branch,
+                              day_of_week, time_slot, teacher_name,
+                              subscription_type, subscription_active, total_classes, used_classes, remaining_classes, 
+                              expiration_date,
+                              comment, address,
+                              last_visit_date, first_purchase_date,
+                              custom_fields, raw_contact_data, is_demo, source, is_active) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                profile.amocrm_contact_id || null,
+                                profile.student_name,
+                                profile.parent_name || '',
+                                profile.phone_number,
+                                profile.email || '',
+                                profile.birth_date || '',
+                                profile.branch || 'Не указан',
+                                profile.day_of_week || '',
+                                profile.time_slot || '',
+                                profile.teacher_name || '',
+                                profile.subscription_type || 'Без абонемента',
+                                profile.subscription_active || 0,
+                                profile.total_classes || 0,
+                                profile.used_classes || 0,
+                                profile.remaining_classes || 0,
+                                profile.expiration_date || null,
+                                profile.comment || '',
+                                profile.address || '',
+                                profile.last_visit_date || null,
+                                profile.first_purchase_date || null,
+                                profile.custom_fields || '{}',
+                                profile.raw_contact_data || '{}',
+                                profile.is_demo || 0,
+                                profile.source || 'unknown',
+                                1
+                            ]
                         );
                         console.log(`✅ Профиль сохранен в БД: ${profile.student_name}`);
                     } else {
@@ -930,9 +821,10 @@ app.post('/api/auth/phone', async (req, res) => {
                              student_name = ?, phone_number = ?, email = ?, birth_date = ?, branch = ?,
                              day_of_week = ?, time_slot = ?, teacher_name = ?,
                              subscription_type = ?, subscription_active = ?, total_classes = ?, used_classes = ?, remaining_classes = ?,
-                             expiration_date = ?, last_visit_date = ?,
-                             course_type = ?, comment = ?,
-                             is_demo = ?, source = ?, updated_at = CURRENT_TIMESTAMP
+                             expiration_date = ?,
+                             comment = ?, address = ?,
+                             last_visit_date = ?, first_purchase_date = ?,
+                             custom_fields = ?, raw_contact_data = ?, updated_at = CURRENT_TIMESTAMP
                              WHERE id = ?`,
                             [
                                 profile.student_name,
@@ -944,16 +836,17 @@ app.post('/api/auth/phone', async (req, res) => {
                                 profile.time_slot || '',
                                 profile.teacher_name || '',
                                 profile.subscription_type || 'Без абонемента',
-                                profile.subscription_active ? 1 : 0,
+                                profile.subscription_active || 0,
                                 profile.total_classes || 0,
                                 profile.used_classes || 0,
                                 profile.remaining_classes || 0,
                                 profile.expiration_date || null,
-                                profile.last_visit_date || null,
-                                profile.course_type || '',
                                 profile.comment || '',
-                                profile.is_demo || 0,
-                                profile.source || 'unknown',
+                                profile.address || '',
+                                profile.last_visit_date || null,
+                                profile.first_purchase_date || null,
+                                profile.custom_fields || '{}',
+                                profile.raw_contact_data || '{}',
                                 existingProfile.id
                             ]
                         );
@@ -985,7 +878,6 @@ app.post('/api/auth/phone', async (req, res) => {
                     subscription_active: p.subscription_active,
                     total_classes: p.total_classes,
                     remaining_classes: p.remaining_classes,
-                    used_classes: p.used_classes,
                     expiration_date: p.expiration_date,
                     last_visit_date: p.last_visit_date,
                     is_demo: p.is_demo,
@@ -1026,9 +918,12 @@ app.post('/api/subscription', async (req, res) => {
                 [profile_id]
             );
         } else if (phone) {
+            const cleanPhone = phone.replace(/\D/g, '').slice(-10);
             profile = await db.get(
-                `SELECT * FROM student_profiles WHERE phone_number LIKE ? AND is_active = 1 ORDER BY updated_at DESC LIMIT 1`,
-                [`%${phone.replace(/\D/g, '').slice(-10)}%`]
+                `SELECT * FROM student_profiles 
+                 WHERE phone_number LIKE ? AND is_active = 1 
+                 ORDER BY updated_at DESC LIMIT 1`,
+                [`%${cleanPhone}%`]
             );
         }
         
@@ -1066,11 +961,8 @@ app.post('/api/subscription', async (req, res) => {
                     subscription_active: profile.subscription_active === 1,
                     total_classes: profile.total_classes,
                     remaining_classes: profile.remaining_classes,
-                    used_classes: profile.used_classes,
                     expiration_date: profile.expiration_date,
-                    last_visit_date: profile.last_visit_date,
-                    course_type: profile.course_type,
-                    comment: profile.comment
+                    last_visit_date: profile.last_visit_date
                 },
                 visits: visits,
                 data_source: profile.source,
@@ -1090,14 +982,14 @@ app.post('/api/subscription', async (req, res) => {
 // Получение расписания
 app.post('/api/schedule', async (req, res) => {
     try {
-        const { branch } = req.body;
+        const { branch, week_start } = req.body;
         
-        console.log(`\n📅 ЗАПРОС РАСПИСАНИЯ ДЛЯ ФИЛИАЛА: ${branch}`);
+        console.log(`\n📅 ЗАПРОС РАСПИСАНИЯ: ${branch}`);
         
-        // Ищем расписание для филиала
+        // Получаем расписание из базы данных
         const schedule = await db.all(
             `SELECT * FROM schedule 
-             WHERE branch = ? AND is_active = 1
+             WHERE branch = ? AND is_active = 1 
              ORDER BY 
                  CASE day_of_week 
                      WHEN 'понедельник' THEN 1
@@ -1109,26 +1001,24 @@ app.post('/api/schedule', async (req, res) => {
                      WHEN 'воскресенье' THEN 7
                      ELSE 8
                  END, start_time`,
-            [branch]
+            [branch || 'Свиблово']
         );
         
-        // Если нет расписания, создаем демо-расписание
+        // Если расписания нет, создаем демо-расписание
         if (schedule.length === 0) {
             console.log('📝 Создание демо-расписания');
             
             const demoSchedule = [
                 {
-                    branch: branch,
                     day_of_week: 'понедельник',
                     start_time: '16:00',
                     end_time: '17:30',
                     teacher_name: 'Анна Петрова',
-                    group_name: 'Художественный курс для начинающих',
+                    group_name: 'Основы рисования',
                     room_number: '101'
                 },
                 {
-                    branch: branch,
-                    day_of_week: 'среда',
+                    day_of_week: 'вторник',
                     start_time: '17:00',
                     end_time: '18:30',
                     teacher_name: 'Иван Сидоров',
@@ -1136,53 +1026,77 @@ app.post('/api/schedule', async (req, res) => {
                     room_number: '102'
                 },
                 {
-                    branch: branch,
-                    day_of_week: 'суббота',
-                    start_time: '12:00',
-                    end_time: '13:30',
+                    day_of_week: 'среда',
+                    start_time: '16:30',
+                    end_time: '18:00',
                     teacher_name: 'Мария Иванова',
-                    group_name: 'Рисунок для детей',
+                    group_name: 'Рисунок карандашом',
                     room_number: '103'
+                },
+                {
+                    day_of_week: 'суббота',
+                    start_time: '11:00',
+                    end_time: '12:30',
+                    teacher_name: 'Саша М',
+                    group_name: 'Художественный курс',
+                    room_number: '104'
                 }
             ];
             
-            // Сохраняем демо-расписание
+            // Сохраняем демо-расписание в базу
             for (const lesson of demoSchedule) {
                 await db.run(
-                    `INSERT INTO schedule (branch, day_of_week, start_time, end_time, teacher_name, group_name, room_number)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO schedule (branch, day_of_week, start_time, end_time, teacher_name, group_name, room_number, is_active)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
-                        lesson.branch,
+                        branch || 'Свиблово',
                         lesson.day_of_week,
                         lesson.start_time,
                         lesson.end_time,
                         lesson.teacher_name,
                         lesson.group_name,
-                        lesson.room_number
+                        lesson.room_number,
+                        1
                     ]
                 );
             }
             
             // Получаем сохраненное расписание
             const savedSchedule = await db.all(
-                `SELECT * FROM schedule WHERE branch = ? ORDER BY day_of_week, start_time`,
-                [branch]
+                `SELECT * FROM schedule 
+                 WHERE branch = ? AND is_active = 1 
+                 ORDER BY 
+                     CASE day_of_week 
+                         WHEN 'понедельник' THEN 1
+                         WHEN 'вторник' THEN 2
+                         WHEN 'среда' THEN 3
+                         WHEN 'четверг' THEN 4
+                         WHEN 'пятница' THEN 5
+                         WHEN 'суббота' THEN 6
+                         WHEN 'воскресенье' THEN 7
+                         ELSE 8
+                     END, start_time`,
+                [branch || 'Свибловo']
             );
             
             res.json({
                 success: true,
                 data: {
-                    schedule: savedSchedule
+                    schedule: savedSchedule,
+                    is_demo: true
                 }
             });
-        } else {
-            res.json({
-                success: true,
-                data: {
-                    schedule: schedule
-                }
-            });
+            
+            return;
         }
+        
+        res.json({
+            success: true,
+            data: {
+                schedule: schedule,
+                is_demo: false
+            }
+        });
         
     } catch (error) {
         console.error('Ошибка получения расписания:', error);
@@ -1193,98 +1107,93 @@ app.post('/api/schedule', async (req, res) => {
     }
 });
 
-// Диагностика
-app.get('/api/debug/amocrm-detailed', async (req, res) => {
+// Создание таблицы schedule если не существует
+const createScheduleTable = async () => {
     try {
-        const { phone } = req.query;
-        
-        console.log('\n🔍 ПОДРОБНАЯ ДИАГНОСТИКА AMOCRM');
-        
-        const diagnostics = {
-            timestamp: new Date().toISOString(),
-            amocrm_status: {
-                initialized: amoCrmService.isInitialized,
-                domain: AMOCRM_DOMAIN,
-                subdomain: AMOCRM_SUBDOMAIN,
-                has_access_token: !!amoCrmService.accessToken,
-                account_info: amoCrmService.accountInfo ? {
-                    name: amoCrmService.accountInfo.name,
-                    id: amoCrmService.accountInfo.id
-                } : null
-            }
-        };
-        
-        if (phone && amoCrmService.isInitialized) {
-            console.log(`📞 Телефон для диагностики: ${phone}`);
-            diagnostics.search_phone = phone;
-            
-            try {
-                const profiles = await amoCrmService.getStudentsByPhone(phone);
-                diagnostics.search_results = {
-                    profiles_found: profiles.length,
-                    sample_profile: profiles.length > 0 ? {
-                        student_name: profiles[0].student_name,
-                        phone: profiles[0].phone_number,
-                        branch: profiles[0].branch
-                    } : null
-                };
-            } catch (searchError) {
-                diagnostics.search_error = searchError.message;
-            }
-        }
-        
-        res.json({
-            success: true,
-            diagnostics: diagnostics
-        });
-        
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS schedule (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                branch TEXT NOT NULL,
+                day_of_week TEXT NOT NULL,
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
+                teacher_name TEXT,
+                group_name TEXT,
+                room_number TEXT,
+                max_students INTEGER DEFAULT 10,
+                current_students INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'normal',
+                status_note TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ Таблица schedule создана');
     } catch (error) {
-        console.error('❌ Ошибка диагностики:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка диагностики',
-            details: error.message
-        });
+        console.error('❌ Ошибка создания таблицы schedule:', error.message);
     }
-});
+};
 
-// Тестовый API для проверки работы
-app.get('/api/test/connection', async (req, res) => {
+// Создание таблицы attendance если не существует
+const createAttendanceTable = async () => {
     try {
-        const dbCheck = await db.get('SELECT COUNT(*) as count FROM student_profiles');
-        const amoCrmCheck = amoCrmService.isInitialized;
-        
-        res.json({
-            success: true,
-            database: {
-                connected: true,
-                student_count: dbCheck.count
-            },
-            amocrm: {
-                connected: amoCrmCheck,
-                initialized: amoCrmService.isInitialized
-            },
-            server_time: new Date().toISOString()
-        });
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_profile_id INTEGER NOT NULL,
+                schedule_id INTEGER,
+                attendance_date DATE NOT NULL,
+                attendance_time TIME,
+                status TEXT DEFAULT 'attended',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ Таблица attendance создана');
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        console.error('❌ Ошибка создания таблицы attendance:', error.message);
     }
-});
+};
+
+// Создание таблицы user_sessions если не существует
+const createUserSessionsTable = async () => {
+    try {
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT UNIQUE NOT NULL,
+                session_data TEXT,
+                phone_number TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                is_active INTEGER DEFAULT 1,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ Таблица user_sessions создана');
+    } catch (error) {
+        console.error('❌ Ошибка создания таблицы user_sessions:', error.message);
+    }
+};
 
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const startServer = async () => {
     try {
         console.log('\n' + '='.repeat(80));
-        console.log('🎨 ЗАПУСК СИСТЕМЫ ХУДОЖЕСТВЕННОЙ СТУДИИ v2.2');
+        console.log('🎨 ЗАПУСК СИСТЕМЫ ХУДОЖЕСТВЕННОЙ СТУДИИ v2.1');
         console.log('='.repeat(80));
-        console.log('✨ УПРОЩЕННАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ');
+        console.log('✨ УПРОЩЕННЫЙ ПАРСИНГ AMOCRM');
         console.log('='.repeat(80));
         
         await initDatabase();
         console.log('✅ База данных готова');
+        
+        // Создаем дополнительные таблицы
+        await createScheduleTable();
+        await createAttendanceTable();
+        await createUserSessionsTable();
         
         // Инициализируем amoCRM
         console.log('\n🔄 Инициализация amoCRM...');
@@ -1313,7 +1222,6 @@ const startServer = async () => {
             console.log('='.repeat(50));
             console.log(`📱 Веб-приложение: http://localhost:${PORT}`);
             console.log(`📊 Статус API: http://localhost:${PORT}/api/status`);
-            console.log(`🔧 Тест подключения: http://localhost:${PORT}/api/test/connection`);
             console.log('='.repeat(50));
         });
         
