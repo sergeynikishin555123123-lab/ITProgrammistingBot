@@ -1395,7 +1395,519 @@ app.get('/api/verify-token', async (req, res) => {
         });
     }
 });
+// ==================== ДОПОЛНИТЕЛЬНЫЕ API-МАРШРУТЫ ====================
 
+// Расписание (заглушка - в реальной системе данные должны быть из БД или amoCRM)
+app.post('/api/schedule', async (req, res) => {
+    try {
+        const { branch } = req.body;
+        
+        console.log(`📅 ЗАПРОС РАСПИСАНИЯ для филиала: ${branch || 'все'}`);
+        
+        // Заглушка с демо-расписанием
+        const demoSchedule = [
+            {
+                day_of_week: 'понедельник',
+                start_time: '12:00',
+                end_time: '13:30',
+                group_name: 'Рисунок для начинающих',
+                teacher_name: 'Саша М',
+                room_number: '101'
+            },
+            {
+                day_of_week: 'понедельник',
+                start_time: '16:00',
+                end_time: '17:30',
+                group_name: 'Акварельная живопись',
+                teacher_name: 'Анна Петрова',
+                room_number: '102'
+            },
+            {
+                day_of_week: 'среда',
+                start_time: '12:00',
+                end_time: '13:30',
+                group_name: 'Масляная живопись',
+                teacher_name: 'Ирина Сидорова',
+                room_number: '103'
+            },
+            {
+                day_of_week: 'среда',
+                start_time: '16:00',
+                end_time: '17:30',
+                group_name: 'Скетчинг',
+                teacher_name: 'Саша М',
+                room_number: '101'
+            },
+            {
+                day_of_week: 'пятница',
+                start_time: '14:00',
+                end_time: '15:30',
+                group_name: 'Каллиграфия',
+                teacher_name: 'Мария Иванова',
+                room_number: '104'
+            }
+        ];
+        
+        // Фильтруем по филиалу если нужно
+        let schedule = demoSchedule;
+        if (branch) {
+            schedule = schedule.filter(lesson => 
+                lesson.group_name.toLowerCase().includes(branch.toLowerCase()) ||
+                !branch
+            );
+        }
+        
+        // Добавляем историю посещений для текущего профиля если есть
+        const visitsHistory = [
+            {
+                attendance_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '12:00 - 13:30',
+                status: 'attended',
+                notes: 'Рисунок карандашом'
+            },
+            {
+                attendance_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '16:00 - 17:30',
+                status: 'attended',
+                notes: 'Акварельный пейзаж'
+            },
+            {
+                attendance_date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '12:00 - 13:30',
+                status: 'attended',
+                notes: 'Натюрморт'
+            }
+        ];
+        
+        res.json({
+            success: true,
+            data: {
+                schedule: schedule,
+                visits: visitsHistory
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения расписания:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения расписания'
+        });
+    }
+});
+
+// Полный профиль ученика (расширенная версия абонемента)
+app.get('/api/profile/:id', async (req, res) => {
+    try {
+        const profileId = req.params.id;
+        
+        console.log(`👤 ЗАПРОС ПРОФИЛЯ ID: ${profileId}`);
+        
+        const profile = await db.get(
+            `SELECT * FROM student_profiles WHERE id = ?`,
+            [profileId]
+        );
+        
+        if (!profile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        // Получаем историю посещений
+        const visitsHistory = await db.all(
+            `SELECT * FROM attendance_history 
+             WHERE profile_id = ? 
+             ORDER BY attendance_date DESC 
+             LIMIT 20`,
+            [profileId]
+        );
+        
+        // Если нет истории в БД, создаем демо-данные
+        let visits = visitsHistory;
+        if (visits.length === 0) {
+            visits = [
+                {
+                    attendance_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                    attendance_time: '12:00 - 13:30',
+                    status: 'attended',
+                    notes: 'Рисунок карандашом'
+                },
+                {
+                    attendance_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    attendance_time: '16:00 - 17:30',
+                    status: 'attended',
+                    notes: 'Акварельный пейзаж'
+                },
+                {
+                    attendance_date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+                    attendance_time: '12:00 - 13:30',
+                    status: 'attended',
+                    notes: 'Натюрморт'
+                }
+            ];
+        }
+        
+        // Рассчитываем статистику
+        const totalVisits = visits.filter(v => v.status === 'attended').length;
+        const missedVisits = visits.filter(v => v.status === 'missed').length;
+        
+        res.json({
+            success: true,
+            data: {
+                profile: {
+                    student: {
+                        name: profile.student_name,
+                        phone: profile.phone_number,
+                        email: profile.email,
+                        birth_date: profile.birth_date,
+                        branch: profile.branch
+                    },
+                    schedule: {
+                        day_of_week: profile.day_of_week,
+                        time_slot: profile.time_slot,
+                        teacher_name: profile.teacher_name
+                    },
+                    subscription: {
+                        type: profile.subscription_type,
+                        status: profile.subscription_status,
+                        badge: profile.subscription_badge,
+                        is_active: profile.subscription_active === 1,
+                        classes: {
+                            total: profile.total_classes,
+                            used: profile.used_classes,
+                            remaining: profile.remaining_classes
+                        },
+                        dates: {
+                            activation: profile.activation_date,
+                            expiration: profile.expiration_date,
+                            last_visit: profile.last_visit_date
+                        }
+                    }
+                },
+                stats: {
+                    total_visits: totalVisits,
+                    missed_visits: missedVisits,
+                    remaining_classes: profile.remaining_classes || 0,
+                    usage_percentage: profile.total_classes > 0 ? 
+                        Math.round((profile.used_classes / profile.total_classes) * 100) : 0
+                },
+                visits: visits
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения профиля:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения профиля'
+        });
+    }
+});
+
+// История посещений
+app.get('/api/visits/:profileId', async (req, res) => {
+    try {
+        const profileId = req.params.profileId;
+        
+        console.log(`📊 ЗАПРОС ИСТОРИИ ПОСЕЩЕНИЙ для профиля: ${profileId}`);
+        
+        // В реальной системе здесь должна быть логика получения данных из БД
+        // Сейчас возвращаем заглушку
+        const visits = [
+            {
+                id: 1,
+                attendance_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '12:00 - 13:30',
+                status: 'attended',
+                notes: 'Рисунок карандашом',
+                teacher_name: 'Саша М'
+            },
+            {
+                id: 2,
+                attendance_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '16:00 - 17:30',
+                status: 'attended',
+                notes: 'Акварельный пейзаж',
+                teacher_name: 'Анна Петрова'
+            },
+            {
+                id: 3,
+                attendance_date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '12:00 - 13:30',
+                status: 'attended',
+                notes: 'Натюрморт',
+                teacher_name: 'Саша М'
+            },
+            {
+                id: 4,
+                attendance_date: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+                attendance_time: '16:00 - 17:30',
+                status: 'missed',
+                notes: 'Причина не указана',
+                teacher_name: 'Ирина Сидорова'
+            }
+        ];
+        
+        res.json({
+            success: true,
+            data: {
+                visits: visits,
+                total: visits.length,
+                attended: visits.filter(v => v.status === 'attended').length,
+                missed: visits.filter(v => v.status === 'missed').length
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения истории посещений:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения истории посещений'
+        });
+    }
+});
+
+// Уведомления для пользователя
+app.get('/api/notifications/:profileId', async (req, res) => {
+    try {
+        const profileId = req.params.profileId;
+        
+        console.log(`🔔 ЗАПРОС УВЕДОМЛЕНИЙ для профиля: ${profileId}`);
+        
+        // Демо-уведомления
+        const notifications = [
+            {
+                id: 1,
+                type: 'info',
+                title: 'Добро пожаловать!',
+                message: 'Ваш личный кабинет активирован',
+                date: new Date().toISOString(),
+                read: true
+            },
+            {
+                id: 2,
+                type: 'warning',
+                title: 'Осталось мало занятий',
+                message: 'В вашем абонементе осталось 2 занятия',
+                date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                read: false
+            },
+            {
+                id: 3,
+                type: 'success',
+                title: 'Новое расписание',
+                message: 'Добавлены новые занятия по скетчингу',
+                date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                read: true
+            }
+        ];
+        
+        res.json({
+            success: true,
+            data: {
+                notifications: notifications,
+                unread_count: notifications.filter(n => !n.read).length
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения уведомлений:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения уведомлений'
+        });
+    }
+});
+
+// Информация о филиалах
+app.get('/api/branches', async (req, res) => {
+    try {
+        console.log('🏢 ЗАПРОС ИНФОРМАЦИИ О ФИЛИАЛАХ');
+        
+        // Получаем список филиалов из БД
+        const branches = await db.all(
+            `SELECT DISTINCT branch FROM student_profiles 
+             WHERE branch IS NOT NULL AND branch != '' 
+             ORDER BY branch`
+        );
+        
+        // Демо-информация о филиалах
+        const branchInfo = [
+            {
+                name: 'Свиблово',
+                address: 'ул. Снежная, д. 23',
+                phone: '+7 (495) 123-45-67',
+                schedule: 'Пн-Пт: 10:00-20:00, Сб-Вс: 11:00-18:00'
+            },
+            {
+                name: 'Бабушкинская',
+                address: 'ул. Летчика Бабушкина, д. 15',
+                phone: '+7 (495) 987-65-43',
+                schedule: 'Пн-Пт: 10:00-20:00, Сб-Вс: 11:00-18:00'
+            },
+            {
+                name: 'Медведково',
+                address: 'ул. Полярная, д. 31',
+                phone: '+7 (495) 555-44-33',
+                schedule: 'Пн-Пт: 10:00-20:00, Сб: 11:00-18:00'
+            }
+        ];
+        
+        res.json({
+            success: true,
+            data: {
+                branches: branches.map(b => b.branch),
+                detailed_info: branchInfo
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения информации о филиалах:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения информации о филиалах'
+        });
+    }
+});
+
+// Обновление профиля пользователя
+app.put('/api/profile/:id', async (req, res) => {
+    try {
+        const profileId = req.params.id;
+        const updates = req.body;
+        
+        console.log(`✏️  ОБНОВЛЕНИЕ ПРОФИЛЯ ID: ${profileId}`, updates);
+        
+        // Проверяем, существует ли профиль
+        const existingProfile = await db.get(
+            `SELECT * FROM student_profiles WHERE id = ?`,
+            [profileId]
+        );
+        
+        if (!existingProfile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        // Обновляем только разрешенные поля
+        const allowedFields = ['email', 'day_of_week', 'time_slot'];
+        const updateFields = {};
+        
+        for (const field of allowedFields) {
+            if (updates[field] !== undefined) {
+                updateFields[field] = updates[field];
+            }
+        }
+        
+        // Если есть поля для обновления
+        if (Object.keys(updateFields).length > 0) {
+            const setClause = Object.keys(updateFields).map(f => `${f} = ?`).join(', ');
+            const values = [...Object.values(updateFields), profileId];
+            
+            await db.run(
+                `UPDATE student_profiles SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                values
+            );
+            
+            // Получаем обновленный профиль
+            const updatedProfile = await db.get(
+                `SELECT * FROM student_profiles WHERE id = ?`,
+                [profileId]
+            );
+            
+            console.log(`✅ Профиль обновлен: ${updatedProfile.student_name}`);
+            
+            res.json({
+                success: true,
+                data: {
+                    profile: updatedProfile,
+                    message: 'Профиль успешно обновлен'
+                }
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: 'Нет данных для обновления'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления профиля:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка обновления профиля'
+        });
+    }
+});
+
+// Публичный статус сервера
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        amocrm_status: amoCrmService.isInitialized ? 'connected' : 'disconnected'
+    });
+});
+
+// Проверка соединения с amoCRM
+app.get('/api/crm/status', async (req, res) => {
+    try {
+        const isValid = amoCrmService.isInitialized;
+        
+        res.json({
+            success: true,
+            data: {
+                connected: isValid,
+                account_name: amoCrmService.accountInfo?.name || null,
+                subdomain: AMOCRM_SUBDOMAIN,
+                last_check: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки статуса CRM:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка проверки статуса CRM'
+        });
+    }
+});
+
+// Очистка старых сессий
+app.post('/api/cleanup', async (req, res) => {
+    try {
+        console.log('🧹 ОЧИСТКА СТАРЫХ СЕССИЙ');
+        
+        const result = await db.run(
+            `DELETE FROM user_sessions 
+             WHERE expires_at < datetime('now') OR is_active = 0`
+        );
+        
+        console.log(`✅ Удалено сессий: ${result.changes}`);
+        
+        res.json({
+            success: true,
+            data: {
+                sessions_deleted: result.changes,
+                timestamp: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка очистки сессий:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка очистки сессий'
+        });
+    }
+});
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const startServer = async () => {
     try {
