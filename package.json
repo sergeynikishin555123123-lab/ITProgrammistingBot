@@ -1,11 +1,12 @@
 {
   "name": "art-school-system",
-  "version": "1.0.0",
-  "description": "Система управления художественной школой с Telegram ботом",
+  "version": "2.1.0",
+  "description": "Система управления художественной школой с интеграцией amoCRM",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "setup": "node setup.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -18,8 +19,10 @@
     "telegraf": "^4.16.3",
     "dotenv": "^16.4.7",
     "express-rate-limit": "^7.5.0",
-    "axios": "^1.7.9",          
-    "querystring": "^0.2.1"    
+    "axios": "^1.7.9",
+    "crypto": "^1.0.1",
+    "path": "^0.12.7",
+    "fs": "^0.0.1-security"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
@@ -30,6 +33,7 @@
   "keywords": [
     "telegram-bot",
     "art-school",
+    "amocrm",
     "education",
     "schedule"
   ],
