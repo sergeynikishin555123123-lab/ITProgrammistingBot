@@ -3008,6 +3008,311 @@ app.get('/api/debug/check-leads', async (req, res) => {
     }
 });
 
+// 🔧 ДОБАВЬТЕ ЭТОТ МАРШРУТ В server.js
+app.get('/api/debug/export-fields', async (req, res) => {
+    try {
+        console.log('\n📊 ЭКСПОРТ ВСЕХ ПОЛЕЙ AMOCRM');
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем все поля контактов
+        const contactFieldsRes = await amoCrmService.makeRequest(
+            'GET', 
+            '/api/v4/contacts/custom_fields'
+        );
+        
+        // Получаем все поля сделок
+        const leadFieldsRes = await amoCrmService.makeRequest(
+            'GET',
+            '/api/v4/leads/custom_fields'
+        );
+        
+        const contactFields = contactFieldsRes._embedded?.custom_fields || [];
+        const leadFields = leadFieldsRes._embedded?.custom_fields || [];
+        
+        console.log(`📊 Поля контактов: ${contactFields.length}`);
+        console.log(`📊 Поля сделок: ${leadFields.length}`);
+        
+        // Форматируем для удобного просмотра
+        const formattedResult = {
+            export_date: new Date().toISOString(),
+            account: amoCrmService.accountInfo?.name || AMOCRM_SUBDOMAIN,
+            total_fields: contactFields.length + leadFields.length,
+            contact_fields: contactFields.map(field => ({
+                id: field.id,
+                name: field.name,
+                type: field.type,
+                field_type: field.field_type,
+                code: field.code,
+                sort: field.sort,
+                is_deletable: field.is_deletable,
+                is_visible: field.is_visible,
+                enums: field.enums ? field.enums.map(e => ({
+                    id: e.id,
+                    value: e.value,
+                    code: e.code || null
+                })).slice(0, 10) : [] // Ограничиваем 10 значениями
+            })),
+            lead_fields: leadFields.map(field => ({
+                id: field.id,
+                name: field.name,
+                type: field.type,
+                field_type: field.field_type,
+                code: field.code,
+                sort: field.sort,
+                is_deletable: field.is_deletable,
+                is_visible: field.is_visible,
+                enums: field.enums ? field.enums.map(e => ({
+                    id: e.id,
+                    value: e.value,
+                    code: e.code || null
+                })).slice(0, 10) : []
+            }))
+        };
+        
+        // Показываем в браузере с форматированием
+        res.setHeader('Content-Type', 'application/json');
+        res.send(JSON.stringify(formattedResult, null, 2));
+        
+    } catch (error) {
+        console.error('❌ Ошибка экспорта полей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 🔧 МАРШРУТ: Экспорт полей для школы рисования (отфильтрованные)
+app.get('/api/debug/export-school-fields', async (req, res) => {
+    try {
+        console.log('\n🎨 ЭКСПОРТ ПОЛЕЙ ДЛЯ ШКОЛЫ РИСОВАНИЯ');
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Ключевые слова для фильтрации
+        const keywords = [
+            'абонемент', 'занят', 'счетчик', 'остаток', 'посещен',
+            'ученик', 'ребенок', 'фио', 'имя', 'дети',
+            'филиал', 'преподаватель', 'педагог', 'группа', 'курс',
+            'дата', 'активац', 'окончан', 'визит', 'рождения',
+            'аллерг', 'особенност', 'родитель', 'возраст', 'направлен',
+            'оплат', 'чек', 'сертификат', 'заморозк', 'время'
+        ];
+        
+        // Получаем все поля
+        const [contactFieldsRes, leadFieldsRes] = await Promise.all([
+            amoCrmService.makeRequest('GET', '/api/v4/contacts/custom_fields'),
+            amoCrmService.makeRequest('GET', '/api/v4/leads/custom_fields')
+        ]);
+        
+        const contactFields = contactFieldsRes._embedded?.custom_fields || [];
+        const leadFields = leadFieldsRes._embedded?.custom_fields || [];
+        
+        // Фильтруем поля
+        const filteredContactFields = contactFields.filter(field => {
+            const fieldName = field.name.toLowerCase();
+            return keywords.some(keyword => fieldName.includes(keyword));
+        });
+        
+        const filteredLeadFields = leadFields.filter(field => {
+            const fieldName = field.name.toLowerCase();
+            return keywords.some(keyword => fieldName.includes(keyword));
+        });
+        
+        console.log(`🎯 Найдено релевантных полей:`);
+        console.log(`   👤 Контакты: ${filteredContactFields.length}/${contactFields.length}`);
+        console.log(`   📋 Сделки: ${filteredLeadFields.length}/${leadFields.length}`);
+        
+        // Формируем результат
+        const result = {
+            export_date: new Date().toISOString(),
+            total_found: filteredContactFields.length + filteredLeadFields.length,
+            categories: {
+                subscription: [],
+                student: [],
+                schedule: [],
+                dates: [],
+                payment: [],
+                other: []
+            },
+            all_fields: {
+                contacts: filteredContactFields.map(f => ({ id: f.id, name: f.name, type: f.type })),
+                leads: filteredLeadFields.map(f => ({ id: f.id, name: f.name, type: f.type }))
+            }
+        };
+        
+        // Категоризируем поля
+        filteredContactFields.concat(filteredLeadFields).forEach(field => {
+            const fieldName = field.name.toLowerCase();
+            const fieldData = {
+                id: field.id,
+                name: field.name,
+                type: field.type,
+                entity: fieldName.includes('contact') ? 'contact' : 'lead'
+            };
+            
+            if (fieldName.includes('абонемент') || fieldName.includes('занят') || 
+                fieldName.includes('счетчик') || fieldName.includes('остаток')) {
+                result.categories.subscription.push(fieldData);
+            }
+            else if (fieldName.includes('ученик') || fieldName.includes('ребенок') || 
+                     fieldName.includes('фио') || fieldName.includes('имя')) {
+                result.categories.student.push(fieldData);
+            }
+            else if (fieldName.includes('филиал') || fieldName.includes('преподаватель') || 
+                     fieldName.includes('педагог') || fieldName.includes('группа')) {
+                result.categories.schedule.push(fieldData);
+            }
+            else if (fieldName.includes('дата') || fieldName.includes('время')) {
+                result.categories.dates.push(fieldData);
+            }
+            else if (fieldName.includes('оплат') || fieldName.includes('чек') || 
+                     fieldName.includes('сертификат')) {
+                result.categories.payment.push(fieldData);
+            }
+            else {
+                result.categories.other.push(fieldData);
+            }
+        });
+        
+        // Сортируем по важности (по ID для удобства)
+        Object.keys(result.categories).forEach(category => {
+            result.categories[category].sort((a, b) => a.id - b.id);
+        });
+        
+        // Показываем в удобном формате
+        let html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Поля amoCRM для школы рисования</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+                .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                h1 { color: #333; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; }
+                .category { margin-bottom: 30px; border: 1px solid #ddd; border-radius: 8px; padding: 15px; }
+                .category-title { background: #4CAF50; color: white; padding: 10px; border-radius: 5px; margin: -15px -15px 15px -15px; font-weight: bold; }
+                .field { padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+                .field-id { background: #2196F3; color: white; padding: 3px 8px; border-radius: 4px; margin-right: 10px; font-weight: bold; min-width: 80px; }
+                .field-name { flex-grow: 1; }
+                .field-type { background: #FF9800; color: white; padding: 3px 8px; border-radius: 4px; margin-left: 10px; font-size: 12px; }
+                .entity-contact { background: #9C27B0; }
+                .entity-lead { background: #009688; }
+                .summary { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+                .copy-btn { background: #2196F3; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🎨 Поля amoCRM для школы рисования</h1>
+                <div class="summary">
+                    <strong>Дата экспорта:</strong> ${result.export_date}<br>
+                    <strong>Всего найдено полей:</strong> ${result.total_found}<br>
+                    <strong>Контакты:</strong> ${result.all_fields.contacts.length}<br>
+                    <strong>Сделки:</strong> ${result.all_fields.leads.length}
+                </div>
+                <button class="copy-btn" onclick="copyAllFields()">📋 Копировать все ID полей</button>
+        `;
+        
+        // Добавляем каждую категорию
+        Object.keys(result.categories).forEach(category => {
+            const fields = result.categories[category];
+            if (fields.length > 0) {
+                html += `
+                <div class="category">
+                    <div class="category-title">
+                        ${this.getCategoryName(category)} (${fields.length})
+                    </div>
+                `;
+                
+                fields.forEach(field => {
+                    const entityClass = field.entity === 'contact' ? 'entity-contact' : 'entity-lead';
+                    html += `
+                    <div class="field">
+                        <div class="field-id ${entityClass}">${field.id}</div>
+                        <div class="field-name">${field.name}</div>
+                        <div class="field-type">${field.type}</div>
+                    </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            }
+        });
+        
+        // Добавляем скрипт для копирования
+        html += `
+            <script>
+                function copyAllFields() {
+                    const fields = ${JSON.stringify(result.all_fields)};
+                    const text = '// Поля контактов:\\n' + 
+                        fields.contacts.map(f => \`\${f.id} // \${f.name}\`).join('\\n') + 
+                        '\\n\\n// Поля сделок:\\n' + 
+                        fields.leads.map(f => \`\${f.id} // \${f.name}\`).join('\\n');
+                    
+                    navigator.clipboard.writeText(text)
+                        .then(() => alert('✅ Все ID полей скопированы в буфер обмена!'))
+                        .catch(err => console.error('Ошибка копирования:', err));
+                }
+                
+                function getCategoryName(category) {
+                    const names = {
+                        'subscription': '🎫 Абонементы и занятия',
+                        'student': '👤 Ученики и дети',
+                        'schedule': '📅 Расписание и филиалы',
+                        'dates': '📆 Даты и время',
+                        'payment': '💰 Оплаты и чеки',
+                        'other': '📦 Прочие поля'
+                    };
+                    return names[category] || category;
+                }
+            </script>
+            </div>
+        </body>
+        </html>
+        `;
+        
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+        
+    } catch (error) {
+        console.error('❌ Ошибка экспорта:', error.message);
+        res.status(500).send(`
+            <html>
+            <body style="font-family: Arial; padding: 20px;">
+                <h1 style="color: red;">❌ Ошибка экспорта полей</h1>
+                <p>${error.message}</p>
+            </body>
+            </html>
+        `);
+    }
+});
+
+// 🔧 Вспомогательная функция для названий категорий
+function getCategoryName(category) {
+    const names = {
+        'subscription': '🎫 Абонементы и занятия',
+        'student': '👤 Ученики и дети',
+        'schedule': '📅 Расписание и филиалы',
+        'dates': '📆 Даты и время',
+        'payment': '💰 Оплаты и чеки',
+        'other': '📦 Прочие поля'
+    };
+    return names[category] || category;
+}
+
 // Маршрут для поиска ВСЕХ абонементов контакта
 app.get('/api/debug/contact-subscriptions/:contactId', async (req, res) => {
     try {
