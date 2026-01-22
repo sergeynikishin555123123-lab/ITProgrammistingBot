@@ -905,6 +905,18 @@ findBestLeadForStudent(studentName, leads) {
             console.log(`   🎯 Новый лучший выбор!`);
         }
     }
+    
+    if (bestLead) {
+        console.log(`\n✅ Выбрана сделка: "${bestLead.name.substring(0, 50)}..."`);
+        console.log(`📊 Лучший балл: ${bestScore}`);
+    } else {
+        console.log(`\n⚠️  Подходящая сделка не найдена, ищем среди всех...`);
+        // Если не нашли в отфильтрованных, ищем среди всех
+        return this.findBestLeadFallback(studentName, leads);
+    }
+    
+    return bestLead;
+}
 
 // 🔧 МЕТОД: findBestLeadFallback - запасной вариант
 findBestLeadFallback(studentName, leads) {
@@ -947,18 +959,6 @@ findBestLeadFallback(studentName, leads) {
     
     if (bestLead) {
         console.log(`✅ Найдена сделка: "${bestLead.name.substring(0, 50)}..."`);
-    }
-    
-    return bestLead;
-}
-    
-    if (bestLead) {
-        console.log(`\n✅ Выбрана сделка: "${bestLead.name.substring(0, 50)}..."`);
-        console.log(`📊 Лучший балл: ${bestScore}`);
-    } else {
-        console.log(`\n⚠️  Подходящая сделка не найдена, ищем среди всех...`);
-        // Если не нашли в отфильтрованных, ищем среди всех
-        return this.findBestLeadFallback(studentName, leads);
     }
     
     return bestLead;
