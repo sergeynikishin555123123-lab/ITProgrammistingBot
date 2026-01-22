@@ -819,12 +819,96 @@ async getStudentsByPhone(phoneNumber) {
         return '';
     }
 
-// 🔧 МЕТОД: findBestLeadForStudent
+// 🔧 МЕТОД: findBestLeadForStudent - ИСПРАВЛЕННЫЙ
 findBestLeadForStudent(studentName, leads) {
     if (!leads || leads.length === 0) return null;
     
     console.log(`🔍 Поиск сделки для ученика: ${studentName}`);
-    console.log(`📊 Всего сделок: ${leads.length}`);
+    
+    // Фильтруем только сделки с нужным статусом (!Абонемент, Активный абонемент)
+    const filteredLeads = leads.filter(lead => {
+        const leadName = lead.name || '';
+        const hasAbonement = leadName.includes('!Абонемент') || 
+                           leadName.includes('Активный абонемент') ||
+                           leadName.toLowerCase().includes('абонемент');
+        
+        return hasAbonement && !leadName.includes('Рассылка') && 
+               !leadName.includes('Успешные') && !leadName.includes('Архив');
+    });
+    
+    console.log(`📊 После фильтрации: ${filteredLeads.length} сделок`);
+    
+    let bestLead = null;
+    let bestScore = 0;
+    
+    for (const lead of filteredLeads) {
+        let score = 0;
+        const leadName = lead.name || '';
+        
+        console.log(`\n   🔍 Анализ: "${leadName.substring(0, 50)}..."`);
+        
+        // 1. Высший приоритет: статус !Абонемент
+        if (leadName.includes('!Абонемент')) {
+            score += 100;
+            console.log(`   🏆 !Абонемент: +100 баллов`);
+        }
+        
+        // 2. Высший приоритет: статус Активный абонемент
+        if (leadName.includes('Активный абонемент')) {
+            score += 80;
+            console.log(`   🥇 Активный абонемент: +80 баллов`);
+        }
+        
+        // 3. Проверяем совпадение по имени ученика
+        const studentFirstName = studentName.split(' ')[0] || '';
+        if (studentFirstName && leadName.includes(studentFirstName)) {
+            score += 50;
+            console.log(`   ✅ Совпадение имени "${studentFirstName}": +50 баллов`);
+        }
+        
+        // 4. Проверяем наличие данных об абонементе
+        const subscriptionInfo = this.extractSubscriptionInfo(lead);
+        if (subscriptionInfo.hasSubscription) {
+            score += 30;
+            console.log(`   📊 Есть данные об абонементе: +30 баллов`);
+            
+            if (subscriptionInfo.subscriptionActive) {
+                score += 20;
+                console.log(`   🟢 Абонемент активен: +20 баллов`);
+            }
+        }
+        
+        // 5. Проверяем количество занятий в названии
+        const classesInName = this.parseLeadNameForSubscription(leadName);
+        if (classesInName > 0) {
+            score += 10;
+            console.log(`   🔢 ${classesInName} занятий в названии: +10 баллов`);
+        }
+        
+        // 6. Минус за "Закончился", "Архив" и т.д.
+        if (leadName.includes('Закончился') || leadName.includes('Архив')) {
+            score -= 50;
+            console.log(`   ⚠️  Архив/закончился: -50 баллов`);
+        }
+        
+        // 7. Минус за цену в начале (это не абонементная сделка)
+        if (leadName.match(/^\d+\s*₽/)) {
+            score -= 100;
+            console.log(`   ❌ Цена в начале (не абонемент): -100 баллов`);
+        }
+        
+        console.log(`   📊 Итоговый балл: ${score}`);
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestLead = lead;
+            console.log(`   🎯 Новый лучший выбор!`);
+        }
+    }
+
+// 🔧 МЕТОД: findBestLeadFallback - запасной вариант
+findBestLeadFallback(studentName, leads) {
+    console.log(`🔍 Запасной поиск среди всех сделок...`);
     
     let bestLead = null;
     let bestScore = 0;
@@ -833,42 +917,27 @@ findBestLeadForStudent(studentName, leads) {
         let score = 0;
         const leadName = lead.name || '';
         
-        console.log(`   🔍 Анализ сделки: "${leadName}"`);
+        // Пропускаем явно неподходящие
+        if (leadName.includes('Рассылка') || leadName.includes('Успешные') || 
+            leadName.includes('Архив') || leadName.match(/^\d+\s*₽/)) {
+            continue;
+        }
         
-        // 1. Проверяем совпадение по имени
+        // Проверяем наличие слова "абонемент"
+        if (leadName.toLowerCase().includes('абонемент')) {
+            score += 50;
+        }
+        
+        // Проверяем совпадение имени
         const studentFirstName = studentName.split(' ')[0] || '';
         if (studentFirstName && leadName.includes(studentFirstName)) {
-            score += 50;
-            console.log(`   ✅ Совпадение по имени: +50 баллов`);
-        }
-        
-        // 2. Проверяем наличие данных об абонементе
-        const subscriptionInfo = this.extractSubscriptionInfo(lead);
-        if (subscriptionInfo.hasSubscription) {
             score += 30;
-            console.log(`   ✅ Есть данные об абонементе: +30 баллов`);
-            
-            if (subscriptionInfo.subscriptionActive) {
-                score += 20;
-                console.log(`   ✅ Абонемент активен: +20 баллов`);
-            }
         }
         
-        // 3. Проверяем, есть ли в названии количество занятий
-        const classesInName = this.parseLeadNameForSubscription(leadName);
-        if (classesInName > 0) {
-            score += 10;
-            console.log(`   ✅ Есть число занятий в названии: +10 баллов`);
+        // Проверяем наличие занятий в названии
+        if (leadName.match(/\d+\s*занят/)) {
+            score += 20;
         }
-        
-        // 4. Проверяем, не закрыта ли сделка
-        const isClosed = [142, 143].includes(lead.status_id);
-        if (!isClosed) {
-            score += 10;
-            console.log(`   ✅ Сделка не закрыта: +10 баллов`);
-        }
-        
-        console.log(`   📊 Итоговый балл: ${score}`);
         
         if (score > bestScore) {
             bestScore = score;
@@ -877,152 +946,101 @@ findBestLeadForStudent(studentName, leads) {
     }
     
     if (bestLead) {
-        console.log(`✅ Выбрана сделка: "${bestLead.name}" с баллом: ${bestScore}`);
+        console.log(`✅ Найдена сделка: "${bestLead.name.substring(0, 50)}..."`);
+    }
+    
+    return bestLead;
+}
+    
+    if (bestLead) {
+        console.log(`\n✅ Выбрана сделка: "${bestLead.name.substring(0, 50)}..."`);
+        console.log(`📊 Лучший балл: ${bestScore}`);
     } else {
-        console.log(`❌ Подходящая сделка не найдена`);
+        console.log(`\n⚠️  Подходящая сделка не найдена, ищем среди всех...`);
+        // Если не нашли в отфильтрованных, ищем среди всех
+        return this.findBestLeadFallback(studentName, leads);
     }
     
     return bestLead;
 }
 
-// 🔧 МЕТОД: parseLeadNameForSubscription - УЛУЧШЕННЫЙ
+
+// 🔧 МЕТОД: parseLeadNameForSubscription - ИСПРАВЛЕННЫЙ
 parseLeadNameForSubscription(leadName) {
     if (!leadName) return 0;
     
     try {
         console.log(`🔍 Парсинг названия сделки: "${leadName}"`);
         
-        // Приводим к нижнему регистру для удобства поиска
+        // Пропускаем названия с ID сделок (начинаются с "#" или "Сделка #")
+        if (leadName.includes('#') || leadName.toLowerCase().includes('сделка')) {
+            console.log('⏭️  Пропускаем название с ID сделки');
+            return 0;
+        }
+        
+        // Приводим к нижнему регистру
         const lowerName = leadName.toLowerCase().trim();
         
-        // Сначала ищем текстовые обозначения
-        const textPatterns = [
-            // Разовый абонемент
-            { pattern: /разовы[йй]|пробны[йй]|тестовы[йй]|1 занятие/i, value: 1 },
-            
-            // 2 занятия
-            { pattern: /2\s*(занятия|урока)|два\s*(занятия|урока)/i, value: 2 },
-            
-            // 3 занятия
-            { pattern: /3\s*(занятия|урока)|три\s*(занятия|урока)/i, value: 3 },
-            
-            // 4 занятия (основной)
-            { pattern: /4\s*(занятия|урока)|четыре\s*(занятия|урока)/i, value: 4 },
-            { pattern: /^4$|^4\s|-4\s/, value: 4 }, // Просто "4" или "4 " или "-4"
-            
-            // 8 занятий
-            { pattern: /8\s*(занятий|уроков)|восемь\s*(занятий|уроков)/i, value: 8 },
-            { pattern: /^8$|^8\s|-8\s/, value: 8 },
-            
-            // 12 занятий
-            { pattern: /12\s*(занятий|уроков)|двенадцать\s*(занятий|уроков)/i, value: 12 },
-            { pattern: /^12$|^12\s|-12\s/, value: 12 },
-            
-            // 16 занятий (основной)
-            { pattern: /16\s*(занятий|уроков)|шестнадцать\s*(занятий|уроков)/i, value: 16 },
-            { pattern: /^16$|^16\s|-16\s/, value: 16 },
-            
-            // 24 занятия
-            { pattern: /24\s*(занятия|урока)|двадцать\s*четыре\s*(занятия|урока)/i, value: 24 },
-            { pattern: /^24$|^24\s|-24\s/, value: 24 },
-            
-            // 30 занятий
-            { pattern: /30\s*(занятий|уроков)|тридцать\s*(занятий|уроков)/i, value: 30 },
-            { pattern: /^30$|^30\s|-30\s/, value: 30 },
-            
-            // Продвинутые абонементы
-            { pattern: /продвинут[ыы]й\s*4/i, value: 4 },
-            { pattern: /продвинут[ыы]й\s*8/i, value: 8 },
-            { pattern: /продвинут[ыы]й\s*16/i, value: 16 },
-            { pattern: /pro\s*4/i, value: 4 },
-            { pattern: /pro\s*8/i, value: 8 },
-            { pattern: /pro\s*16/i, value: 16 },
-            
-            // Стандартные абонементы
-            { pattern: /стандарт\s*4/i, value: 4 },
-            { pattern: /стандарт\s*8/i, value: 8 },
-            { pattern: /стандарт\s*16/i, value: 16 },
-            
-            // Майская акция, Январская акция и т.д. (обычно 4 занятия)
-            { pattern: /(майск|январ|феврал|мартовск|апрельск|майск|июн|июл|август|сентябр|октябр|ноябр|декабр)[а-я]*\s*акци[яи]/i, value: 4 },
-            
-            // Номер сертификата или акции (часто 4 занятия)
-            { pattern: /(нг|нгд|нв|23|24|25|26)\d*/i, value: 4 }, // НГ26 и подобные
-            
-            // Месячные абонементы
-            { pattern: /месячны[йй]|на\s*месяц/i, value: 4 }, // Обычно 4 занятия в месяц
-            
-            // Интенсив
-            { pattern: /интенсив|интенсивы/i, value: 8 }, // Интенсив обычно 8 занятий
+        // Слова-фильтры: пропускаем эти слова в начале названия
+        const skipPatterns = [
+            /^рассылка\s/i,
+            /^успешн/i,
+            /^архивн/i,
+            /^отменен/i,
+            /^не\s+актив/i,
+            /^закончил/i,
+            /^завершён/i,
+            /^\d+\s*₽/i, // Цена в начале
         ];
         
-        // Проверяем текстовые паттерны
-        for (const pattern of textPatterns) {
-            if (pattern.pattern.test(lowerName)) {
-                console.log(`✅ Найдено по текстовому паттерну: ${pattern.value} занятий`);
-                return pattern.value;
+        for (const pattern of skipPatterns) {
+            if (pattern.test(leadName)) {
+                console.log('⏭️  Пропускаем по фильтру:', pattern);
+                return 0;
             }
         }
         
-        // Если текстовые паттерны не сработали, ищем цифры
-        console.log('🔍 Поиск чисел в названии...');
-        
-        // Паттерны для поиска чисел
-        const numberPatterns = [
-            /(\d+)\s*занят/i,         // "16 занятий", "8занятий", "4 занятия"
-            /(\d+)\s*урок/i,           // "16 уроков", "8уроков"
-            /абонемент\s*(\d+)/i,      // "абонемент 16", "абон 8"
-            /^(\d+)[^\d]*$/,           // "16", "8 абонемент"
-            /-(\d+)\s/,                // "-16 ", "-8 "
-            /\((\d+)\)/,               // "(16)", "(8)"
-            /\s(\d+)\s*$/,             // " ... 16"
-            /\D(\d{1,2})\D/,           // любое 1-2 значное число между не-цифрами
+        // Теперь ищем количество занятий
+        const patterns = [
+            // Основные паттерны
+            { pattern: /(\d+)\s*(?:занят|урок)/i, desc: 'число занятий' },
+            { pattern: /16\s*(?:занят|урок)/i, desc: '16 занятий' },
+            { pattern: /8\s*(?:занят|урок)/i, desc: '8 занятий' },
+            { pattern: /4\s*(?:занят|урок)/i, desc: '4 занятия' },
+            { pattern: /24\s*(?:занят|урок)/i, desc: '24 занятия' },
+            { pattern: /12\s*(?:занят|урок)/i, desc: '12 занятий' },
+            
+            // Число в конце названия (но не цена)
+            { pattern: /-?\s*(\d{1,2})\s*(?:занят|урок)?\s*$/i, desc: 'число в конце' },
+            
+            // Число после дефиса
+            { pattern: /-\s*(\d{1,2})\s*(?:занят|урок)?/i, desc: 'число после дефиса' },
         ];
         
-        for (const pattern of numberPatterns) {
+        for (const { pattern, desc } of patterns) {
             const match = lowerName.match(pattern);
             if (match && match[1]) {
                 const num = parseInt(match[1]);
-                
-                // Проверяем, что это типичное количество занятий
-                const typicalClasses = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 30];
-                if (typicalClasses.includes(num)) {
-                    console.log(`✅ Найдено число в названии: ${num} занятий`);
+                if (num >= 1 && num <= 30) { // Разумный диапазон для занятий
+                    console.log(`✅ Найдено (${desc}): ${num} занятий`);
                     return num;
                 }
             }
         }
         
-        // Если нашли любое число
-        const allNumbers = lowerName.match(/\d+/g);
-        if (allNumbers && allNumbers.length > 0) {
-            for (const numStr of allNumbers) {
-                const num = parseInt(numStr);
-                if (num > 0 && num <= 30) { // Разумный диапазон для занятий
-                    console.log(`✅ Найдено число: ${num} занятий`);
-                    return num;
-                }
+        // Ищем просто число (но проверяем, что это не цена и не ID)
+        const numberMatch = lowerName.match(/\b(\d{1,2})\b(?!\s*₽)/);
+        if (numberMatch) {
+            const num = parseInt(numberMatch[1]);
+            // Проверяем, что это типичное количество занятий
+            const typicalClasses = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24];
+            if (typicalClasses.includes(num)) {
+                console.log(`✅ Найдено типичное число: ${num} занятий`);
+                return num;
             }
         }
         
-        // Если все еще не нашли, проверяем ключевые слова
-        if (lowerName.includes('разов') || lowerName.includes('пробн')) {
-            console.log(`✅ Найдено: разовый абонемент (1 занятие)`);
-            return 1;
-        }
-        
-        if (lowerName.includes('интенсив')) {
-            console.log(`✅ Найдено: интенсив (8 занятий)`);
-            return 8;
-        }
-        
-        if (lowerName.includes('абонемент') || lowerName.includes('абон')) {
-            // Если просто написано "абонемент" без числа, предполагаем стандартный
-            console.log(`✅ Найдено: абонемент (стандартный 4 занятия)`);
-            return 4;
-        }
-        
-        console.log(`❌ Не удалось определить количество занятий из названия`);
+        console.log(`❌ Не удалось определить количество занятий`);
         return 0;
         
     } catch (error) {
@@ -1470,6 +1488,7 @@ const syncService = new SyncService();
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
+// 🔧 Обновите метод saveProfilesToDatabase
 async function saveProfilesToDatabase(profiles) {
     try {
         console.log(`💾 Сохранение профилей в БД...`);
@@ -1477,11 +1496,14 @@ async function saveProfilesToDatabase(profiles) {
         
         for (const profile of profiles) {
             try {
-                // Проверяем существование профиля
+                // Генерируем уникальный ключ для поиска
+                const searchKey = `${profile.student_name}|${profile.phone_number}|${profile.branch || ''}`;
+                
+                // Ищем существующий профиль
                 const existingProfile = await db.get(
                     `SELECT id FROM student_profiles 
-                     WHERE student_name = ? AND phone_number = ? AND (branch = ? OR (branch IS NULL AND ? IS NULL))`,
-                    [profile.student_name, profile.phone_number, profile.branch || '', profile.branch || '']
+                     WHERE student_name = ? AND phone_number = ?`,
+                    [profile.student_name, profile.phone_number]
                 );
                 
                 const columns = [
@@ -1533,12 +1555,13 @@ async function saveProfilesToDatabase(profiles) {
                     const placeholders = columns.map(() => '?').join(', ');
                     const columnNames = columns.join(', ');
                     
-                    await db.run(
+                    const result = await db.run(
                         `INSERT INTO student_profiles (${columnNames}) VALUES (${placeholders})`,
                         values
                     );
+                    
+                    console.log(`✅ Профиль создан (ID: ${result.lastID}): ${profile.student_name}`);
                     savedCount++;
-                    console.log(`✅ Профиль сохранен: ${profile.student_name} (${profile.branch || 'без филиала'})`);
                 } else {
                     // Обновление существующего профиля
                     const setClause = columns.map(col => `${col} = ?`).join(', ');
@@ -1547,15 +1570,16 @@ async function saveProfilesToDatabase(profiles) {
                         `UPDATE student_profiles SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
                         [...values, existingProfile.id]
                     );
+                    
+                    console.log(`✅ Профиль обновлен (ID: ${existingProfile.id}): ${profile.student_name}`);
                     savedCount++;
-                    console.log(`✅ Профиль обновлен: ${profile.student_name} (${profile.branch || 'без филиала'})`);
                 }
             } catch (profileError) {
                 console.error(`⚠️  Ошибка сохранения профиля ${profile.student_name}:`, profileError.message);
             }
         }
         
-        console.log(`✅ Сохранено/обновлено профилей: ${savedCount}`);
+        console.log(`✅ Всего сохранено/обновлено: ${savedCount} профилей`);
         return savedCount;
     } catch (error) {
         console.error(`❌ Общая ошибка сохранения профилей: ${error.message}`);
@@ -1752,20 +1776,55 @@ app.post('/api/auth/phone', async (req, res) => {
     }
 });
 
+// 🔧 ИСПРАВЬТЕ метод в server.js для обработки /api/subscription
 app.post('/api/subscription', async (req, res) => {
     try {
         const { profile_id, phone } = req.body;
         
         console.log(`\n📋 ЗАПРОС АБОНЕМЕНТА`);
+        console.log(`📌 profile_id: ${profile_id}`);
+        console.log(`📌 phone: ${phone}`);
         
         let profile;
+        
         if (profile_id) {
+            // Ищем профиль по ID в базе
             profile = await db.get(
                 `SELECT * FROM student_profiles WHERE id = ?`,
-                [profile_id]
+                [parseInt(profile_id)]
             );
-            console.log(`🔍 Поиск по ID профиля: ${profile_id}`);
-        } else if (phone) {
+            
+            if (profile) {
+                console.log(`✅ Найден профиль в БД: ${profile.student_name}`);
+            } else {
+                console.log(`❌ Профиль ${profile_id} не найден в БД`);
+                
+                // Если profile_id начинается с "profile-", это временный ID из фронтенда
+                if (profile_id.startsWith('profile-')) {
+                    const index = parseInt(profile_id.replace('profile-', ''));
+                    console.log(`🔍 Это временный ID, индекс: ${index}`);
+                    
+                    // Ищем по телефону и имени ученика
+                    if (phone) {
+                        const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+                        const profiles = await db.all(
+                            `SELECT * FROM student_profiles 
+                             WHERE phone_number LIKE ? AND is_active = 1 
+                             ORDER BY subscription_active DESC, updated_at DESC`,
+                            [`%${cleanPhone}%`]
+                        );
+                        
+                        if (profiles.length > index) {
+                            profile = profiles[index];
+                            console.log(`✅ Найден профиль по индексу: ${profile.student_name}`);
+                        }
+                    }
+                }
+            }
+        } 
+        
+        // Если не нашли по profile_id, ищем по телефону
+        if (!profile && phone) {
             const cleanPhone = phone.replace(/\D/g, '').slice(-10);
             profile = await db.get(
                 `SELECT * FROM student_profiles 
@@ -1790,7 +1849,7 @@ app.post('/api/subscription', async (req, res) => {
         console.log(`📊 Источник данных: ${profile.source}`);
         console.log(`📊 Последняя синхронизация: ${profile.last_sync}`);
         
-        // Рассчитываем прогресс использования абонемента
+        // Рассчитываем прогресс
         let progress = 0;
         if (profile.total_classes > 0) {
             progress = Math.round((profile.used_classes / profile.total_classes) * 100);
@@ -1808,7 +1867,8 @@ app.post('/api/subscription', async (req, res) => {
                     birth_date: profile.birth_date,
                     age_group: profile.age_group,
                     course: profile.course,
-                    allergies: profile.allergies
+                    allergies: profile.allergies,
+                    teacher_name: profile.teacher_name
                 },
                 
                 schedule: {
