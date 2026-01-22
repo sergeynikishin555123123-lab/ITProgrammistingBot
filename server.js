@@ -838,66 +838,108 @@ extractSubscriptionInfo(lead) {
         return students;
     }
 
-// 🔧 УЛУЧШЕННЫЙ МЕТОД поиска активных абонементов
+// 🔧 ПОЛНОСТЬЮ ПЕРЕРАБОТАННЫЙ МЕТОД: поиск активного абонемента
 async findLatestActiveSubscription(contactId) {
-    console.log(`\n🎯 ПОИСК САМОГО СВЕЖЕГО АКТИВНОГО АБОНЕМЕНТА ДЛЯ КОНТАКТА: ${contactId}`);
+    console.log(`\n🎯 ПОИСК АКТИВНОГО АБОНЕМЕНТА ДЛЯ КОНТАКТА: ${contactId}`);
     
     try {
-        // Получаем все сделки контакта
-        const leads = await this.getContactLeads(contactId);
-        console.log(`📊 Сделок получено: ${leads.length}`);
+        // 1. Получаем ВСЕ сделки контакта
+        const allLeads = await this.getContactLeads(contactId);
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
         
-        if (leads.length === 0) {
+        if (allLeads.length === 0) {
             console.log(`❌ Сделки не найдены`);
             return null;
         }
         
-        // Ищем сделки с абонементами
+        // 2. Отфильтруем и проанализируем сделки с абонементами
         const subscriptionLeads = [];
         
-        for (const lead of leads) {
-            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+        for (const lead of allLeads) {
+            // Быстрая проверка - есть ли поля абонемента
+            const hasSubscription = this.hasSubscriptionFields(lead);
             
-            if (subscriptionInfo.hasSubscription) {
-                subscriptionLeads.push({
-                    lead: lead,
-                    subscription: subscriptionInfo,
-                    created_at: lead.created_at,
-                    updated_at: lead.updated_at,
-                    // Приоритет: активные > с остатком > по дате
-                    priority: this.calculateSubscriptionPriority(subscriptionInfo, lead)
-                });
+            if (hasSubscription) {
+                // Полный анализ абонемента
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                
+                if (subscriptionInfo.hasSubscription) {
+                    // ВАЖНО: Проверяем, действительно ли абонемент активен
+                    const isReallyActive = this.isSubscriptionReallyActive(subscriptionInfo, lead);
+                    
+                    subscriptionLeads.push({
+                        lead: lead,
+                        subscription: subscriptionInfo,
+                        created_at: lead.created_at,
+                        updated_at: lead.updated_at,
+                        is_really_active: isReallyActive,
+                        priority: this.calculateSubscriptionPriority(subscriptionInfo, lead)
+                    });
+                    
+                    console.log(`📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+                    console.log(`   Статус ID: ${lead.status_id}`);
+                    console.log(`   Активен по данным: ${subscriptionInfo.subscriptionActive ? '✅ Да' : '❌ Нет'}`);
+                    console.log(`   Действительно активен: ${isReallyActive ? '✅ Да' : '❌ Нет'}`);
+                    console.log(`   Занятий: ${subscriptionInfo.totalClasses} всего, ${subscriptionInfo.usedClasses} использовано, ${subscriptionInfo.remainingClasses} осталось`);
+                }
             }
         }
         
-        console.log(`📊 Сделок с абонементами: ${subscriptionLeads.length}`);
+        console.log(`\n📊 Всего сделок с абонементами: ${subscriptionLeads.length}`);
         
         if (subscriptionLeads.length === 0) {
             console.log(`❌ Абонементы не найдены`);
             return null;
         }
         
-        // Сортируем по приоритету
+        // 3. Сортируем по приоритету
         subscriptionLeads.sort((a, b) => {
-            // По приоритету (выше = лучше)
+            // 1. Действительно активные абонементы (не закрытые, с остатком)
+            if (a.is_really_active !== b.is_really_active) {
+                return b.is_really_active - a.is_really_active;
+            }
+            
+            // 2. По приоритету расчета
             if (b.priority !== a.priority) {
                 return b.priority - a.priority;
             }
             
-            // По дате обновления (новые сначала)
+            // 3. По дате активации (новые сначала)
+            const dateA = a.subscription.activationDate ? 
+                new Date(a.subscription.activationDate) : new Date(0);
+            const dateB = b.subscription.activationDate ? 
+                new Date(b.subscription.activationDate) : new Date(0);
+            
+            if (dateB.getTime() !== dateA.getTime()) {
+                return dateB.getTime() - dateA.getTime();
+            }
+            
+            // 4. По дате обновления (новые сначала)
             return new Date(b.updated_at) - new Date(a.updated_at);
+        });
+        
+        // 4. Показываем результат сортировки
+        console.log(`\n🎯 РЕЗУЛЬТАТЫ СОРТИРОВКИ:`);
+        subscriptionLeads.forEach((item, index) => {
+            console.log(`${index + 1}. "${item.lead.name}" (ID: ${item.lead.id})`);
+            console.log(`   • Активен: ${item.is_really_active ? '✅ Да' : '❌ Нет'}`);
+            console.log(`   • Приоритет: ${item.priority}`);
+            console.log(`   • Занятий: ${item.subscription.totalClasses}/${item.subscription.usedClasses}/${item.subscription.remainingClasses}`);
+            console.log(`   • Статус: ${item.subscription.subscriptionStatus}`);
         });
         
         const bestSubscription = subscriptionLeads[0];
         
-        console.log(`\n🎯 НАЙДЕН ЛУЧШИЙ АБОНЕМЕНТ:`);
+        console.log(`\n🎯 ВЫБРАН ЛУЧШИЙ АБОНЕМЕНТ:`);
         console.log(`   Сделка: "${bestSubscription.lead.name}" (ID: ${bestSubscription.lead.id})`);
         console.log(`   Статус: ${bestSubscription.subscription.subscriptionStatus}`);
         console.log(`   Занятий: ${bestSubscription.subscription.totalClasses} всего, ${bestSubscription.subscription.usedClasses} использовано, ${bestSubscription.subscription.remainingClasses} осталось`);
+        console.log(`   Активен: ${bestSubscription.is_really_active ? '✅ Да' : '❌ Нет'}`);
         
         return {
             lead: bestSubscription.lead,
-            subscription: bestSubscription.subscription
+            subscription: bestSubscription.subscription,
+            is_really_active: bestSubscription.is_really_active
         };
         
     } catch (error) {
@@ -906,36 +948,113 @@ async findLatestActiveSubscription(contactId) {
     }
 }
 
-    // 🔧 МЕТОД для расчета приоритета абонемента
+// 🔧 НОВЫЙ МЕТОД: проверка, действительно ли абонемент активен
+isSubscriptionReallyActive(subscriptionInfo, lead) {
+    try {
+        // 1. Сделка должна быть не закрыта (статус не 142, 143)
+        const isClosedDeal = [142, 143].includes(lead.status_id);
+        if (isClosedDeal) {
+            console.log(`   ⚠️  Сделка закрыта (статус: ${lead.status_id})`);
+            return false;
+        }
+        
+        // 2. Должен быть остаток занятий
+        if (subscriptionInfo.remainingClasses <= 0 && subscriptionInfo.totalClasses > 0) {
+            // Если все занятия использованы, абонемент не активен
+            console.log(`   ⚠️  Нет остатка занятий`);
+            return false;
+        }
+        
+        // 3. Абонемент не должен быть истекшим по дате
+        const today = new Date();
+        if (subscriptionInfo.expirationDate) {
+            const expirationDate = new Date(subscriptionInfo.expirationDate);
+            if (expirationDate < today) {
+                console.log(`   ⚠️  Абонемент истек по дате`);
+                return false;
+            }
+        }
+        
+        // 4. Не должен быть заморожен
+        if (subscriptionInfo.freezeStatus && subscriptionInfo.freezeStatus.toLowerCase() === 'да') {
+            console.log(`   ⚠️  Абонемент заморожен`);
+            return false;
+        }
+        
+        // 5. Должен быть активен в системе
+        if (!subscriptionInfo.subscriptionActive) {
+            console.log(`   ⚠️  Не активен в системе`);
+            return false;
+        }
+        
+        // 6. Проверяем наличие даты активации
+        if (!subscriptionInfo.activationDate || subscriptionInfo.activationDate === '1970-01-01') {
+            console.log(`   ⚠️  Нет корректной даты активации`);
+            return false;
+        }
+        
+        // 7. Проверяем, что активация не в будущем
+        const activationDate = new Date(subscriptionInfo.activationDate);
+        if (activationDate > today) {
+            console.log(`   ⚠️  Активация в будущем`);
+            return false;
+        }
+        
+        console.log(`   ✅ Абонемент действительно активен!`);
+        return true;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка проверки активности абонемента: ${error.message}`);
+        return false;
+    }
+}
+
+// 🔧 ОБНОВЛЕННЫЙ МЕТОД: расчет приоритета
 calculateSubscriptionPriority(subscriptionInfo, lead) {
     let priority = 0;
     
-    // Активен в системе
-    if (subscriptionInfo.subscriptionActive) priority += 100;
+    // Высокий приоритет: сделка активна (не закрыта)
+    if (![142, 143].includes(lead.status_id)) {
+        priority += 1000;
+    }
     
-    // Есть остаток занятий
-    if (subscriptionInfo.remainingClasses > 0) priority += 50;
+    // Высокий приоритет: есть остаток занятий
+    if (subscriptionInfo.remainingClasses > 0) {
+        priority += 500;
+    }
     
-    // Не истек срок
+    // Высокий приоритет: абонемент активен в системе
+    if (subscriptionInfo.subscriptionActive) {
+        priority += 200;
+    }
+    
+    // Средний приоритет: не истек срок
     if (subscriptionInfo.expirationDate) {
-        const expDate = new Date(subscriptionInfo.expirationDate);
-        const now = new Date();
-        if (expDate >= now) priority += 30;
+        const expirationDate = new Date(subscriptionInfo.expirationDate);
+        const today = new Date();
+        if (expirationDate >= today) {
+            priority += 100;
+        }
     }
     
-    // Не заморожен
-    if (subscriptionInfo.freezeStatus && subscriptionInfo.freezeStatus.toLowerCase() === 'да') {
-        priority -= 100; // Замороженные имеют низкий приоритет
+    // Средний приоритет: корректная дата активации
+    if (subscriptionInfo.activationDate && subscriptionInfo.activationDate !== '1970-01-01') {
+        priority += 50;
     }
     
-    // Не закрытая сделка
-    if (lead.status_id && ![142, 143].includes(lead.status_id)) {
+    // Низкий приоритет: не заморожен
+    if (!subscriptionInfo.freezeStatus || subscriptionInfo.freezeStatus.toLowerCase() !== 'да') {
         priority += 20;
     }
     
-    // Есть реальная дата активации (не 1970)
-    if (subscriptionInfo.activationDate && subscriptionInfo.activationDate !== '1970-01-01') {
+    // Дополнительный приоритет: есть посещения
+    if (subscriptionInfo.usedClasses > 0) {
         priority += 10;
+    }
+    
+    // Дополнительный приоритет: большой остаток
+    if (subscriptionInfo.remainingClasses > subscriptionInfo.totalClasses * 0.5) {
+        priority += 5;
     }
     
     return priority;
@@ -3417,6 +3536,269 @@ function getCategoryName(category) {
     };
     return names[category] || category;
 }
+
+// 🔧 ДИАГНОСТИЧЕСКИЙ МАРШРУТ: проверка всех сделок контакта
+app.get('/api/debug/contact-leads-analysis/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        
+        console.log(`\n🔍 ПОЛНЫЙ АНАЛИЗ СДЕЛОК КОНТАКТА ID: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем контакт
+        const contact = await amoCrmService.getFullContactInfo(contactId);
+        console.log(`👤 Контакт: ${contact.name} (ID: ${contact.id})`);
+        
+        // Получаем все сделки
+        const allLeads = await amoCrmService.getContactLeads(contactId);
+        console.log(`📊 Всего сделок: ${allLeads.length}`);
+        
+        // Анализируем каждую сделку
+        const leadsAnalysis = [];
+        
+        for (const lead of allLeads) {
+            console.log(`\n📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+            console.log(`   Статус: ${lead.status_id}, Создана: ${new Date(lead.created_at * 1000).toLocaleDateString()}`);
+            
+            // Проверяем поля абонемента
+            let hasSubscriptionFields = false;
+            const subscriptionFields = [];
+            
+            if (lead.custom_fields_values && lead.custom_fields_values.length > 0) {
+                console.log(`   Кастомные поля (${lead.custom_fields_values.length}):`);
+                
+                lead.custom_fields_values.forEach(field => {
+                    const fieldId = field.field_id || field.id;
+                    const fieldName = amoCrmService.getFieldName(field);
+                    const fieldValue = amoCrmService.getFieldValue(field);
+                    
+                    // Ключевые поля абонемента
+                    const isSubscriptionField = [
+                        850241, 850257, 890163, 850255, 851565, 891007, 805465, 867693
+                    ].includes(fieldId);
+                    
+                    if (isSubscriptionField && fieldValue && fieldValue.trim() !== '') {
+                        hasSubscriptionFields = true;
+                        subscriptionFields.push({
+                            id: fieldId,
+                            name: fieldName,
+                            value: fieldValue
+                        });
+                        
+                        console.log(`   🎯 ${fieldName}: ${fieldValue}`);
+                    }
+                });
+            }
+            
+            // Полный анализ абонемента
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            const isReallyActive = amoCrmService.isSubscriptionReallyActive(subscriptionInfo, lead);
+            
+            leadsAnalysis.push({
+                lead_id: lead.id,
+                lead_name: lead.name,
+                status_id: lead.status_id,
+                is_closed: [142, 143].includes(lead.status_id),
+                created_at: lead.created_at,
+                created_date: new Date(lead.created_at * 1000).toISOString().split('T')[0],
+                has_subscription_fields: hasSubscriptionFields,
+                subscription_fields: subscriptionFields,
+                subscription_info: subscriptionInfo,
+                is_really_active: isReallyActive
+            });
+        }
+        
+        // Ищем лучший абонемент
+        console.log(`\n🎯 ПОИСК САМОГО АКТИВНОГО АБОНЕМЕНТА...`);
+        const bestSubscription = await amoCrmService.findLatestActiveSubscription(contactId);
+        
+        // Сортируем по активности и дате
+        leadsAnalysis.sort((a, b) => {
+            if (a.is_really_active !== b.is_really_active) {
+                return b.is_really_active - a.is_really_active;
+            }
+            if (a.has_subscription_fields !== b.has_subscription_fields) {
+                return b.has_subscription_fields - a.has_subscription_fields;
+            }
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+        
+        res.json({
+            success: true,
+            contact: {
+                id: contact.id,
+                name: contact.name
+            },
+            total_leads: allLeads.length,
+            leads_with_subscription: leadsAnalysis.filter(l => l.has_subscription_fields).length,
+            best_subscription: bestSubscription ? {
+                lead_id: bestSubscription.lead.id,
+                lead_name: bestSubscription.lead.name,
+                subscription_status: bestSubscription.subscription.subscriptionStatus,
+                total_classes: bestSubscription.subscription.totalClasses,
+                used_classes: bestSubscription.subscription.usedClasses,
+                remaining_classes: bestSubscription.subscription.remainingClasses,
+                is_really_active: bestSubscription.is_really_active || false
+            } : null,
+            leads_analysis: leadsAnalysis.map(l => ({
+                lead_id: l.lead_id,
+                lead_name: l.lead_name,
+                status_id: l.status_id,
+                is_closed: l.is_closed,
+                created_date: l.created_date,
+                has_subscription_fields: l.has_subscription_fields,
+                is_really_active: l.is_really_active,
+                subscription_status: l.subscription_info.subscriptionStatus,
+                total_classes: l.subscription_info.totalClasses,
+                used_classes: l.subscription_info.usedClasses,
+                remaining_classes: l.subscription_info.remainingClasses,
+                subscription_fields_count: l.subscription_fields.length,
+                key_fields: l.subscription_fields.map(f => ({
+                    name: f.name,
+                    value: f.value
+                }))
+            }))
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа сделок контакта:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 🔧 МАРШРУТ: Принудительная проверка конкретной сделки
+app.get('/api/debug/force-check-lead/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПРИНУДИТЕЛЬНАЯ ПРОВЕРКА СДЕЛКИ ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                error: 'Сделка не найдена'
+            });
+        }
+        
+        console.log(`📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+        console.log(`📊 Статус: ${lead.status_id}, Воронка: ${lead.pipeline_id}`);
+        
+        // Полный анализ полей
+        console.log(`\n📊 ВСЕ ПОЛЯ СДЕЛКИ:`);
+        console.log('='.repeat(80));
+        
+        const subscriptionFields = [];
+        const allFields = [];
+        
+        if (lead.custom_fields_values && lead.custom_fields_values.length > 0) {
+            lead.custom_fields_values.forEach(field => {
+                const fieldId = field.field_id || field.id;
+                const fieldName = amoCrmService.getFieldName(field);
+                const fieldValue = amoCrmService.getFieldValue(field);
+                const rawValues = field.values || [];
+                
+                const fieldInfo = {
+                    id: fieldId,
+                    name: fieldName,
+                    value: fieldValue,
+                    raw: rawValues
+                };
+                
+                allFields.push(fieldInfo);
+                
+                // Ключевые поля абонемента
+                const isSubscriptionField = [
+                    850241, 850257, 890163, 850255, 851565, 891007, 805465, 867693,
+                    891589, 850243, 850253, 850259, 884251, 891819, 891813
+                ].includes(fieldId);
+                
+                if (isSubscriptionField && fieldValue && fieldValue.trim() !== '') {
+                    subscriptionFields.push(fieldInfo);
+                    console.log(`🎯 ID ${fieldId}: "${fieldName}" = "${fieldValue}"`);
+                    
+                    if (rawValues.length > 0) {
+                        console.log(`     RAW: ${JSON.stringify(rawValues)}`);
+                    }
+                }
+            });
+        }
+        
+        console.log('='.repeat(80));
+        
+        // Анализ абонемента
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        const isReallyActive = amoCrmService.isSubscriptionReallyActive(subscriptionInfo, lead);
+        
+        // Получаем связанные контакты
+        let contacts = [];
+        try {
+            const contactsResponse = await amoCrmService.makeRequest(
+                'GET',
+                `/api/v4/leads/${leadId}/contacts`
+            );
+            contacts = contactsResponse._embedded?.contacts || [];
+        } catch (contactError) {
+            console.log(`⚠️  Не удалось получить контакты: ${contactError.message}`);
+        }
+        
+        res.json({
+            success: true,
+            lead: {
+                id: lead.id,
+                name: lead.name,
+                status_id: lead.status_id,
+                pipeline_id: lead.pipeline_id,
+                is_closed: [142, 143].includes(lead.status_id)
+            },
+            subscription: subscriptionInfo,
+            is_really_active: isReallyActive,
+            subscription_fields: subscriptionFields.map(f => ({
+                id: f.id,
+                name: f.name,
+                value: f.value
+            })),
+            fields_summary: {
+                total: allFields.length,
+                subscription: subscriptionFields.length,
+                other: allFields.length - subscriptionFields.length
+            },
+            contacts: contacts.map(c => ({
+                id: c.id,
+                name: c.name,
+                is_main: c.is_main || false
+            })),
+            recommendations: isReallyActive ? 
+                '✅ Эта сделка должна быть выбрана как активный абонемент' :
+                '❌ Эта сделка не считается активным абонементом'
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки сделки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 // Маршрут для поиска ВСЕХ абонементов контакта
 app.get('/api/debug/contact-subscriptions/:contactId', async (req, res) => {
