@@ -1400,7 +1400,7 @@
 <script>
 const ArtApp = {
     config: {
-        API_URL: window.location.origin, // Используем текущий домен
+        API_URL: window.location.origin,
         currentUser: null,
         currentProfile: null,
         profiles: [],
@@ -1557,7 +1557,6 @@ const ArtApp = {
         
         this.showLoading('Поиск данных...');
         
-        // Используем корректный эндпоинт с вашего сервера
         fetch('/api/auth/phone', {
             method: 'POST',
             headers: {
@@ -1567,7 +1566,6 @@ const ArtApp = {
         })
         .then(response => {
             console.log('📊 Статус ответа:', response.status);
-            console.log('📊 Заголовки ответа:', response.headers);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1580,34 +1578,52 @@ const ArtApp = {
             if (data.success) {
                 console.log('✅ Успешный ответ от сервера');
                 console.log('📊 Профилей в ответе:', data.data?.profiles?.length || 0);
-                console.log('📊 Профили:', data.data?.profiles);
                 
-               // В frontend/index.html обновите метод handlePhoneLogin:
-if (data.data && data.data.profiles && data.data.profiles.length > 0) {
-    console.log('✅ Профили найдены!');
-    
-    this.config.token = data.data.token;
-    this.config.currentUser = {
-        phone: formattedPhone,
-        profiles_count: data.data.profiles.length
-    };
-    
-    // Сохраняем реальные ID из базы данных
-    this.config.profiles = data.data.profiles.map(p => ({
-        ...p,
-        subscription_active: p.subscription_active === true || p.subscription_active === 1
-    }));
-    
-    // Первый профиль по умолчанию
-    this.config.currentProfile = this.config.profiles[0];
-    
-    console.log('📊 Сохраненные профили:', this.config.profiles);
-    
-    this.saveSession();
-    this.showMainInterface();
-    this.loadUserData();
-    this.showNotification('Вход выполнен успешно!', 'success');
-}
+                if (data.data && data.data.profiles && data.data.profiles.length > 0) {
+                    console.log('✅ Профили найдены!');
+                    
+                    this.config.token = data.data.token;
+                    this.config.currentUser = {
+                        phone: formattedPhone,
+                        profiles_count: data.data.profiles.length
+                    };
+                    
+                    // Сохраняем реальные ID из базы данных
+                    this.config.profiles = data.data.profiles.map(p => ({
+                        ...p,
+                        subscription_active: p.subscription_active === true || p.subscription_active === 1
+                    }));
+                    
+                    // Первый профиль по умолчанию
+                    this.config.currentProfile = this.config.profiles[0];
+                    
+                    console.log('📊 Сохраненные профили:', this.config.profiles);
+                    
+                    this.saveSession();
+                    this.showMainInterface();
+                    this.loadUserData();
+                    this.showNotification('Вход выполнен успешно!', 'success');
+                } else {
+                    this.showNotification('Профили не найдены', 'error');
+                    document.getElementById('newClientInfo').style.display = 'block';
+                }
+            } else {
+                this.showNotification(data.error || 'Ошибка сервера', 'error');
+                document.getElementById('newClientInfo').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка сети:', error);
+            this.showNotification('Ошибка сети. Проверьте подключение.', 'error');
+            document.getElementById('newClientInfo').style.display = 'block';
+        })
+        .finally(() => {
+            this.hideLoading();
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
+        });
+    },
+
     loadUserData: function() {
         this.updateUserInterface();
         this.updateStudentSelector();
@@ -1666,7 +1682,6 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
         const container = document.getElementById('subscriptionInfo');
         if (!container) return;
         
-        // Показываем заглушку во время загрузки
         container.innerHTML = `
             <div style="text-align: center; padding: 30px;">
                 <div class="spinner"></div>
@@ -1674,9 +1689,7 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
             </div>
         `;
         
-        // Проверяем, есть ли ID профиля
         if (this.config.currentProfile.id) {
-            // Используем основной эндпоинт для загрузки абонемента
             fetch('/api/subscription', {
                 method: 'POST',
                 headers: {
@@ -1698,7 +1711,6 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
                 if (data.success) {
                     this.renderSubscription(data.data);
                 } else {
-                    // Если метод не сработал, покажем данные из профиля
                     this.renderSubscriptionFromProfile();
                 }
             })
@@ -1711,13 +1723,11 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
         }
     },
 
-    // Метод для ручного обновления
     forceRefreshSubscription: function() {
         if (!this.config.currentProfile) return;
         
         this.showNotification('Обновление данных...', 'info');
         
-        // Используем эндпоинт синхронизации
         fetch('/api/sync/phone', {
             method: 'POST',
             headers: {
@@ -1728,7 +1738,6 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Обновляем данные через обычный запрос
                 this.loadSubscription();
                 this.showNotification('Данные успешно обновлены!', 'success');
             } else {
@@ -1785,7 +1794,6 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
             this.updateStudentSelector();
             this.showNotification(`Выбран ученик: ${selectedProfile.student_name}`, 'success');
             
-            // Обновляем данные на текущей странице
             const currentPage = document.querySelector('.page.active').id.replace('-page', '');
             switch(currentPage) {
                 case 'home':
@@ -1838,7 +1846,6 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
         
         this.showLoading('Загрузка расписания...');
         
-        // Поскольку у нас пока нет реального API расписания, покажем заглушку
         setTimeout(() => {
             this.hideLoading();
             container.innerHTML = `
@@ -1865,7 +1872,6 @@ if (data.data && data.data.profiles && data.data.profiles.length > 0) {
         
         this.showLoading('Загрузка данных абонемента...');
         
-        // Используем основной эндпоинт для загрузки абонемента
         fetch('/api/subscription', {
             method: 'POST',
             headers: {
