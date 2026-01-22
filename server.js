@@ -2693,12 +2693,23 @@ app.post('/api/auth/phone-simple', async (req, res) => {
         const profiles = await amoCrmService.getStudentsByPhoneSimple(formattedPhone);
         console.log(`📊 Найдено профилей: ${profiles.length}`);
         
-        // Сохраняем в БД
-        if (profiles.length > 0) {
-            await saveProfilesToDatabase(profiles);
+        if (profiles.length === 0) {
+            return res.json({
+                success: true,
+                message: 'Профили не найдены',
+                data: {
+                    profiles: [],
+                    total_profiles: 0,
+                    has_active_subscriptions: false,
+                    token: null
+                }
+            });
         }
         
-        // Создаем ответ
+        // Сохраняем в БД
+        await saveProfilesToDatabase(profiles);
+        
+        // Создаем ответ для фронтенда
         const responseProfiles = profiles.map(p => ({
             id: p.id || null,
             student_name: p.student_name,
@@ -2729,7 +2740,7 @@ app.post('/api/auth/phone-simple', async (req, res) => {
         
         res.json({
             success: true,
-            message: profiles.length > 0 ? 'Профили найдены' : 'Профили не найдены',
+            message: 'Профили найдены',
             data: {
                 profiles: responseProfiles,
                 total_profiles: profiles.length,
