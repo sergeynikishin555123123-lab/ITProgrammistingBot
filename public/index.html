@@ -1582,52 +1582,32 @@ const ArtApp = {
                 console.log('📊 Профилей в ответе:', data.data?.profiles?.length || 0);
                 console.log('📊 Профили:', data.data?.profiles);
                 
-                if (data.data && data.data.profiles && data.data.profiles.length > 0) {
-                    console.log('✅ Профили найдены!');
-                    
-                    this.config.token = data.data.token;
-                    this.config.currentUser = {
-                        phone: formattedPhone,
-                        profiles_count: data.data.profiles.length
-                    };
-                    
-                    this.config.profiles = data.data.profiles.map((p, index) => ({
-                        id: p.id || `profile-${index}`,
-                        ...p,
-                        subscription_active: p.subscription_active === true || p.subscription_active === 1
-                    }));
-                    
-                    this.config.currentProfile = this.config.profiles[0];
-                    
-                    console.log('📊 Сохраненные профили:', this.config.profiles);
-                    
-                    this.saveSession();
-                    this.showMainInterface();
-                    this.loadUserData();
-                    this.showNotification('Вход выполнен успешно!', 'success');
-                    console.log('✅ Пользователь авторизован');
-                } else {
-                    console.log('❌ Профили не найдены в ответе');
-                    document.getElementById('newClientInfo').style.display = 'block';
-                    this.showNotification(data.message || 'Абонемент не найден', 'error');
-                }
-            } else {
-                console.log('❌ Ответ не успешен:', data.error || data.message);
-                document.getElementById('newClientInfo').style.display = 'block';
-                this.showNotification(data.message || data.error || 'Ошибка сервера', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('❌ Ошибка запроса:', error);
-            this.showNotification('Ошибка соединения с сервером', 'error');
-        })
-        .finally(() => {
-            loginBtn.disabled = false;
-            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
-            this.hideLoading();
-        });
-    },
-
+               // В frontend/index.html обновите метод handlePhoneLogin:
+if (data.data && data.data.profiles && data.data.profiles.length > 0) {
+    console.log('✅ Профили найдены!');
+    
+    this.config.token = data.data.token;
+    this.config.currentUser = {
+        phone: formattedPhone,
+        profiles_count: data.data.profiles.length
+    };
+    
+    // Сохраняем реальные ID из базы данных
+    this.config.profiles = data.data.profiles.map(p => ({
+        ...p,
+        subscription_active: p.subscription_active === true || p.subscription_active === 1
+    }));
+    
+    // Первый профиль по умолчанию
+    this.config.currentProfile = this.config.profiles[0];
+    
+    console.log('📊 Сохраненные профили:', this.config.profiles);
+    
+    this.saveSession();
+    this.showMainInterface();
+    this.loadUserData();
+    this.showNotification('Вход выполнен успешно!', 'success');
+}
     loadUserData: function() {
         this.updateUserInterface();
         this.updateStudentSelector();
