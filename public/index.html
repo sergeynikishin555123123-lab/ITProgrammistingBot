@@ -1528,95 +1528,108 @@ const ArtApp = {
         }
     },
 
-    handlePhoneLogin: function() {
-        const phoneInput = document.getElementById('phoneNumber');
-        const loginBtn = document.getElementById('loginBtn');
-        let phone = phoneInput.value.trim();
+   handlePhoneLogin: function() {
+    const phoneInput = document.getElementById('phoneNumber');
+    const loginBtn = document.getElementById('loginBtn');
+    let phone = phoneInput.value.trim();
+    
+    phone = phone.replace(/\D/g, '');
+    
+    if (phone.length < 10) {
+        this.showNotification('Введите корректный номер телефона', 'error');
+        phoneInput.focus();
+        return;
+    }
+    
+    let formattedPhone;
+    if (phone.length === 10) {
+        formattedPhone = '+7' + phone;
+    } else if (phone.length === 11 && phone.startsWith('8')) {
+        formattedPhone = '+7' + phone.slice(1);
+    } else if (phone.length === 11 && phone.startsWith('7')) {
+        formattedPhone = '+' + phone;
+    } else {
+        formattedPhone = '+7' + phone.slice(-10);
+    }
+    
+    console.log(`📱 Отправка запроса для телефона: ${formattedPhone}`);
+    
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+    
+    this.showLoading('Поиск данных...');
+    
+    // ВАЖНО: Используем правильный URL
+    fetch('/api/auth/phone-simple', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: formattedPhone })
+    })
+    .then(response => {
+        console.log('📊 Статус ответа:', response.status);
+        console.log('📊 Заголовки ответа:', response.headers);
         
-        phone = phone.replace(/\D/g, '');
-        
-        if (phone.length < 10) {
-            this.showNotification('Введите корректный номер телефона', 'error');
-            phoneInput.focus();
-            return;
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        return response.json();
+    })
+    .then(data => {
+        console.log('✅ Полный ответ от сервера:', data);
         
-        let formattedPhone;
-        if (phone.length === 10) {
-            formattedPhone = '+7' + phone;
-        } else if (phone.length === 11 && phone.startsWith('8')) {
-            formattedPhone = '+7' + phone.slice(1);
-        } else if (phone.length === 11 && phone.startsWith('7')) {
-            formattedPhone = '+' + phone;
-        } else {
-            formattedPhone = '+7' + phone.slice(-10);
-        }
-        
-        loginBtn.disabled = true;
-        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
-        
-        this.showLoading('Поиск данных...');
-        
-        // ВАЖНО: Используем правильный эндпоинт
-        fetch(`${this.config.API_URL}/api/auth/phone-simple`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ phone: formattedPhone })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('✅ Данные получены:', data);
+        if (data.success) {
+            console.log('✅ Успешный ответ от сервера');
+            console.log('📊 Профилей в ответе:', data.data?.profiles?.length || 0);
+            console.log('📊 Профили:', data.data?.profiles);
             
-            if (data.success && data.data.profiles && data.data.profiles.length > 0) {
+            if (data.data && data.data.profiles && data.data.profiles.length > 0) {
+                console.log('✅ Профили найдены!');
+                
                 this.config.token = data.data.token;
                 this.config.currentUser = {
                     phone: formattedPhone,
                     profiles_count: data.data.profiles.length
                 };
-                this.config.profiles = data.data.profiles.map(p => ({
-                    id: p.id || Math.random().toString(36).substr(2, 9),
+                
+                // Преобразуем профили из ответа
+                this.config.profiles = data.data.profiles.map((p, index) => ({
+                    id: p.id || `profile-${index}`,
                     ...p,
-                    student_name: p.student_name,
-                    branch: p.branch,
-                    phone_number: formattedPhone,
-                    subscription_type: p.subscription_type,
-                    subscription_status: p.subscription_status,
-                    subscription_badge: p.subscription_badge,
-                    subscription_active: p.subscription_active === true || p.subscription_active === 1,
-                    total_classes: p.total_classes || 0,
-                    remaining_classes: p.remaining_classes || 0,
-                    used_classes: p.used_classes || 0,
-                    teacher_name: p.teacher_name,
-                    parent_name: p.parent_name
+                    subscription_active: p.subscription_active === true || p.subscription_active === 1
                 }));
+                
                 this.config.currentProfile = this.config.profiles[0];
+                
+                console.log('📊 Сохраненные профили:', this.config.profiles);
                 
                 this.saveSession();
                 this.showMainInterface();
                 this.loadUserData();
                 this.showNotification('Вход выполнен успешно!', 'success');
+                console.log('✅ Пользователь авторизован');
             } else {
+                console.log('❌ Профили не найдены в ответе');
                 document.getElementById('newClientInfo').style.display = 'block';
                 this.showNotification(data.message || 'Абонемент не найден', 'error');
             }
-        })
-        .catch(error => {
-            console.error('❌ Ошибка запроса:', error);
-            this.showNotification('Ошибка соединения с сервером', 'error');
-        })
-        .finally(() => {
-            loginBtn.disabled = false;
-            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
-            this.hideLoading();
-        });
-    },
+        } else {
+            console.log('❌ Ответ не успешен:', data.error || data.message);
+            document.getElementById('newClientInfo').style.display = 'block';
+            this.showNotification(data.message || data.error || 'Ошибка сервера', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Ошибка запроса:', error);
+        this.showNotification('Ошибка соединения с сервером', 'error');
+    })
+    .finally(() => {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
+        this.hideLoading();
+    });
+},
 
     loadUserData: function() {
         this.updateUserInterface();
