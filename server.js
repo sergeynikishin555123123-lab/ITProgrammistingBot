@@ -1636,56 +1636,127 @@ async getContactLeadsAlternative(contactId) {
     }
 
 // 🔧 УЛУЧШЕННЫЙ МЕТОД получения сделок контакта
+// 🔧 ИСПРАВЛЕННЫЙ МЕТОД: получение всех сделок контакта
 async getContactLeads(contactId) {
     try {
-        console.log(`🔍 Получение сделок контакта ID: ${contactId}`);
+        console.log(`🔍 ПОИСК ВСЕХ СДЕЛОК КОНТАКТА ID: ${contactId} ПО ВСЕМ ВОРОНКАМ`);
         
-        // Основной метод - через filter[contact_id]
-        const response = await this.makeRequest(
-            'GET',
-            `/api/v4/leads?with=custom_fields_values&limit=250&filter[contact_id]=${contactId}`
-        );
+        const allLeads = [];
+        const seenIds = new Set();
         
-        let leads = response._embedded?.leads || [];
-        console.log(`📊 Найдено сделок основным методом: ${leads.length}`);
+        // СПИСОК ВОРОНОК из вашей системы
+        const pipelines = [
+            5663740, // Основная воронка
+            5951374, // Воронка "Рассылка май 24"
+            7977402, // Воронка для абонементов (Ярослав Стенина)
+            6930286  // Дополнительная воронка
+        ];
         
-        // Если мало сделок, пробуем альтернативный метод
-        if (leads.length < 10) {
-            console.log(`🔄 Пробуем альтернативный метод...`);
-            try {
-                const altResponse = await this.makeRequest(
-                    'GET',
-                    `/api/v4/contacts/${contactId}/leads?with=custom_fields_values`
-                );
-                
-                const altLeads = altResponse._embedded?.leads || [];
-                console.log(`📊 Найдено сделок альтернативным методом: ${altLeads.length}`);
-                
-                // Объединяем результаты, убирая дубликаты
-                const allLeads = [...leads];
-                const existingIds = new Set(leads.map(l => l.id));
-                
-                for (const lead of altLeads) {
-                    if (!existingIds.has(lead.id)) {
-                        allLeads.push(lead);
-                        existingIds.add(lead.id);
-                    }
+        // 1. Поиск через filter[contact_id] (без фильтра по воронке)
+        try {
+            console.log('🔍 Поиск через общий фильтр...');
+            const response1 = await this.makeRequest(
+                'GET',
+                `/api/v4/leads?with=custom_fields_values&limit=250&filter[contact_id]=${contactId}`
+            );
+            const leads1 = response1._embedded?.leads || [];
+            console.log(`📊 Найдено: ${leads1.length} сделок`);
+            
+            leads1.forEach(lead => {
+                if (!seenIds.has(lead.id)) {
+                    seenIds.add(lead.id);
+                    allLeads.push(lead);
                 }
+            });
+        } catch (error) {
+            console.log(`❌ Ошибка общего поиска: ${error.message}`);
+        }
+        
+        // 2. Поиск по каждой воронке отдельно
+        console.log('🔍 Поиск по воронкам...');
+        for (const pipelineId of pipelines) {
+            try {
+                const response = await this.makeRequest(
+                    'GET',
+                    `/api/v4/leads?with=custom_fields_values&limit=100&filter[pipeline_id]=${pipelineId}&filter[contact_id]=${contactId}`
+                );
+                const leads = response._embedded?.leads || [];
                 
-                leads = allLeads;
-                console.log(`📊 Всего уникальных сделок: ${leads.length}`);
-            } catch (altError) {
-                console.log(`⚠️  Альтернативный метод не сработал: ${altError.message}`);
+                if (leads.length > 0) {
+                    console.log(`   📍 Воронка ${pipelineId}: ${leads.length} сделок`);
+                    
+                    leads.forEach(lead => {
+                        if (!seenIds.has(lead.id)) {
+                            seenIds.add(lead.id);
+                            allLeads.push(lead);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.log(`   ❌ Воронка ${pipelineId}: ${error.message}`);
             }
         }
         
-        // Сортируем по дате обновления (новые сначала)
-        leads.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+        // 3. Дополнительный метод через contacts/{id}/leads
+        try {
+            console.log('🔍 Поиск через связанные контакты...');
+            const response3 = await this.makeRequest(
+                'GET',
+                `/api/v4/contacts/${contactId}/leads?with=custom_fields_values`
+            );
+            const leads3 = response3._embedded?.leads || [];
+            console.log(`📊 Найдено: ${leads3.length} сделок`);
+            
+            leads3.forEach(lead => {
+                if (!seenIds.has(lead.id)) {
+                    seenIds.add(lead.id);
+                    allLeads.push(lead);
+                }
+            });
+        } catch (error) {
+            console.log(`❌ Ошибка поиска через контакты: ${error.message}`);
+        }
         
-        return leads;
+        console.log(`\n📊 ВСЕГО УНИКАЛЬНЫХ СДЕЛОК НАЙДЕНО: ${allLeads.length}`);
+        
+        // Сортируем: активные сначала, потом по дате обновления
+        allLeads.sort((a, b) => {
+            // Активные сделки (не 142, 143) имеют приоритет
+            const aIsActive = ![142, 143].includes(a.status_id);
+            const bIsActive = ![142, 143].includes(b.status_id);
+            
+            if (aIsActive && !bIsActive) return -1;
+            if (!aIsActive && bIsActive) return 1;
+            
+            // По дате обновления (новые сначала)
+            return new Date(b.updated_at) - new Date(a.updated_at);
+        });
+        
+        // Группируем для отладки
+        const active = allLeads.filter(l => ![142, 143].includes(l.status_id));
+        const closed = allLeads.filter(l => [142, 143].includes(l.status_id));
+        
+        console.log(`🎯 АКТИВНЫХ: ${active.length}`);
+        console.log(`📭 ЗАКРЫТЫХ: ${closed.length}`);
+        
+        // Показываем активные сделки
+        if (active.length > 0) {
+            console.log(`\n🎯 АКТИВНЫЕ СДЕЛКИ:`);
+            active.forEach(lead => {
+                const hasSubscription = lead.custom_fields_values?.some(f => {
+                    const fieldId = f.field_id || f.id;
+                    return [850241, 850257, 890163].includes(fieldId);
+                });
+                
+                const subscriptionMark = hasSubscription ? '🎫' : '📄';
+                console.log(`   ${subscriptionMark} ${lead.id}: "${lead.name}" (воронка: ${lead.pipeline_id})`);
+            });
+        }
+        
+        return allLeads;
         
     } catch (error) {
-        console.error(`❌ Ошибка получения сделок контакта: ${error.message}`);
+        console.error(`❌ Критическая ошибка получения сделок: ${error.message}`);
         return [];
     }
 }
@@ -4110,6 +4181,191 @@ app.get('/api/debug/find-active-subscription/:phone', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка поиска активных абонементов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 🔧 МАРШРУТ: Поиск всех сделок контакта по разным воронкам
+app.get('/api/debug/contact-all-leads/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        
+        console.log(`\n🔍 ПОИСК ВСЕХ СДЕЛОК КОНТАКТА ПО ВСЕМ ВОРОНКАМ: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем контакт
+        const contact = await amoCrmService.getFullContactInfo(contactId);
+        console.log(`👤 Контакт: ${contact.name} (ID: ${contact.id})`);
+        
+        // МЕТОД 1: Поиск через filter[contact_id]
+        console.log('\n🔍 Метод 1: filter[contact_id]');
+        const method1Response = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads?with=custom_fields_values&limit=250&filter[contact_id]=${contactId}`
+        );
+        const method1Leads = method1Response._embedded?.leads || [];
+        console.log(`📊 Найдено: ${method1Leads.length} сделок`);
+        
+        // МЕТОД 2: Поиск через contacts/{id}/leads
+        console.log('\n🔍 Метод 2: contacts/{id}/leads');
+        let method2Leads = [];
+        try {
+            const method2Response = await amoCrmService.makeRequest(
+                'GET',
+                `/api/v4/contacts/${contactId}/leads?with=custom_fields_values`
+            );
+            method2Leads = method2Response._embedded?.leads || [];
+            console.log(`📊 Найдено: ${method2Leads.length} сделок`);
+        } catch (error) {
+            console.log(`❌ Ошибка: ${error.message}`);
+        }
+        
+        // МЕТОД 3: Поиск по всем воронкам отдельно
+        console.log('\n🔍 Метод 3: Поиск по конкретным воронкам');
+        const pipelines = [5663740, 5951374, 7977402, 6930286]; // Все возможные воронки
+        const method3Leads = [];
+        
+        for (const pipelineId of pipelines) {
+            try {
+                const response = await amoCrmService.makeRequest(
+                    'GET',
+                    `/api/v4/leads?with=custom_fields_values&limit=100&filter[pipeline_id]=${pipelineId}&filter[contact_id]=${contactId}`
+                );
+                const leads = response._embedded?.leads || [];
+                if (leads.length > 0) {
+                    console.log(`   📍 Воронка ${pipelineId}: ${leads.length} сделок`);
+                    method3Leads.push(...leads);
+                }
+            } catch (error) {
+                console.log(`   ❌ Воронка ${pipelineId}: ${error.message}`);
+            }
+        }
+        
+        // Объединяем все результаты
+        const allLeads = [...method1Leads, ...method2Leads, ...method3Leads];
+        
+        // Убираем дубликаты
+        const uniqueLeads = [];
+        const seenIds = new Set();
+        
+        for (const lead of allLeads) {
+            if (!seenIds.has(lead.id)) {
+                seenIds.add(lead.id);
+                uniqueLeads.push(lead);
+            }
+        }
+        
+        console.log(`\n📊 ВСЕГО УНИКАЛЬНЫХ СДЕЛОК: ${uniqueLeads.length}`);
+        
+        // Группируем по статусам
+        const activeLeads = uniqueLeads.filter(l => ![142, 143].includes(l.status_id));
+        const closedLeads = uniqueLeads.filter(l => [142, 143].includes(l.status_id));
+        
+        console.log(`🎯 АКТИВНЫХ сделок: ${activeLeads.length}`);
+        console.log(`📭 ЗАКРЫТЫХ сделок: ${closedLeads.length}`);
+        
+        // Ищем сделки с абонементами
+        const subscriptionLeads = [];
+        
+        for (const lead of uniqueLeads) {
+            const hasSubscription = lead.custom_fields_values?.some(f => {
+                const fieldId = f.field_id || f.id;
+                return [850241, 850257, 890163].includes(fieldId);
+            });
+            
+            if (hasSubscription) {
+                subscriptionLeads.push({
+                    id: lead.id,
+                    name: lead.name,
+                    status_id: lead.status_id,
+                    pipeline_id: lead.pipeline_id,
+                    is_closed: [142, 143].includes(lead.status_id)
+                });
+            }
+        }
+        
+        console.log(`\n🎫 СДЕЛОК С АБОНЕМЕНТАМИ: ${subscriptionLeads.length}`);
+        
+        // Показываем активные сделки с абонементами
+        const activeSubscriptionLeads = subscriptionLeads.filter(l => !l.is_closed);
+        console.log(`✅ АКТИВНЫХ с абонементами: ${activeSubscriptionLeads.length}`);
+        
+        if (activeSubscriptionLeads.length > 0) {
+            console.log(`\n🎯 АКТИВНЫЕ АБОНЕМЕНТЫ:`);
+            activeSubscriptionLeads.forEach(lead => {
+                console.log(`   • ${lead.id}: "${lead.name}" (воронка: ${lead.pipeline_id})`);
+            });
+        }
+        
+        // Проверяем конкретно сделку 28664339
+        console.log(`\n🔍 ПРОВЕРКА СДЕЛКИ 28664339:`);
+        const targetLead = uniqueLeads.find(l => l.id == 28664339);
+        
+        if (targetLead) {
+            console.log(`   ✅ Найдена!`);
+            console.log(`      Название: "${targetLead.name}"`);
+            console.log(`      Статус: ${targetLead.status_id}`);
+            console.log(`      Воронка: ${targetLead.pipeline_id}`);
+            
+            // Проверяем поля абонемента
+            if (targetLead.custom_fields_values) {
+                console.log(`      Поля абонемента:`);
+                targetLead.custom_fields_values.forEach(field => {
+                    const fieldId = field.field_id || field.id;
+                    if ([850241, 850257, 890163, 850255, 851565].includes(fieldId)) {
+                        const value = amoCrmService.getFieldValue(field);
+                        console.log(`        • ${fieldId}: ${value}`);
+                    }
+                });
+            }
+        } else {
+            console.log(`   ❌ НЕ найдена в общем списке!`);
+        }
+        
+        res.json({
+            success: true,
+            contact: {
+                id: contact.id,
+                name: contact.name
+            },
+            methods: {
+                method1: method1Leads.length,
+                method2: method2Leads.length,
+                method3: method3Leads.length,
+                total_unique: uniqueLeads.length
+            },
+            leads_by_status: {
+                active: activeLeads.length,
+                closed: closedLeads.length,
+                total: uniqueLeads.length
+            },
+            subscription_leads: {
+                total: subscriptionLeads.length,
+                active: activeSubscriptionLeads.length,
+                closed: subscriptionLeads.length - activeSubscriptionLeads.length,
+                list: subscriptionLeads
+            },
+            target_lead_found: !!targetLead,
+            target_lead: targetLead ? {
+                id: targetLead.id,
+                name: targetLead.name,
+                status_id: targetLead.status_id,
+                pipeline_id: targetLead.pipeline_id,
+                is_closed: [142, 143].includes(targetLead.status_id)
+            } : null
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска всех сделок:', error.message);
         res.status(500).json({
             success: false,
             error: error.message
