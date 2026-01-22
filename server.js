@@ -619,51 +619,65 @@ extractSubscriptionInfo(lead) {
             console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
             
             // ============ ОПРЕДЕЛЕНИЕ СТАТУСА ============
-            const today = new Date();
-            const isExpiredByDate = subscriptionInfo.expirationDate ? 
-                new Date(subscriptionInfo.expirationDate) < today : false;
-            
-            const hasRemaining = subscriptionInfo.remainingClasses > 0;
-            const hasUsed = subscriptionInfo.usedClasses > 0;
-            const isClosedDeal = [142, 143].includes(statusId); // Закрытые сделки
-            
-            console.log(`\n🎯 ОПРЕДЕЛЕНИЕ СТАТУСА:`);
-            console.log(`   • Истек по дате: ${isExpiredByDate ? 'Да' : 'Нет'}`);
-            console.log(`   • Есть остаток: ${hasRemaining ? 'Да' : 'Нет'}`);
-            console.log(`   • Есть посещения: ${hasUsed ? 'Да' : 'Нет'}`);
-            console.log(`   • Сделка закрыта: ${isClosedDeal ? 'Да' : 'Нет'}`);
-            
-            // Логика определения статуса
-            if (isClosedDeal) {
-                subscriptionInfo.subscriptionStatus = 'Абонемент завершен';
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            }
-            else if (isExpiredByDate) {
-                subscriptionInfo.subscriptionStatus = 'Абонемент истек';
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            }
-            else if (!hasRemaining && hasUsed) {
-                subscriptionInfo.subscriptionStatus = 'Занятия закончились';
-                subscriptionInfo.subscriptionBadge = 'expired';
-                subscriptionInfo.subscriptionActive = false;
-            }
-            else if (hasRemaining) {
-                subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
-                subscriptionInfo.subscriptionBadge = 'active';
-                subscriptionInfo.subscriptionActive = true;
-            }
-            else if (subscriptionInfo.totalClasses > 0 && !hasUsed) {
-                subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий (не активирован)`;
-                subscriptionInfo.subscriptionBadge = 'pending';
-                subscriptionInfo.subscriptionActive = false;
-            }
-            else if (subscriptionInfo.totalClasses > 0) {
-                subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
-                subscriptionInfo.subscriptionBadge = 'has_subscription';
-                subscriptionInfo.subscriptionActive = true;
-            }
+            // ============ ОПРЕДЕЛЕНИЕ СТАТУСА ============
+const today = new Date();
+const isExpiredByDate = subscriptionInfo.expirationDate ? 
+    new Date(subscriptionInfo.expirationDate) < today : false;
+const isFutureActivation = subscriptionInfo.activationDate ? 
+    new Date(subscriptionInfo.activationDate) > today : false;
+
+const hasRemaining = subscriptionInfo.remainingClasses > 0;
+const hasUsed = subscriptionInfo.usedClasses > 0;
+const isClosedDeal = [142, 143].includes(statusId); // Закрытые сделки
+
+console.log(`\n🎯 ОПРЕДЕЛЕНИЕ СТАТУСА:`);
+console.log(`   • Истек по дате: ${isExpiredByDate ? 'Да' : 'Нет'}`);
+console.log(`   • Активация в будущем: ${isFutureActivation ? 'Да' : 'Нет'}`);
+console.log(`   • Есть остаток: ${hasRemaining ? 'Да' : 'Нет'}`);
+console.log(`   • Есть посещения: ${hasUsed ? 'Да' : 'Нет'}`);
+console.log(`   • Сделка закрыта: ${isClosedDeal ? 'Да' : 'Нет'}`);
+
+// Логика определения статуса - ПРИОРИТЕТ ПО ДАННЫМ, А НЕ ПО СТАТУСУ СДЕЛКИ
+if (isExpiredByDate) {
+    subscriptionInfo.subscriptionStatus = 'Абонемент истек';
+    subscriptionInfo.subscriptionBadge = 'expired';
+    subscriptionInfo.subscriptionActive = false;
+}
+else if (isFutureActivation) {
+    subscriptionInfo.subscriptionStatus = 'Ожидает активации';
+    subscriptionInfo.subscriptionBadge = 'pending';
+    subscriptionInfo.subscriptionActive = false;
+}
+else if (!hasRemaining && hasUsed) {
+    subscriptionInfo.subscriptionStatus = 'Занятия закончились';
+    subscriptionInfo.subscriptionBadge = 'expired';
+    subscriptionInfo.subscriptionActive = false;
+}
+else if (hasRemaining) {
+    subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
+    subscriptionInfo.subscriptionBadge = 'active';
+    subscriptionInfo.subscriptionActive = true;
+    
+    // Если сделка закрыта, но есть остаток - это странно, но показываем активным
+    if (isClosedDeal) {
+        console.log(`⚠️  Внимание: сделка закрыта, но есть остаток занятий!`);
+    }
+}
+else if (subscriptionInfo.totalClasses > 0 && !hasUsed && !isClosedDeal) {
+    subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий (не начат)`;
+    subscriptionInfo.subscriptionBadge = 'pending';
+    subscriptionInfo.subscriptionActive = false;
+}
+else if (isClosedDeal) {
+    subscriptionInfo.subscriptionStatus = 'Абонемент завершен';
+    subscriptionInfo.subscriptionBadge = 'expired';
+    subscriptionInfo.subscriptionActive = false;
+}
+else if (subscriptionInfo.totalClasses > 0) {
+    subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
+    subscriptionInfo.subscriptionBadge = 'has_subscription';
+    subscriptionInfo.subscriptionActive = true;
+}
             
             // Если нет типа абонемента, создаем его
             if (!subscriptionInfo.subscriptionType || subscriptionInfo.subscriptionType.trim() === '') {
@@ -847,63 +861,85 @@ extractSubscriptionInfo(lead) {
                 // 7. Сортируем сделки по дате (новые сначала)
                 subscriptionLeads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                 
-                // 8. Для каждого ребенка создаем профиль
-                for (const child of children) {
-                    console.log(`\n👤 Создание профиля для: ${child.studentName}`);
-                    
-                    // Ищем подходящую сделку для этого ребенка
-                    let bestLead = null;
-                    let bestSubscriptionInfo = null;
-                    
-                    // Проверяем все сделки с абонементами
-                    for (const lead of subscriptionLeads) {
-                        const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                        
-                        // Если в сделке есть активный абонемент
-                        if (subscriptionInfo.hasSubscription && subscriptionInfo.subscriptionActive) {
-                            // Проверяем имя ученика в сделке
-                            const leadStudentInfo = this.extractStudentInfoFromLead(lead);
-                            
-                            // Если имена совпадают или сделка самая новая
-                            if ((leadStudentInfo.studentName && 
-                                 leadStudentInfo.studentName.includes(child.studentName.split(' ')[0])) ||
-                                !bestLead) {
-                                
-                                bestLead = lead;
-                                bestSubscriptionInfo = subscriptionInfo;
-                                break; // Берем первую подходящую
-                            }
-                        }
-                    }
-                    
-                    // Если не нашли активный абонемент, берем последнюю сделку
-                    if (!bestLead && subscriptionLeads.length > 0) {
-                        bestLead = subscriptionLeads[0];
-                        bestSubscriptionInfo = this.extractSubscriptionInfo(bestLead);
-                    }
-                    
-                    // 9. Создаем профиль ученика
-                    const studentProfile = this.createStudentProfile(
-                        fullContact,
-                        phoneNumber,
-                        child,
-                        bestSubscriptionInfo || this.extractSubscriptionInfo(null),
-                        bestLead
-                    );
-                    
-                    // 10. Если в контакте указано, что есть активный абонемент
-                    if (child.hasActiveSubscription && 
-                        (!bestSubscriptionInfo || !bestSubscriptionInfo.subscriptionActive)) {
-                        console.log('⚠️  В контакте указан активный абонемент, но не найден в сделках');
-                        studentProfile.subscription_active = 1;
-                        studentProfile.subscription_status = 'Активный абонемент';
-                        studentProfile.subscription_badge = 'active';
-                    }
-                    
-                    // 11. Добавляем профиль
-                    studentProfiles.push(studentProfile);
-                    console.log(`✅ Профиль создан: ${child.studentName}`);
-                }
+// 8. Для каждого ребенка создаем профиль
+for (const child of children) {
+    console.log(`\n👤 Создание профиля для: ${child.studentName}`);
+    
+    // Ищем ПОДХОДЯЩУЮ сделку для этого ребенка
+    let bestLead = null;
+    let bestSubscriptionInfo = null;
+    
+    // Ищем ВСЕ активные абонементы контакта
+    const activeSubscriptions = await this.findActiveSubscriptions(contact.id);
+    console.log(`📊 Найдено активных абонементов: ${activeSubscriptions.active_count}`);
+    
+    // Показываем все абонементы для отладки
+    console.log(`📋 Все абонементы контакта (${activeSubscriptions.all.length}):`);
+    activeSubscriptions.all.forEach((sub, idx) => {
+        console.log(`   ${idx + 1}. "${sub.lead_name}" (ID: ${sub.lead_id})`);
+        console.log(`      Активация: ${sub.activation_date || 'нет'}`);
+        console.log(`      Окончание: ${sub.expiration_date || 'нет'}`);
+        console.log(`      Занятий: ${sub.subscription.totalClasses}/${sub.subscription.usedClasses}/${sub.subscription.remainingClasses}`);
+        console.log(`      Активен: ${sub.subscription.subscriptionActive ? '✅' : '❌'} (по данным: ${sub.is_active_by_data ? '✅' : '❌'})`);
+    });
+    
+    // Ищем подходящую сделку
+    if (activeSubscriptions.active_count > 0) {
+        // Берем САМЫЙ АКТИВНЫЙ И СВЕЖИЙ абонемент
+        bestLead = subscriptionLeads.find(lead => lead.id === activeSubscriptions.active[0].lead_id);
+        if (bestLead) {
+            bestSubscriptionInfo = activeSubscriptions.active[0].subscription;
+            console.log(`🎯 ВЫБРАН АКТИВНЫЙ АБОНЕМЕНТ: "${bestLead.name}"`);
+            console.log(`   Занятий: ${bestSubscriptionInfo.remainingClasses}/${bestSubscriptionInfo.totalClasses}`);
+            console.log(`   Активация: ${bestSubscriptionInfo.activationDate}`);
+        }
+    } 
+    
+    // Если не нашли активный, берем САМЫЙ СВЕЖИЙ по дате активации
+    if (!bestLead && activeSubscriptions.all.length > 0) {
+        const mostRecent = activeSubscriptions.all[0];
+        bestLead = subscriptionLeads.find(lead => lead.id === mostRecent.lead_id);
+        if (bestLead) {
+            bestSubscriptionInfo = mostRecent.subscription;
+            console.log(`📅 ВЫБРАН ПОСЛЕДНИЙ АБОНЕМЕНТ: "${bestLead.name}"`);
+            console.log(`   Активация: ${bestSubscriptionInfo.activationDate}`);
+        }
+    }
+    
+    // Если совсем ничего не нашли, берем первую сделку с абонементом
+    if (!bestLead && subscriptionLeads.length > 0) {
+        bestLead = subscriptionLeads[0];
+        bestSubscriptionInfo = this.extractSubscriptionInfo(bestLead);
+        console.log(`⚠️  ВЫБРАН ПЕРВЫЙ АБОНЕМЕНТ (резерв): "${bestLead.name}"`);
+    }
+    
+    // 9. Создаем профиль ученика
+    const studentProfile = this.createStudentProfile(
+        fullContact,
+        phoneNumber,
+        child,
+        bestSubscriptionInfo || this.extractSubscriptionInfo(null),
+        bestLead
+    );
+    
+    // 10. Если в контакте указано, что есть активный абонемент
+    if (child.hasActiveSubscription && 
+        (!bestSubscriptionInfo || !bestSubscriptionInfo.subscriptionActive)) {
+        console.log('⚠️  В контакте указан активный абонемент, но не найден в сделках');
+        studentProfile.subscription_active = 1;
+        studentProfile.subscription_status = 'Активный абонемент';
+        studentProfile.subscription_badge = 'active';
+        
+        // Обновляем данные из контакта
+        if (!studentProfile.activation_date && child.lastVisitDate) {
+            studentProfile.activation_date = child.lastVisitDate;
+        }
+    }
+    
+    // 11. Добавляем профиль
+    studentProfiles.push(studentProfile);
+    console.log(`✅ Профиль создан: ${child.studentName}`);
+}
             }
             
             console.log(`\n🎯 ИТОГО создано профилей: ${studentProfiles.length}`);
@@ -1190,94 +1226,112 @@ extractSubscriptionInfo(lead) {
         return profile;
     }
 
-    async findActiveSubscriptions(contactId) {
-        console.log(`\n🔍 ПОИСК АКТИВНЫХ АБОНЕМЕНТОВ ДЛЯ КОНТАКТА ID: ${contactId}`);
+   async findActiveSubscriptions(contactId) {
+    console.log(`\n🔍 ПОИСК АКТИВНЫХ АБОНЕМЕНТОВ ДЛЯ КОНТАКТА ID: ${contactId}`);
+    
+    try {
+        // Получаем ВСЕ сделки контакта
+        const leadsResponse = await this.makeRequest(
+            'GET',
+            `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&limit=250`
+        );
         
-        try {
-            // Получаем ВСЕ сделки контакта
-            const leadsResponse = await this.makeRequest(
-                'GET',
-                `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&limit=250`
-            );
+        const allLeads = leadsResponse._embedded?.leads || [];
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        
+        const activeSubscriptions = [];
+        const allSubscriptions = [];
+        
+        // Проверяем каждую сделку
+        for (const lead of allLeads) {
+            // Извлекаем данные об абонементе
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
             
-            const allLeads = leadsResponse._embedded?.leads || [];
-            console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
-            
-            const activeSubscriptions = [];
-            
-            // Проверяем каждую сделку
-            for (const lead of allLeads) {
-                // Ключевые поля, которые должны быть заполнены для активного абонемента
-                const hasTotalClasses = lead.custom_fields_values?.some(f => 
-                    (f.field_id === this.FIELD_IDS.LEAD.TOTAL_CLASSES || f.id === this.FIELD_IDS.LEAD.TOTAL_CLASSES) && 
-                    f.values && f.values.length > 0 && 
-                    this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
-                );
+            if (subscriptionInfo.hasSubscription) {
+                console.log(`\n📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+                console.log(`   Статус ID: ${lead.status_id}`);
+                console.log(`   Дата активации: ${subscriptionInfo.activationDate}`);
+                console.log(`   Всего: ${subscriptionInfo.totalClasses}, Использовано: ${subscriptionInfo.usedClasses}, Осталось: ${subscriptionInfo.remainingClasses}`);
+                console.log(`   Активен в системе: ${subscriptionInfo.subscriptionActive ? '✅ Да' : '❌ Нет'}`);
                 
-                const hasCounter = lead.custom_fields_values?.some(f => 
-                    (f.field_id === this.FIELD_IDS.LEAD.USED_CLASSES || f.id === this.FIELD_IDS.LEAD.USED_CLASSES) && 
-                    f.values && f.values.length > 0 && 
-                    this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
-                );
+                // ВАЖНО: Проверяем по реальным данным, а не только по статусу
+                const hasActiveData = 
+                    (subscriptionInfo.remainingClasses > 0 || 
+                     subscriptionInfo.totalClasses > subscriptionInfo.usedClasses) &&
+                    subscriptionInfo.expirationDate && 
+                    new Date(subscriptionInfo.expirationDate) >= new Date();
                 
-                const hasRemaining = lead.custom_fields_values?.some(f => 
-                    (f.field_id === this.FIELD_IDS.LEAD.REMAINING_CLASSES || f.id === this.FIELD_IDS.LEAD.REMAINING_CLASSES) && 
-                    f.values && f.values.length > 0 && 
-                    this.getFieldValue(f) && this.getFieldValue(f).trim() !== ''
-                );
+                const subscriptionData = {
+                    lead_id: lead.id,
+                    lead_name: lead.name,
+                    status_id: lead.status_id,
+                    pipeline_id: lead.pipeline_id,
+                    created_at: lead.created_at,
+                    updated_at: lead.updated_at,
+                    subscription: subscriptionInfo,
+                    is_active_by_data: hasActiveData,
+                    activation_date: subscriptionInfo.activationDate,
+                    expiration_date: subscriptionInfo.expirationDate
+                };
                 
-                // Если есть хотя бы одно ключевое поле, анализируем дальше
-                if (hasTotalClasses || hasCounter || hasRemaining) {
-                    console.log(`\n📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
-                    console.log(`   Статус: ${lead.status_id}, Есть поля: total=${hasTotalClasses}, counter=${hasCounter}, remaining=${hasRemaining}`);
-                    
-                    // Извлекаем данные об абонементе
-                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                    
-                    // Показываем все заполненные поля
-                    if (lead.custom_fields_values) {
-                        lead.custom_fields_values.forEach(field => {
-                            const fieldId = field.field_id || field.id;
-                            const fieldName = this.getFieldName(field);
-                            const fieldValue = this.getFieldValue(field);
-                            
-                            if (fieldValue && fieldValue.trim() !== '') {
-                                console.log(`   • ${fieldName}: ${fieldValue}`);
-                            }
-                        });
-                    }
-                    
-                    // Если абонемент активен, добавляем в список
-                    if (subscriptionInfo.hasSubscription && subscriptionInfo.subscriptionActive) {
-                        activeSubscriptions.push({
-                            lead_id: lead.id,
-                            lead_name: lead.name,
-                            status_id: lead.status_id,
-                            subscription: subscriptionInfo
-                        });
-                        
-                        console.log(`   🎯 АКТИВНЫЙ АБОНЕМЕНТ НАЙДЕН!`);
-                        console.log(`      ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий осталось`);
-                    }
+                allSubscriptions.push(subscriptionData);
+                
+                // Считаем активными те, у которых есть остаток занятий И не истек срок
+                if (hasActiveData) {
+                    activeSubscriptions.push(subscriptionData);
+                    console.log(`   🎯 АКТИВНЫЙ ПО ДАННЫМ!`);
+                } else if (subscriptionInfo.subscriptionActive) {
+                    // Если система считает активным, но данные устарели
+                    console.log(`   ⚠️  Система считает активным, но данные: остаток=${subscriptionInfo.remainingClasses}, истек=${!subscriptionInfo.expirationDate || new Date(subscriptionInfo.expirationDate) < new Date()}`);
                 }
             }
-            
-            console.log(`\n🎯 Найдено активных абонементов: ${activeSubscriptions.length}`);
-            
-            // Сортируем по дате создания (новые сначала)
-            activeSubscriptions.sort((a, b) => {
-                const leadA = allLeads.find(l => l.id === a.lead_id);
-                const leadB = allLeads.find(l => l.id === b.lead_id);
-                return new Date(leadB.created_at) - new Date(leadA.created_at);
-            });
-            
-            return activeSubscriptions;
-            
-        } catch (error) {
-            console.error(`❌ Ошибка поиска активных абонементов: ${error.message}`);
-            return [];
         }
+        
+        console.log(`\n📊 ИТОГО:`);
+        console.log(`   Всего абонементов: ${allSubscriptions.length}`);
+        console.log(`   Активных по данным: ${activeSubscriptions.length}`);
+        
+        // СОРТИРОВКА по актуальности:
+        // 1. Сначала активные по данным
+        // 2. Потом по дате активации (новые сначала)
+        // 3. Потом по дате создания (новые сначала)
+        
+        activeSubscriptions.sort((a, b) => {
+            // Сначала по активности
+            if (a.is_active_by_data !== b.is_active_by_data) {
+                return b.is_active_by_data - a.is_active_by_data;
+            }
+            
+            // Потом по дате активации (новые сначала)
+            const dateA = a.activation_date ? new Date(a.activation_date) : new Date(0);
+            const dateB = b.activation_date ? new Date(b.activation_date) : new Date(0);
+            if (dateB.getTime() !== dateA.getTime()) {
+                return dateB.getTime() - dateA.getTime();
+            }
+            
+            // Потом по дате обновления
+            return new Date(b.updated_at) - new Date(a.updated_at);
+        });
+        
+        // Также сортируем все абонементы для отладки
+        allSubscriptions.sort((a, b) => {
+            const dateA = a.activation_date ? new Date(a.activation_date) : new Date(0);
+            const dateB = b.activation_date ? new Date(b.activation_date) : new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+        
+        return {
+            active: activeSubscriptions,
+            all: allSubscriptions,
+            total: allSubscriptions.length,
+            active_count: activeSubscriptions.length
+        };
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска активных абонементов: ${error.message}`);
+        return { active: [], all: [], total: 0, active_count: 0 };
     }
+}
 }
 
 // Создаем экземпляр сервиса amoCRM
@@ -2788,6 +2842,79 @@ app.get('/api/debug/search/subscription-fields', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка поиска полей абонементов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Проверка активных абонементов контакта
+app.get('/api/debug/contact-active-subscriptions/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        
+        console.log(`\n🔍 ДЕТАЛЬНАЯ ПРОВЕРКА АКТИВНЫХ АБОНЕМЕНТОВ КОНТАКТА ID: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем контакт
+        const contact = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/contacts/${contactId}?with=custom_fields_values`
+        );
+        
+        console.log(`👤 Контакт: ${contact.name} (ID: ${contact.id})`);
+        
+        // Ищем активные абонементы
+        const subscriptions = await amoCrmService.findActiveSubscriptions(contactId);
+        
+        // Показываем поле "Есть активный абонемент" из контакта
+        let contactHasActive = false;
+        if (contact.custom_fields_values) {
+            contact.custom_fields_values.forEach(field => {
+                const fieldId = field.field_id || field.id;
+                if (fieldId === 890179) { // "Есть активный абонемент"
+                    const value = amoCrmService.getFieldValue(field);
+                    contactHasActive = value.toLowerCase() === 'да';
+                    console.log(`📋 Поле контакта "Есть активный абонемент": ${value} → ${contactHasActive ? 'Да' : 'Нет'}`);
+                }
+            });
+        }
+        
+        res.json({
+            success: true,
+            contact: {
+                id: contact.id,
+                name: contact.name,
+                has_active_subscription_field: contactHasActive
+            },
+            subscriptions: subscriptions,
+            recommendation: subscriptions.active_count > 0 ? 
+                `Использовать активный абонемент из сделки ID: ${subscriptions.active[0].lead_id}` :
+                `Активных абонементов не найдено. Использовать последний: ${subscriptions.all.length > 0 ? subscriptions.all[0].lead_id : 'нет'}`,
+            debug: {
+                total_leads_checked: subscriptions.total,
+                active_by_data: subscriptions.active_count,
+                all_sorted_by_activation: subscriptions.all.map(s => ({
+                    id: s.lead_id,
+                    name: s.lead_name,
+                    activation: s.activation_date,
+                    expiration: s.expiration_date,
+                    classes: `${s.subscription.totalClasses}/${s.subscription.usedClasses}/${s.subscription.remainingClasses}`,
+                    is_active: s.subscription.subscriptionActive,
+                    is_active_by_data: s.is_active_by_data
+                }))
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки активных абонементов:', error.message);
         res.status(500).json({
             success: false,
             error: error.message
