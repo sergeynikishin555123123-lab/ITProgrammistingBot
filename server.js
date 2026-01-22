@@ -870,10 +870,18 @@ else if (subscriptionInfo.totalClasses > 0) {
                     }
                 }
                 
-                // 5. Получаем все сделки контакта
-                console.log('🔍 Поиск сделок контакта...');
-                const leads = await this.getContactLeads(contact.id);
-                console.log(`📊 Найдено сделок: ${leads.length}`);
+               // 5. Получаем ВСЕ сделки контакта (не только связанные напрямую)
+console.log('🔍 Расширенный поиск сделок...');
+const allLeads = await this.getAllSubscriptionLeads(contact.id);
+console.log(`📊 Найдено сделок с абонементами: ${allLeads.length}`);
+
+// Если не нашли через контакт, ищем по телефону в названиях сделок
+if (allLeads.length === 0) {
+    console.log('🔍 Поиск сделок по телефону в названии...');
+    const phoneLeads = await this.searchLeadsByPhone(phoneNumber);
+    console.log(`📊 Найдено сделок по телефону: ${phoneLeads.length}`);
+    allLeads.push(...phoneLeads);
+}
                 
                 // 6. Ищем сделки с абонементами
                 const subscriptionLeads = [];
@@ -2638,6 +2646,60 @@ app.get('/api/debug/find-active-subscription/:phone', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка поиска активных абонементов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Проверка связей сделки
+app.get('/api/debug/lead-contacts/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПРОВЕРКА СВЯЗЕЙ СДЕЛКИ ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем сделку с контактами
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=contacts`
+        );
+        
+        console.log(`📋 Сделка: "${lead.name}" (ID: ${lead.id})`);
+        console.log(`📊 Статус: ${lead.status_id}, Воронка: ${lead.pipeline_id}`);
+        
+        // Показываем связанные контакты
+        if (lead._embedded && lead._embedded.contacts) {
+            console.log(`👤 СВЯЗАННЫЕ КОНТАКТЫ (${lead._embedded.contacts.length}):`);
+            lead._embedded.contacts.forEach(contact => {
+                console.log(`   • ${contact.id}: ${contact.name} (${contact.is_main ? 'основной' : 'дополнительный'})`);
+            });
+        } else {
+            console.log(`⚠️  Нет связанных контактов!`);
+        }
+        
+        res.json({
+            success: true,
+            lead: {
+                id: lead.id,
+                name: lead.name,
+                status_id: lead.status_id,
+                pipeline_id: lead.pipeline_id
+            },
+            contacts: lead._embedded?.contacts || [],
+            contacts_count: lead._embedded?.contacts?.length || 0
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки связей:', error.message);
         res.status(500).json({
             success: false,
             error: error.message
