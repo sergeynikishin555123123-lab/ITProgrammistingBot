@@ -1476,97 +1476,105 @@ async getContactLeadsAlternative(contactId) {
         }
     }
 
-    async findSubscriptionForStudent(contactId, studentName) {
-        console.log(`\n🎯 ПОИСК АБОНЕМЕНТА ДЛЯ: ${studentName} (контакт: ${contactId})`);
+// 🔧 ДОБАВИТЬ ЭТОТ МЕТОД В КЛАСС AmoCrmService
+async getContactLeads(contactId) {
+    try {
+        console.log(`🔍 Получение сделок контакта ID: ${contactId}`);
         
-        try {
-            // 1. Получаем ВСЕ сделки контакта
-            const allLeads = await this.getContactLeads(contactId);
-            console.log(`📊 Всего сделок получено: ${allLeads.length}`);
+        // Основной метод поиска сделок
+        const response = await this.makeRequest(
+            'GET',
+            `/api/v4/contacts/${contactId}/leads?with=custom_fields_values,contacts&limit=250`
+        );
+        
+        const leads = response._embedded?.leads || [];
+        console.log(`📊 Найдено сделок: ${leads.length}`);
+        
+        // Если нашли мало сделок, пробуем альтернативный запрос
+        if (leads.length < 10) {
+            console.log('🔄 Используем альтернативный запрос...');
+            const altLeads = await this.getContactLeadsAlternative(contactId);
             
-            // 2. Если сделок нет или мало, возможно проблема с API
-            if (allLeads.length < 10) {
-                console.log(`⚠️  Мало сделок (${allLeads.length}). Возможно проблема с пагинацией или фильтрацией.`);
-                
-                // Пробуем альтернативный запрос без фильтра по контакту
-                console.log(`🔍 Альтернативный поиск по имени ученика...`);
-                const altLeads = await this.searchLeadsByStudentName(studentName);
-                if (altLeads.length > 0) {
-                    console.log(`📊 Найдено альтернативным способом: ${altLeads.length} сделок`);
-                    allLeads.push(...altLeads);
+            // Объединяем результаты, убирая дубликаты
+            const allLeads = [...leads];
+            const existingIds = new Set(leads.map(l => l.id));
+            
+            for (const lead of altLeads) {
+                if (!existingIds.has(lead.id)) {
+                    allLeads.push(lead);
+                    existingIds.add(lead.id);
                 }
             }
             
-            // 3. Ищем сделки с абонементами
-            const subscriptionLeads = [];
-            
-            for (const lead of allLeads) {
-                // Проверяем поля абонемента
-                let hasSubscription = false;
-                let subscriptionData = null;
-                
-                if (lead.custom_fields_values) {
-                    // Быстрая проверка по ключевым полям
-                    for (const field of lead.custom_fields_values) {
-                        const fieldId = field.field_id || field.id;
-                        
-                        // Критические поля абонемента
-                        if ([850241, 850257, 890163].includes(fieldId)) {
-                            const value = this.getFieldValue(field);
-                            if (value && value.trim() !== '') {
-                                hasSubscription = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                
-                if (hasSubscription) {
-                    // Проверяем, относится ли сделка к этому ученику
-                    const isForThisStudent = this.isLeadForStudent(lead, studentName);
-                    
-                    if (isForThisStudent) {
-                        console.log(`✅ Найдена подходящая сделка: ${lead.id} "${lead.name}"`);
-                        subscriptionLeads.push(lead);
-                    } else {
-                        console.log(`📋 Сделка с абонементом, но не для ${studentName}: ${lead.id} "${lead.name}"`);
-                    }
-                }
-            }
-            
-            console.log(`📊 Подходящих сделок с абонементами: ${subscriptionLeads.length}`);
-            
-            // 4. Выбираем самую актуальную
-            if (subscriptionLeads.length > 0) {
-                // Сортируем по дате активации, затем по дате создания
-                subscriptionLeads.sort((a, b) => {
-                    const dateA = this.getLeadActivationDate(a) || a.created_at || 0;
-                    const dateB = this.getLeadActivationDate(b) || b.created_at || 0;
-                    return dateB - dateA; // Новые сначала
-                });
-                
-                const bestLead = subscriptionLeads[0];
-                console.log(`🎯 Выбрана самая актуальная сделка: ${bestLead.id} "${bestLead.name}"`);
-                
-                // Проверяем данные
-                const subscriptionInfo = this.extractSubscriptionInfo(bestLead);
-                console.log(`📊 Данные абонемента:`);
-                console.log(`   • Всего: ${subscriptionInfo.totalClasses}`);
-                console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
-                console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
-                console.log(`   • Активация: ${subscriptionInfo.activationDate}`);
-                
-                return bestLead;
-            }
-            
-            console.log(`❌ Не найдено подходящих сделок с абонементами`);
-            return null;
-            
-        } catch (error) {
-            console.error(`❌ Ошибка поиска абонемента: ${error.message}`);
+            console.log(`📊 Всего уникальных сделок: ${allLeads.length}`);
+            return allLeads;
+        }
+        
+        return leads;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка получения сделок контакта: ${error.message}`);
+        return [];
+    }
+}
+    
+  async findSubscriptionForStudent(contactId, studentName) {
+    console.log(`\n🎯 БЫСТРЫЙ ПОИСК АБОНЕМЕНТА ДЛЯ: ${studentName} (контакт: ${contactId})`);
+    
+    try {
+        // 1. Быстрый поиск через оптимизированный метод
+        const allLeads = await this.getContactLeadsOptimized(contactId, 100);
+        console.log(`📊 Получено сделок: ${allLeads.length}`);
+        
+        if (allLeads.length === 0) {
+            console.log(`❌ Сделки не найдены`);
             return null;
         }
+        
+        // 2. Фильтруем сделки с абонементами
+        const subscriptionLeads = [];
+        
+        for (const lead of allLeads) {
+            // Быстрая проверка по ключевым полям
+            const hasSubscription = this.hasSubscriptionFields(lead);
+            
+            if (hasSubscription) {
+                // Проверяем, относится ли сделка к этому ученику
+                const isForThisStudent = this.doesLeadContainStudent(lead, studentName);
+                
+                if (isForThisStudent) {
+                    console.log(`✅ Подходящая сделка: ${lead.id} "${lead.name}"`);
+                    subscriptionLeads.push(lead);
+                }
+            }
+        }
+        
+        console.log(`📊 Подходящих сделок с абонементами: ${subscriptionLeads.length}`);
+        
+        if (subscriptionLeads.length === 0) {
+            console.log(`⚠️  Абонементы не найдены`);
+            return null;
+        }
+        
+        // 3. Сортируем по дате обновления (новые сначала) и выбираем лучшую
+        subscriptionLeads.sort((a, b) => {
+            return (b.updated_at || 0) - (a.updated_at || 0);
+        });
+        
+        const bestLead = subscriptionLeads[0];
+        console.log(`🎯 Выбрана лучшая сделка: ${bestLead.id} "${bestLead.name}"`);
+        
+        // 4. Получаем полную информацию о сделке
+        const fullLead = await this.getLeadById(bestLead.id);
+        if (!fullLead) return null;
+        
+        return fullLead;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска абонемента: ${error.message}`);
+        return null;
     }
+}
 
     doesLeadContainStudent(lead, studentName) {
         try {
@@ -3785,6 +3793,285 @@ app.get('/api/debug/search/subscription-fields', async (req, res) => {
         res.status(500).json({
             success: false,
             error: error.message
+        });
+    }
+});
+
+// 🔧 НОВЫЙ МАРШРУТ: Принудительное обновление данных профиля
+app.post('/api/profile/refresh/:profileId', async (req, res) => {
+    try {
+        const profileId = req.params.profileId;
+        
+        console.log(`\n🔄 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ПРОФИЛЯ ID: ${profileId}`);
+        
+        // 1. Получаем профиль из БД
+        const profile = await db.get(
+            `SELECT * FROM student_profiles WHERE id = ?`,
+            [profileId]
+        );
+        
+        if (!profile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        const phoneNumber = profile.phone_number;
+        console.log(`📱 Телефон профиля: ${phoneNumber}`);
+        
+        // 2. Ищем обновленные данные в amoCRM
+        let updatedData = null;
+        
+        if (amoCrmService.isInitialized) {
+            console.log('🔍 Поиск в amoCRM...');
+            
+            // Ищем контакты по телефону
+            const contactsResponse = await amoCrmService.searchContactsByPhone(phoneNumber);
+            const contacts = contactsResponse._embedded?.contacts || [];
+            
+            if (contacts.length > 0) {
+                for (const contact of contacts) {
+                    // Получаем полный контакт
+                    const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+                    if (!fullContact) continue;
+                    
+                    // Извлекаем информацию о детях
+                    const children = amoCrmService.extractStudentsFromContact(fullContact);
+                    
+                    // Ищем ребенка с таким же именем
+                    const targetChild = children.find(child => 
+                        child.studentName === profile.student_name
+                    );
+                    
+                    if (targetChild) {
+                        console.log(`✅ Найден ребенок в amoCRM: ${targetChild.studentName}`);
+                        
+                        // Ищем абонемент
+                        const lead = await amoCrmService.findLatestActiveSubscription(contact.id);
+                        
+                        let subscriptionInfo = amoCrmService.extractSubscriptionInfo(null);
+                        let bestLead = null;
+                        
+                        if (lead) {
+                            bestLead = lead.lead;
+                            subscriptionInfo = lead.subscription;
+                            console.log(`✅ Найден абонемент: ${subscriptionInfo.subscriptionStatus}`);
+                        }
+                        
+                        // Создаем обновленный профиль
+                        updatedData = amoCrmService.createStudentProfile(
+                            fullContact,
+                            phoneNumber,
+                            targetChild,
+                            subscriptionInfo,
+                            bestLead
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 3. Обновляем профиль в БД
+        if (updatedData) {
+            // Обновляем только если есть изменения
+            const needsUpdate = 
+                updatedData.total_classes !== profile.total_classes ||
+                updatedData.used_classes !== profile.used_classes ||
+                updatedData.remaining_classes !== profile.remaining_classes ||
+                updatedData.subscription_status !== profile.subscription_status;
+            
+            if (needsUpdate) {
+                console.log('📝 Обновление данных профиля...');
+                
+                const updateFields = [
+                    'total_classes = ?',
+                    'used_classes = ?',
+                    'remaining_classes = ?',
+                    'subscription_type = ?',
+                    'subscription_active = ?',
+                    'subscription_status = ?',
+                    'subscription_badge = ?',
+                    'expiration_date = ?',
+                    'activation_date = ?',
+                    'last_visit_date = ?',
+                    'updated_at = CURRENT_TIMESTAMP'
+                ];
+                
+                const updateValues = [
+                    updatedData.total_classes || 0,
+                    updatedData.used_classes || 0,
+                    updatedData.remaining_classes || 0,
+                    updatedData.subscription_type || profile.subscription_type,
+                    updatedData.subscription_active || 0,
+                    updatedData.subscription_status || profile.subscription_status,
+                    updatedData.subscription_badge || profile.subscription_badge,
+                    updatedData.expiration_date || null,
+                    updatedData.activation_date || null,
+                    updatedData.last_visit_date || null
+                ];
+                
+                await db.run(
+                    `UPDATE student_profiles SET ${updateFields.join(', ')} WHERE id = ?`,
+                    [...updateValues, profileId]
+                );
+                
+                console.log('✅ Профиль обновлен');
+                
+                // Получаем обновленный профиль
+                const updatedProfile = await db.get(
+                    `SELECT * FROM student_profiles WHERE id = ?`,
+                    [profileId]
+                );
+                
+                return res.json({
+                    success: true,
+                    message: 'Профиль успешно обновлен',
+                    data: {
+                        profile: updatedProfile,
+                        was_updated: true,
+                        changes: {
+                            classes: `${profile.total_classes}/${profile.used_classes}/${profile.remaining_classes} → ${updatedData.total_classes}/${updatedData.used_classes}/${updatedData.remaining_classes}`,
+                            status: `${profile.subscription_status} → ${updatedData.subscription_status}`
+                        }
+                    }
+                });
+            } else {
+                console.log('ℹ️  Данные не изменились, обновление не требуется');
+            }
+        }
+        
+        // 4. Если обновлений нет, возвращаем текущий профиль
+        const currentProfile = await db.get(
+            `SELECT * FROM student_profiles WHERE id = ?`,
+            [profileId]
+        );
+        
+        res.json({
+            success: true,
+            message: 'Данные актуальны',
+            data: {
+                profile: currentProfile,
+                was_updated: false
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления профиля:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 🔧 МАРШРУТ: Быстрое получение данных абонемента
+app.post('/api/subscription/fast/:profileId', async (req, res) => {
+    try {
+        const profileId = req.params.profileId;
+        
+        console.log(`\n⚡ БЫСТРЫЙ ЗАПРОС АБОНЕМЕНТА ДЛЯ ПРОФИЛЯ ID: ${profileId}`);
+        
+        // 1. Получаем профиль из БД
+        const profile = await db.get(
+            `SELECT * FROM student_profiles WHERE id = ?`,
+            [profileId]
+        );
+        
+        if (!profile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        // 2. Если есть ID сделки в amoCRM, получаем свежие данные
+        let subscriptionData = null;
+        
+        if (profile.amocrm_lead_id && amoCrmService.isInitialized) {
+            console.log(`🔍 Быстрая проверка сделки ${profile.amocrm_lead_id}...`);
+            
+            try {
+                const lead = await amoCrmService.getLeadById(profile.amocrm_lead_id);
+                if (lead) {
+                    subscriptionData = amoCrmService.extractSubscriptionInfo(lead);
+                    console.log(`✅ Получены свежие данные из amoCRM`);
+                }
+            } catch (error) {
+                console.log(`⚠️  Не удалось получить свежие данные: ${error.message}`);
+            }
+        }
+        
+        // 3. Используем данные из профиля, если нет свежих
+        if (!subscriptionData) {
+            subscriptionData = {
+                totalClasses: profile.total_classes || 0,
+                usedClasses: profile.used_classes || 0,
+                remainingClasses: profile.remaining_classes || 0,
+                subscriptionType: profile.subscription_type || 'Без абонемента',
+                subscriptionStatus: profile.subscription_status || 'Нет данных',
+                subscriptionActive: profile.subscription_active === 1,
+                subscriptionBadge: profile.subscription_badge || 'inactive',
+                expirationDate: profile.expiration_date,
+                activationDate: profile.activation_date,
+                lastVisitDate: profile.last_visit_date,
+                branch: profile.branch,
+                subscriptionOwner: ''
+            };
+        }
+        
+        // 4. Рассчитываем прогресс
+        let progress = 0;
+        if (subscriptionData.totalClasses > 0) {
+            progress = Math.round((subscriptionData.usedClasses / subscriptionData.totalClasses) * 100);
+        }
+        
+        // 5. Формируем ответ
+        res.json({
+            success: true,
+            data: {
+                student: {
+                    id: profile.id,
+                    name: profile.student_name,
+                    phone: profile.phone_number,
+                    email: profile.email,
+                    branch: profile.branch || 'Филиал не указан',
+                    birth_date: profile.birth_date,
+                    age_group: profile.age_group,
+                    course: profile.course,
+                    allergies: profile.allergies
+                },
+                subscription: {
+                    type: subscriptionData.subscriptionType,
+                    status: subscriptionData.subscriptionStatus,
+                    badge: subscriptionData.subscriptionBadge,
+                    is_active: subscriptionData.subscriptionActive,
+                    classes: {
+                        total: subscriptionData.totalClasses,
+                        used: subscriptionData.usedClasses,
+                        remaining: subscriptionData.remainingClasses,
+                        progress: progress
+                    },
+                    dates: {
+                        activation: subscriptionData.activationDate,
+                        expiration: subscriptionData.expirationDate,
+                        last_visit: subscriptionData.lastVisitDate
+                    }
+                },
+                metadata: {
+                    last_updated: profile.updated_at,
+                    data_source: profile.source,
+                    has_fresh_data: subscriptionData !== null
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка быстрого запроса абонемента:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения данных абонемента'
         });
     }
 });
