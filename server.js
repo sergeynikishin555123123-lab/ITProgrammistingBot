@@ -1331,6 +1331,52 @@ async getContactLeadsOptimized(contactId, limit = 50) {
         return studentInfo;
     }
 
+// 🔧 Добавьте этот оптимизированный метод поиска
+async quickFindSubscription(contactId, studentName) {
+    console.log(`⚡ СУПЕРБЫСТРЫЙ ПОИСК АБОНЕМЕНТА ДЛЯ: ${studentName}`);
+    
+    try {
+        // 1. Ищем только последние 20 сделок (самые свежие)
+        const response = await this.makeRequest(
+            'GET',
+            `/api/v4/leads?with=custom_fields_values&limit=20&order[updated_at]=desc&filter[contacts][id]=${contactId}`
+        );
+        
+        const leads = response._embedded?.leads || [];
+        console.log(`📊 Последних сделок: ${leads.length}`);
+        
+        // 2. Быстрая фильтрация по ключевым словам
+        const studentFirstName = studentName.split(' ')[0].toLowerCase();
+        const keyword = studentFirstName.slice(0, 4); // Берем первые 4 буквы
+        
+        for (const lead of leads) {
+            // Проверяем название сделки
+            if (lead.name && lead.name.toLowerCase().includes(keyword)) {
+                // Проверяем наличие полей абонемента
+                if (this.hasSubscriptionFields(lead)) {
+                    console.log(`🎯 Быстро найдена сделка: ${lead.id} "${lead.name}"`);
+                    return lead;
+                }
+            }
+        }
+        
+        // 3. Если не нашли по имени, ищем любую с абонементом
+        for (const lead of leads) {
+            if (this.hasSubscriptionFields(lead)) {
+                console.log(`📋 Найдена сделка с абонементом: ${lead.id} "${lead.name}"`);
+                return lead;
+            }
+        }
+        
+        console.log(`❌ Быстрый поиск не дал результатов`);
+        return null;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка быстрого поиска: ${error.message}`);
+        return null;
+    }
+}
+    
     async getFullContactInfo(contactId) {
         try {
             const response = await this.makeRequest(
