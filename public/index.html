@@ -1326,21 +1326,15 @@
                         <i class="fas fa-arrow-left"></i>
                     </div>
                     <h2 class="section-title">Абонемент</h2>
+                    <div class="back-btn" onclick="ArtApp.forceRefreshSubscription()" title="Обновить данные">
+                        <i class="fas fa-sync-alt"></i>
+                    </div>
                 </section>
                 
                 <div id="subscriptionInfo" class="subscription-card">
                     <!-- Информация об абонементе -->
                 </div>
-                <!-- Добавьте в subscription-page после заголовка -->
-<div class="d-flex justify-between align-center gap-20 mb-30">
-    <div class="back-btn" onclick="ArtApp.navigateToPage('home')">
-        <i class="fas fa-arrow-left"></i>
-    </div>
-    <h2 class="section-title">Абонемент</h2>
-    <div class="back-btn" onclick="ArtApp.forceRefreshSubscription()" title="Обновить данные">
-        <i class="fas fa-sync-alt"></i>
-    </div>
-</div>
+
                 <button class="btn btn-primary w-100 mt-30" onclick="ArtApp.contactAdmin()">
                     <i class="fas fa-comments"></i>
                     Связаться с администратором
@@ -1561,47 +1555,59 @@ const ArtApp = {
         
         this.showLoading('Поиск данных...');
         
-        fetch(`${this.config.API_URL}/api/auth/phone`, {
+        // ВАЖНО: Используем правильный эндпоинт
+        fetch(`${this.config.API_URL}/api/auth/phone-simple`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ phone: formattedPhone })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                console.log('✅ Данные получены:', data);
+            console.log('✅ Данные получены:', data);
+            
+            if (data.success && data.data.profiles && data.data.profiles.length > 0) {
+                this.config.token = data.data.token;
+                this.config.currentUser = {
+                    phone: formattedPhone,
+                    profiles_count: data.data.profiles.length
+                };
+                this.config.profiles = data.data.profiles.map(p => ({
+                    id: p.id || Math.random().toString(36).substr(2, 9),
+                    ...p,
+                    student_name: p.student_name,
+                    branch: p.branch,
+                    phone_number: formattedPhone,
+                    subscription_type: p.subscription_type,
+                    subscription_status: p.subscription_status,
+                    subscription_badge: p.subscription_badge,
+                    subscription_active: p.subscription_active === true || p.subscription_active === 1,
+                    total_classes: p.total_classes || 0,
+                    remaining_classes: p.remaining_classes || 0,
+                    used_classes: p.used_classes || 0,
+                    teacher_name: p.teacher_name,
+                    parent_name: p.parent_name
+                }));
+                this.config.currentProfile = this.config.profiles[0];
                 
-                if (data.data.profiles && data.data.profiles.length > 0) {
-                    this.config.token = data.data.token;
-                    this.config.currentUser = data.data.user;
-                    this.config.profiles = data.data.profiles;
-                    this.config.currentProfile = data.data.profiles[0];
-                    
-                    this.saveSession();
-                    this.showMainInterface();
-                    this.loadUserData();
-                    this.showNotification('Вход выполнен успешно!', 'success');
-                    
-                    const hasRealData = data.data.profiles.some(p => p.is_demo === 0);
-                    if (!hasRealData && data.data.amocrm_connected) {
-                        setTimeout(() => {
-                            this.showNotification('Найдены только демо-данные', 'info', 3000);
-                        }, 1000);
-                    }
-                } else {
-                    document.getElementById('newClientInfo').style.display = 'block';
-                    this.showNotification('Абонемент не найден', 'error');
-                }
+                this.saveSession();
+                this.showMainInterface();
+                this.loadUserData();
+                this.showNotification('Вход выполнен успешно!', 'success');
             } else {
-                this.showNotification(data.error || 'Ошибка авторизации', 'error');
                 document.getElementById('newClientInfo').style.display = 'block';
+                this.showNotification(data.message || 'Абонемент не найден', 'error');
             }
         })
         .catch(error => {
             console.error('❌ Ошибка запроса:', error);
-            this.showNotification('Ошибка соединения', 'error');
+            this.showNotification('Ошибка соединения с сервером', 'error');
         })
         .finally(() => {
             loginBtn.disabled = false;
@@ -1612,28 +1618,7 @@ const ArtApp = {
 
     loadUserData: function() {
         this.updateUserInterface();
-        
-        // Загружаем все профили для пользователя
-        if (this.config.token) {
-            fetch(`${this.config.API_URL}/api/profiles`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.config.token}`,
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data.profiles) {
-                    this.config.profiles = data.data.profiles;
-                    this.saveSession();
-                    this.updateStudentSelector();
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки профилей:', error);
-            });
-        }
+        this.updateStudentSelector();
     },
 
     updateUserInterface: function() {
@@ -1647,8 +1632,6 @@ const ArtApp = {
         
         if (this.config.currentProfile) {
             const name = this.config.currentProfile.student_name || 'Ученик';
-            const email = this.config.currentProfile.email;
-            const phone = this.config.currentProfile.phone_number;
             const branch = this.config.currentProfile.branch || '';
             const subscription = this.config.currentProfile.subscription_status || '';
             
@@ -1656,7 +1639,7 @@ const ArtApp = {
             if (studentName) studentName.textContent = name;
             
             if (profileEmail) {
-                profileEmail.textContent = email || phone || '';
+                profileEmail.textContent = this.config.currentUser?.phone || '';
             }
             
             if (studentInfo) {
@@ -1685,95 +1668,142 @@ const ArtApp = {
         }
     },
 
-// 🔧 Добавьте эти методы в объект ArtApp:
-
-loadFastSubscription: function() {
-    if (!this.config.currentProfile) return;
-    
-    const container = document.getElementById('subscriptionInfo');
-    if (!container) return;
-    
-    // Показываем заглушку во время загрузки
-    container.innerHTML = `
-        <div style="text-align: center; padding: 30px;">
-            <div class="spinner"></div>
-            <p style="margin-top: 20px; color: var(--gray-dark);">Быстрая загрузка...</p>
-        </div>
-    `;
-    
-    // Используем быстрый эндпоинт
-    fetch(`${this.config.API_URL}/api/subscription/fast/${this.config.currentProfile.id}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.token}`
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            this.renderSubscription(data.data);
-            
-            // Запускаем фоновое обновление данных
-            setTimeout(() => {
-                this.backgroundRefresh();
-            }, 1000);
+    loadFastSubscription: function() {
+        if (!this.config.currentProfile) return;
+        
+        const container = document.getElementById('subscriptionInfo');
+        if (!container) return;
+        
+        // Показываем заглушку во время загрузки
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px;">
+                <div class="spinner"></div>
+                <p style="margin-top: 20px; color: var(--gray-dark);">Быстрая загрузка...</p>
+            </div>
+        `;
+        
+        // Проверяем, есть ли ID профиля в базе данных
+        if (this.config.currentProfile.id) {
+            // Используем быстрый эндпоинт
+            fetch(`${this.config.API_URL}/api/subscription/fast/${this.config.currentProfile.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.config.token}`
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    this.renderSubscription(data.data);
+                    
+                    // Запускаем фоновое обновление данных
+                    setTimeout(() => {
+                        this.backgroundRefresh();
+                    }, 1000);
+                } else {
+                    // Если быстрый метод не сработал, используем обычный
+                    this.loadSubscription();
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка быстрой загрузки:', error);
+                this.loadSubscription();
+            });
         } else {
-            // Если быстрый метод не сработал, используем обычный
             this.loadSubscription();
         }
-    })
-    .catch(error => {
-        console.error('Ошибка быстрой загрузки:', error);
-        this.loadSubscription();
-    });
-},
+    },
 
-// Фоновое обновление данных
-backgroundRefresh: function() {
-    if (!this.config.currentProfile) return;
-    
-    // Обновляем данные в фоне без блокировки интерфейса
-    fetch(`${this.config.API_URL}/api/profile/refresh/${this.config.currentProfile.id}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.token}`
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.data.was_updated) {
-            console.log('✅ Фоновое обновление выполнено');
-            
-            // Обновляем данные в профиле
-            this.config.currentProfile = {
-                ...this.config.currentProfile,
-                total_classes: data.data.profile.total_classes,
-                used_classes: data.data.profile.used_classes,
-                remaining_classes: data.data.profile.remaining_classes,
-                subscription_status: data.data.profile.subscription_status,
-                subscription_badge: data.data.profile.subscription_badge,
-                subscription_active: data.data.profile.subscription_active
-            };
-            
-            this.saveSession();
-            
-            // Показываем уведомление об обновлении
-            if (data.data.changes) {
-                this.showNotification('Данные абонемента обновлены', 'success', 3000);
+    // Фоновое обновление данных
+    backgroundRefresh: function() {
+        if (!this.config.currentProfile || !this.config.currentProfile.id) return;
+        
+        // Обновляем данные в фоне без блокировки интерфейса
+        fetch(`${this.config.API_URL}/api/profile/refresh/${this.config.currentProfile.id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.config.token}`
             }
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка фонового обновления:', error);
-    });
-},
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data.was_updated) {
+                console.log('✅ Фоновое обновление выполнено');
+                
+                // Обновляем данные в профиле
+                this.config.currentProfile = {
+                    ...this.config.currentProfile,
+                    total_classes: data.data.profile.total_classes,
+                    used_classes: data.data.profile.used_classes,
+                    remaining_classes: data.data.profile.remaining_classes,
+                    subscription_status: data.data.profile.subscription_status,
+                    subscription_badge: data.data.profile.subscription_badge,
+                    subscription_active: data.data.profile.subscription_active
+                };
+                
+                this.saveSession();
+                
+                // Показываем уведомление об обновлении
+                if (data.data.changes) {
+                    this.showNotification('Данные абонемента обновлены', 'success', 3000);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка фонового обновления:', error);
+        });
+    },
 
-// Обновите вызов в navigateToPage:
-loadSubscription: function() {
-    this.loadFastSubscription(); // Используем быстрый метод
-},
+    // Метод для ручного обновления
+    forceRefreshSubscription: function() {
+        if (!this.config.currentProfile || !this.config.currentProfile.id) return;
+        
+        this.showNotification('Обновление данных...', 'info');
+        
+        fetch(`${this.config.API_URL}/api/profile/refresh/${this.config.currentProfile.id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.config.token}`
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.data.was_updated) {
+                    // Обновляем локальные данные
+                    this.config.currentProfile = {
+                        ...this.config.currentProfile,
+                        ...data.data.profile
+                    };
+                    this.saveSession();
+                    this.updateUserInterface();
+                    
+                    // Перезагружаем страницу абонемента
+                    if (document.querySelector('#subscription-page.active')) {
+                        this.loadFastSubscription();
+                    }
+                    
+                    this.showNotification('Данные успешно обновлены!', 'success');
+                } else {
+                    this.showNotification('Данные уже актуальны', 'info');
+                }
+            } else {
+                this.showNotification('Ошибка обновления', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка обновления:', error);
+            this.showNotification('Ошибка соединения', 'error');
+        });
+    },
     
     updateStudentSelector: function() {
         const selector = document.getElementById('studentSelector');
@@ -1789,7 +1819,7 @@ loadSubscription: function() {
                 
                 html += `
                     <div class="student-item ${isActive ? 'active' : ''}" 
-                         onclick="ArtApp.selectStudent(${profile.id})">
+                         onclick="ArtApp.selectStudent('${profile.id}')">
                         <div class="student-info">
                             <div class="student-avatar">${this.getInitials(profile.student_name)}</div>
                             <div>
@@ -1798,8 +1828,7 @@ loadSubscription: function() {
                             </div>
                         </div>
                         <div class="student-status ${profile.subscription_badge || 'inactive'}">
-                            ${profile.subscription_badge === 'active' ? 'Активен' : 
-                              profile.subscription_badge === 'expired' ? 'Завершен' : 'Неактивен'}
+                            ${profile.subscription_active ? 'Активен' : 'Неактивен'}
                         </div>
                     </div>
                 `;
@@ -1843,6 +1872,13 @@ loadSubscription: function() {
         this.updateUserInterface();
         this.updateStudentSelector();
         this.loadUpcomingLessons();
+        
+        // Автоматическое фоновое обновление данных
+        if (this.config.currentProfile && this.config.currentProfile.id) {
+            setTimeout(() => {
+                this.backgroundRefresh();
+            }, 2000);
+        }
     },
 
     loadUpcomingLessons: function() {
@@ -1854,51 +1890,16 @@ loadSubscription: function() {
             return;
         }
         
-        setTimeout(() => {
-            const lessons = [
-                {
-                    time: '12:00 - 13:30',
-                    title: 'Рисунок для начинающих',
-                    teacher: 'Саша М',
-                    room: '101'
-                },
-                {
-                    time: '16:00 - 17:30',
-                    title: 'Акварельная живопись',
-                    teacher: 'Анна Петрова',
-                    room: '102'
-                }
-            ];
-            
-            let html = '';
-            lessons.forEach(lesson => {
-                html += `
-                    <div class="lesson-item">
-                        <div class="lesson-time">${lesson.time}</div>
-                        <div class="lesson-title">${lesson.title}</div>
-                        <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                            <i class="fas fa-user"></i> ${lesson.teacher}
-                            ${lesson.room ? `<span style="margin-left: auto;"><i class="fas fa-door-open"></i> ${lesson.room}</span>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-        }, 1000);
+        // Поскольку у нас пока нет реального API расписания, покажем заглушку
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-calendar-alt"></i>
+                <p>Функция расписания в разработке</p>
+                <p style="font-size: 0.9rem; margin-top: 10px;">Скоро здесь появится ваше расписание</p>
+            </div>
+        `;
     },
-loadHomePage: function() {
-    this.updateUserInterface();
-    this.updateStudentSelector();
-    this.loadUpcomingLessons();
-    
-    // Автоматическое фоновое обновление данных
-    if (this.config.currentProfile) {
-        setTimeout(() => {
-            this.backgroundRefresh();
-        }, 2000);
-    }
-},
+
     loadSchedule: function() {
         const container = document.getElementById('scheduleContainer');
         
@@ -1909,97 +1910,21 @@ loadHomePage: function() {
         
         this.showLoading('Загрузка расписания...');
         
-        fetch(`${this.config.API_URL}/api/schedule`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.config.token}`
-            },
-            body: JSON.stringify({ 
-                branch: this.config.currentProfile.branch
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                this.renderSchedule(data.data.schedule);
-            } else {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-calendar-alt"></i>
-                        <p>${data.error || 'Расписание не найдено'}</p>
-                    </div>
-                `;
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка загрузки расписания:', error);
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>Ошибка загрузки расписания</p>
-                </div>
-            `;
-        })
-        .finally(() => {
+        // Поскольку у нас пока нет реального API расписания, покажем заглушку
+        setTimeout(() => {
             this.hideLoading();
-        });
-    },
-
-    renderSchedule: function(schedule) {
-        const container = document.getElementById('scheduleContainer');
-        
-        if (!schedule || schedule.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-calendar-alt"></i>
-                    <p>Нет занятий на этой неделе</p>
+                    <p>Функция расписания в разработке</p>
+                    <p style="font-size: 0.9rem; margin-top: 10px;">Скоро здесь появится ваше расписание</p>
+                    <button class="btn btn-primary mt-20" onclick="ArtApp.contactAdmin()">
+                        <i class="fas fa-headset"></i>
+                        Уточнить расписание у администратора
+                    </button>
                 </div>
             `;
-            return;
-        }
-        
-        const scheduleByDay = {};
-        schedule.forEach(lesson => {
-            if (!scheduleByDay[lesson.day_of_week]) {
-                scheduleByDay[lesson.day_of_week] = [];
-            }
-            scheduleByDay[lesson.day_of_week].push(lesson);
-        });
-        
-        let html = '';
-        const daysOrder = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
-        
-        daysOrder.forEach(day => {
-            if (scheduleByDay[day] && scheduleByDay[day].length > 0) {
-                html += `
-                    <div class="schedule-day">
-                        <div class="day-header">${this.capitalizeFirstLetter(day)}</div>
-                `;
-                
-                scheduleByDay[day].forEach(lesson => {
-                    html += `
-                        <div class="lesson-item">
-                            <div class="lesson-time">${lesson.start_time} - ${lesson.end_time}</div>
-                            <div class="lesson-title">${lesson.group_name || lesson.lesson_name}</div>
-                            <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                                <i class="fas fa-user"></i> ${lesson.teacher_name || 'Преподаватель не указан'}
-                                ${lesson.room_number ? `<span style="margin-left: auto;"><i class="fas fa-door-open"></i> ${lesson.room_number}</span>` : ''}
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                html += '</div>';
-            }
-        });
-        
-        container.innerHTML = html || `
-            <div class="empty-state">
-                <i class="fas fa-calendar-alt"></i>
-                <p>Нет занятий на этой неделе</p>
-            </div>
-        `;
+        }, 1000);
     },
 
     loadSubscription: function() {
@@ -2012,6 +1937,7 @@ loadHomePage: function() {
         
         this.showLoading('Загрузка данных абонемента...');
         
+        // Используем основной эндпоинт для загрузки абонемента
         fetch(`${this.config.API_URL}/api/subscription`, {
             method: 'POST',
             headers: {
@@ -2023,7 +1949,12 @@ loadHomePage: function() {
                 phone: this.config.currentProfile.phone_number
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 this.renderSubscription(data.data);
@@ -2038,73 +1969,100 @@ loadHomePage: function() {
         })
         .catch(error => {
             console.error('Ошибка загрузки абонемента:', error);
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>Ошибка загрузки данных</p>
-                </div>
-            `;
+            // Если нет реального ответа, покажем данные из профиля
+            if (this.config.currentProfile) {
+                this.renderSubscriptionFromProfile();
+            } else {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Ошибка загрузки данных</p>
+                    </div>
+                `;
+            }
         })
         .finally(() => {
             this.hideLoading();
         });
     },
 
-// Добавьте метод для ручного обновления
-forceRefreshSubscription: function() {
-    if (!this.config.currentProfile) return;
-    
-    this.showNotification('Обновление данных...', 'info');
-    
-    fetch(`${this.config.API_URL}/api/profile/refresh/${this.config.currentProfile.id}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.token}`
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            if (data.data.was_updated) {
-                // Обновляем локальные данные
-                this.config.currentProfile = {
-                    ...this.config.currentProfile,
-                    ...data.data.profile
-                };
-                this.saveSession();
-                this.updateUserInterface();
+    renderSubscriptionFromProfile: function() {
+        const container = document.getElementById('subscriptionInfo');
+        const profile = this.config.currentProfile;
+        
+        const total = profile.total_classes || 0;
+        const remaining = profile.remaining_classes || 0;
+        const used = profile.used_classes || 0;
+        const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+        
+        container.innerHTML = `
+            <div class="subscription-header">
+                <div>
+                    <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">${profile.subscription_type || 'Абонемент'}</h3>
+                    <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-map-marker-alt"></i>
+                        ${profile.branch || 'Филиал не указан'}
+                    </div>
+                </div>
+                <div class="badge ${profile.subscription_badge || 'inactive'}">
+                    ${profile.subscription_active ? 'Активен' : 'Неактивен'}
+                </div>
+            </div>
+            
+            <div class="subscription-stats">
+                <div class="stat-item">
+                    <div class="stat-value">${total}</div>
+                    <div class="stat-label">Всего занятий</div>
+                </div>
                 
-                // Перезагружаем страницу абонемента
-                if (document.querySelector('#subscription-page.active')) {
-                    this.loadFastSubscription();
-                }
+                <div class="stat-item">
+                    <div class="stat-value">${remaining}</div>
+                    <div class="stat-label">Осталось</div>
+                </div>
                 
-                this.showNotification('Данные успешно обновлены!', 'success');
-            } else {
-                this.showNotification('Данные уже актуальны', 'info');
-            }
-        } else {
-            this.showNotification('Ошибка обновления', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка обновления:', error);
-        this.showNotification('Ошибка соединения', 'error');
-    });
-},
+                <div class="stat-item">
+                    <div class="stat-value">${used}</div>
+                    <div class="stat-label">Использовано</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value" style="font-size: 1.5rem;">${profile.expiration_date || '—'}</div>
+                    <div class="stat-label">Срок действия</div>
+                </div>
+            </div>
+            
+            ${total > 0 ? `
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span>Прогресс</span>
+                    <span>${progress.toFixed(0)}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${profile.teacher_name ? `
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
+                <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    Преподаватель
+                </h4>
+                <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
+                    ${profile.teacher_name}
+                </div>
+            </div>
+            ` : ''}
+        `;
+    },
     
     renderSubscription: function(data) {
         const container = document.getElementById('subscriptionInfo');
         const statRemaining = document.getElementById('statRemaining');
         
         if (!data || !data.subscription) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-ticket-alt"></i>
-                    <p>Абонемент не найден</p>
-                </div>
-            `;
+            this.renderSubscriptionFromProfile();
             return;
         }
         
@@ -2155,6 +2113,7 @@ forceRefreshSubscription: function() {
                 </div>
             </div>
             
+            ${total > 0 ? `
             <div class="progress-container">
                 <div class="progress-header">
                     <span>Прогресс</span>
@@ -2164,29 +2123,16 @@ forceRefreshSubscription: function() {
                     <div class="progress-fill" style="width: ${progress}%"></div>
                 </div>
             </div>
+            ` : ''}
             
+            ${student.teacher_name ? `
             <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
                 <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
                     <i class="fas fa-chalkboard-teacher"></i>
                     Преподаватель
                 </h4>
                 <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                    ${subscription.teacher_name || 'Не назначен'}
-                    ${subscription.day_of_week && subscription.time_slot ? 
-                        `<br><small style="color: var(--gray-dark); font-size: 0.9rem; font-weight: normal;">${subscription.day_of_week} ${subscription.time_slot}</small>` : ''}
-                </div>
-            </div>
-            
-            ${student.age_group || student.course ? `
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-                <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                    <i class="fas fa-info-circle"></i>
-                    Информация
-                </h4>
-                <div style="color: var(--blue-dark); font-size: 0.9rem; line-height: 1.5;">
-                    ${student.age_group ? `<div><strong>Возрастная группа:</strong> ${student.age_group}</div>` : ''}
-                    ${student.course ? `<div style="margin-top: 5px;"><strong>Направление:</strong> ${student.course}</div>` : ''}
-                    ${student.allergies ? `<div style="margin-top: 5px;"><strong>Особенности:</strong> ${student.allergies}</div>` : ''}
+                    ${student.teacher_name || subscription.teacher_name}
                 </div>
             </div>
             ` : ''}
@@ -2197,7 +2143,11 @@ forceRefreshSubscription: function() {
         this.updateUserInterface();
         
         if (this.config.currentProfile) {
-            document.getElementById('statRemaining').textContent = this.config.currentProfile.remaining_classes || 0;
+            const statRemaining = document.getElementById('statRemaining');
+            const statVisits = document.getElementById('statVisits');
+            
+            if (statRemaining) statRemaining.textContent = this.config.currentProfile.remaining_classes || 0;
+            if (statVisits) statVisits.textContent = this.config.currentProfile.used_classes || 0;
         }
     },
 
@@ -2214,11 +2164,11 @@ forceRefreshSubscription: function() {
     },
 
     contactAdmin: function() {
-        this.showNotification('📞 Для связи с администратором: +7 (495) 123-45-67', 'info', 5000);
+        this.showNotification('📞 Для связи с администратором: +7 (999) 123-45-67', 'info', 5000);
     },
 
     contactSupport: function() {
-        this.showNotification('📧 Напишите нам: support@artistic-soul.ru', 'info', 5000);
+        this.showNotification('📧 Напишите нам: support@art-school.ru', 'info', 5000);
     },
 
     showNotification: function(message, type = 'info', duration = 3000) {
