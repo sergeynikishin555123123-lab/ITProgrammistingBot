@@ -268,32 +268,69 @@ this.FIELD_IDS = {
         }
     }
 
-    getFieldValue(field) {
-        try {
-            if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
-                return '';
-            }
-            
-            const firstValue = field.values[0];
-            
-            if (typeof firstValue === 'string') {
-                return firstValue;
-            } else if (typeof firstValue === 'object' && firstValue !== null) {
-                if (firstValue.value !== undefined) {
-                    return String(firstValue.value);
-                } else if (firstValue.enum_value !== undefined) {
-                    return String(firstValue.enum_value);
-                } else if (firstValue.enum_id !== undefined) {
-                    return String(firstValue.enum_id);
-                }
-            }
-            
-            return String(firstValue);
-        } catch (error) {
-            console.error('❌ Ошибка получения значения поля:', error);
+getFieldValue(field) {
+    try {
+        if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
             return '';
         }
+        
+        const firstValue = field.values[0];
+        
+        // Если это объект с enum_id (как в поле "счетчик занятий:")
+        if (typeof firstValue === 'object' && firstValue !== null) {
+            // ВАЖНО: Для поля "счетчик занятий:" нужно извлекать value, а не enum_id
+            if (firstValue.value !== undefined && firstValue.value !== null) {
+                return String(firstValue.value);
+            }
+            // Для других полей с enum
+            else if (firstValue.enum_id !== undefined) {
+                // Если это счетчик занятий, нужно преобразовать enum_id в число
+                const fieldId = field.field_id || field.id;
+                if (fieldId === 850257) { // "счетчик занятий:"
+                    return this.parseCounterFromEnum(firstValue.enum_id);
+                }
+                return String(firstValue.enum_id);
+            }
+            else if (firstValue.enum_value !== undefined) {
+                return String(firstValue.enum_value);
+            }
+        }
+        
+        // Если это просто строка или число
+        return String(firstValue);
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения значения поля:', error);
+        return '';
     }
+}
+
+// Новый метод для парсинга счетчика занятий из enum
+parseCounterFromEnum(enumId) {
+    // Сопоставление enum_id с количеством занятий
+    const enumMapping = {
+        '504105': '1',  // 1 занятие
+        '504107': '2',  // 2 занятия
+        '504109': '3',  // 3 занятия
+        '504111': '4',  // 4 занятия
+        '504113': '5',  // 5 занятий
+        '504115': '6',  // 6 занятий
+        '504117': '7',  // 7 занятий
+        '504119': '8',  // 8 занятий
+        '504121': '9'
+        '504123': '10'
+        '504125': '11'
+        '504127': '12'
+        '504129': '13'
+        '504131': '14'
+        '504133': '15'
+        '504135': '16'
+        // Добавьте остальные по мере необходимости
+    };
+    
+    const enumStr = String(enumId);
+    return enumMapping[enumStr] || '0';
+}
 
     getFieldName(field) {
         try {
@@ -320,21 +357,21 @@ this.FIELD_IDS = {
     const str = String(value).toLowerCase().trim();
     console.log(`🔢 Парсим значение: "${str}"`);
     
-    // Проверяем enum значения
-    const enumMatches = {
-        '554197': 8,    // "8 занятий" 
-        '554199': 4,    // "4 занятия"
-        '554201': 16,   // "16 занятий"
-        '554203': 24,   // "24 занятия"
-        '554205': 2,    // "2 занятия"
-        '554207': 3     // "3 занятия"
+    // Если значение - это enum_id для "Абонемент занятий:"
+    const subscriptionEnumMapping = {
+        '504033': 4,    // "4 занятия"
+        '504035': 8,    // "8 занятий" 
+        '504037': 16,   // "16 занятий"
+        '504039': 24,   // "24 занятия"
+        '504041': 2,    // "2 занятия"
+        '504043': 3,    // "3 занятия"
+        // Добавьте остальные значения
     };
     
-    // Если значение - это enum_id
-    if (enumMatches[value]) {
-        const result = enumMatches[value];
-        console.log(`   → Найден enum_id ${value}: ${result} занятий`);
-        return result;
+    // Проверяем, является ли значение enum_id
+    if (subscriptionEnumMapping[str]) {
+        console.log(`   → Найден enum_id ${str}: ${subscriptionEnumMapping[str]} занятий`);
+        return subscriptionEnumMapping[str];
     }
     
     // Ищем числа в тексте
@@ -347,19 +384,12 @@ this.FIELD_IDS = {
     
     // Текстовые значения
     const textToNumber = {
-        'одно': 1, 'один': 1, 'раз': 1,
-        'два': 2, 'две': 2,
-        'три': 3, 'трое': 3,
-        'четыре': 4,
-        'пять': 5,
-        'шесть': 6,
-        'семь': 7,
-        'восемь': 8,
-        'девять': 9,
-        'десять': 10,
-        'восемь занятий': 8,
-        'четыре занятия': 4,
-        'шестнадцать занятий': 16
+        'четыре': 4, '4 занятия': 4, '4': 4,
+        'восемь': 8, '8 занятий': 8, '8': 8,
+        'шестнадцать': 16, '16 занятий': 16, '16': 16,
+        'двадцать четыре': 24, '24 занятия': 24, '24': 24,
+        'два': 2, '2 занятия': 2, '2': 2,
+        'три': 3, '3 занятия': 3, '3': 3
     };
     
     for (const [text, num] of Object.entries(textToNumber)) {
@@ -575,6 +605,20 @@ extractSubscriptionInfo(lead) {
                 subscriptionInfo.usedClasses = visitedClasses;
                 console.log(`ℹ️  Найдено ${visitedClasses} посещений по чекбоксам`);
             }
+            // В методе extractSubscriptionInfo добавьте эту логику после парсинга полей:
+
+// ВАЖНО: Проверяем техническое поле "количество занятий (тех)"
+if (subscriptionInfo.totalClasses === 0 && subscriptionInfo.remainingClasses > 0) {
+    // Если остаток есть, но общего количества нет, пытаемся вычислить
+    subscriptionInfo.totalClasses = subscriptionInfo.usedClasses + subscriptionInfo.remainingClasses;
+    console.log(`🔢 Вычислено общее количество: ${subscriptionInfo.usedClasses} + ${subscriptionInfo.remainingClasses} = ${subscriptionInfo.totalClasses}`);
+}
+
+// И наоборот
+if (subscriptionInfo.remainingClasses === 0 && subscriptionInfo.totalClasses > 0 && subscriptionInfo.usedClasses > 0) {
+    subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses - subscriptionInfo.usedClasses;
+    console.log(`🔢 Вычислен остаток: ${subscriptionInfo.totalClasses} - ${subscriptionInfo.usedClasses} = ${subscriptionInfo.remainingClasses}`);
+}
         }
         
         // ============ ЛОГИКА РАСЧЕТА ============
@@ -2602,6 +2646,117 @@ app.get('/api/debug/find-active-subscription/:phone', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка поиска активных абонементов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Диагностика конкретного абонемента
+app.get('/api/debug/subscription-details/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ДИАГНОСТИКА АБОНЕМЕНТА В СДЕЛКЕ ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        // Детальный анализ полей
+        console.log('\n📊 ДЕТАЛЬНЫЙ АНАЛИЗ ПОЛЕЙ:');
+        const fieldAnalysis = [];
+        
+        if (lead.custom_fields_values) {
+            lead.custom_fields_values.forEach(field => {
+                const fieldId = field.field_id || field.id;
+                const fieldName = amoCrmService.getFieldName(field);
+                const fieldValue = amoCrmService.getFieldValue(field);
+                const rawValues = field.values || [];
+                
+                console.log(`\n[${fieldId}] ${fieldName}:`);
+                console.log(`   Значение: "${fieldValue}"`);
+                console.log(`   Сырые данные:`, JSON.stringify(rawValues));
+                
+                // Особый анализ для ключевых полей
+                if ([850241, 850257, 890163, 850255, 851565].includes(fieldId)) {
+                    console.log(`   ⚠️  КРИТИЧЕСКОЕ ПОЛЕ!`);
+                    
+                    if (fieldId === 850241) { // Абонемент занятий:
+                        const parsed = amoCrmService.parseClassesCount(fieldValue);
+                        console.log(`   🎯 Парсинг: "${fieldValue}" → ${parsed} занятий`);
+                    }
+                    else if (fieldId === 850257) { // Счетчик занятий:
+                        console.log(`   🎯 Использовано занятий: ${fieldValue}`);
+                    }
+                }
+                
+                fieldAnalysis.push({
+                    id: fieldId,
+                    name: fieldName,
+                    value: fieldValue,
+                    raw: rawValues,
+                    is_critical: [850241, 850257, 890163, 850255, 851565].includes(fieldId)
+                });
+            });
+        }
+        
+        // Парсим абонемент
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        // Конвертируем timestamp в даты
+        const formatTimestamp = (ts) => {
+            if (!ts) return null;
+            const timestamp = parseInt(ts);
+            if (isNaN(timestamp)) return ts;
+            return new Date(timestamp * 1000).toISOString().split('T')[0];
+        };
+        
+        const formattedSubscription = {
+            ...subscriptionInfo,
+            activationDate: formatTimestamp(subscriptionInfo.activationDate),
+            expirationDate: formatTimestamp(subscriptionInfo.expirationDate),
+            lastVisitDate: formatTimestamp(subscriptionInfo.lastVisitDate),
+            purchaseDate: formatTimestamp(subscriptionInfo.purchaseDate)
+        };
+        
+        console.log('\n🎯 ИТОГОВЫЕ ДАННЫЕ АБОНЕМЕНТА:');
+        console.log(JSON.stringify(formattedSubscription, null, 2));
+        
+        res.json({
+            success: true,
+            lead: {
+                id: lead.id,
+                name: lead.name,
+                status_id: lead.status_id,
+                pipeline_id: lead.pipeline_id
+            },
+            subscription: formattedSubscription,
+            fields: fieldAnalysis.filter(f => f.is_critical),
+            timestamp_conversion: {
+                activationDate: {
+                    original: subscriptionInfo.activationDate,
+                    converted: formattedSubscription.activationDate
+                },
+                expirationDate: {
+                    original: subscriptionInfo.expirationDate,
+                    converted: formattedSubscription.expirationDate
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики абонемента:', error.message);
         res.status(500).json({
             success: false,
             error: error.message
