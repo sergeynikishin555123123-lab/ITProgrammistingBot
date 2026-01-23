@@ -379,7 +379,7 @@ class AmoCrmService {
         console.log('='.repeat(80));
     }
 
-   // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: extractSubscriptionInfo
+ // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: extractSubscriptionInfo
 extractSubscriptionInfo(lead) {
     const subscriptionInfo = {
         hasSubscription: false,
@@ -547,7 +547,7 @@ extractSubscriptionInfo(lead) {
     }
     
     return subscriptionInfo;
-},
+}
 
 // 🔧 ДОБАВЬ ЭТОТ МЕТОД
 parseClassesCount(value) {
