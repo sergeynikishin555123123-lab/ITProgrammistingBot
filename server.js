@@ -472,12 +472,34 @@ extractSubscriptionInfo(lead) {
                 console.log(`   📊 Счетчик занятий: ${usedClasses}`);
             }
             
-            // ОСТАТОК ЗАНЯТИЙ
-            else if (fieldId === this.FIELD_IDS.LEAD.REMAINING_CLASSES || 
-                    fieldName.includes('остаток') && fieldName.includes('занят')) {
-                remainingClasses = parseInt(fieldValue) || 0;
-                console.log(`   📊 Остаток занятий: ${remainingClasses}`);
-            }
+          // В цикле обработки полей в extractSubscriptionInfo, для остатка занятий:
+else if (fieldId === this.FIELD_IDS.LEAD.REMAINING_CLASSES || 
+        fieldName.includes('остаток') && fieldName.includes('занят')) {
+    
+    // Парсим более агрессивно
+    let parsedRemaining = 0;
+    
+    // Пытаемся извлечь число разными способами
+    if (typeof fieldValue === 'number') {
+        parsedRemaining = fieldValue;
+    } else if (typeof fieldValue === 'string') {
+        // Ищем число в строке
+        const match = fieldValue.match(/(\d+)/);
+        if (match) {
+            parsedRemaining = parseInt(match[1]);
+        }
+        
+        // Проверяем специальные случаи
+        if (fieldValue.toLowerCase().includes('все') || 
+            fieldValue.toLowerCase().includes('целиком')) {
+            // Если остаток "все" или "целиком" - значит все занятия доступны
+            parsedRemaining = subscriptionInfo.totalClasses || 8; // 8 как стандарт
+        }
+    }
+    
+    remainingClasses = parsedRemaining;
+    console.log(`   📊 Остаток занятий (сырое: "${fieldValue}" -> парсинг: ${remainingClasses})`);
+}
             
             // ДАТА ОКОНЧАНИЯ
             else if (fieldId === this.FIELD_IDS.LEAD.EXPIRATION_DATE || 
@@ -570,18 +592,51 @@ extractSubscriptionInfo(lead) {
         subscriptionInfo.technicalClasses = technicalClasses;
         
         // РАССЧИТЫВАЕМ ОСТАТОК, ЕСЛИ НЕ УКАЗАН
-        if (subscriptionInfo.totalClasses > 0) {
-            subscriptionInfo.hasSubscription = true;
-            
-            if (subscriptionInfo.remainingClasses === 0 && subscriptionInfo.usedClasses > 0) {
-                subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
-            } else if (subscriptionInfo.usedClasses === 0 && subscriptionInfo.remainingClasses > 0) {
-                subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
-            } else if (subscriptionInfo.usedClasses === 0 && subscriptionInfo.remainingClasses === 0) {
-                // Если ни использовано, ни остаток не указаны
-                subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
-            }
+      // НА ЭТУ КОРРЕКТНУЮ ЛОГИКУ:
+
+// РАССЧИТЫВАЕМ ДАННЫЕ АБОНЕМЕНТА КОРРЕКТНО
+if (subscriptionInfo.totalClasses > 0) {
+    subscriptionInfo.hasSubscription = true;
+    
+    console.log(`   🧮 Расчет данных:`);
+    console.log(`     • Всего занятий: ${subscriptionInfo.totalClasses}`);
+    console.log(`     • Использовано: ${subscriptionInfo.usedClasses}`);
+    console.log(`     • Остаток (из поля): ${subscriptionInfo.remainingClasses}`);
+    
+    // ВАЖНО: Если есть остаток из поля - верим полю
+    if (remainingClasses > 0) {
+        // Остаток берем из поля
+        subscriptionInfo.remainingClasses = remainingClasses;
+        // Если счетчик не указан, но есть остаток и общее количество
+        if (subscriptionInfo.usedClasses === 0 && subscriptionInfo.totalClasses > 0) {
+            subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
+            console.log(`     • Рассчитано использовано: ${subscriptionInfo.usedClasses} (${subscriptionInfo.totalClasses} - ${subscriptionInfo.remainingClasses})`);
         }
+    }
+    // Если нет остатка из поля, но есть счетчик
+    else if (subscriptionInfo.usedClasses > 0) {
+        // Рассчитываем остаток
+        subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
+        console.log(`     • Рассчитано остаток: ${subscriptionInfo.remainingClasses} (${subscriptionInfo.totalClasses} - ${subscriptionInfo.usedClasses})`);
+    }
+    // Если ни счетчик, ни остаток не указаны
+    else {
+        // Считаем, что все занятия доступны
+        subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
+        console.log(`     • Остаток по умолчанию: ${subscriptionInfo.remainingClasses} (все занятия доступны)`);
+    }
+    
+    // ПРОВЕРКА КОРРЕКТНОСТИ ДАННЫХ
+    const calculatedTotal = subscriptionInfo.usedClasses + subscriptionInfo.remainingClasses;
+    if (calculatedTotal !== subscriptionInfo.totalClasses) {
+        console.warn(`   ⚠️  НЕСООТВЕТСТВИЕ: использовано(${subscriptionInfo.usedClasses}) + остаток(${subscriptionInfo.remainingClasses}) ≠ всего(${subscriptionInfo.totalClasses})`);
+        
+        // Если расхождение небольшое, корректируем остаток
+        if (Math.abs(calculatedTotal - subscriptionInfo.totalClasses) <= 2) {
+            subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses - subscriptionInfo.usedClasses;
+            console.log(`   🔧 Исправлен остаток: ${subscriptionInfo.remainingClasses}`);
+        }
+    }
         
         // ОПРЕДЕЛЕНИЕ СТАТУСА
         const now = new Date();
@@ -641,165 +696,192 @@ extractSubscriptionInfo(lead) {
     return subscriptionInfo;
 }
 
-    // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: extractStudentsFromContact
-    extractStudentsFromContact(contact) {
-        const students = [];
+    // 🔧 УЛУЧШЕННЫЙ МЕТОД: extractStudentsFromContact
+extractStudentsFromContact(contact) {
+    const students = [];
+    
+    try {
+        const customFields = contact.custom_fields_values || [];
+        const contactName = contact.name || '';
         
-        try {
-            const customFields = contact.custom_fields_values || [];
-            const contactName = contact.name || '';
+        console.log(`\n👤 Поиск детей в контакте: ${contactName}`);
+        
+        // Сначала собираем ВСЕ данные о детях
+        const childrenData = new Map(); // key: childIndex, value: childData
+        
+        // Проходим по ВСЕМ полям и собираем данные
+        for (const field of customFields) {
+            const fieldId = field.field_id || field.id;
+            const fieldValue = this.getFieldValue(field);
+            const fieldName = this.getFieldName(field).toLowerCase();
             
-            console.log(`\n👤 Поиск детей в контакте: ${contactName}`);
+            if (!fieldValue || fieldValue.trim() === '') continue;
             
-            // Для каждого возможного ребенка
-            const childrenConfig = [
-                { 
-                    number: 1, 
-                    nameFieldId: this.FIELD_IDS.CONTACT.CHILD_1_NAME, 
-                    birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY 
-                },
-                { 
-                    number: 2, 
-                    nameFieldId: this.FIELD_IDS.CONTACT.CHILD_2_NAME, 
-                    birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY 
-                },
-                { 
-                    number: 3, 
-                    nameFieldId: this.FIELD_IDS.CONTACT.CHILD_3_NAME, 
-                    birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY 
+            // Определяем, к какому ребенку относится поле
+            let childIndex = 0;
+            
+            if (fieldId === this.FIELD_IDS.CONTACT.CHILD_1_NAME || 
+                fieldName.includes('ребенок 1') ||
+                fieldName.includes('!фио ребенка')) {
+                childIndex = 1;
+            } else if (fieldId === this.FIELD_IDS.CONTACT.CHILD_2_NAME || 
+                      fieldName.includes('ребенок 2') ||
+                      fieldName.includes('!!фио ребенка')) {
+                childIndex = 2;
+            } else if (fieldId === this.FIELD_IDS.CONTACT.CHILD_3_NAME || 
+                      fieldName.includes('ребенок 3') ||
+                      fieldName.includes('!!!фио ребенка')) {
+                childIndex = 3;
+            } else if (fieldId === this.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY || 
+                      (fieldName.includes('др') && fieldName.includes('ребенок 1'))) {
+                childIndex = 1;
+            } else if (fieldId === this.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY || 
+                      (fieldName.includes('др') && fieldName.includes('ребенок 2'))) {
+                childIndex = 2;
+            } else if (fieldId === this.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY || 
+                      (fieldName.includes('др') && fieldName.includes('ребенок 3'))) {
+                childIndex = 3;
+            }
+            
+            if (childIndex > 0) {
+                if (!childrenData.has(childIndex)) {
+                    childrenData.set(childIndex, {
+                        studentName: '',
+                        birthDate: '',
+                        branch: '',
+                        dayOfWeek: '',
+                        timeSlot: '',
+                        teacherName: '',
+                        course: '',
+                        ageGroup: '',
+                        allergies: '',
+                        parentName: contactName,
+                        hasActiveSubscription: false,
+                        lastVisitDate: '',
+                        email: ''
+                    });
                 }
+                
+                const child = childrenData.get(childIndex);
+                
+                // Заполняем данные
+                if (fieldId === this.FIELD_IDS.CONTACT.CHILD_1_NAME || 
+                    fieldId === this.FIELD_IDS.CONTACT.CHILD_2_NAME || 
+                    fieldId === this.FIELD_IDS.CONTACT.CHILD_3_NAME) {
+                    child.studentName = fieldValue.trim();
+                    console.log(`   👶 Ребенок ${childIndex}: ${child.studentName}`);
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY || 
+                        fieldId === this.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY || 
+                        fieldId === this.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY) {
+                    child.birthDate = this.parseDate(fieldValue);
+                }
+            }
+            
+            // Общие поля для всех детей
+            const generalFields = [
+                this.FIELD_IDS.CONTACT.BRANCH,
+                this.FIELD_IDS.CONTACT.TEACHER,
+                this.FIELD_IDS.CONTACT.DAY_OF_WEEK,
+                this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB,
+                this.FIELD_IDS.CONTACT.LAST_VISIT,
+                this.FIELD_IDS.CONTACT.AGE_GROUP,
+                this.FIELD_IDS.CONTACT.ALLERGIES,
+                this.FIELD_IDS.CONTACT.EMAIL,
+                this.FIELD_IDS.CONTACT.MONTH_CLASS_COUNTER,
+                this.FIELD_IDS.CONTACT.LAST_ACTIVATION_DATE,
+                this.FIELD_IDS.CONTACT.PHONE
             ];
             
-            for (const childConfig of childrenConfig) {
-                let childInfo = {
-                    studentName: '',
-                    birthDate: '',
-                    branch: '',
-                    dayOfWeek: '',
-                    timeSlot: '',
-                    teacherName: '',
-                    course: '',
-                    ageGroup: '',
-                    allergies: '',
-                    parentName: contactName,
-                    hasActiveSubscription: false,
-                    lastVisitDate: '',
-                    email: ''
-                };
-                
-                let hasChildData = false;
-                
-                // Проходим по всем полям контакта
-                for (const field of customFields) {
-                    const fieldId = field.field_id || field.id;
-                    const fieldValue = this.getFieldValue(field);
-                    
-                    if (!fieldValue || fieldValue.trim() === '') continue;
-                    
-                    // Имя ребенка
-                    if (fieldId === childConfig.nameFieldId) {
-                        childInfo.studentName = fieldValue.trim();
-                        hasChildData = true;
-                        console.log(`   👶 Ребенок ${childConfig.number}: ${fieldValue}`);
-                    }
-                    
-                    // День рождения ребенка
-                    else if (fieldId === childConfig.birthdayFieldId) {
-                        childInfo.birthDate = this.parseDate(fieldValue);
-                    }
-                    
-                    // Общие поля для всех детей
-                    else if (fieldId === this.FIELD_IDS.CONTACT.BRANCH) {
-                        childInfo.branch = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
-                        childInfo.teacherName = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.DAY_OF_WEEK) {
-                        childInfo.dayOfWeek = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB) {
-                        childInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
-                                                         fieldValue === '1' || 
-                                                         fieldValue.toLowerCase() === 'true';
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.LAST_VISIT) {
-                        childInfo.lastVisitDate = this.parseDate(fieldValue);
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.AGE_GROUP) {
-                        childInfo.ageGroup = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.ALLERGIES) {
-                        childInfo.allergies = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.EMAIL) {
-                        childInfo.email = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.BIRTH_DATE) {
-                        // Дата рождения родителя
-                        if (!childInfo.birthDate) {
-                            childInfo.birthDate = this.parseDate(fieldValue);
-                        }
-                    }
-                }
-                
-                // Если нашли данные о ребенке, добавляем
-                if (hasChildData && childInfo.studentName && childInfo.studentName.trim() !== '') {
-                    students.push(childInfo);
-                }
-            }
-            
-            console.log(`📊 Найдено детей: ${students.length}`);
-            
-            // Если детей не нашли, создаем ученика из данных контакта
-            if (students.length === 0 && contactName && contactName !== 'Без имени') {
-                console.log('⚠️  Дети не найдены, создаем ученика из контакта');
-                
-                // Ищем общие данные
-                let branch = '';
-                let teacher = '';
-                let email = '';
-                
-                for (const field of customFields) {
-                    const fieldId = field.field_id || field.id;
-                    const fieldValue = this.getFieldValue(field);
-                    
-                    if (!fieldValue || fieldValue.trim() === '') continue;
-                    
+            if (generalFields.includes(fieldId)) {
+                // Добавляем это поле всем детям
+                for (const [index, child] of childrenData) {
                     if (fieldId === this.FIELD_IDS.CONTACT.BRANCH) {
-                        branch = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
-                        teacher = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.EMAIL) {
-                        email = fieldValue;
+                        child.branch = fieldValue;
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
+                        child.teacherName = fieldValue;
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.DAY_OF_WEEK) {
+                        child.dayOfWeek = fieldValue;
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB) {
+                        child.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
+                                                     fieldValue === '1' || 
+                                                     fieldValue.toLowerCase() === 'true';
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.LAST_VISIT) {
+                        child.lastVisitDate = this.parseDate(fieldValue);
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.AGE_GROUP) {
+                        child.ageGroup = fieldValue;
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.ALLERGIES) {
+                        child.allergies = fieldValue;
+                    } else if (fieldId === this.FIELD_IDS.CONTACT.EMAIL) {
+                        child.email = fieldValue;
                     }
                 }
-                
-                students.push({
-                    studentName: contactName,
-                    birthDate: '',
-                    branch: branch,
-                    dayOfWeek: '',
-                    timeSlot: '',
-                    teacherName: teacher,
-                    course: '',
-                    ageGroup: '',
-                    allergies: '',
-                    parentName: contactName,
-                    hasActiveSubscription: false,
-                    lastVisitDate: '',
-                    email: email
-                });
             }
-            
-        } catch (error) {
-            console.error('❌ Ошибка извлечения учеников из контакта:', error);
         }
         
-        return students;
+        // Добавляем детей в результат
+        for (const [index, child] of childrenData) {
+            if (child.studentName && child.studentName.trim() !== '') {
+                students.push(child);
+                console.log(`   ✅ Добавлен ребенок ${index}: ${child.studentName}`);
+            }
+        }
+        
+        console.log(`📊 Найдено детей: ${students.length}`);
+        
+        // Если детей не нашли, но есть имя контакта
+        if (students.length === 0 && contactName && !contactName.includes('Без имени')) {
+            console.log('⚠️  Дети не найдены, создаем ученика из контакта');
+            
+            // Собираем общие данные
+            let studentData = {
+                studentName: contactName,
+                birthDate: '',
+                branch: '',
+                dayOfWeek: '',
+                timeSlot: '',
+                teacherName: '',
+                course: '',
+                ageGroup: '',
+                allergies: '',
+                parentName: contactName,
+                hasActiveSubscription: false,
+                lastVisitDate: '',
+                email: ''
+            };
+            
+            // Заполняем из полей контакта
+            for (const field of customFields) {
+                const fieldId = field.field_id || field.id;
+                const fieldValue = this.getFieldValue(field);
+                
+                if (!fieldValue || fieldValue.trim() === '') continue;
+                
+                if (fieldId === this.FIELD_IDS.CONTACT.BRANCH) {
+                    studentData.branch = fieldValue;
+                } else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
+                    studentData.teacherName = fieldValue;
+                } else if (fieldId === this.FIELD_IDS.CONTACT.EMAIL) {
+                    studentData.email = fieldValue;
+                } else if (fieldId === this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB) {
+                    studentData.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
+                                                       fieldValue === '1' || 
+                                                       fieldValue.toLowerCase() === 'true';
+                } else if (fieldId === this.FIELD_IDS.CONTACT.LAST_VISIT) {
+                    studentData.lastVisitDate = this.parseDate(fieldValue);
+                }
+            }
+            
+            students.push(studentData);
+            console.log(`   👤 Создан ученик из контакта: ${contactName}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка извлечения учеников из контакта:', error);
     }
+    
+    return students;
+}
 
     // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: getContactLeadsSorted
     async getContactLeadsSorted(contactId) {
