@@ -1215,30 +1215,119 @@ parseClassesCount(value) {
         }
     }
 
-    async searchContactsByPhone(phoneNumber) {
+    // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: searchContactsByPhone
+async searchContactsByPhone(phoneNumber) {
+    try {
+        console.log(`\n🔍 РЕАЛЬНЫЙ ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
+        
+        const cleanPhone = phoneNumber.replace(/\D/g, '');
+        const lastDigits = cleanPhone.slice(-10);
+        
+        // Вариант 1: Поиск через фильтр по телефону (если API поддерживает)
         try {
-            const cleanPhone = phoneNumber.replace(/\D/g, '');
-            const lastDigits = cleanPhone.slice(-10);
-            
+            // Используем правильный формат для amoCRM v4
+            const query = encodeURIComponent(lastDigits);
             const response = await this.makeRequest(
-                'POST',
-                '/api/v4/contacts',
-                {
-                    with: 'custom_fields_values',
-                    limit: 20
-                }
+                'GET',
+                `/api/v4/contacts?query=${query}&with=custom_fields_values&limit=50`
             );
             
-            // В реальной реализации здесь должен быть фильтр по телефону
-            // Это упрощенная версия для демонстрации
-            return response;
-        } catch (error) {
-            console.error('❌ Ошибка поиска контактов:', error.message);
-            return { _embedded: { contacts: [] } };
+            console.log(`📊 Результат поиска по query: ${response._embedded?.contacts?.length || 0} контактов`);
+            
+            if (response._embedded?.contacts?.length > 0) {
+                return response;
+            }
+        } catch (queryError) {
+            console.log('⚠️  Поиск по query не сработал:', queryError.message);
         }
+        
+        // Вариант 2: Фильтрация вручную (если поиск по query не работает)
+        console.log('🔄 Пробуем получить все контакты и отфильтровать...');
+        
+        let allContacts = [];
+        let page = 1;
+        const limit = 100;
+        
+        while (true) {
+            try {
+                const response = await this.makeRequest(
+                    'GET',
+                    `/api/v4/contacts?page=${page}&limit=${limit}&with=custom_fields_values`
+                );
+                
+                const contacts = response._embedded?.contacts || [];
+                console.log(`📄 Страница ${page}: ${contacts.length} контактов`);
+                
+                if (contacts.length === 0) break;
+                
+                // Фильтруем контакты по телефону
+                const filteredContacts = contacts.filter(contact => {
+                    // Ищем телефон в кастомных полях контакта
+                    if (contact.custom_fields_values) {
+                        for (const field of contact.custom_fields_values) {
+                            const fieldValue = this.getFieldValue(field);
+                            if (fieldValue && fieldValue.includes(lastDigits)) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                });
+                
+                if (filteredContacts.length > 0) {
+                    console.log(`✅ На странице ${page} найдено: ${filteredContacts.length} контактов с номером ${lastDigits}`);
+                    allContacts = allContacts.concat(filteredContacts);
+                }
+                
+                if (contacts.length < limit) break;
+                page++;
+                
+                if (page > 5) {
+                    console.log('⚠️  Ограничение: проверено 5 страниц');
+                    break;
+                }
+                
+            } catch (pageError) {
+                console.error(`❌ Ошибка получения страницы ${page}:`, pageError.message);
+                break;
+            }
+        }
+        
+        console.log(`📊 ИТОГО найдено контактов: ${allContacts.length}`);
+        
+        return {
+            _embedded: {
+                contacts: allContacts
+            }
+        };
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска контактов:', error.message);
+        return { _embedded: { contacts: [] } };
+    }
+},
+
+// 🔧 ДОБАВЬ ТАКЖЕ ЭТОТ МЕТОД для getFieldValue
+getFieldValue(field) {
+    try {
+        if (!field.values || !field.values[0]) return '';
+        const value = field.values[0];
+        
+        // Для select полей возвращаем value, а не enum_id
+        if (value.value) {
+            return value.value.toString();
+        }
+        // Если есть enum_id, можно попробовать получить значение из enums
+        else if (value.enum_id && field.enums) {
+            const enumItem = field.enums.find(e => e.id === value.enum_id);
+            return enumItem ? enumItem.value : value.enum_id.toString();
+        }
+        
+        return '';
+    } catch (error) {
+        return '';
     }
 }
-
 // Создаем экземпляр сервиса amoCRM
 const amoCrmService = new AmoCrmService();
 
