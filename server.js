@@ -2066,7 +2066,145 @@ app.post('/api/subscription', async (req, res) => {
     }
 });
 
+
+
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+
+// Добавьте этот маршрут в раздел ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ
+app.get('/api/debug/all-crm-fields', async (req, res) => {
+    try {
+        console.log('\n📋 ПОЛУЧЕНИЕ ВСЕХ ПОЛЕЙ AMOCRM');
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                message: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Получаем ВСЕ поля сделок
+        console.log('🔍 Получение полей сделок...');
+        const leadFieldsResponse = await amoCrmService.makeRequest(
+            'GET',
+            '/api/v4/leads/custom_fields'
+        );
+        
+        // Получаем ВСЕ поля контактов
+        console.log('🔍 Получение полей контактов...');
+        const contactFieldsResponse = await amoCrmService.makeRequest(
+            'GET',
+            '/api/v4/contacts/custom_fields'
+        );
+        
+        const leadFields = leadFieldsResponse._embedded?.custom_fields || [];
+        const contactFields = contactFieldsResponse._embedded?.custom_fields || [];
+        
+        console.log(`📊 Поля сделок: ${leadFields.length}`);
+        console.log(`📊 Поля контактов: ${contactFields.length}`);
+        
+        // Форматируем для удобного просмотра
+        const formattedLeadFields = leadFields.map(field => ({
+            id: field.id,
+            name: field.name,
+            type: field.type,
+            code: field.code || null,
+            sort: field.sort,
+            is_editable: field.is_editable || false,
+            enums: field.enums ? field.enums.map(e => ({
+                id: e.id,
+                value: e.value,
+                sort: e.sort
+            })) : [],
+            group_id: field.group_id || null,
+            account_id: field.account_id
+        }));
+        
+        const formattedContactFields = contactFields.map(field => ({
+            id: field.id,
+            name: field.name,
+            type: field.type,
+            code: field.code || null,
+            sort: field.sort,
+            is_editable: field.is_editable || false,
+            enums: field.enums ? field.enums.map(e => ({
+                id: e.id,
+                value: e.value,
+                sort: e.sort
+            })) : [],
+            group_id: field.group_id || null,
+            account_id: field.account_id
+        }));
+        
+        // Находим поля, связанные с абонементами
+        const subscriptionKeywords = [
+            'абонемент', 'занят', 'урок', 'счетчик', 'остаток', 
+            'активации', 'окончание', 'последний визит', 'филиал',
+            'преподаватель', 'тип абонемента', 'заморозка'
+        ];
+        
+        const leadSubscriptionFields = formattedLeadFields.filter(field => 
+            subscriptionKeywords.some(keyword => 
+                field.name.toLowerCase().includes(keyword.toLowerCase())
+            )
+        );
+        
+        const contactSubscriptionFields = formattedContactFields.filter(field => 
+            subscriptionKeywords.some(keyword => 
+                field.name.toLowerCase().includes(keyword.toLowerCase())
+            )
+        );
+        
+        res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            data: {
+                summary: {
+                    total_lead_fields: leadFields.length,
+                    total_contact_fields: contactFields.length,
+                    subscription_lead_fields: leadSubscriptionFields.length,
+                    subscription_contact_fields: contactSubscriptionFields.length
+                },
+                
+                // Все поля (первые 100 для каждого типа)
+                all_lead_fields_sample: formattedLeadFields.slice(0, 100),
+                all_contact_fields_sample: formattedContactFields.slice(0, 100),
+                
+                // Только поля, связанные с абонементами
+                subscription_lead_fields: leadSubscriptionFields,
+                subscription_contact_fields: contactSubscriptionFields,
+                
+                // ID полей, которые используются в системе
+                configured_field_ids: amoCrmService.FIELD_IDS,
+                
+                // Для поиска конкретных полей
+                search_tips: {
+                    lead_fields_by_id: 'Используйте Ctrl+F для поиска по ID',
+                    contact_fields_by_id: 'Используйте Ctrl+F для поиска по ID',
+                    common_subscription_fields: [
+                        'Абонемент занятий:',
+                        'Счетчик занятий:',
+                        'Остаток занятий',
+                        'Дата активации абонемента:',
+                        'Окончание абонемента:',
+                        'Тип абонемента',
+                        'Филиал:',
+                        'Преподаватель'
+                    ]
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения полей:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка получения полей',
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
 app.get('/api/debug/connection', async (req, res) => {
     try {
         console.log('\n🔍 ПРОВЕРКА СВЯЗИ С AMOCRM');
