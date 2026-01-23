@@ -1305,7 +1305,7 @@ async searchContactsByPhone(phoneNumber) {
         console.error('❌ Ошибка поиска контактов:', error.message);
         return { _embedded: { contacts: [] } };
     }
-},
+}
 
 // 🔧 ДОБАВЬ ТАКЖЕ ЭТОТ МЕТОД для getFieldValue
 getFieldValue(field) {
