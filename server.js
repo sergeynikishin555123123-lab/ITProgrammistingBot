@@ -1197,27 +1197,7 @@ parseClassesCount(value) {
         return field.name || this.fieldCache.leadFields.get(field.field_id || field.id)?.name || 'Неизвестно';
     }
 
-    // 🔧 ДОБАВЬ ТАКЖЕ ЭТОТ МЕТОД для getFieldValue
-getFieldValue(field) {
-    try {
-        if (!field.values || !field.values[0]) return '';
-        const value = field.values[0];
-        
-        // Для select полей возвращаем value, а не enum_id
-        if (value.value) {
-            return value.value.toString();
-        }
-        // Если есть enum_id, можно попробовать получить значение из enums
-        else if (value.enum_id && field.enums) {
-            const enumItem = field.enums.find(e => e.id === value.enum_id);
-            return enumItem ? enumItem.value : value.enum_id.toString();
-        }
-        
-        return '';
-    } catch (error) {
-        return '';
-    }
-}
+    
     parseDate(dateStr) {
         try {
             if (!dateStr) return '';
@@ -1339,10 +1319,11 @@ getFieldValue(field) {
         }
         
         return '';
-    } catch (error) {
-        return '';
+        } catch (error) {
+            return '';
+        }
     }
-}
+} 
 // Создаем экземпляр сервиса amoCRM
 const amoCrmService = new AmoCrmService();
 
