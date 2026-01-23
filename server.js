@@ -955,7 +955,7 @@ class SyncService {
                     console.log(`\n🔍 Синхронизация телефона: ${phone}`);
                     
                     // Получаем данные из amoCRM
-                    const profiles = await amoCrmService.getStudentsByPhone(phone);
+                    const profiles = await amoCrmService.getStudentDataByPhone(phone);
                     
                     // Сохраняем в базу
                     const savedCount = await saveProfilesToDatabase(profiles);
@@ -1008,7 +1008,7 @@ class SyncService {
         console.log(`\n🔧 РУЧНАЯ СИНХРОНИЗАЦИЯ: ${phoneNumber}`);
         
         try {
-            const profiles = await amoCrmService.getStudentsByPhone(phoneNumber);
+            const profiles = await amoCrmService.getStudentDataByPhone(phoneNumber);
             const savedCount = await saveProfilesToDatabase(profiles);
             
             console.log(`✅ Синхронизация завершена`);
@@ -1194,7 +1194,7 @@ app.post('/api/auth/phone', async (req, res) => {
         // Получаем данные из amoCRM
         if (amoCrmService.isInitialized) {
             console.log('🔍 Получение данных из amoCRM...');
-            profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+            profiles = await amoCrmService.getStudentDataByPhone(formattedPhone);
             console.log(`📊 Найдено в amoCRM: ${profiles.length}`);
             
             if (profiles.length > 0) {
@@ -1665,7 +1665,8 @@ app.get('/api/debug/phone/:phone', async (req, res) => {
         
         // 2. Получаем профили
         console.log('🎯 Получение профилей...');
-        const profiles = await amoCrmService.getStudentsByPhone(phone);
+        const profiles = await amoCrmService.getStudentDataByPhone(phone);
+
         
         const profilesInfo = profiles.map(profile => ({
             student_name: profile.student_name,
