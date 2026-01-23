@@ -782,7 +782,7 @@ async getStudentsByPhone(phoneNumber) {
         console.error(`❌ Ошибка получения данных:`, error.message);
         return [];
     }
-},
+}
 
 // 🔧 НОВЫЙ МЕТОД: searchLeadsByPhone
 async searchLeadsByPhone(phoneNumber) {
