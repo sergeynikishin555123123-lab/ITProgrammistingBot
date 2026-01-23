@@ -877,7 +877,7 @@ extractStudentsFromContact(contact) {
     }
     
     return students;
-},
+}
 
 // 🔧 ВСПОМОГАТЕЛЬНЫЙ МЕТОД: findCommonFields
 findCommonFields(student, customFields) {
