@@ -365,7 +365,7 @@ this.FIELD_IDS = {
         }
     }
 
-    // 🔧 СОВЕРШЕННО НОВЫЙ МЕТОД: extractSubscriptionInfo
+// 🔧 СОВЕРШЕННО НОВЫЙ МЕТОД: extractSubscriptionInfo
 extractSubscriptionInfo(lead) {
     const subscriptionInfo = {
         hasSubscription: false,
@@ -591,103 +591,101 @@ else if (fieldId === this.FIELD_IDS.LEAD.REMAINING_CLASSES ||
         subscriptionInfo.purchaseDate = purchaseDate;
         subscriptionInfo.technicalClasses = technicalClasses;
         
-        // РАССЧИТЫВАЕМ ОСТАТОК, ЕСЛИ НЕ УКАЗАН
-      // НА ЭТУ КОРРЕКТНУЮ ЛОГИКУ:
-
-// РАССЧИТЫВАЕМ ДАННЫЕ АБОНЕМЕНТА КОРРЕКТНО
-if (subscriptionInfo.totalClasses > 0) {
-    subscriptionInfo.hasSubscription = true;
-    
-    console.log(`   🧮 Расчет данных:`);
-    console.log(`     • Всего занятий: ${subscriptionInfo.totalClasses}`);
-    console.log(`     • Использовано: ${subscriptionInfo.usedClasses}`);
-    console.log(`     • Остаток (из поля): ${subscriptionInfo.remainingClasses}`);
-    
-    // ВАЖНО: Если есть остаток из поля - верим полю
-    if (remainingClasses > 0) {
-        // Остаток берем из поля
-        subscriptionInfo.remainingClasses = remainingClasses;
-        // Если счетчик не указан, но есть остаток и общее количество
-        if (subscriptionInfo.usedClasses === 0 && subscriptionInfo.totalClasses > 0) {
-            subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
-            console.log(`     • Рассчитано использовано: ${subscriptionInfo.usedClasses} (${subscriptionInfo.totalClasses} - ${subscriptionInfo.remainingClasses})`);
+        // РАССЧИТЫВАЕМ ДАННЫЕ АБОНЕМЕНТА КОРРЕКТНО
+        if (subscriptionInfo.totalClasses > 0) {
+            subscriptionInfo.hasSubscription = true;
+            
+            console.log(`   🧮 Расчет данных:`);
+            console.log(`     • Всего занятий: ${subscriptionInfo.totalClasses}`);
+            console.log(`     • Использовано: ${subscriptionInfo.usedClasses}`);
+            console.log(`     • Остаток (из поля): ${subscriptionInfo.remainingClasses}`);
+            
+            // ВАЖНО: Если есть остаток из поля - верим полю
+            if (remainingClasses > 0) {
+                // Остаток берем из поля
+                subscriptionInfo.remainingClasses = remainingClasses;
+                // Если счетчик не указан, но есть остаток и общее количество
+                if (subscriptionInfo.usedClasses === 0 && subscriptionInfo.totalClasses > 0) {
+                    subscriptionInfo.usedClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.remainingClasses);
+                    console.log(`     • Рассчитано использовано: ${subscriptionInfo.usedClasses} (${subscriptionInfo.totalClasses} - ${subscriptionInfo.remainingClasses})`);
+                }
+            }
+            // Если нет остатка из поля, но есть счетчик
+            else if (subscriptionInfo.usedClasses > 0) {
+                // Рассчитываем остаток
+                subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
+                console.log(`     • Рассчитано остаток: ${subscriptionInfo.remainingClasses} (${subscriptionInfo.totalClasses} - ${subscriptionInfo.usedClasses})`);
+            }
+            // Если ни счетчик, ни остаток не указаны
+            else {
+                // Считаем, что все занятия доступны
+                subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
+                console.log(`     • Остаток по умолчанию: ${subscriptionInfo.remainingClasses} (все занятия доступны)`);
+            }
+            
+            // ПРОВЕРКА КОРРЕКТНОСТИ ДАННЫХ
+            const calculatedTotal = subscriptionInfo.usedClasses + subscriptionInfo.remainingClasses;
+            if (calculatedTotal !== subscriptionInfo.totalClasses) {
+                console.warn(`   ⚠️  НЕСООТВЕТСТВИЕ: использовано(${subscriptionInfo.usedClasses}) + остаток(${subscriptionInfo.remainingClasses}) ≠ всего(${subscriptionInfo.totalClasses})`);
+                
+                // Если расхождение небольшое, корректируем остаток
+                if (Math.abs(calculatedTotal - subscriptionInfo.totalClasses) <= 2) {
+                    subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses - subscriptionInfo.usedClasses;
+                    console.log(`   🔧 Исправлен остаток: ${subscriptionInfo.remainingClasses}`);
+                }
+            }
+            
+            // ОПРЕДЕЛЕНИЕ СТАТУСА
+            const now = new Date();
+            const isExpired = expirationDate ? new Date(expirationDate) < now : false;
+            const hasRemaining = subscriptionInfo.remainingClasses > 0;
+            const isNotActivated = !activationDate && subscriptionInfo.totalClasses > 0;
+            
+            if (isFrozen) {
+                subscriptionInfo.subscriptionStatus = 'Абонемент заморожен';
+                subscriptionInfo.subscriptionBadge = 'frozen';
+                subscriptionInfo.subscriptionActive = false;
+            }
+            else if (isExpired) {
+                subscriptionInfo.subscriptionStatus = 'Абонемент истек';
+                subscriptionInfo.subscriptionBadge = 'expired';
+                subscriptionInfo.subscriptionActive = false;
+            }
+            else if (!hasRemaining && subscriptionInfo.usedClasses > 0) {
+                subscriptionInfo.subscriptionStatus = 'Занятия закончились';
+                subscriptionInfo.subscriptionBadge = 'expired';
+                subscriptionInfo.subscriptionActive = false;
+            }
+            else if (isNotActivated) {
+                subscriptionInfo.subscriptionStatus = `Купленный (${subscriptionInfo.totalClasses} занятий)`;
+                subscriptionInfo.subscriptionBadge = 'has_subscription';
+                subscriptionInfo.subscriptionActive = true;
+            }
+            else if (hasRemaining && subscriptionInfo.usedClasses === 0) {
+                subscriptionInfo.subscriptionStatus = `Купленный (${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
+                subscriptionInfo.subscriptionBadge = 'has_subscription';
+                subscriptionInfo.subscriptionActive = true;
+            }
+            else if (hasRemaining) {
+                subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
+                subscriptionInfo.subscriptionBadge = 'active';
+                subscriptionInfo.subscriptionActive = true;
+            }
+            else if (subscriptionInfo.totalClasses > 0) {
+                subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
+                subscriptionInfo.subscriptionBadge = 'has_subscription';
+                subscriptionInfo.subscriptionActive = true;
+            }
+            
+            console.log(`\n📊 ИТОГ абонемента:`);
+            console.log(`   • Всего: ${subscriptionInfo.totalClasses} занятий`);
+            console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
+            console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
+            console.log(`   • Статус: ${subscriptionInfo.subscriptionStatus}`);
+            console.log(`   • Филиал: ${subscriptionInfo.branch || 'не указан'}`);
+            console.log(`   • Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+            console.log(`   • Технических занятий: ${subscriptionInfo.technicalClasses}`);
         }
-    }
-    // Если нет остатка из поля, но есть счетчик
-    else if (subscriptionInfo.usedClasses > 0) {
-        // Рассчитываем остаток
-        subscriptionInfo.remainingClasses = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
-        console.log(`     • Рассчитано остаток: ${subscriptionInfo.remainingClasses} (${subscriptionInfo.totalClasses} - ${subscriptionInfo.usedClasses})`);
-    }
-    // Если ни счетчик, ни остаток не указаны
-    else {
-        // Считаем, что все занятия доступны
-        subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses;
-        console.log(`     • Остаток по умолчанию: ${subscriptionInfo.remainingClasses} (все занятия доступны)`);
-    }
-    
-    // ПРОВЕРКА КОРРЕКТНОСТИ ДАННЫХ
-    const calculatedTotal = subscriptionInfo.usedClasses + subscriptionInfo.remainingClasses;
-    if (calculatedTotal !== subscriptionInfo.totalClasses) {
-        console.warn(`   ⚠️  НЕСООТВЕТСТВИЕ: использовано(${subscriptionInfo.usedClasses}) + остаток(${subscriptionInfo.remainingClasses}) ≠ всего(${subscriptionInfo.totalClasses})`);
-        
-        // Если расхождение небольшое, корректируем остаток
-        if (Math.abs(calculatedTotal - subscriptionInfo.totalClasses) <= 2) {
-            subscriptionInfo.remainingClasses = subscriptionInfo.totalClasses - subscriptionInfo.usedClasses;
-            console.log(`   🔧 Исправлен остаток: ${subscriptionInfo.remainingClasses}`);
-        }
-    }
-        
-        // ОПРЕДЕЛЕНИЕ СТАТУСА
-        const now = new Date();
-        const isExpired = expirationDate ? new Date(expirationDate) < now : false;
-        const hasRemaining = subscriptionInfo.remainingClasses > 0;
-        const isNotActivated = !activationDate && subscriptionInfo.totalClasses > 0;
-        
-        if (isFrozen) {
-            subscriptionInfo.subscriptionStatus = 'Абонемент заморожен';
-            subscriptionInfo.subscriptionBadge = 'frozen';
-            subscriptionInfo.subscriptionActive = false;
-        }
-        else if (isExpired) {
-            subscriptionInfo.subscriptionStatus = 'Абонемент истек';
-            subscriptionInfo.subscriptionBadge = 'expired';
-            subscriptionInfo.subscriptionActive = false;
-        }
-        else if (!hasRemaining && subscriptionInfo.usedClasses > 0) {
-            subscriptionInfo.subscriptionStatus = 'Занятия закончились';
-            subscriptionInfo.subscriptionBadge = 'expired';
-            subscriptionInfo.subscriptionActive = false;
-        }
-        else if (isNotActivated) {
-            subscriptionInfo.subscriptionStatus = `Купленный (${subscriptionInfo.totalClasses} занятий)`;
-            subscriptionInfo.subscriptionBadge = 'has_subscription';
-            subscriptionInfo.subscriptionActive = true;
-        }
-        else if (hasRemaining && subscriptionInfo.usedClasses === 0) {
-            subscriptionInfo.subscriptionStatus = `Купленный (${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
-            subscriptionInfo.subscriptionBadge = 'has_subscription';
-            subscriptionInfo.subscriptionActive = true;
-        }
-        else if (hasRemaining) {
-            subscriptionInfo.subscriptionStatus = `Активный (осталось ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий)`;
-            subscriptionInfo.subscriptionBadge = 'active';
-            subscriptionInfo.subscriptionActive = true;
-        }
-        else if (subscriptionInfo.totalClasses > 0) {
-            subscriptionInfo.subscriptionStatus = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
-            subscriptionInfo.subscriptionBadge = 'has_subscription';
-            subscriptionInfo.subscriptionActive = true;
-        }
-        
-        console.log(`\n📊 ИТОГ абонемента:`);
-        console.log(`   • Всего: ${subscriptionInfo.totalClasses} занятий`);
-        console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
-        console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
-        console.log(`   • Статус: ${subscriptionInfo.subscriptionStatus}`);
-        console.log(`   • Филиал: ${subscriptionInfo.branch || 'не указан'}`);
-        console.log(`   • Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
-        console.log(`   • Технических занятий: ${subscriptionInfo.technicalClasses}`);
         
     } catch (error) {
         console.error('❌ Ошибка извлечения информации об абонементе:', error);
