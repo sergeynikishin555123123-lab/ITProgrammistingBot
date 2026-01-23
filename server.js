@@ -906,7 +906,7 @@ findCommonFields(student, customFields) {
             student.email = fieldValue;
         }
     });
-},
+
 
 
 async getStudentsByPhone(phoneNumber) {
