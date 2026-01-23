@@ -1011,62 +1011,199 @@ async mapLeadFields(fieldsResponse) {
         return '';
     }
 
- // 🔧 УЛУЧШЕННЫЙ МЕТОД: findBestLeadForStudent
-    findBestLeadForStudent(studentName, leads) {
-        if (!leads || leads.length === 0) return null;
+// 🔧 ИСПРАВЛЕННЫЙ МЕТОД: findBestLeadForStudent
+findBestLeadForStudent(studentName, leads) {
+    if (!leads || leads.length === 0) return null;
+    
+    console.log(`🔍 Поиск сделки для ученика: ${studentName}`);
+    console.log(`📊 Всего сделок: ${leads.length}`);
+    
+    // ВЫВОДИМ ВСЕ СДЕЛКИ ДЛЯ ДИАГНОСТИКИ
+    console.log('\n📋 Список всех сделок:');
+    leads.forEach((lead, index) => {
+        console.log(`  ${index + 1}. "${lead.name || 'Без названия'}" (ID: ${lead.id})`);
+    });
+    
+    let bestLead = null;
+    let bestScore = -1000;
+    
+    for (const lead of leads) {
+        let score = 0;
+        const leadName = lead.name || '';
+        const leadNameLower = leadName.toLowerCase();
         
-        console.log(`🔍 Поиск сделки для: ${studentName}`);
+        console.log(`\n   🔍 Анализ: "${leadName.substring(0, 50)}..."`);
         
-        // Сортируем сделки по релевантности
-        const scoredLeads = leads.map(lead => {
-            let score = 0;
-            const leadName = lead.name || '';
-            const leadNameLower = leadName.toLowerCase();
-            
-            // Высший приоритет: активные абонементы
-            if (leadName.includes('!Абонемент') || leadName.includes('Активный абонемент')) {
-                score += 100;
-            }
-            
-            // Совпадение имени ученика
-            const studentFirstName = studentName.split(' ')[0] || '';
-            if (studentFirstName && leadName.includes(studentFirstName)) {
-                score += 50;
-            }
-            
-            // Присутствие слова "абонемент"
-            if (leadNameLower.includes('абонемент')) {
-                score += 30;
-            }
-            
-            // Присутствие числа занятий
-            if (leadNameLower.match(/\d+\s*занят/)) {
-                score += 20;
-            }
-            
-            // Минус за архивные/завершенные
-            if (leadNameLower.includes('архив') || leadNameLower.includes('завершен') || 
-                leadNameLower.includes('закончился')) {
-                score -= 50;
-            }
-            
-            return { lead, score };
-        });
+        // 1. ВЫСШИЙ ПРИОРИТЕТ: имя ученика в названии
+        const cleanStudentName = studentName.toLowerCase().replace(/[^а-яё\s]/gi, '');
+        const cleanLeadName = leadNameLower.replace(/[^а-яё\s]/gi, '');
         
-        // Сортируем по убыванию баллов
-        scoredLeads.sort((a, b) => b.score - a.score);
-        
-        if (scoredLeads.length > 0 && scoredLeads[0].score > 0) {
-            const bestLead = scoredLeads[0].lead;
-            console.log(`✅ Найдена сделка: "${bestLead.name.substring(0, 50)}..."`);
-            console.log(`📊 Балл: ${scoredLeads[0].score}`);
-            return bestLead;
+        if (cleanStudentName && cleanLeadName.includes(cleanStudentName)) {
+            score += 200;
+            console.log(`   🎯 ПОЛНОЕ СОВПАДЕНИЕ ИМЕНИ: +200`);
+        } else {
+            // Ищем частичное совпадение
+            const studentParts = cleanStudentName.split(' ');
+            let nameMatchScore = 0;
+            for (const part of studentParts) {
+                if (part.length > 2 && cleanLeadName.includes(part)) {
+                    nameMatchScore += 50;
+                }
+            }
+            if (nameMatchScore > 0) {
+                score += nameMatchScore;
+                console.log(`   ✅ Частичное совпадение имени: +${nameMatchScore}`);
+            }
         }
         
-        console.log('⚠️  Подходящая сделка не найдена');
-        return null;
+        // 2. ВЫСШИЙ ПРИОРИТЕТ: статусы абонементов
+        if (leadName.includes('!Абонемент')) {
+            score += 150;
+            console.log(`   🏆 !Абонемент: +150`);
+        }
+        if (leadName.includes('Активный абонемент')) {
+            score += 120;
+            console.log(`   🥇 Активный абонемент: +120`);
+        }
+        
+        // 3. Проверяем поля абонемента в сделке
+        const subscriptionInfo = this.extractSubscriptionInfo(lead);
+        if (subscriptionInfo.hasSubscription) {
+            score += 80;
+            console.log(`   📊 Есть данные об абонементе: +80`);
+            
+            if (subscriptionInfo.totalClasses > 0) {
+                score += 20;
+                console.log(`   🔢 ${subscriptionInfo.totalClasses} занятий: +20`);
+            }
+            
+            if (subscriptionInfo.subscriptionActive) {
+                score += 40;
+                console.log(`   🟢 Абонемент активен: +40`);
+            }
+        }
+        
+        // 4. Ищем число занятий в названии
+        const classesInName = this.parseLeadNameForSubscription(leadName);
+        if (classesInName > 0) {
+            score += 30;
+            console.log(`   📈 ${classesInName} занятий в названии: +30`);
+        }
+        
+        // 5. МИНУС за неподходящие статусы
+        if (leadNameLower.includes('закончился') || 
+            leadNameLower.includes('архив') || 
+            leadNameLower.includes('не актив')) {
+            score -= 100;
+            console.log(`   ⚠️  Архив/неактивен: -100`);
+        }
+        
+        // 6. МИНУС за "рассылка", "сертификат" и т.д.
+        if (leadNameLower.includes('рассылка') || 
+            leadNameLower.includes('сертификат') ||
+            leadNameLower.includes('подарочн') ||
+            leadNameLower.match(/^\d+\s*₽/)) {
+            score -= 200;
+            console.log(`   ❌ Не абонементная сделка: -200`);
+        }
+        
+        // 7. БОНУС за недавнее создание/обновление
+        if (lead.updated_at) {
+            const updatedDate = new Date(lead.updated_at * 1000);
+            const daysAgo = (Date.now() - updatedDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysAgo < 30) {
+                score += 20;
+                console.log(`   🕐 Обновлено ${Math.round(daysAgo)} дней назад: +20`);
+            }
+        }
+        
+        console.log(`   📊 Итоговый балл: ${score}`);
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestLead = lead;
+            console.log(`   🎯 НОВЫЙ ЛУЧШИЙ ВЫБОР!`);
+        }
     }
+    
+    if (bestLead) {
+        console.log(`\n✅ Выбрана сделка: "${bestLead.name.substring(0, 50)}..."`);
+        console.log(`📊 Лучший балл: ${bestScore}`);
+        
+        // ДИАГНОСТИКА: выводим полную информацию о выбранной сделке
+        console.log('\n🔍 ДИАГНОСТИКА ВЫБРАННОЙ СДЕЛКИ:');
+        const subInfo = this.extractSubscriptionInfo(bestLead);
+        console.log(`   • Название: ${bestLead.name}`);
+        console.log(`   • Всего занятий: ${subInfo.totalClasses}`);
+        console.log(`   • Использовано: ${subInfo.usedClasses}`);
+        console.log(`   • Осталось: ${subInfo.remainingClasses}`);
+        console.log(`   • Статус: ${subInfo.subscriptionStatus}`);
+    } else {
+        console.log(`\n⚠️  Подходящая сделка не найдена`);
+    }
+    
+    return bestLead;
+}
 
+// 🔧 ДОБАВЬТЕ ЭТОТ МЕТОД ДЛЯ ЛУЧШЕГО ПАРСИНГА ИМЕНИ
+parseLeadNameForSubscription(leadName) {
+    if (!leadName) return 0;
+    
+    try {
+        // Приводим к нижнему регистру и удаляем лишние символы
+        const cleanName = leadName.toLowerCase()
+            .replace(/[^а-яё0-9\s]/gi, '')
+            .trim();
+        
+        console.log(`🔍 Парсинг названия: "${cleanName}"`);
+        
+        // Пропускаем явно неподходящие названия
+        const skipPatterns = [
+            'рассылка', 'сертификат', 'подарочн', 'отмена', 
+            'не актив', 'закончился', 'архив'
+        ];
+        
+        for (const pattern of skipPatterns) {
+            if (cleanName.includes(pattern)) {
+                console.log(`⏭️  Пропускаем: содержит "${pattern}"`);
+                return 0;
+            }
+        }
+        
+        // Ищем количество занятий
+        const patterns = [
+            // Основные паттерны
+            { pattern: /(\d+)\s*занят/i, desc: 'число занятий' },
+            { pattern: /16\s*(?:занят|урок)/i, desc: '16 занятий' },
+            { pattern: /8\s*(?:занят|урок)/i, desc: '8 занятий' },
+            { pattern: /4\s*(?:занят|урок)/i, desc: '4 занятия' },
+            { pattern: /24\s*(?:занят|урок)/i, desc: '24 занятия' },
+            { pattern: /12\s*(?:занят|урок)/i, desc: '12 занятий' },
+            
+            // Просто число в названии (но не в начале и не цена)
+            { pattern: /\s+(\d{1,2})\s*$/i, desc: 'число в конце' },
+            { pattern: /-?\s*(\d{1,2})\s*(?:занят|урок)?/i, desc: 'число с дефисом' }
+        ];
+        
+        for (const { pattern, desc } of patterns) {
+            const match = cleanName.match(pattern);
+            if (match && match[1]) {
+                const num = parseInt(match[1]);
+                if (num >= 1 && num <= 30) {
+                    console.log(`✅ Найдено (${desc}): ${num} занятий`);
+                    return num;
+                }
+            }
+        }
+        
+        console.log(`❌ Не удалось определить количество занятий`);
+        return 0;
+        
+    } catch (error) {
+        console.error('❌ Ошибка парсинга названия:', error);
+        return 0;
+    }
+}
     // 🔧 ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ (остаются без изменений, но используют новые FIELD_IDS)
     async checkTokenValidity(token) {
         try {
