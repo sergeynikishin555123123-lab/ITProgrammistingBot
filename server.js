@@ -2993,188 +2993,12 @@ app.post('/api/sync/phone', async (req, res) => {
     }
 });
 
-// ==================== ДОПОЛНИТЕЛЬНЫЕ API ====================
+// ==================== ИСПРАВЛЕННАЯ ВЕРСИЯ server.js ====================
+// УДАЛИТЕ ВСЕ ДУБЛИРУЮЩИЕСЯ МАРШРУТЫ ПОСЛЕ СТРОКИ 594
 
-app.get('/api/profile/:id', async (req, res) => {
-    try {
-        const profileId = req.params.id;
-        
-        console.log(`👤 ЗАПРОС ПРОФИЛЯ ID: ${profileId}`);
-        
-        const profile = await db.get(
-            `SELECT * FROM student_profiles WHERE id = ?`,
-            [profileId]
-        );
-        
-        if (!profile) {
-            return res.status(404).json({
-                success: false,
-                error: 'Профиль не найден'
-            });
-        }
-        
-        // Рассчитываем прогресс
-        let progress = 0;
-        if (profile.total_classes > 0) {
-            progress = Math.round((profile.used_classes / profile.total_classes) * 100);
-        }
-        
-        res.json({
-            success: true,
-            data: {
-                profile: {
-                    student: {
-                        id: profile.id,
-                        name: profile.student_name,
-                        phone: profile.phone_number,
-                        email: profile.email,
-                        birth_date: profile.birth_date,
-                        branch: profile.branch || 'Филиал не указан',
-                        age_group: profile.age_group,
-                        course: profile.course,
-                        allergies: profile.allergies
-                    },
-                    schedule: {
-                        day_of_week: profile.day_of_week,
-                        time_slot: profile.time_slot,
-                        teacher_name: profile.teacher_name
-                    },
-                    subscription: {
-                        type: profile.subscription_type,
-                        status: profile.subscription_status,
-                        badge: profile.subscription_badge,
-                        is_active: profile.subscription_active === 1,
-                        classes: {
-                            total: profile.total_classes,
-                            used: profile.used_classes,
-                            remaining: profile.remaining_classes,
-                            progress: progress
-                        },
-                        dates: {
-                            activation: profile.activation_date,
-                            expiration: profile.expiration_date,
-                            last_visit: profile.last_visit_date
-                        }
-                    },
-                    parent: profile.parent_name ? {
-                        name: profile.parent_name
-                    } : null
-                },
-                stats: {
-                    total_visits: profile.used_classes || 0,
-                    remaining_classes: profile.remaining_classes || 0,
-                    usage_percentage: progress,
-                    last_sync: profile.last_sync
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка получения профиля:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения профиля'
-        });
-    }
-});
+// ==================== ОБНОВЛЕННЫЕ API МАРШРУТЫ (ЗАМЕНИТЕ ЭТУ СЕКЦИЮ) ====================
 
-app.get('/api/profiles', async (req, res) => {
-    try {
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                error: 'Токен не предоставлен'
-            });
-        }
-        
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const phone = decoded.phone;
-        
-        const profiles = await db.all(
-            `SELECT * FROM student_profiles 
-             WHERE phone_number = ? AND is_active = 1
-             ORDER BY 
-               CASE WHEN subscription_active = 1 THEN 1 ELSE 2 END,
-               student_name`,
-            [phone]
-        );
-        
-        const formattedProfiles = profiles.map(p => ({
-            id: p.id,
-            student_name: p.student_name,
-            branch: p.branch || 'Филиал не указан',
-            teacher_name: p.teacher_name,
-            subscription_type: p.subscription_type,
-            subscription_status: p.subscription_status,
-            subscription_badge: p.subscription_badge,
-            total_classes: p.total_classes,
-            remaining_classes: p.remaining_classes,
-            used_classes: p.used_classes,
-            expiration_date: p.expiration_date,
-            last_visit_date: p.last_visit_date,
-            is_active: p.subscription_active === 1,
-            last_sync: p.last_sync
-        }));
-        
-        res.json({
-            success: true,
-            data: {
-                profiles: formattedProfiles,
-                total: profiles.length,
-                has_multiple: profiles.length > 1,
-                last_sync: profiles.length > 0 ? profiles[0].last_sync : null
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка получения профилей:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения профилей'
-        });
-    }
-});
-
-app.get('/api/health', (req, res) => {
-    res.json({
-        success: true,
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        amocrm_status: amoCrmService.isInitialized ? 'connected' : 'disconnected',
-        sync_status: syncService.getSyncStatus()
-    });
-});
-
-app.get('/api/crm/status', async (req, res) => {
-    try {
-        const isValid = amoCrmService.isInitialized;
-        
-        res.json({
-            success: true,
-            data: {
-                connected: isValid,
-                account_name: amoCrmService.accountInfo?.name || null,
-                subdomain: AMOCRM_SUBDOMAIN,
-                last_check: new Date().toISOString(),
-                field_count: amoCrmService.fieldMappings.size
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка проверки статуса CRM:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка проверки статуса CRM'
-        });
-    }
-});
-
-// ==================== ПРОДОЛЖЕНИЕ server.js (добавить перед startServer) ====================
-
-// 📍 ПРОФИЛЬ ПО ID
+// 📍 1. ПРОФИЛЬ ПО ID (УДАЛИТЕ ВТОРОЙ ДУБЛИКАТ)
 app.get('/api/profile/:id', async (req, res) => {
     try {
         const profileId = req.params.id;
@@ -3257,7 +3081,7 @@ app.get('/api/profile/:id', async (req, res) => {
     }
 });
 
-// 📍 ВСЕ ПРОФИЛИ ПОЛЬЗОВАТЕЛЯ
+// 📍 2. ВСЕ ПРОФИЛИ ПОЛЬЗОВАТЕЛЯ (УДАЛИТЕ ВТОРОЙ ДУБЛИКАТ)
 app.get('/api/profiles', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
@@ -3317,7 +3141,7 @@ app.get('/api/profiles', async (req, res) => {
     }
 });
 
-// 📍 ПРОВЕРКА ЗДОРОВЬЯ
+// 📍 3. ПРОВЕРКА ЗДОРОВЬЯ (УДАЛИТЕ ВТОРОЙ ДУБЛИКАТ)
 app.get('/api/health', (req, res) => {
     res.json({
         success: true,
@@ -3329,7 +3153,7 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// 📍 СТАТУС CRM
+// 📍 4. СТАТУС CRM (УДАЛИТЕ ВТОРОЙ ДУБЛИКАТ)
 app.get('/api/crm/status', async (req, res) => {
     try {
         const isValid = amoCrmService.isInitialized;
@@ -3354,11 +3178,12 @@ app.get('/api/crm/status', async (req, res) => {
     }
 });
 
-// 📍 СТАТУС СИНХРОНИЗАЦИИ
+// 📍 5. СТАТУС СИНХРОНИЗАЦИИ (УДАЛИТЕ ВТОРОЙ ДУБЛИКАТ)
 app.get('/api/sync/status', async (req, res) => {
     try {
         const status = syncService.getSyncStatus();
         
+        // Получаем статистику из логов
         const lastSync = await db.get(
             `SELECT * FROM sync_logs 
              WHERE sync_type = 'auto_sync' 
@@ -3395,7 +3220,7 @@ app.get('/api/sync/status', async (req, res) => {
     }
 });
 
-// 📍 РУЧНАЯ СИНХРОНИЗАЦИЯ ТЕЛЕФОНА
+// 📍 6. РУЧНАЯ СИНХРОНИЗАЦИЯ ТЕЛЕФОНА (УДАЛИТЕ ВТОРОЙ ДУБЛИКАТ)
 app.post('/api/sync/phone', async (req, res) => {
     try {
         const { phone } = req.body;
@@ -3425,6 +3250,85 @@ app.post('/api/sync/phone', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Ошибка синхронизации'
+        });
+    }
+});
+
+// ==================== НОВЫЙ ДИАГНОСТИЧЕСКИЙ МАРШРУТ ====================
+
+// 📍 7. ПРОВЕРКА КОНТАКТОВ СДЕЛКИ (ДОБАВЬТЕ ЭТОТ МАРШРУТ)
+app.get('/api/debug/lead-contacts/:id', async (req, res) => {
+    try {
+        const leadId = req.params.id;
+        
+        console.log(`\n🔍 ПОЛУЧЕНИЕ КОНТАКТОВ СДЕЛКИ ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                message: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Получаем контакты сделки
+        const contactsResponse = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}/contacts`
+        );
+        
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        // Получаем информацию о каждом контакте
+        const contactsInfo = [];
+        for (const contact of contacts) {
+            const fullContact = await amoCrmService.makeRequest(
+                'GET',
+                `/api/v4/contacts/${contact.id}?with=custom_fields_values`
+            );
+            
+            contactsInfo.push({
+                id: contact.id,
+                name: fullContact.name,
+                phone: amoCrmService.findEmail(fullContact) || 'не указан',
+                created_at: fullContact.created_at,
+                is_main: contact.is_main || false
+            });
+        }
+        
+        // Получаем информацию о сделке
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        res.json({
+            success: true,
+            message: 'Контакты сделки получены',
+            timestamp: new Date().toISOString(),
+            data: {
+                lead: {
+                    id: lead.id,
+                    name: lead.name,
+                    status_id: lead.status_id,
+                    created_at: lead.created_at
+                },
+                subscription: subscriptionInfo,
+                contacts: {
+                    count: contacts.length,
+                    items: contactsInfo
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения контактов сделки:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка получения контактов',
+            error: error.message,
+            lead_id: req.params.id
         });
     }
 });
@@ -3479,6 +3383,7 @@ const startServer = async () => {
             console.log(`📋 Абонемент: POST http://localhost:${PORT}/api/subscription`);
             console.log(`🔄 Статус синхронизации: GET http://localhost:${PORT}/api/sync/status`);
             console.log(`🔧 Ручная синхронизация: POST http://localhost:${PORT}/api/sync/phone`);
+            console.log(`🔍 Контакты сделки: GET http://localhost:${PORT}/api/debug/lead-contacts/28658501`);
             console.log('='.repeat(50));
         });
         
@@ -3504,4 +3409,4 @@ const startServer = async () => {
     }
 };
 
-startServer()
+startServer();
