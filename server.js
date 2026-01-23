@@ -1098,131 +1098,230 @@ findBestLeadForStudent(studentName, leads) {
 }
 
    
-   async getContactLeadsSorted(contactId) {
+  async getContactLeadsSorted(contactId) {
     try {
-        console.log(`🔍 ПОЛНЫЙ ПОИСК СДЕЛОК ДЛЯ КОНТАКТА ${contactId}`);
+        console.log(`\n🔍 ПОЛНЫЙ ПОИСК ВСЕХ СДЕЛОК КОНТАКТА ${contactId}`);
         
-        // СПОСОБ 1: Прямой поиск сделок через фильтр контакта
-        console.log('🔍 Способ 1: Поиск через filter[contact_id]...');
-        let allLeads = [];
+        const allLeads = [];
         
+        // СПОСОБ 1: Основной способ - через фильтр contact_id
+        console.log('1️⃣  Основной поиск через filter[contact_id]...');
         try {
-            const response = await this.makeRequest(
-                'GET',
-                `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&limit=250`
-            );
+            // Делаем несколько запросов чтобы охватить все статусы
+            const statusesToCheck = [
+                null, // все статусы
+                65473306, // Активный абонемент
+                65473286, // Закончился
+                72490890 // Активирован
+            ];
             
-            allLeads = response._embedded?.leads || [];
-            console.log(`📊 Найдено сделок через filter[contact_id]: ${allLeads.length}`);
+            for (const statusId of statusesToCheck) {
+                let url = `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&limit=250`;
+                if (statusId) {
+                    url += `&filter[status_id][]=${statusId}`;
+                }
+                
+                try {
+                    const response = await this.makeRequest('GET', url);
+                    const leads = response._embedded?.leads || [];
+                    
+                    // Добавляем только новые сделки
+                    leads.forEach(lead => {
+                        if (!allLeads.some(l => l.id === lead.id)) {
+                            allLeads.push(lead);
+                        }
+                    });
+                    
+                    console.log(`   • Статус ${statusId || 'все'}: ${leads.length} сделок`);
+                } catch (statusError) {
+                    console.log(`   • Ошибка статуса ${statusId}: ${statusError.message}`);
+                }
+            }
         } catch (error) {
-            console.log(`⚠️  Ошибка filter[contact_id]: ${error.message}`);
+            console.log(`⚠️  Ошибка основного поиска: ${error.message}`);
         }
         
-        // СПОСОБ 2: Поиск через связанные сущности (если первый способ не сработал)
+        // СПОСОБ 2: Через связанные сущности контакта
+        console.log('2️⃣  Поиск через связанные сущности...');
         if (allLeads.length === 0) {
-            console.log('🔍 Способ 2: Поиск через linked entities...');
             try {
-                // Получаем контакт с привязанными сделками
                 const contactResponse = await this.makeRequest(
                     'GET',
                     `/api/v4/contacts/${contactId}?with=leads`
                 );
                 
                 if (contactResponse._embedded && contactResponse._embedded.leads) {
-                    // Получаем полную информацию о каждой сделке
-                    const leadPromises = contactResponse._embedded.leads.map(lead => 
-                        this.makeRequest('GET', `/api/v4/leads/${lead.id}?with=custom_fields_values`)
-                    );
+                    // Ограничиваем количество параллельных запросов
+                    const batchSize = 10;
+                    const leads = contactResponse._embedded.leads;
                     
-                    const leadsResponses = await Promise.allSettled(leadPromises);
-                    allLeads = leadsResponses
-                        .filter(result => result.status === 'fulfilled')
-                        .map(result => result.value);
-                    
-                    console.log(`📊 Найдено сделок через linked entities: ${allLeads.length}`);
-                }
-            } catch (error) {
-                console.log(`⚠️  Ошибка linked entities: ${error.message}`);
-            }
-        }
-        
-        // СПОСОБ 3: Поиск по всем сделкам с фильтрацией (крайний случай)
-        if (allLeads.length === 0) {
-            console.log('🔍 Способ 3: Полный поиск с фильтрацией...');
-            try {
-                // Ищем сделки по последнему году
-                const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 24 * 60 * 60);
-                const response = await this.makeRequest(
-                    'GET',
-                    `/api/v4/leads?with=custom_fields_values&filter[created_at][from]=${oneYearAgo}&limit=100`
-                );
-                
-                // Фильтруем сделки, которые могут быть связаны с этим контактом
-                const potentialLeads = response._embedded?.leads || [];
-                
-                // Для каждой сделки проверяем привязанные контакты
-                for (const lead of potentialLeads) {
-                    try {
-                        const contactsResponse = await this.makeRequest(
-                            'GET',
-                            `/api/v4/leads/${lead.id}/contacts`
+                    for (let i = 0; i < leads.length; i += batchSize) {
+                        const batch = leads.slice(i, i + batchSize);
+                        const promises = batch.map(lead =>
+                            this.makeRequest('GET', `/api/v4/leads/${lead.id}?with=custom_fields_values`)
+                                .catch(e => {
+                                    console.log(`   • Ошибка сделки ${lead.id}: ${e.message}`);
+                                    return null;
+                                })
                         );
                         
-                        const contacts = contactsResponse._embedded?.contacts || [];
-                        const hasOurContact = contacts.some(c => c.id === contactId);
-                        
-                        if (hasOurContact) {
-                            allLeads.push(lead);
-                        }
-                    } catch (e) {
-                        // Пропускаем ошибки проверки отдельных сделок
+                        const results = await Promise.all(promises);
+                        results.forEach(lead => {
+                            if (lead && !allLeads.some(l => l.id === lead.id)) {
+                                allLeads.push(lead);
+                            }
+                        });
                     }
+                    
+                    console.log(`   • Найдено через linked: ${contactResponse._embedded.leads.length} сделок`);
                 }
-                
-                console.log(`📊 Найдено сделок через полный поиск: ${allLeads.length}`);
             } catch (error) {
-                console.log(`⚠️  Ошибка полного поиска: ${error.message}`);
+                console.log(`⚠️  Ошибка связанных сущностей: ${error.message}`);
             }
         }
         
-        // ДИАГНОСТИЧЕСКИЙ ВЫВОД
-        console.log(`\n📊 ИТОГО сделок для контакта ${contactId}: ${allLeads.length}`);
-        
-        if (allLeads.length > 0) {
-            console.log('\n📋 СПИСОК ВСЕХ НАЙДЕННЫХ СДЕЛОК:');
-            allLeads.forEach((lead, index) => {
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                const hasAbonement = lead.name && (
-                    lead.name.includes('абонемент') || 
-                    lead.name.includes('занят') ||
-                    subscriptionInfo.hasSubscription
-                );
+        // СПОСОБ 3: Поиск через все сделки с фильтрацией по дате
+        console.log('3️⃣  Поиск через все сделки (за последний год)...');
+        if (allLeads.length < 5) { // Если нашли мало сделок, ищем более агрессивно
+            try {
+                const oneYearAgo = Math.floor(Date.now() / 1000) - (365 * 24 * 60 * 60);
                 
-                console.log(`  ${index + 1}. "${lead.name || 'Без названия'}"`);
-                console.log(`     • ID: ${lead.id}`);
-                console.log(`     • Статус ID: ${lead.status_id}`);
-                console.log(`     • Абонемент: ${hasAbonement ? 'Да' : 'Нет'}`);
-                if (hasAbonement) {
-                    console.log(`     • Занятий: ${subscriptionInfo.totalClasses}`);
-                    console.log(`     • Осталось: ${subscriptionInfo.remainingClasses}`);
+                // Ищем сделки контакта за последний год
+                let page = 1;
+                let hasMore = true;
+                
+                while (hasMore && page <= 5) {
+                    const response = await this.makeRequest(
+                        'GET',
+                        `/api/v4/leads?with=custom_fields_values&filter[created_at][from]=${oneYearAgo}&page=${page}&limit=100`
+                    );
+                    
+                    const leads = response._embedded?.leads || [];
+                    console.log(`   • Страница ${page}: ${leads.length} сделок`);
+                    
+                    if (leads.length === 0) {
+                        hasMore = false;
+                        break;
+                    }
+                    
+                    // Проверяем каждую сделку на привязку к нашему контакту
+                    for (const lead of leads) {
+                        try {
+                            // Быстрая проверка: если сделка уже в списке, пропускаем
+                            if (allLeads.some(l => l.id === lead.id)) continue;
+                            
+                            const contactsResponse = await this.makeRequest(
+                                'GET',
+                                `/api/v4/leads/${lead.id}/contacts`
+                            );
+                            
+                            const contacts = contactsResponse._embedded?.contacts || [];
+                            const hasContact = contacts.some(c => c.id === contactId);
+                            
+                            if (hasContact) {
+                                allLeads.push(lead);
+                                console.log(`   • ✅ Найдена скрытая сделка: ${lead.id} - "${lead.name}"`);
+                            }
+                        } catch (leadError) {
+                            // Пропускаем ошибки проверки отдельных сделок
+                        }
+                    }
+                    
+                    page++;
                 }
-                console.log(`     • Создана: ${new Date(lead.created_at * 1000).toLocaleDateString('ru-RU')}`);
-                console.log('---');
+            } catch (error) {
+                console.log(`⚠️  Ошибка агрессивного поиска: ${error.message}`);
+            }
+        }
+        
+        // УБИРАЕМ ДУБЛИКАТЫ
+        const uniqueLeads = [];
+        const seenIds = new Set();
+        
+        allLeads.forEach(lead => {
+            if (!seenIds.has(lead.id)) {
+                seenIds.add(lead.id);
+                uniqueLeads.push(lead);
+            }
+        });
+        
+        // СОРТИРУЕМ ПО ДАТЕ СОЗДАНИЯ (новые сначала)
+        uniqueLeads.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+        
+        console.log(`\n📊 ИТОГО уникальных сделок: ${uniqueLeads.length}`);
+        
+        // ДЕТАЛЬНАЯ ДИАГНОСТИКА
+        if (uniqueLeads.length > 0) {
+            console.log('\n📋 ДЕТАЛЬНЫЙ СПИСОК ВСЕХ СДЕЛОК:');
+            
+            uniqueLeads.forEach((lead, index) => {
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                const leadName = lead.name || 'Без названия';
+                const isTargetLead = lead.id === 28658501; // Целевая сделка для Киры
+                
+                console.log(`\n  ${index + 1}. ${isTargetLead ? '🎯 ' : ''}"${leadName}"`);
+                console.log(`     • ID: ${lead.id} ${isTargetLead ? '(ЦЕЛЕВАЯ СДЕЛКА!)' : ''}`);
+                console.log(`     • Статус ID: ${lead.status_id}`);
+                console.log(`     • Создана: ${new Date((lead.created_at || 0) * 1000).toLocaleDateString('ru-RU')}`);
+                console.log(`     • Обновлена: ${new Date((lead.updated_at || 0) * 1000).toLocaleDateString('ru-RU')}`);
+                
+                if (subscriptionInfo.hasSubscription) {
+                    console.log(`     🎫 АБОНЕМЕНТ:`);
+                    console.log(`        • Занятий: ${subscriptionInfo.totalClasses}`);
+                    console.log(`        • Использовано: ${subscriptionInfo.usedClasses}`);
+                    console.log(`        • Осталось: ${subscriptionInfo.remainingClasses}`);
+                    console.log(`        • Статус: ${subscriptionInfo.subscriptionStatus}`);
+                    console.log(`        • Тип: ${subscriptionInfo.subscriptionType}`);
+                    console.log(`        • Активация: ${subscriptionInfo.activationDate || 'нет'}`);
+                    console.log(`        • Окончание: ${subscriptionInfo.expirationDate || 'нет'}`);
+                } else {
+                    console.log(`     • Абонемент: Нет`);
+                }
+                
+                // Выводим первые 3 поля для диагностики
+                if (lead.custom_fields_values && lead.custom_fields_values.length > 0) {
+                    console.log(`     • Поля (первые 3):`);
+                    lead.custom_fields_values.slice(0, 3).forEach(field => {
+                        const fieldName = this.getFieldName(field);
+                        const fieldValue = this.getFieldValue(field);
+                        console.log(`        - ${fieldName}: ${fieldValue}`);
+                    });
+                }
             });
         }
         
-        // Фильтруем только сделки с абонементами для основного использования
-        const subscriptionLeads = allLeads.filter(lead => {
-            const subscriptionInfo = this.extractSubscriptionInfo(lead);
-            return subscriptionInfo.hasSubscription;
-        });
+        // ОТДЕЛЬНАЯ ПРОВЕРКА ЦЕЛЕВОЙ СДЕЛКИ 28658501
+        console.log('\n🔎 ОТДЕЛЬНАЯ ПРОВЕРКА СДЕЛКИ 28658501:');
+        const targetLead = uniqueLeads.find(l => l.id === 28658501);
+        if (targetLead) {
+            console.log('✅ Сделка 28658501 НАЙДЕНА в общем списке!');
+            const subInfo = this.extractSubscriptionInfo(targetLead);
+            console.log(`   • Название: "${targetLead.name}"`);
+            console.log(`   • Занятий: ${subInfo.totalClasses}`);
+            console.log(`   • Осталось: ${subInfo.remainingClasses}`);
+        } else {
+            console.log('❌ Сделка 28658501 НЕ НАЙДЕНА в общем списке!');
+            console.log('🔍 Пробуем получить её отдельно...');
+            
+            try {
+                const specificLead = await this.makeRequest(
+                    'GET',
+                    `/api/v4/leads/28658501?with=custom_fields_values`
+                );
+                
+                if (specificLead) {
+                    uniqueLeads.push(specificLead);
+                    console.log('✅ Сделка 28658501 получена отдельно и добавлена в список');
+                }
+            } catch (specificError) {
+                console.log(`⚠️  Не удалось получить сделку 28658501: ${specificError.message}`);
+            }
+        }
         
-        console.log(`\n🎫 Сделок с абонементами: ${subscriptionLeads.length}`);
-        
-        return allLeads; // Возвращаем все сделки, а не только с абонементами
+        return uniqueLeads;
         
     } catch (error) {
-        console.error(`❌ Критическая ошибка получения сделок: ${error.message}`);
+        console.error(`❌ КРИТИЧЕСКАЯ ОШИБКА получения сделок: ${error.message}`);
         return [];
     }
 }
@@ -2469,6 +2568,74 @@ app.post('/api/subscription', async (req, res) => {
 });
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+
+app.get('/api/debug/contact-leads-diagnostic/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.id;
+        
+        console.log(`\n🔍 ДИАГНОСТИКА СДЕЛОК КОНТАКТА ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                message: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Получаем сделки через обновленный метод
+        const leads = await amoCrmService.getContactLeadsSorted(contactId);
+        
+        // Группируем по типам
+        const subscriptionLeads = [];
+        const otherLeads = [];
+        
+        leads.forEach(lead => {
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            if (subscriptionInfo.hasSubscription) {
+                subscriptionLeads.push({
+                    id: lead.id,
+                    name: lead.name,
+                    status_id: lead.status_id,
+                    subscription: subscriptionInfo
+                });
+            } else {
+                otherLeads.push({
+                    id: lead.id,
+                    name: lead.name,
+                    status_id: lead.status_id
+                });
+            }
+        });
+        
+        res.json({
+            success: true,
+            message: 'Диагностика сделок завершена',
+            timestamp: new Date().toISOString(),
+            data: {
+                contact_id: contactId,
+                total_leads: leads.length,
+                subscription_leads: {
+                    count: subscriptionLeads.length,
+                    items: subscriptionLeads
+                },
+                other_leads: {
+                    count: otherLeads.length,
+                    items: otherLeads.slice(0, 10) // Ограничиваем вывод
+                },
+                target_lead_28658501_found: leads.some(l => l.id === 28658501)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики сделок:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка диагностики',
+            error: error.message,
+            contact_id: req.params.id
+        });
+    }
+});
 
 // Проверка связи с amoCRM
 app.get('/api/debug/connection', async (req, res) => {
