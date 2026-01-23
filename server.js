@@ -1197,7 +1197,12 @@ parseClassesCount(value) {
         return field.name || this.fieldCache.leadFields.get(field.field_id || field.id)?.name || 'Неизвестно';
     }
 
-    
+    getFieldValue(field) {
+        if (!field.values || !field.values[0]) return '';
+        const value = field.values[0];
+        return value.value || '';
+    }
+
     parseDate(dateStr) {
         try {
             if (!dateStr) return '';
@@ -1300,7 +1305,7 @@ async searchContactsByPhone(phoneNumber) {
         console.error('❌ Ошибка поиска контактов:', error.message);
         return { _embedded: { contacts: [] } };
     }
-},
+}
 
 // 🔧 ДОБАВЬ ТАКЖЕ ЭТОТ МЕТОД для getFieldValue
 getFieldValue(field) {
@@ -1319,11 +1324,11 @@ getFieldValue(field) {
         }
         
         return '';
-        } catch (error) {
-            return '';
-        }
+    } catch (error) {
+        return '';
     }
-} 
+}
+}
 // Создаем экземпляр сервиса amoCRM
 const amoCrmService = new AmoCrmService();
 
@@ -2819,4 +2824,4 @@ const startServer = async () => {
     }
 };
 
-startServer();
+startServer(); 
