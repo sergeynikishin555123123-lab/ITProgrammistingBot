@@ -153,6 +153,111 @@ class AmoCrmService {
         }
     }
 
+// ДОБАВЬТЕ этот метод в класс AmoCrmService
+async debugLeadFields(leadId) {
+    try {
+        console.log(`\n🔍 ДИАГНОСТИКА ПОЛЕЙ СДЕЛКИ ${leadId}`);
+        
+        const lead = await this.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            console.log('❌ Сделка не найдена');
+            return;
+        }
+        
+        console.log(`📋 Название сделки: "${lead.name}"`);
+        console.log(`📊 Поля сделки:`);
+        console.log('='.repeat(80));
+        
+        if (!lead.custom_fields_values || lead.custom_fields_values.length === 0) {
+            console.log('❌ Нет пользовательских полей');
+            return;
+        }
+        
+        // Группируем поля по ID
+        const fieldMap = {};
+        
+        lead.custom_fields_values.forEach((field, index) => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = this.getFieldNameById(fieldId);
+            const fieldValue = this.getFieldValue(field);
+            const rawValues = field.values || [];
+            
+            fieldMap[fieldId] = {
+                name: fieldName,
+                value: fieldValue,
+                raw: rawValues
+            };
+            
+            console.log(`${index + 1}. Поле ID: ${fieldId}`);
+            console.log(`   Название: ${fieldName}`);
+            console.log(`   Значение: "${fieldValue}"`);
+            console.log(`   RAW values:`, JSON.stringify(rawValues, null, 2));
+            
+            // Особое внимание к полю "Абонемент занятий:"
+            if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
+                console.log(`   ⭐ ЭТО ПОЛЕ "АБОНЕМЕНТ ЗАНЯТИЙ:"`);
+                console.log(`     Парсинг значения: "${fieldValue}"`);
+                
+                if (rawValues.length > 0) {
+                    const firstValue = rawValues[0];
+                    if (typeof firstValue === 'object') {
+                        console.log(`     Объект raw value:`, firstValue);
+                        console.log(`     enum_id: ${firstValue.enum_id}`);
+                        console.log(`     enum_value: ${firstValue.enum_value}`);
+                        console.log(`     value: ${firstValue.value}`);
+                    }
+                }
+            }
+            console.log('---');
+        });
+        
+        // Выводим важные поля
+        console.log('\n🎯 ВАЖНЫЕ ПОЛЯ АБОНЕМЕНТА:');
+        console.log('='.repeat(80));
+        
+        const importantFields = [
+            this.FIELD_IDS.LEAD.TOTAL_CLASSES,
+            this.FIELD_IDS.LEAD.TECHNICAL_CLASSES,
+            this.FIELD_IDS.LEAD.USED_CLASSES,
+            this.FIELD_IDS.LEAD.REMAINING_CLASSES,
+            this.FIELD_IDS.LEAD.EXPIRATION_DATE,
+            this.FIELD_IDS.LEAD.ACTIVATION_DATE
+        ];
+        
+        importantFields.forEach(fieldId => {
+            if (fieldMap[fieldId]) {
+                const field = fieldMap[fieldId];
+                console.log(`Поле ${fieldId} (${field.name}):`);
+                console.log(`  Значение: "${field.value}"`);
+                console.log(`  RAW:`, JSON.stringify(field.raw));
+            }
+        });
+        
+        // Анализируем данные
+        const subscriptionData = this.extractSubscriptionData(lead);
+        
+        console.log('\n📊 РЕЗУЛЬТАТ АНАЛИЗА:');
+        console.log('='.repeat(80));
+        console.log(`Всего занятий: ${subscriptionData.totalClasses}`);
+        console.log(`Использовано: ${subscriptionData.usedClasses}`);
+        console.log(`Осталось: ${subscriptionData.remainingClasses}`);
+        console.log(`Дата окончания: ${subscriptionData.expirationDate || 'не указана'}`);
+        
+        return {
+            lead: lead,
+            fields: fieldMap,
+            subscription: subscriptionData
+        };
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики:', error.message);
+    }
+}
+    
     async searchContactsByPhone(phoneNumber) {
         console.log(`\n🔍 ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
         
@@ -285,117 +390,229 @@ class AmoCrmService {
     }
 
     // НОВЫЙ МЕТОД: Извлечение точных данных об абонементе
-    extractSubscriptionData(lead) {
-        const data = {
-            totalClasses: 0,
-            usedClasses: 0,
-            remainingClasses: 0,
-            expirationDate: null,
-            activationDate: null,
-            lastVisitDate: null,
-            subscriptionType: '',
-            isFrozen: false,
-            branch: '',
-            teacher: ''
-        };
-        
-        if (!lead || !lead.custom_fields_values) {
-            return data;
-        }
-        
-        console.log(`\n📊 Анализ полей сделки ID: ${lead.id}`);
-        
-        // Проходим по ВСЕМ полям и выводим их для диагностики
-        lead.custom_fields_values.forEach(field => {
-            const fieldId = field.field_id || field.id;
-            const fieldName = this.getFieldNameById(fieldId);
-            const fieldValue = this.getFieldValue(field);
-            
-            console.log(`   📋 Поле ${fieldId} (${fieldName}): ${fieldValue}`);
-        });
-        
-        // Теперь извлекаем конкретные данные
-        lead.custom_fields_values.forEach(field => {
-            const fieldId = field.field_id || field.id;
-            const fieldValue = this.getFieldValue(field);
-            
-            if (!fieldValue) return;
-            
-            switch (fieldId) {
-                // ОБЩЕЕ КОЛИЧЕСТВО ЗАНЯТИЙ (из селекта)
-                case this.FIELD_IDS.LEAD.TOTAL_CLASSES:
-                    data.totalClasses = this.parseClassCountFromSelect(fieldValue);
-                    break;
-                    
-                // ТЕХНИЧЕСКОЕ КОЛИЧЕСТВО ЗАНЯТИЙ (числовое поле)
-                case this.FIELD_IDS.LEAD.TECHNICAL_CLASSES:
-                    const techClasses = parseInt(fieldValue);
-                    if (techClasses > 0) {
-                        data.totalClasses = techClasses;
-                    }
-                    break;
-                    
-                // СЧЕТЧИК ЗАНЯТИЙ (из селекта)
-                case this.FIELD_IDS.LEAD.USED_CLASSES:
-                    data.usedClasses = this.parseUsedClasses(fieldValue);
-                    break;
-                    
-                // ОСТАТОК ЗАНЯТИЙ (числовое поле)
-                case this.FIELD_IDS.LEAD.REMAINING_CLASSES:
-                    data.remainingClasses = parseInt(fieldValue) || 0;
-                    break;
-                    
-                // ДАТА ОКОНЧАНИЯ
-                case this.FIELD_IDS.LEAD.EXPIRATION_DATE:
-                    data.expirationDate = this.parseDate(fieldValue);
-                    break;
-                    
-                // ДАТА АКТИВАЦИИ
-                case this.FIELD_IDS.LEAD.ACTIVATION_DATE:
-                    data.activationDate = this.parseDate(fieldValue);
-                    break;
-                    
-                // ДАТА ПОСЛЕДНЕГО ВИЗИТА
-                case this.FIELD_IDS.LEAD.LAST_VISIT_DATE:
-                    data.lastVisitDate = this.parseDate(fieldValue);
-                    break;
-                    
-                // ТИП АБОНЕМЕНТА
-                case this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE:
-                    data.subscriptionType = fieldValue;
-                    break;
-                    
-                // ЗАМОРОЗКА
-                case this.FIELD_IDS.LEAD.FREEZE:
-                    data.isFrozen = fieldValue === 'ДА' || fieldValue === '1';
-                    break;
-                    
-                // ФИЛИАЛ
-                case this.FIELD_IDS.LEAD.BRANCH:
-                    data.branch = fieldValue;
-                    break;
-            }
-        });
-        
-        // Если остаток не указан, но есть общее количество и счетчик - вычисляем
-        if (data.remainingClasses === 0 && data.totalClasses > 0 && data.usedClasses > 0) {
-            data.remainingClasses = Math.max(0, data.totalClasses - data.usedClasses);
-        }
-        
-        // Если счетчик не указан, но есть общее количество и остаток - вычисляем
-        if (data.usedClasses === 0 && data.totalClasses > 0 && data.remainingClasses > 0) {
-            data.usedClasses = Math.max(0, data.totalClasses - data.remainingClasses);
-        }
-        
-        console.log(`\n📊 ИТОГОВЫЕ ДАННЫЕ:`);
-        console.log(`   • Всего занятий: ${data.totalClasses}`);
-        console.log(`   • Использовано: ${data.usedClasses}`);
-        console.log(`   • Осталось: ${data.remainingClasses}`);
-        console.log(`   • Дата окончания: ${data.expirationDate || 'не указана'}`);
-        console.log(`   • Дата активации: ${data.activationDate || 'не указана'}`);
-        
+    // ЗАМЕНИТЕ метод extractSubscriptionData на этот:
+extractSubscriptionData(lead) {
+    const data = {
+        totalClasses: 0,
+        usedClasses: 0,
+        remainingClasses: 0,
+        expirationDate: null,
+        activationDate: null,
+        lastVisitDate: null,
+        subscriptionType: '',
+        isFrozen: false,
+        branch: '',
+        teacher: ''
+    };
+    
+    if (!lead || !lead.custom_fields_values) {
         return data;
     }
+    
+    console.log(`\n📊 Анализ полей сделки ID: ${lead.id} ("${lead.name}")`);
+    
+    // Проходим по ВСЕМ полям и группируем их для отладки
+    const fieldsByType = {};
+    
+    lead.custom_fields_values.forEach(field => {
+        const fieldId = field.field_id || field.id;
+        const fieldName = this.getFieldNameById(fieldId);
+        const fieldValue = this.getFieldValue(field);
+        const rawValues = field.values || [];
+        
+        console.log(`   📋 Поле ${fieldId} (${fieldName}): "${fieldValue}"`);
+        console.log(`     📌 RAW values:`, JSON.stringify(rawValues));
+        
+        // Сохраняем для анализа
+        if (!fieldsByType[fieldId]) {
+            fieldsByType[fieldId] = [];
+        }
+        fieldsByType[fieldId].push({
+            value: fieldValue,
+            raw: rawValues
+        });
+        
+        // ОБЩЕЕ КОЛИЧЕСТВО ЗАНЯТИЙ - поле 850241 (селект)
+        if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
+            console.log(`   🎯 Это поле "Абонемент занятий:" (${fieldId})`);
+            
+            // Смотрим на raw values чтобы получить enum_id
+            if (rawValues.length > 0) {
+                const firstValue = rawValues[0];
+                if (typeof firstValue === 'object' && firstValue !== null) {
+                    // Пытаемся получить enum_id
+                    const enumId = firstValue.enum_id || firstValue.enum_value || firstValue.value;
+                    console.log(`     🎯 enum_id: ${enumId}`);
+                    
+                    // Мапим enum_id на количество занятий
+                    const classCountMap = {
+                        // Основные значения
+                        '504033': 4,   // "4 занятия"
+                        '504035': 8,   // "8 занятий"
+                        '504037': 16,  // "16 занятий"
+                        '557385': 24,  // "24 Занятия"
+                        '557137': 2,   // "2 занятия"
+                        '557139': 3,   // "3 занятия"
+                        '504237': 5,   // "База Блок № 1 - 5 занятий"
+                        '504239': 6,   // "База Блок № 2 - 6 занятий"
+                        '504241': 5,   // "База Блок № 3 - 5 занятий"
+                        '504243': 16,  // "База - 16 занятий"
+                        '504039': 4,   // "Продвинутый 4 занятия"
+                        '504041': 8,   // "Продвинутый 8 занятий"
+                        '504043': 16,  // "Продвинутый 16 занятий"
+                        '507129': 1    // "Разовый"
+                    };
+                    
+                    if (classCountMap[enumId]) {
+                        data.totalClasses = classCountMap[enumId];
+                        console.log(`     ✅ Определено: ${data.totalClasses} занятий`);
+                    } else {
+                        // Парсим из текста
+                        const parsed = this.parseClassCountFromSelect(fieldValue);
+                        if (parsed > 0) {
+                            data.totalClasses = parsed;
+                            console.log(`     📊 Парсинг из текста: ${data.totalClasses} занятий`);
+                        }
+                    }
+                } else {
+                    // Если это просто строка
+                    const parsed = this.parseClassCountFromSelect(fieldValue);
+                    if (parsed > 0) {
+                        data.totalClasses = parsed;
+                        console.log(`     📊 Парсинг из строки: ${data.totalClasses} занятий`);
+                    }
+                }
+            }
+        }
+        
+        // ТЕХНИЧЕСКОЕ КОЛИЧЕСТВО ЗАНЯТИЙ - поле 891819 (числовое)
+        else if (fieldId === this.FIELD_IDS.LEAD.TECHNICAL_CLASSES) {
+            console.log(`   🎯 Это поле "Количество занятий (тех)" (${fieldId})`);
+            const techClasses = parseInt(fieldValue);
+            if (!isNaN(techClasses) && techClasses > 0) {
+                data.totalClasses = techClasses;
+                console.log(`     ✅ Техническое количество: ${techClasses} занятий`);
+            }
+        }
+        
+        // СЧЕТЧИК ЗАНЯТИЙ - поле 850257 (селект 1-24)
+        else if (fieldId === this.FIELD_IDS.LEAD.USED_CLASSES) {
+            console.log(`   🎯 Это поле "Счетчик занятий:" (${fieldId})`);
+            const used = parseInt(fieldValue);
+            if (!isNaN(used) && used >= 1 && used <= 24) {
+                data.usedClasses = used;
+                console.log(`     ✅ Счетчик: ${used} занятий`);
+            }
+        }
+        
+        // ОСТАТОК ЗАНЯТИЙ - поле 890163 (числовое)
+        else if (fieldId === this.FIELD_IDS.LEAD.REMAINING_CLASSES) {
+            console.log(`   🎯 Это поле "Остаток занятий" (${fieldId})`);
+            const remaining = parseInt(fieldValue);
+            if (!isNaN(remaining) && remaining >= 0) {
+                data.remainingClasses = remaining;
+                console.log(`     ✅ Остаток: ${remaining} занятий`);
+            }
+        }
+        
+        // ДАТА ОКОНЧАНИЯ - поле 850255
+        else if (fieldId === this.FIELD_IDS.LEAD.EXPIRATION_DATE) {
+            console.log(`   🎯 Это поле "Окончание абонемента:" (${fieldId})`);
+            const date = this.parseDate(fieldValue);
+            if (date) {
+                data.expirationDate = date;
+                console.log(`     ✅ Дата окончания: ${date}`);
+            }
+        }
+        
+        // ДАТА АКТИВАЦИИ - поле 851565
+        else if (fieldId === this.FIELD_IDS.LEAD.ACTIVATION_DATE) {
+            console.log(`   🎯 Это поле "Дата активации абонемента:" (${fieldId})`);
+            const date = this.parseDate(fieldValue);
+            if (date) {
+                data.activationDate = date;
+                console.log(`     ✅ Дата активации: ${date}`);
+            }
+        }
+        
+        // ДАТА ПОСЛЕДНЕГО ВИЗИТА - поле 850259
+        else if (fieldId === this.FIELD_IDS.LEAD.LAST_VISIT_DATE) {
+            console.log(`   🎯 Это поле "Дата последнего визита:" (${fieldId})`);
+            const date = this.parseDate(fieldValue);
+            if (date) {
+                data.lastVisitDate = date;
+                console.log(`     ✅ Последний визит: ${date}`);
+            }
+        }
+        
+        // ТИП АБОНЕМЕНТА - поле 891007
+        else if (fieldId === this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE) {
+            data.subscriptionType = fieldValue;
+            console.log(`     ✅ Тип абонемента: ${fieldValue}`);
+        }
+        
+        // ЗАМОРОЗКА - поле 867693
+        else if (fieldId === this.FIELD_IDS.LEAD.FREEZE) {
+            data.isFrozen = fieldValue === 'ДА' || fieldValue === '1' || fieldValue.toLowerCase() === 'да';
+            console.log(`     ✅ Заморозка: ${data.isFrozen ? 'ДА' : 'НЕТ'}`);
+        }
+        
+        // ФИЛИАЛ - поле 891589
+        else if (fieldId === this.FIELD_IDS.LEAD.BRANCH) {
+            data.branch = fieldValue;
+            console.log(`     ✅ Филиал: ${fieldValue}`);
+        }
+    });
+    
+    // ЛОГИКА ВЫЧИСЛЕНИЯ ПРОПУЩЕННЫХ ДАННЫХ
+    console.log(`\n🧮 ВЫЧИСЛЕНИЕ ПРОПУЩЕННЫХ ДАННЫХ:`);
+    
+    // Если не нашли техническое количество, но нашли в селекте
+    if (data.totalClasses === 0) {
+        console.log(`   ⚠️  Общее количество занятий не найдено`);
+    }
+    
+    // Если есть общее количество, но нет счётчика или остатка
+    if (data.totalClasses > 0) {
+        // Если нет остатка, но есть счётчик - вычисляем остаток
+        if (data.remainingClasses === 0 && data.usedClasses > 0) {
+            data.remainingClasses = Math.max(0, data.totalClasses - data.usedClasses);
+            console.log(`   📊 Вычислен остаток: ${data.totalClasses} - ${data.usedClasses} = ${data.remainingClasses}`);
+        }
+        
+        // Если нет счётчика, но есть остаток - вычисляем счётчик
+        if (data.usedClasses === 0 && data.remainingClasses > 0) {
+            data.usedClasses = Math.max(0, data.totalClasses - data.remainingClasses);
+            console.log(`   📊 Вычислен счётчик: ${data.totalClasses} - ${data.remainingClasses} = ${data.usedClasses}`);
+        }
+        
+        // Если ни счётчик, ни остаток не указаны
+        if (data.usedClasses === 0 && data.remainingClasses === 0) {
+            // Считаем, что все занятия доступны
+            data.remainingClasses = data.totalClasses;
+            console.log(`   📊 Установлен остаток по умолчанию: ${data.remainingClasses} занятий`);
+        }
+        
+        // Проверка корректности
+        const calculatedTotal = data.usedClasses + data.remainingClasses;
+        if (calculatedTotal !== data.totalClasses) {
+            console.warn(`   ⚠️  НЕСООТВЕТСТВИЕ: ${data.usedClasses} + ${data.remainingClasses} ≠ ${data.totalClasses}`);
+            // Корректируем остаток
+            data.remainingClasses = Math.max(0, data.totalClasses - data.usedClasses);
+            console.log(`   🔧 Исправлен остаток: ${data.remainingClasses}`);
+        }
+    }
+    
+    console.log(`\n📊 ИТОГОВЫЕ ДАННЫЕ АБОНЕМЕНТА:`);
+    console.log(`   • Всего занятий: ${data.totalClasses}`);
+    console.log(`   • Использовано: ${data.usedClasses}`);
+    console.log(`   • Осталось: ${data.remainingClasses}`);
+    console.log(`   • Дата окончания: ${data.expirationDate || 'не указана'}`);
+    console.log(`   • Дата активации: ${data.activationDate || 'не указана'}`);
+    console.log(`   • Заморозка: ${data.isFrozen ? 'ДА' : 'НЕТ'}`);
+    
+    return data;
+}
 
     // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
     getFieldNameById(fieldId) {
@@ -1458,6 +1675,74 @@ app.post('/api/subscription', async (req, res) => {
 
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+
+
+// ДОБАВЬТЕ этот маршрут в раздел ДИАГНОСТИЧЕСКИЙ API
+app.get('/api/debug/lead/:id', async (req, res) => {
+    try {
+        const leadId = req.params.id;
+        
+        console.log(`\n🔍 ДИАГНОСТИКА СДЕЛКИ ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                message: 'amoCRM не подключен'
+            });
+        }
+        
+        const result = await amoCrmService.debugLeadFields(leadId);
+        
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Сделка не найдена'
+            });
+        }
+        
+        res.json({
+            success: true,
+            lead_id: leadId,
+            lead_name: result.lead.name,
+            subscription: result.subscription,
+            important_fields: {
+                total_classes: {
+                    field_id: amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES,
+                    value: result.subscription.totalClasses,
+                    raw_data: result.fields[amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES]
+                },
+                technical_classes: {
+                    field_id: amoCrmService.FIELD_IDS.LEAD.TECHNICAL_CLASSES,
+                    raw_data: result.fields[amoCrmService.FIELD_IDS.LEAD.TECHNICAL_CLASSES]
+                },
+                used_classes: {
+                    field_id: amoCrmService.FIELD_IDS.LEAD.USED_CLASSES,
+                    value: result.subscription.usedClasses,
+                    raw_data: result.fields[amoCrmService.FIELD_IDS.LEAD.USED_CLASSES]
+                },
+                remaining_classes: {
+                    field_id: amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES,
+                    value: result.subscription.remainingClasses,
+                    raw_data: result.fields[amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES]
+                }
+            },
+            all_fields: Object.keys(result.fields).map(id => ({
+                field_id: parseInt(id),
+                field_name: amoCrmService.getFieldNameById(parseInt(id)),
+                value: result.fields[id].value,
+                raw_values: result.fields[id].raw
+            }))
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики сделки:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка диагностики',
+            error: error.message
+        });
+    }
+});
 
 // Добавьте этот маршрут в раздел ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ
 app.get('/api/debug/all-crm-fields', async (req, res) => {
