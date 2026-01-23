@@ -129,8 +129,7 @@ class AmoCrmService {
         }
     }
 
-
-     async loadAndMapFields() {
+    async loadAndMapFields() {
         try {
             console.log('📋 Загрузка и маппинг полей amoCRM...');
             
@@ -152,7 +151,7 @@ class AmoCrmService {
         }
     }
 
-async mapLeadFields(fieldsResponse) {
+    async mapLeadFields(fieldsResponse) {
         if (!fieldsResponse || !fieldsResponse._embedded || !fieldsResponse._embedded.custom_fields) {
             console.log('⚠️  Поля сделок не найдены');
             return;
@@ -227,8 +226,7 @@ async mapLeadFields(fieldsResponse) {
         this.validateRequiredFields('LEAD');
     }
 
-
- async mapContactFields(fieldsResponse) {
+    async mapContactFields(fieldsResponse) {
         if (!fieldsResponse || !fieldsResponse._embedded || !fieldsResponse._embedded.custom_fields) {
             console.log('⚠️  Поля контактов не найдены');
             return;
@@ -380,165 +378,6 @@ async mapLeadFields(fieldsResponse) {
             }
         }
         console.log('='.repeat(80));
-    }
- 
-    async checkTokenValidity(token) {
-        try {
-            const response = await axios.get(`${this.baseUrl}/api/v4/account`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 10000
-            });
-            
-            this.accountInfo = response.data;
-            console.log('✅ Токен валиден!');
-            console.log(`📊 Аккаунт: ${this.accountInfo.name || 'Неизвестно'}`);
-            return true;
-        } catch (error) {
-            console.error('❌ Ошибка проверки токена:', error.message);
-            return false;
-        }
-    }
-
-    async makeRequest(method, endpoint, data = null) {
-        const url = `${this.baseUrl}${endpoint}`;
-        
-        try {
-            const config = {
-                method: method,
-                url: url,
-                headers: {
-                    'Authorization': `Bearer ${this.accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 30000
-            };
-
-            if (data) config.data = data;
-
-            const response = await axios(config);
-            return response.data;
-        } catch (error) {
-            console.error(`❌ Ошибка запроса ${endpoint}: ${error.message}`);
-            if (error.response) {
-                console.error(`📊 Статус: ${error.response.status}`);
-                console.error(`📋 Данные:`, error.response.data);
-            }
-            throw error;
-        }
-    }
-
-    async searchContactsByPhone(phoneNumber) {
-        console.log(`\n🔍 ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
-        
-        const cleanPhone = phoneNumber.replace(/\D/g, '');
-        if (cleanPhone.length < 10) {
-            return { _embedded: { contacts: [] } };
-        }
-        
-        try {
-            let searchPhone;
-            if (cleanPhone.length === 11 && cleanPhone.startsWith('7')) {
-                searchPhone = `+${cleanPhone}`;
-            } else if (cleanPhone.length === 10) {
-                searchPhone = `+7${cleanPhone}`;
-            } else {
-                searchPhone = `+${cleanPhone}`;
-            }
-            
-            console.log(`🔍 Форматированный номер для поиска: ${searchPhone}`);
-            
-            const response = await this.makeRequest(
-                'GET', 
-                `/api/v4/contacts?query=${encodeURIComponent(searchPhone)}&with=leads,custom_fields_values`
-            );
-            
-            console.log(`📊 Найдено контактов: ${response._embedded?.contacts?.length || 0}`);
-            return response;
-        } catch (error) {
-            console.error(`❌ Ошибка поиска контактов: ${error.message}`);
-            return { _embedded: { contacts: [] } };
-        }
-    }
-
-    getFieldValue(field) {
-        try {
-            if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
-                return '';
-            }
-            
-            const firstValue = field.values[0];
-            
-            if (typeof firstValue === 'string') {
-                return firstValue;
-            } else if (typeof firstValue === 'object' && firstValue !== null) {
-                if (firstValue.value !== undefined) {
-                    return String(firstValue.value);
-                } else if (firstValue.enum_value !== undefined) {
-                    return String(firstValue.enum_value);
-                } else if (firstValue.enum_id !== undefined) {
-                    return String(firstValue.enum_id);
-                }
-            }
-            
-            return String(firstValue);
-        } catch (error) {
-            console.error('❌ Ошибка получения значения поля:', error);
-            return '';
-        }
-    }
-
-    getFieldName(field) {
-        try {
-            if (!field) return '';
-            
-            if (field.field_name) {
-                return String(field.field_name).toLowerCase();
-            } else if (field.name) {
-                return String(field.name).toLowerCase();
-            } else if (field.field_id && this.fieldMappings.has(field.field_id)) {
-                return this.fieldMappings.get(field.field_id).name.toLowerCase();
-            }
-            
-            return '';
-        } catch (error) {
-            console.error('❌ Ошибка получения имени поля:', error);
-            return '';
-        }
-    }
-
-    parseDate(value) {
-        if (!value) return null;
-        
-        try {
-            const dateStr = String(value).trim();
-            
-            if (dateStr.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
-                const parts = dateStr.split('.');
-                let day = parts[0].padStart(2, '0');
-                let month = parts[1].padStart(2, '0');
-                let year = parts[2];
-                
-                if (year.length === 2) {
-                    year = '20' + year;
-                }
-                
-                return `${year}-${month}-${day}`;
-            }
-            
-            if (dateStr.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
-                const parts = dateStr.split('-');
-                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            }
-            
-            return dateStr;
-            
-        } catch (error) {
-            console.error('❌ Ошибка парсинга даты:', error);
-            return value;
-        }
     }
 
     // 🔧 УЛУЧШЕННЫЙ МЕТОД: extractSubscriptionInfo
@@ -701,6 +540,316 @@ async mapLeadFields(fieldsResponse) {
         
         return subscriptionInfo;
     }
+
+    // 🔧 УЛУЧШЕННЫЙ МЕТОД: extractStudentsFromContact
+    extractStudentsFromContact(contact) {
+        const students = [];
+        
+        try {
+            const customFields = contact.custom_fields_values || [];
+            const contactName = contact.name || '';
+            
+            console.log(`\n👤 Поиск детей в контакте: ${contactName}`);
+            
+            // Ищем все поля с детьми
+            const childFields = [];
+            const childBirthdayFields = [];
+            
+            // Проходим по всем полям для поиска детей
+            for (const field of customFields) {
+                const fieldName = this.getFieldName(field).toLowerCase();
+                const fieldValue = this.getFieldValue(field);
+                
+                if (!fieldValue || fieldValue.trim() === '') continue;
+                
+                // Ищем поля с именами детей
+                if ((fieldName.includes('ребен') || fieldName.includes('фио') || 
+                     fieldName.includes('ученик')) && 
+                    !fieldName.includes('день рождения') &&
+                    !fieldName.includes('возраст') &&
+                    !fieldName.includes('группа')) {
+                    
+                    childFields.push({
+                        id: field.field_id || field.id,
+                        name: field.name,
+                        value: fieldValue
+                    });
+                }
+                
+                // Ищем поля с днями рождения детей
+                if (fieldName.includes('день рождения') && fieldName.includes('ребен')) {
+                    childBirthdayFields.push({
+                        id: field.field_id || field.id,
+                        name: field.name,
+                        value: fieldValue
+                    });
+                }
+            }
+            
+            // Создаем студентов из найденных полей
+            childFields.forEach((childField, index) => {
+                const student = {
+                    studentName: childField.value,
+                    birthDate: '',
+                    branch: '',
+                    dayOfWeek: '',
+                    timeSlot: '',
+                    teacherName: '',
+                    course: '',
+                    ageGroup: '',
+                    allergies: '',
+                    parentName: contactName,
+                    hasActiveSubscription: false,
+                    lastVisitDate: '',
+                    email: ''
+                };
+                
+                // Ищем день рождения для этого ребенка
+                if (childBirthdayFields.length > index) {
+                    student.birthDate = this.parseDate(childBirthdayFields[index].value);
+                }
+                
+                // Ищем общие поля
+                for (const field of customFields) {
+                    const fieldName = this.getFieldName(field).toLowerCase();
+                    const fieldValue = this.getFieldValue(field);
+                    
+                    if (!fieldValue || fieldValue.trim() === '') continue;
+                    
+                    if (fieldName.includes('филиал') || fieldName.includes('центр')) {
+                        student.branch = fieldValue;
+                    }
+                    else if (fieldName.includes('преподаватель')) {
+                        student.teacherName = fieldValue;
+                    }
+                    else if (fieldName.includes('день недел')) {
+                        student.dayOfWeek = fieldValue;
+                    }
+                    else if (fieldName.includes('возраст') && fieldName.includes('групп')) {
+                        student.ageGroup = fieldValue;
+                    }
+                    else if (fieldName.includes('аллерг') || fieldName.includes('особенност')) {
+                        student.allergies = fieldValue;
+                    }
+                    else if (fieldName.includes('почта') || fieldName.includes('email')) {
+                        student.email = fieldValue;
+                    }
+                }
+                
+                console.log(`   👶 Найден ребенок ${index + 1}: ${student.studentName}`);
+                students.push(student);
+            });
+            
+            console.log(`📊 Всего детей: ${students.length}`);
+            
+        } catch (error) {
+            console.error('❌ Ошибка извлечения учеников:', error);
+        }
+        
+        return students;
+    }
+
+    // 🔧 УЛУЧШЕННЫЙ МЕТОД: getStudentsByPhone
+    async getStudentsByPhone(phoneNumber) {
+        console.log(`\n🎯 ПОЛУЧЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ: ${phoneNumber}`);
+        
+        const studentProfiles = [];
+        
+        if (!this.isInitialized) {
+            console.log('❌ amoCRM не инициализирован');
+            return studentProfiles;
+        }
+        
+        try {
+            // 1. Ищем контакты
+            console.log('🔍 Поиск контактов...');
+            const contactsResponse = await this.searchContactsByPhone(phoneNumber);
+            const contacts = contactsResponse._embedded?.contacts || [];
+            console.log(`📊 Найдено контактов: ${contacts.length}`);
+            
+            if (contacts.length === 0) {
+                console.log('❌ Контакты не найдены');
+                return studentProfiles;
+            }
+            
+            for (const contact of contacts) {
+                console.log(`\n👤 Анализ контакта: ${contact.name} (ID: ${contact.id})`);
+                
+                // 2. Получаем полную информацию о контакте
+                const fullContact = await this.getFullContactInfo(contact.id);
+                if (!fullContact) continue;
+                
+                // 3. Извлекаем детей
+                const children = this.extractStudentsFromContact(fullContact);
+                console.log(`📊 Найдено детей: ${children.length}`);
+                
+                if (children.length === 0) {
+                    // Если детей не нашли, создаем одного "ученика" из данных контакта
+                    console.log('⚠️  Дети не найдены, создаем профиль из данных контакта');
+                    const child = {
+                        studentName: fullContact.name || 'Ученик',
+                        parentName: fullContact.name,
+                        branch: '',
+                        email: this.findEmail(fullContact)
+                    };
+                    children.push(child);
+                }
+                
+                // 4. Получаем сделки контакта
+                console.log('🔍 Получение сделок...');
+                const leads = await this.getContactLeadsSorted(fullContact.id);
+                console.log(`📊 Найдено сделок: ${leads.length}`);
+                
+                // 5. Для каждого ребенка создаем профиль
+                for (const child of children) {
+                    console.log(`\n👤 Поиск абонемента для: ${child.studentName}`);
+                    
+                    // Ищем лучшую сделку
+                    let bestLead = this.findBestLeadForStudent(child.studentName, leads);
+                    
+                    // Если не нашли подходящую сделку, берем первую активную
+                    if (!bestLead && leads.length > 0) {
+                        console.log('🔍 Поиск любой подходящей сделки...');
+                        bestLead = leads.find(lead => {
+                            const name = lead.name || '';
+                            return name.includes('Абонемент') || name.includes('занят');
+                        }) || leads[0];
+                    }
+                    
+                    // Извлекаем информацию об абонементе
+                    const subscriptionInfo = bestLead ? 
+                        this.extractSubscriptionInfo(bestLead) : 
+                        this.extractSubscriptionInfo(null);
+                    
+                    // Объединяем данные из контакта и абонемента
+                    const finalProfile = this.createStudentProfile(
+                        fullContact,
+                        phoneNumber,
+                        child,
+                        subscriptionInfo,
+                        bestLead
+                    );
+                    
+                    studentProfiles.push(finalProfile);
+                    console.log(`✅ Профиль создан: ${child.studentName}`);
+                }
+            }
+            
+            console.log(`\n🎯 ИТОГО создано профилей: ${studentProfiles.length}`);
+            
+        } catch (error) {
+            console.error(`❌ Ошибка получения данных:`, error.message);
+        }
+        
+        return studentProfiles;
+    }
+
+    // 🔧 УЛУЧШЕННЫЙ МЕТОД: findBestLeadForStudent
+    findBestLeadForStudent(studentName, leads) {
+        if (!leads || leads.length === 0) return null;
+        
+        console.log(`🔍 Поиск сделки для: ${studentName}`);
+        
+        // Сортируем сделки по релевантности
+        const scoredLeads = leads.map(lead => {
+            let score = 0;
+            const leadName = lead.name || '';
+            const leadNameLower = leadName.toLowerCase();
+            
+            // Высший приоритет: активные абонементы
+            if (leadName.includes('!Абонемент') || leadName.includes('Активный абонемент')) {
+                score += 100;
+            }
+            
+            // Совпадение имени ученика
+            const studentFirstName = studentName.split(' ')[0] || '';
+            if (studentFirstName && leadName.includes(studentFirstName)) {
+                score += 50;
+            }
+            
+            // Присутствие слова "абонемент"
+            if (leadNameLower.includes('абонемент')) {
+                score += 30;
+            }
+            
+            // Присутствие числа занятий
+            if (leadNameLower.match(/\d+\s*занят/)) {
+                score += 20;
+            }
+            
+            // Минус за архивные/завершенные
+            if (leadNameLower.includes('архив') || leadNameLower.includes('завершен') || 
+                leadNameLower.includes('закончился')) {
+                score -= 50;
+            }
+            
+            return { lead, score };
+        });
+        
+        // Сортируем по убыванию баллов
+        scoredLeads.sort((a, b) => b.score - a.score);
+        
+        if (scoredLeads.length > 0 && scoredLeads[0].score > 0) {
+            const bestLead = scoredLeads[0].lead;
+            console.log(`✅ Найдена сделка: "${bestLead.name.substring(0, 50)}..."`);
+            console.log(`📊 Балл: ${scoredLeads[0].score}`);
+            return bestLead;
+        }
+        
+        console.log('⚠️  Подходящая сделка не найдена');
+        return null;
+    }
+
+    // 🔧 ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ (остаются без изменений, но используют новые FIELD_IDS)
+    async checkTokenValidity(token) {
+        try {
+            const response = await axios.get(`${this.baseUrl}/api/v4/account`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 10000
+            });
+            
+            this.accountInfo = response.data;
+            console.log('✅ Токен валиден!');
+            console.log(`📊 Аккаунт: ${this.accountInfo.name || 'Неизвестно'}`);
+            return true;
+        } catch (error) {
+            console.error('❌ Ошибка проверки токена:', error.message);
+            return false;
+        }
+    }
+
+    async makeRequest(method, endpoint, data = null) {
+        const url = `${this.baseUrl}${endpoint}`;
+        
+        try {
+            const config = {
+                method: method,
+                url: url,
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
+            };
+
+            if (data) config.data = data;
+
+            const response = await axios(config);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Ошибка запроса ${endpoint}: ${error.message}`);
+            if (error.response) {
+                console.error(`📊 Статус: ${error.response.status}`);
+                console.error(`📋 Данные:`, error.response.data);
+            }
+            throw error;
+        }
+    }
+
+
 
     
     // 🔧 ДОБАВЛЕННЫЙ МЕТОД: parseDateOrTimestamp
