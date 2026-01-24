@@ -3701,6 +3701,213 @@ app.get('/api/debug/subscription-patterns', async (req, res) => {
     }
 });
 
+app.get('/api/debug/contact-leads/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        
+        console.log(`\n📊 ДИАГНОСТИКА ВСЕХ СДЕЛОК КОНТАКТА: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Получаем контакт
+        const contact = await amoCrmService.getFullContactInfo(contactId);
+        if (!contact) {
+            return res.status(404).json({
+                success: false,
+                error: 'Контакт не найден'
+            });
+        }
+        
+        // Получаем всех учеников из контакта
+        const students = amoCrmService.extractStudentsFromContact(contact);
+        console.log(`📊 Учеников в контакте: ${students.length}`);
+        
+        // Получаем все сделки
+        const leads = await amoCrmService.getContactLeadsSorted(contactId);
+        console.log(`📊 Всего сделок: ${leads.length}`);
+        
+        // Анализируем каждую сделку
+        const leadsAnalysis = [];
+        
+        for (const lead of leads) {
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            
+            // Проверяем принадлежность к каждому ученику
+            const belongsToStudents = [];
+            
+            for (const student of students) {
+                const belongs = amoCrmService.checkIfLeadBelongsToStudent(
+                    lead.name || '', 
+                    student.studentName
+                );
+                
+                if (belongs) {
+                    belongsToStudents.push(student.studentName);
+                }
+            }
+            
+            leadsAnalysis.push({
+                lead_id: lead.id,
+                lead_name: lead.name || 'Без названия',
+                lead_price: lead.price,
+                lead_status_id: lead.status_id,
+                created_at: lead.created_at ? new Date(lead.created_at * 1000).toISOString() : null,
+                updated_at: lead.updated_at ? new Date(lead.updated_at * 1000).toISOString() : null,
+                
+                subscription_info: {
+                    has_subscription: subscriptionInfo.hasSubscription,
+                    total_classes: subscriptionInfo.totalClasses,
+                    used_classes: subscriptionInfo.usedClasses,
+                    remaining_classes: subscriptionInfo.remainingClasses,
+                    subscription_active: subscriptionInfo.subscriptionActive,
+                    subscription_status: subscriptionInfo.subscriptionStatus,
+                    subscription_type: subscriptionInfo.subscriptionType,
+                    expiration_date: subscriptionInfo.expirationDate,
+                    activation_date: subscriptionInfo.activationDate
+                },
+                
+                belongs_to_students: belongsToStudents,
+                belongs_count: belongsToStudents.length,
+                
+                // Признаки для фильтрации
+                is_mass_email: (lead.name || '').toLowerCase().includes('рассылка'),
+                is_archive: (lead.name || '').toLowerCase().includes('архив'),
+                is_cancelled: (lead.name || '').toLowerCase().includes('отмен'),
+                is_active_subscription: subscriptionInfo.subscriptionActive
+            });
+        }
+        
+        // Сортируем: активные абонементы → принадлежащие ученикам → новые
+        leadsAnalysis.sort((a, b) => {
+            // Активные абонементы выше
+            if (a.is_active_subscription !== b.is_active_subscription) {
+                return b.is_active_subscription ? 1 : -1;
+            }
+            
+            // Принадлежащие ученикам выше
+            if (a.belongs_count !== b.belongs_count) {
+                return b.belongs_count - a.belongs_count;
+            }
+            
+            // Новые выше
+            if (a.updated_at !== b.updated_at) {
+                return new Date(b.updated_at) - new Date(a.updated_at);
+            }
+            
+            return 0;
+        });
+        
+        // Статистика
+        const stats = {
+            total_leads: leadsAnalysis.length,
+            leads_with_subscription: leadsAnalysis.filter(l => l.subscription_info.has_subscription).length,
+            active_subscriptions: leadsAnalysis.filter(l => l.subscription_info.subscription_active).length,
+            leads_belonging_to_students: leadsAnalysis.filter(l => l.belongs_count > 0).length,
+            mass_email_leads: leadsAnalysis.filter(l => l.is_mass_email).length
+        };
+        
+        // Для каждого ученика находим лучшую сделку
+        const bestLeadsForStudents = {};
+        
+        for (const student of students) {
+            const studentLeads = leadsAnalysis.filter(lead => 
+                lead.belongs_to_students.includes(student.studentName)
+            );
+            
+            if (studentLeads.length > 0) {
+                // Сортируем по приоритетам
+                studentLeads.sort((a, b) => {
+                    // Активные выше
+                    if (a.is_active_subscription !== b.is_active_subscription) {
+                        return b.is_active_subscription ? 1 : -1;
+                    }
+                    
+                    // С остатком выше
+                    if (a.subscription_info.remaining_classes !== b.subscription_info.remaining_classes) {
+                        return b.subscription_info.remaining_classes - a.subscription_info.remaining_classes;
+                    }
+                    
+                    // Новые выше
+                    return new Date(b.updated_at) - new Date(a.updated_at);
+                });
+                
+                bestLeadsForStudents[student.studentName] = studentLeads[0];
+            }
+        }
+        
+        // Генерируем рекомендации
+        const recommendations = generateLeadSelectionRecommendations(leadsAnalysis, students);
+        
+        res.json({
+            success: true,
+            data: {
+                contact: {
+                    id: contact.id,
+                    name: contact.name,
+                    students: students
+                },
+                statistics: stats,
+                best_leads_for_students: bestLeadsForStudents,
+                all_leads: leadsAnalysis,
+                recommendations: recommendations
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики сделок контакта:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Вспомогательная функция для рекомендаций (ВНЕ app.get!)
+function generateLeadSelectionRecommendations(leadsAnalysis, students) {
+    const recommendations = [];
+    
+    // Проверяем, есть ли у каждого ученика сделка
+    for (const student of students) {
+        const studentLeads = leadsAnalysis.filter(lead => 
+            lead.belongs_to_students.includes(student.studentName)
+        );
+        
+        if (studentLeads.length === 0) {
+            recommendations.push({
+                student: student.studentName,
+                issue: 'Нет сделок с именем ученика',
+                suggestion: 'Проверьте написание имени в сделках'
+            });
+        } else if (studentLeads.length > 1) {
+            const activeLeads = studentLeads.filter(l => l.is_active_subscription);
+            
+            if (activeLeads.length > 1) {
+                recommendations.push({
+                    student: student.studentName,
+                    issue: `Ученик имеет ${activeLeads.length} активных абонементов`,
+                    suggestion: 'Проверьте, какой абонемент актуален'
+                });
+            }
+        }
+    }
+    
+    // Проверяем сделки-рассылки
+    const massEmailLeads = leadsAnalysis.filter(l => l.is_mass_email);
+    if (massEmailLeads.length > 0) {
+        recommendations.push({
+            issue: `Найдено ${massEmailLeads.length} сделок-рассылок`,
+            suggestion: 'Исключить из поиска сделки со словом "Рассылка"'
+        });
+    }
+    
+    return recommendations;
+}
+
 app.get('/api/debug/problematic-subscriptions', async (req, res) => {
     try {
         if (!amoCrmService.isInitialized) {
