@@ -934,6 +934,7 @@ extractSubscriptionInfo(lead) {
     }
     
    // 🔧 УЛУЧШЕННЫЙ МЕТОД: extractStudentsFromContact
+// 🔧 ДОБАВЬТЕ В extractStudentsFromContact логику для нескольких детей
 extractStudentsFromContact(contact) {
     const students = [];
     
@@ -942,22 +943,12 @@ extractStudentsFromContact(contact) {
         const contactName = contact.name || '';
         
         console.log(`\n👤 Поиск детей в контакте: "${contactName}"`);
-        console.log(`📊 Полей для анализа: ${customFields.length}`);
         
-        // Сначала выведем все поля для отладки
-        console.log('\n📋 ВСЕ ПОЛЯ КОНТАКТА:');
-        customFields.forEach((field, idx) => {
-            const fieldId = field.field_id || field.id;
-            const fieldName = this.getFieldName(field);
-            const fieldValue = this.getFieldValue(field);
-            console.log(`   [${idx}] ID:${fieldId} "${fieldName}" = "${fieldValue}"`);
-        });
-        
-        // Для каждого возможного ребенка - УБЕДИТЕСЬ, ЧТО ID ПРАВИЛЬНЫЕ!
+        // Для каждого возможного ребенка
         const childrenConfig = [
-            { number: 1, nameFieldId: 867233, birthdayFieldId: 867687 }, // !ФИО ребенка: и ДР ребенка 1
-            { number: 2, nameFieldId: 867235, birthdayFieldId: 867685 }, // !!ФИО ребенка: и ДР ребенка 2  
-            { number: 3, nameFieldId: 867733, birthdayFieldId: 867735 }  // !!!ФИО ребенка: и ДР ребенка 3
+            { number: 1, nameFieldId: 867233 }, // !ФИО ребенка:
+            { number: 2, nameFieldId: 867235 }, // !!ФИО ребенка:
+            { number: 3, nameFieldId: 867733 }  // !!!ФИО ребенка:
         ];
         
         for (const childConfig of childrenConfig) {
@@ -979,128 +970,69 @@ extractStudentsFromContact(contact) {
             
             let hasChildData = false;
             
-            // Проходим по всем полям контакта
+            // Ищем имя ребенка
             for (const field of customFields) {
                 const fieldId = field.field_id || field.id;
                 const fieldValue = this.getFieldValue(field);
                 
                 if (!fieldValue || fieldValue.trim() === '') continue;
                 
-                // Имя ребенка - ПРОВЕРЬТЕ ФАКТИЧЕСКИЕ ID!
                 if (fieldId === childConfig.nameFieldId) {
-                    childInfo.studentName = fieldValue;
+                    childInfo.studentName = fieldValue.trim();
                     hasChildData = true;
-                    console.log(`✅ Ребенок ${childConfig.number}: ${fieldValue}`);
-                }
-                
-                // День рождения ребенка
-                else if (fieldId === childConfig.birthdayFieldId) {
-                    childInfo.birthDate = this.parseDate(fieldValue);
-                    console.log(`   📅 ДР ребенка ${childConfig.number}: ${fieldValue}`);
-                }
-                
-                // Ищем другие поля по названию (на случай, если ID не совпадают)
-                const fieldName = this.getFieldName(field).toLowerCase();
-                
-                // Филиал
-                if (fieldName.includes('филиал')) {
-                    childInfo.branch = fieldValue;
-                }
-                
-                // Преподаватель
-                if (fieldName.includes('преподаватель')) {
-                    childInfo.teacherName = fieldValue;
-                }
-                
-                // День недели
-                if (fieldName.includes('день недели')) {
-                    childInfo.dayOfWeek = fieldValue;
-                }
-                
-                // Активный абонемент
-                if (fieldName.includes('активн') && fieldName.includes('абонемент')) {
-                    childInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
-                                                     fieldValue === '1' || 
-                                                     fieldValue.toLowerCase() === 'true';
-                }
-                
-                // Email
-                if (fieldName.includes('email') || fieldName.includes('почта')) {
-                    childInfo.email = fieldValue;
-                }
-                
-                // Аллергии
-                if (fieldName.includes('аллерги')) {
-                    childInfo.allergies = fieldValue;
-                }
-                
-                // Возрастная группа
-                if (fieldName.includes('возраст') || fieldName.includes('групп')) {
-                    childInfo.ageGroup = fieldValue;
+                    console.log(`✅ Найден ребенок ${childConfig.number}: ${childInfo.studentName}`);
+                    break;
                 }
             }
             
-            // Если нашли данные о ребенке, добавляем
-            if (hasChildData && childInfo.studentName && childInfo.studentName.trim() !== '') {
-                students.push(childInfo);
-                console.log(`✅ Добавлен ребенок: ${childInfo.studentName}`);
-            } else {
-                console.log(`❌ Ребенок ${childConfig.number}: данные не найдены`);
-            }
-        }
-        
-        console.log(`\n📊 ИТОГО найдено детей: ${students.length}`);
-        
-        // Если детей не нашли по ID полей, попробуем найти по шаблонам
-        if (students.length === 0) {
-            console.log('\n🔍 Поиск детей по шаблонам...');
-            
-            // Ищем любые поля с "ФИО", "ребенок", "ученик"
-            for (const field of customFields) {
-                const fieldName = this.getFieldName(field).toLowerCase();
-                const fieldValue = this.getFieldValue(field);
-                
-                if (!fieldValue || fieldValue.trim() === '') continue;
-                
-                if ((fieldName.includes('фио') || fieldName.includes('ребен') || 
-                     fieldName.includes('ученик')) && !fieldName.includes('родител')) {
+            // Если нашли имя ребенка, ищем остальные поля
+            if (hasChildData && childInfo.studentName) {
+                // Теперь ищем остальные поля для этого ребенка
+                for (const field of customFields) {
+                    const fieldId = field.field_id || field.id;
+                    const fieldName = this.getFieldName(field).toLowerCase();
+                    const fieldValue = this.getFieldValue(field);
                     
-                    // Проверяем, что это похоже на имя (не номер телефона, не email)
-                    if (fieldValue.length > 2 && fieldValue.length < 50 && 
-                        !fieldValue.includes('@') && !/\d{10,}/.test(fieldValue)) {
-                        
-                        console.log(`🔍 Найден возможный ребенок: ${fieldValue} (поле: ${fieldName})`);
-                        
-                        students.push({
-                            studentName: fieldValue,
-                            birthDate: '',
-                            branch: '',
-                            dayOfWeek: '',
-                            timeSlot: '',
-                            teacherName: '',
-                            course: '',
-                            ageGroup: '',
-                            allergies: '',
-                            parentName: contactName,
-                            hasActiveSubscription: false,
-                            lastVisitDate: '',
-                            email: ''
-                        });
+                    if (!fieldValue || fieldValue.trim() === '') continue;
+                    
+                    // Общие поля (заполняем для всех детей в контакте)
+                    if (fieldId === 871273) { // Филиал:
+                        childInfo.branch = fieldValue;
+                    }
+                    else if (fieldId === 888881) { // Преподаватель
+                        childInfo.teacherName = fieldValue;
+                    }
+                    else if (fieldId === 892225) { // День недели (2025-26)
+                        childInfo.dayOfWeek = fieldValue;
+                    }
+                    else if (fieldId === 888903) { // Возраст группы
+                        childInfo.ageGroup = fieldValue;
+                    }
+                    else if (fieldId === 890179) { // Есть активный абонемент
+                        childInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
+                                                         fieldValue === '1' || 
+                                                         fieldValue.toLowerCase() === 'true';
+                    }
+                    else if (fieldId === 885380) { // Дата последнего визита
+                        childInfo.lastVisitDate = this.parseDate(fieldValue);
+                    }
+                    else if (fieldId === 850239) { // Аллергия и особенности:
+                        childInfo.allergies = fieldValue;
                     }
                 }
+                
+                students.push(childInfo);
             }
-            
-            console.log(`📊 После поиска по шаблонам: ${students.length} детей`);
         }
+        
+        console.log(`📊 ИТОГО найдено детей: ${students.length}`);
         
     } catch (error) {
         console.error('❌ Ошибка извлечения учеников из контакта:', error);
-        console.error(error.stack);
     }
     
     return students;
 }
-
 // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: getStudentsByPhone
 async getStudentsByPhone(phoneNumber) {
     console.log(`\n🎯 ПОЛУЧЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
@@ -1305,7 +1237,7 @@ async getStudentsByPhone(phoneNumber) {
         return '';
     }
 
-// 🔧 МЕТОД: findBestLeadForStudent - УЛУЧШЕННЫЙ
+// 🔧 МЕТОД: findBestLeadForStudent - ПЕРЕПИСАННЫЙ С ПРОВЕРКОЙ НА "ЧУЖИХ"
 findBestLeadForStudent(studentName, leads) {
     if (!leads || leads.length === 0) {
         console.log('⚠️  Нет сделок для анализа');
@@ -1315,83 +1247,145 @@ findBestLeadForStudent(studentName, leads) {
     console.log(`\n🔍 Поиск лучшей сделки для ученика: "${studentName}"`);
     console.log(`📊 Всего сделок: ${leads.length}`);
     
-    const studentFirstName = studentName.split(' ')[0] || '';
-    const studentLastName = studentName.split(' ')[1] || '';
+    const studentNames = studentName.toLowerCase().split(' ');
+    const studentFirstName = studentNames[0] || '';
+    const studentLastName = studentNames[1] || '';
     
     let bestLead = null;
     let bestScore = -1000;
     let debugInfo = [];
     
+    // Сначала ищем сделки, которые явно принадлежат ДРУГОМУ ребенку
+    const otherChildrenLeads = [];
+    const possibleLeads = [];
+    
     for (const lead of leads) {
         const leadName = lead.name || '';
-        let score = 0;
-        const reasons = [];
+        const lowerLeadName = leadName.toLowerCase();
         
-        // Сразу пропускаем неподходящие сделки
+        // 1. Сначала проверяем, что это НЕ сделка другого ребенка
+        let isOtherChild = false;
+        let otherChildName = '';
+        
+        // Ищем паттерны "Имя Фамилия - " в названии
+        const namePattern = /^([а-яё\s]+)\s+-\s+\d+/i;
+        const nameMatch = leadName.match(namePattern);
+        
+        if (nameMatch) {
+            const dealStudentName = nameMatch[1].trim().toLowerCase();
+            const dealNames = dealStudentName.split(' ');
+            const dealFirstName = dealNames[0] || '';
+            const dealLastName = dealNames[1] || '';
+            
+            // Проверяем, что это не наш ученик
+            if (dealFirstName && dealFirstName !== studentFirstName) {
+                isOtherChild = true;
+                otherChildName = dealStudentName;
+            }
+            
+            // Если фамилия отличается - точно чужой
+            if (dealLastName && studentLastName && dealLastName !== studentLastName) {
+                isOtherChild = true;
+                otherChildName = dealStudentName;
+            }
+        }
+        
+        if (isOtherChild) {
+            console.log(`❌ Пропускаем: "${leadName}" - это сделка другого ребенка: ${otherChildName}`);
+            otherChildrenLeads.push(lead);
+            continue;
+        }
+        
+        // 2. Проверяем явно неподходящие сделки
         if (leadName.includes('Сделка #') || 
             leadName.includes('Заявка из') || 
             leadName.includes('Заявка с формы') ||
             leadName.includes('Рассылка') ||
             leadName.includes('Реанимация')) {
-            reasons.push('Пропускаем (не подходящий тип сделки)');
+            console.log(`⏭️  Пропускаем: "${leadName}" - неподходящий тип сделки`);
             continue;
         }
         
-        // 1. Проверяем совпадение по полному имени
+        possibleLeads.push(lead);
+    }
+    
+    console.log(`📊 После фильтрации осталось сделок: ${possibleLeads.length}`);
+    
+    // Теперь ищем лучшую среди подходящих сделок
+    for (const lead of possibleLeads) {
+        const leadName = lead.name || '';
+        let score = 0;
+        const reasons = [];
+        
+        // 1. ВЫСШИЙ ПРИОРИТЕТ: Полное совпадение имени
         if (leadName.includes(studentName)) {
-            score += 150;
-            reasons.push(`Полное совпадение имени "${studentName}" +150`);
+            score += 200;
+            reasons.push(`✅ ПОЛНОЕ СОВПАДЕНИЕ ИМЕНИ "${studentName}" +200`);
         }
         
-        // 2. Проверяем совпадение по первому имени
+        // 2. Высокий приоритет: Совпадение по первому имени и фамилии
+        else if (studentFirstName && studentLastName && 
+                 leadName.includes(studentFirstName) && leadName.includes(studentLastName)) {
+            score += 180;
+            reasons.push(`✅ СОВПАДЕНИЕ ИМЕНИ И ФАМИЛИИ "${studentFirstName} ${studentLastName}" +180`);
+        }
+        
+        // 3. Средний приоритет: Совпадение по первому имени
         else if (studentFirstName && leadName.includes(studentFirstName)) {
             score += 100;
-            reasons.push(`Совпадение имени "${studentFirstName}" +100`);
+            reasons.push(`✅ СОВПАДЕНИЕ ИМЕНИ "${studentFirstName}" +100`);
         }
         
-        // 3. Проверяем совпадение по фамилии
+        // 4. Низкий приоритет: Совпадение по фамилии
         else if (studentLastName && leadName.includes(studentLastName)) {
-            score += 80;
-            reasons.push(`Совпадение фамилии "${studentLastName}" +80`);
+            score += 60;
+            reasons.push(`✅ СОВПАДЕНИЕ ФАМИЛИИ "${studentLastName}" +60`);
         }
         
-        // 4. Проверяем наличие абонемента в сделке
+        // 5. Проверяем наличие абонемента в сделке
         const subscriptionInfo = this.extractSubscriptionInfo(lead);
         
         if (subscriptionInfo.hasSubscription) {
-            score += 60;
-            reasons.push(`Есть абонемент +60`);
+            score += 50;
+            reasons.push(`🎫 ЕСТЬ АБОНЕМЕНТ +50`);
             
             if (subscriptionInfo.subscriptionActive) {
                 score += 40;
-                reasons.push(`Абонемент активен +40`);
+                reasons.push(`🟢 АБОНЕМЕНТ АКТИВЕН +40`);
             }
             
             if (subscriptionInfo.totalClasses > 0) {
                 score += 20;
-                reasons.push(`${subscriptionInfo.totalClasses} занятий +20`);
+                reasons.push(`📊 ${subscriptionInfo.totalClasses} ЗАНЯТИЙ +20`);
+            }
+            
+            // Дополнительные баллы за конкретные статусы
+            if (leadName.includes('!Абонемент') || leadName.includes('Активный абонемент')) {
+                score += 30;
+                reasons.push(`🏆 !Абонемент/Активный абонемент +30`);
             }
         }
         
-        // 5. Проверяем наличие слова "занятий" в названии
+        // 6. Проверяем наличие слова "занятий" в названии
         if (leadName.toLowerCase().includes('занятий') || 
             leadName.toLowerCase().includes('занятия')) {
-            score += 30;
-            reasons.push(`Слово "занятий" в названии +30`);
+            score += 20;
+            reasons.push(`🔢 СЛОВО "ЗАНЯТИЙ" В НАЗВАНИИ +20`);
         }
         
-        // 6. Минус за "Закончился" в названии
+        // 7. Минус за "Закончился" в названии
         if (leadName.includes('Закончился')) {
-            score -= 50;
-            reasons.push(`Слово "Закончился" в названии -50`);
+            score -= 40;
+            reasons.push(`⏹️  СЛОВО "ЗАКОНЧИЛСЯ" В НАЗВАНИИ -40`);
         }
         
-        // 7. Минус за пробные и тестовые сделки
+        // 8. Минус за пробные и тестовые сделки
         if (leadName.includes('пробн') || 
             leadName.includes('тест') || 
-            leadName.includes('пробное')) {
-            score -= 70;
-            reasons.push(`Пробная/тестовая сделка -70`);
+            leadName.includes('пробное') ||
+            leadName.includes('Пробное')) {
+            score -= 60;
+            reasons.push(`🧪 ПРОБНАЯ/ТЕСТОВАЯ СДЕЛКА -60`);
         }
         
         // Сохраняем информацию для отладки
@@ -1410,26 +1404,37 @@ findBestLeadForStudent(studentName, leads) {
     }
     
     // Выводим отладочную информацию
-    console.log('\n📊 РЕЗУЛЬТАТЫ ПОИСКА:');
+    console.log('\n📊 РЕЗУЛЬТАТЫ ПОИСКА СРЕДИ ПОДХОДЯЩИХ СДЕЛОК:');
     debugInfo.forEach((info, index) => {
         console.log(`\n${index + 1}. "${info.leadName.substring(0, 50)}..."`);
         console.log(`   Балл: ${info.score}`);
-        console.log(`   Причины: ${info.reasons.join(', ')}`);
-        console.log(`   Абонемент: ${info.subscriptionInfo.hasSubscription ? 'Да' : 'Нет'}`);
-        console.log(`   Активен: ${info.subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        if (info.reasons.length > 0) {
+            console.log(`   Причины: ${info.reasons.join(', ')}`);
+        }
     });
     
     if (bestLead) {
-        console.log(`\n✅ Выбрана сделка: "${bestLead.name}"`);
-        console.log(`📊 Лучший балл: ${bestScore}`);
-    } else {
-        console.log(`\n⚠️  Не найдено подходящей сделки`);
+        console.log(`\n✅ ВЫБРАНА СДЕЛКА: "${bestLead.name}"`);
+        console.log(`📊 ЛУЧШИЙ БАЛЛ: ${bestScore}`);
         
-        // Пробуем найти первую сделку с абонементом
-        for (const lead of leads) {
+        // Дополнительная проверка
+        const finalSubscriptionInfo = this.extractSubscriptionInfo(bestLead);
+        console.log(`📋 ДЕТАЛИ АБОНЕМЕНТА:`);
+        console.log(`   • Всего занятий: ${finalSubscriptionInfo.totalClasses}`);
+        console.log(`   • Использовано: ${finalSubscriptionInfo.usedClasses}`);
+        console.log(`   • Осталось: ${finalSubscriptionInfo.remainingClasses}`);
+        console.log(`   • Статус: ${finalSubscriptionInfo.subscriptionStatus}`);
+        console.log(`   • Активен: ${finalSubscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        
+    } else {
+        console.log(`\n⚠️  НЕ НАЙДЕНО ПОДХОДЯЩЕЙ СДЕЛКИ`);
+        
+        // Если не нашли подходящей, пробуем найти первую сделку с абонементом
+        console.log('🔍 Поиск любой сделки с абонементом...');
+        for (const lead of possibleLeads) {
             const subscriptionInfo = this.extractSubscriptionInfo(lead);
             if (subscriptionInfo.hasSubscription) {
-                console.log(`⚠️  Найдена альтернативная сделка с абонементом: "${lead.name}"`);
+                console.log(`⚠️  НАЙДЕНА АЛЬТЕРНАТИВНАЯ СДЕЛКА: "${lead.name}"`);
                 bestLead = lead;
                 break;
             }
@@ -1439,6 +1444,62 @@ findBestLeadForStudent(studentName, leads) {
     return bestLead;
 }
 
+// 🔧 МЕТОД: checkIfLeadBelongsToStudent - для проверки принадлежности
+checkIfLeadBelongsToStudent(leadName, studentName) {
+    if (!leadName || !studentName) return false;
+    
+    const lowerLeadName = leadName.toLowerCase().trim();
+    const lowerStudentName = studentName.toLowerCase().trim();
+    
+    // Полное совпадение
+    if (lowerLeadName.includes(lowerStudentName)) {
+        return true;
+    }
+    
+    // Разбиваем имена на части
+    const studentNames = lowerStudentName.split(' ');
+    const studentFirstName = studentNames[0] || '';
+    const studentLastName = studentNames[1] || '';
+    
+    // Ищем паттерн "Имя Фамилия - " в начале названия сделки
+    const namePattern = /^([а-яё\s]+)\s+-\s+\d+/i;
+    const match = leadName.match(namePattern);
+    
+    if (match) {
+        const dealStudentName = match[1].trim().toLowerCase();
+        const dealNames = dealStudentName.split(' ');
+        const dealFirstName = dealNames[0] || '';
+        const dealLastName = dealNames[1] || '';
+        
+        // Проверяем совпадение
+        if (dealFirstName && dealFirstName === studentFirstName) {
+            if (!dealLastName || !studentLastName || dealLastName === studentLastName) {
+                return true;
+            }
+        }
+    }
+    
+    // Проверяем наличие имени в любой части названия
+    if (studentFirstName && lowerLeadName.includes(studentFirstName)) {
+        // Дополнительная проверка: не должно быть других явных имен
+        const otherNamePatterns = [
+            /(артем|артемий|серик|никита|алиса|вероника|полина|мария|диана)/i
+        ];
+        
+        let hasOtherName = false;
+        for (const pattern of otherNamePatterns) {
+            if (pattern.test(leadName) && !pattern.test(studentName)) {
+                hasOtherName = true;
+                break;
+            }
+        }
+        
+        return !hasOtherName;
+    }
+    
+    return false;
+}
+    
 // 🔧 МЕТОД: findBestLeadFallback - запасной вариант
 findBestLeadFallback(studentName, leads) {
     console.log(`🔍 Запасной поиск среди всех сделок...`);
