@@ -425,7 +425,7 @@ class AmoCrmService {
                 for (const child of children) {
                     console.log(`\n🎯 Ребенок: "${child.studentName}"`);
                     
-                    const bestLead = await this.findActiveSubscriptionForContact(contact.id, child.studentName);
+                    const bestLead = await this.findLeadForStudent(contact.id, child.studentName);
                     
                     results.push({
                         contact: fullContact.name,
