@@ -62,54 +62,54 @@ class AmoCrmService {
         this.isInitialized = false;
         this.fieldMappings = new Map();
         
-        // ID полей из вашего CRM
-        this.FIELD_IDS = {
-            // Сделки (абонементы)
-            LEAD: {
-                TOTAL_CLASSES: 850241,    // "Абонемент занятий:"
-                USED_CLASSES: 850257,     // "Счетчик занятий:"
-                REMAINING_CLASSES: 890163, // "Остаток занятий"
-                EXPIRATION_DATE: 850255,  // "Окончание абонемента:"
-                ACTIVATION_DATE: 851565,  // "Дата активации абонемента:"
-                LAST_VISIT_DATE: 850259,  // "Дата последнего визита:"
-                SUBSCRIPTION_TYPE: 891007, // "Тип абонемента"
-                BRANCH: 891589,           // "Филиал" в сделке
-                AGE_GROUP: 850243,        // "Группа возраст:"
-                FREEZE: 867693,           // "Заморозка абонемента:"
-                SUBSCRIPTION_OWNER: 805465, // "Принадлежность абонемента:"
-                
-                // Поля для посещений (checkbox)
-                CLASS_1: 884899, CLASS_2: 884901, CLASS_3: 884903, CLASS_4: 884905,
-                CLASS_5: 884907, CLASS_6: 884909, CLASS_7: 884911, CLASS_8: 884913,
-                CLASS_9: 884915, CLASS_10: 884917, CLASS_11: 884919, CLASS_12: 884921,
-                CLASS_13: 884923, CLASS_14: 884925, CLASS_15: 884927, CLASS_16: 884929,
-                CLASS_17: 892867, CLASS_18: 892871, CLASS_19: 892875, CLASS_20: 892879,
-                CLASS_21: 892883, CLASS_22: 892887, CLASS_23: 892893, CLASS_24: 892895
-            },
-            
-            // Контакты (ученики)
-            CONTACT: {
-                CHILD_1_NAME: 867233,    // "!ФИО ребенка:"
-                CHILD_1_BIRTHDAY: 867687, // ДР ребенка 1
-                CHILD_2_NAME: 867235,    // "!!ФИО ребенка:"
-                CHILD_2_BIRTHDAY: 867685, // ДР ребенка 2
-                CHILD_3_NAME: 867733,    // "!!!ФИО ребенка:"
-                CHILD_3_BIRTHDAY: 867735, // ДР ребенка 3
-                
-                BRANCH: 871273,          // "Филиал:"
-                TEACHER: 888881,         // "Преподаватель"
-                DAY_OF_WEEK: 888879,     // "День недели посещения"
-                HAS_ACTIVE_SUB: 890179,  // "Есть активный абонемент"
-                LAST_VISIT: 885380,      // "Дата последнего визита"
-                AGE_GROUP: 888903,       // "Возраст группы"
-                ALLERGIES: 850239,       // "Аллергия и особенности:"
-                BIRTH_DATE: 850219,      // "День рождения:" (родителя)
-                
-                // Общие поля
-                PARENT_NAME: 'name',      // Имя контакта
-                EMAIL: 850217            // "Почта"
-            }
-        };
+       // Обновите FIELD_IDS в конструкторе AmoCrmService
+this.FIELD_IDS = {
+    // Сделки (абонементы)
+    LEAD: {
+        TOTAL_CLASSES: 850241,    // "Абонемент занятий:" - ✓ есть
+        USED_CLASSES: 850257,     // "Счетчик занятий:" - ✓ есть  
+        REMAINING_CLASSES: 890163, // "Остаток занятий" - ✓ есть
+        EXPIRATION_DATE: 850255,  // "Окончание абонемента:" - ✓ есть
+        ACTIVATION_DATE: 851565,  // "Дата активации абонемента:" - ✓ есть
+        LAST_VISIT_DATE: 850259,  // "Дата последнего визита:" - ✓ есть
+        SUBSCRIPTION_TYPE: 891007, // "Тип абонемента" - ✓ есть
+        BRANCH: 891589,           // "Филиал" в сделке - ⚠️ проверить ID!
+        AGE_GROUP: 850243,        // "Группа возраст:" - ✓ есть
+        FREEZE: 867693,           // "Заморозка абонемента:" - ✓ есть
+        SUBSCRIPTION_OWNER: 805465, // "Принадлежность абонемента:" - ✓ есть
+        
+        // Поля для посещений (checkbox) - все есть
+        CLASS_1: 884899, CLASS_2: 884901, CLASS_3: 884903, CLASS_4: 884905,
+        CLASS_5: 884907, CLASS_6: 884909, CLASS_7: 884911, CLASS_8: 884913,
+        CLASS_9: 884915, CLASS_10: 884917, CLASS_11: 884919, CLASS_12: 884921,
+        CLASS_13: 884923, CLASS_14: 884925, CLASS_15: 884927, CLASS_16: 884929,
+        CLASS_17: 892867, CLASS_18: 892871, CLASS_19: 892875, CLASS_20: 892879,
+        CLASS_21: 892883, CLASS_22: 892887, CLASS_23: 892893, CLASS_24: 892895
+    },
+    
+    // Контакты (ученики)
+    CONTACT: {
+        CHILD_1_NAME: 867233,    // "!ФИО ребенка:" - ⚠️ проверить!
+        CHILD_1_BIRTHDAY: 867687, // ДР ребенка 1 - ⚠️ проверить!
+        CHILD_2_NAME: 867235,    // "!!ФИО ребенка:" - ⚠️ проверить!
+        CHILD_2_BIRTHDAY: 867685, // ДР ребенка 2 - ⚠️ проверить!
+        CHILD_3_NAME: 867733,    // "!!!ФИО ребенка:" - ⚠️ проверить!
+        CHILD_3_BIRTHDAY: 867735, // ДР ребенка 3 - ⚠️ проверить!
+        
+        BRANCH: 871273,          // "Филиал:" - ⚠️ проверить!
+        TEACHER: 888881,         // "Преподаватель" - ⚠️ проверить!
+        DAY_OF_WEEK: 888879,     // "День недели посещения" - ⚠️ проверить!
+        HAS_ACTIVE_SUB: 890179,  // "Есть активный абонемент" - ⚠️ проверить!
+        LAST_VISIT: 885380,      // "Дата последнего визита" - ⚠️ проверить!
+        AGE_GROUP: 888903,       // "Возраст группы" - ⚠️ проверить!
+        ALLERGIES: 850239,       // "Аллергия и особенности:" - ⚠️ проверить!
+        BIRTH_DATE: 850219,      // "День рождения:" (родителя) - ⚠️ проверить!
+        
+        // Общие поля
+        PARENT_NAME: 'name',      // Имя контакта
+        EMAIL: 850217            // "Почта" - ⚠️ проверить!
+    }
+};
     }
 
     async initialize() {
@@ -156,6 +156,168 @@ class AmoCrmService {
         }
     }
 
+// В класс AmoCrmService добавьте метод:
+async debugContactFields() {
+    try {
+        console.log('\n📋 ПОЛУЧЕНИЕ ПОЛЕЙ КОНТАКТОВ');
+        const fields = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
+        
+        const contactFields = [];
+        const childFields = [];
+        const allContactFields = [];
+        
+        if (fields && fields._embedded && fields._embedded.custom_fields) {
+            fields._embedded.custom_fields.forEach(field => {
+                const fieldInfo = {
+                    id: field.id,
+                    name: field.name,
+                    type: field.type,
+                    enums: field.enums || []
+                };
+                
+                allContactFields.push(fieldInfo);
+                
+                // Ищем поля детей
+                if (field.name.toLowerCase().includes('ребен') || 
+                    field.name.toLowerCase().includes('фио') ||
+                    field.name.toLowerCase().includes('др') ||
+                    field.name.toLowerCase().includes('день рождения')) {
+                    childFields.push(fieldInfo);
+                }
+                
+                // Ищем другие важные поля
+                if (field.name.toLowerCase().includes('филиал') ||
+                    field.name.toLowerCase().includes('преподаватель') ||
+                    field.name.toLowerCase().includes('день недели') ||
+                    field.name.toLowerCase().includes('абонемент') ||
+                    field.name.toLowerCase().includes('аллерги')) {
+                    contactFields.push(fieldInfo);
+                }
+            });
+        }
+        
+        console.log(`\n👤 ПОЛЯ ДЕТЕЙ (${childFields.length}):`);
+        childFields.forEach(f => {
+            console.log(`   ID: ${f.id} - "${f.name}" (${f.type})`);
+        });
+        
+        console.log(`\n📍 ДРУГИЕ ВАЖНЫЕ ПОЛЯ (${contactFields.length}):`);
+        contactFields.forEach(f => {
+            console.log(`   ID: ${f.id} - "${f.name}" (${f.type})`);
+        });
+        
+        console.log(`\n📊 ВСЕГО ПОЛЕЙ КОНТАКТОВ: ${allContactFields.length}`);
+        
+        return {
+            childFields,
+            contactFields,
+            allContactFields
+        };
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения полей контактов:', error.message);
+        return { childFields: [], contactFields: [], allContactFields: [] };
+    }
+}
+
+    // В класс AmoCrmService добавьте метод:
+async debugContactAnalysis(contactId) {
+    try {
+        console.log(`\n🔍 ПОЛНАЯ ДИАГНОСТИКА КОНТАКТА ID: ${contactId}`);
+        console.log('='.repeat(60));
+        
+        // Получаем контакт с полями
+        const contact = await this.getFullContactInfo(contactId);
+        if (!contact) {
+            console.log('❌ Контакт не найден');
+            return null;
+        }
+        
+        console.log(`👤 Контакт: ${contact.name || 'Без имени'}`);
+        console.log(`📅 Создан: ${contact.created_at}`);
+        console.log(`🔄 Обновлен: ${contact.updated_at}`);
+        
+        // Показываем все поля контакта
+        const customFields = contact.custom_fields_values || [];
+        console.log(`\n📊 ВСЕ ПОЛЯ КОНТАКТА (${customFields.length}):`);
+        console.log('='.repeat(60));
+        
+        customFields.forEach(field => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = this.getFieldName(field);
+            const fieldValue = this.getFieldValue(field);
+            
+            console.log(`   ID: ${fieldId} - "${fieldName}": "${fieldValue}"`);
+            
+            // Показываем значения enum, если есть
+            if (field.values && Array.isArray(field.values) && field.values.length > 0) {
+                field.values.forEach((val, idx) => {
+                    if (val && typeof val === 'object') {
+                        console.log(`       Значение ${idx}: ${JSON.stringify(val)}`);
+                    }
+                });
+            }
+        });
+        
+        // Извлекаем учеников
+        console.log(`\n👶 ИЗВЛЕЧЕНИЕ УЧЕНИКОВ:`);
+        const students = this.extractStudentsFromContact(contact);
+        console.log(`📊 Найдено учеников: ${students.length}`);
+        
+        students.forEach((student, idx) => {
+            console.log(`\n   Ученик ${idx + 1}:`);
+            console.log(`     Имя: ${student.studentName}`);
+            console.log(`     ДР: ${student.birthDate}`);
+            console.log(`     Филиал: ${student.branch}`);
+            console.log(`     Преподаватель: ${student.teacherName}`);
+            console.log(`     День недели: ${student.dayOfWeek}`);
+            console.log(`     Email: ${student.email}`);
+            console.log(`     Активный абонемент: ${student.hasActiveSubscription ? 'Да' : 'Нет'}`);
+        });
+        
+        // Получаем сделки контакта
+        console.log(`\n📋 ПОЛУЧЕНИЕ СДЕЛОК КОНТАКТА:`);
+        const leads = await this.getContactLeadsSorted(contactId);
+        console.log(`📊 Найдено сделок: ${leads.length}`);
+        
+        // Анализируем каждую сделку
+        console.log(`\n🔍 АНАЛИЗ СДЕЛОК:`);
+        const leadsAnalysis = [];
+        
+        for (const lead of leads) {
+            console.log(`\n   📋 Сделка: "${lead.name || 'Без названия'}" (ID: ${lead.id})`);
+            
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            
+            console.log(`     • Всего занятий: ${subscriptionInfo.totalClasses}`);
+            console.log(`     • Использовано: ${subscriptionInfo.usedClasses}`);
+            console.log(`     • Осталось: ${subscriptionInfo.remainingClasses}`);
+            console.log(`     • Статус: ${subscriptionInfo.subscriptionStatus}`);
+            console.log(`     • Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+            
+            leadsAnalysis.push({
+                leadId: lead.id,
+                leadName: lead.name,
+                subscriptionInfo
+            });
+        }
+        
+        return {
+            contact: {
+                id: contact.id,
+                name: contact.name,
+                fields: customFields,
+                students: students
+            },
+            leads: leadsAnalysis
+        };
+        
+    } catch (error) {
+        console.error(`❌ Ошибка диагностики контакта ${contactId}:`, error.message);
+        return null;
+    }
+}
+    
     async checkTokenValidity(token) {
         try {
             const response = await axios.get(`${this.baseUrl}/api/v4/account`, {
@@ -589,109 +751,173 @@ async extractSubscriptionInfo(lead) {
         }
     }
     
-    // 🔧 МЕТОД: extractStudentsFromContact
-    extractStudentsFromContact(contact) {
-        const students = [];
+   // 🔧 УЛУЧШЕННЫЙ МЕТОД: extractStudentsFromContact
+extractStudentsFromContact(contact) {
+    const students = [];
+    
+    try {
+        const customFields = contact.custom_fields_values || [];
+        const contactName = contact.name || '';
         
-        try {
-            const customFields = contact.custom_fields_values || [];
+        console.log(`\n👤 Поиск детей в контакте: "${contactName}"`);
+        console.log(`📊 Полей для анализа: ${customFields.length}`);
+        
+        // Сначала выведем все поля для отладки
+        console.log('\n📋 ВСЕ ПОЛЯ КОНТАКТА:');
+        customFields.forEach((field, idx) => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = this.getFieldName(field);
+            const fieldValue = this.getFieldValue(field);
+            console.log(`   [${idx}] ID:${fieldId} "${fieldName}" = "${fieldValue}"`);
+        });
+        
+        // Для каждого возможного ребенка - УБЕДИТЕСЬ, ЧТО ID ПРАВИЛЬНЫЕ!
+        const childrenConfig = [
+            { number: 1, nameFieldId: 867233, birthdayFieldId: 867687 }, // !ФИО ребенка: и ДР ребенка 1
+            { number: 2, nameFieldId: 867235, birthdayFieldId: 867685 }, // !!ФИО ребенка: и ДР ребенка 2  
+            { number: 3, nameFieldId: 867733, birthdayFieldId: 867735 }  // !!!ФИО ребенка: и ДР ребенка 3
+        ];
+        
+        for (const childConfig of childrenConfig) {
+            let childInfo = {
+                studentName: '',
+                birthDate: '',
+                branch: '',
+                dayOfWeek: '',
+                timeSlot: '',
+                teacherName: '',
+                course: '',
+                ageGroup: '',
+                allergies: '',
+                parentName: contactName,
+                hasActiveSubscription: false,
+                lastVisitDate: '',
+                email: ''
+            };
             
-            console.log(`\n👤 Поиск детей в контакте: ${contact.name || 'Без имени'}`);
+            let hasChildData = false;
             
-            // Для каждого возможного ребенка
-            const childrenConfig = [
-                { number: 1, nameFieldId: this.FIELD_IDS.CONTACT.CHILD_1_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY },
-                { number: 2, nameFieldId: this.FIELD_IDS.CONTACT.CHILD_2_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY },
-                { number: 3, nameFieldId: this.FIELD_IDS.CONTACT.CHILD_3_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY }
-            ];
-            
-            for (const childConfig of childrenConfig) {
-                let childInfo = {
-                    studentName: '',
-                    birthDate: '',
-                    branch: '',
-                    dayOfWeek: '',
-                    timeSlot: '',
-                    teacherName: '',
-                    course: '',
-                    ageGroup: '',
-                    allergies: '',
-                    parentName: contact.name || '',
-                    hasActiveSubscription: false,
-                    lastVisitDate: '',
-                    email: ''
-                };
+            // Проходим по всем полям контакта
+            for (const field of customFields) {
+                const fieldId = field.field_id || field.id;
+                const fieldValue = this.getFieldValue(field);
                 
-                let hasChildData = false;
+                if (!fieldValue || fieldValue.trim() === '') continue;
                 
-                // Проходим по всем полям контакта
-                for (const field of customFields) {
-                    const fieldId = field.field_id || field.id;
-                    const fieldValue = this.getFieldValue(field);
-                    
-                    if (!fieldValue || fieldValue.trim() === '') continue;
-                    
-                    // Имя ребенка
-                    if (fieldId === childConfig.nameFieldId) {
-                        childInfo.studentName = fieldValue;
-                        hasChildData = true;
-                        console.log(`   👶 Ребенок ${childConfig.number}: ${fieldValue}`);
-                    }
-                    
-                    // День рождения ребенка
-                    else if (fieldId === childConfig.birthdayFieldId) {
-                        childInfo.birthDate = this.parseDate(fieldValue);
-                    }
-                    
-                    // Общие поля для всех детей
-                    else if (fieldId === this.FIELD_IDS.CONTACT.BRANCH) {
-                        childInfo.branch = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
-                        childInfo.teacherName = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.DAY_OF_WEEK) {
-                        childInfo.dayOfWeek = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB) {
-                        childInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
-                                                         fieldValue === '1' || 
-                                                         fieldValue.toLowerCase() === 'true';
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.LAST_VISIT) {
-                        childInfo.lastVisitDate = this.parseDate(fieldValue);
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.AGE_GROUP) {
-                        childInfo.ageGroup = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.ALLERGIES) {
-                        childInfo.allergies = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.EMAIL) {
-                        childInfo.email = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.BIRTH_DATE) {
-                        // Дата рождения родителя (может использоваться как общая)
-                        if (!childInfo.birthDate) {
-                            childInfo.birthDate = this.parseDate(fieldValue);
-                        }
-                    }
+                // Имя ребенка - ПРОВЕРЬТЕ ФАКТИЧЕСКИЕ ID!
+                if (fieldId === childConfig.nameFieldId) {
+                    childInfo.studentName = fieldValue;
+                    hasChildData = true;
+                    console.log(`✅ Ребенок ${childConfig.number}: ${fieldValue}`);
                 }
                 
-                // Если нашли данные о ребенке, добавляем
-                if (hasChildData && childInfo.studentName && childInfo.studentName.trim() !== '') {
-                    students.push(childInfo);
+                // День рождения ребенка
+                else if (fieldId === childConfig.birthdayFieldId) {
+                    childInfo.birthDate = this.parseDate(fieldValue);
+                    console.log(`   📅 ДР ребенка ${childConfig.number}: ${fieldValue}`);
+                }
+                
+                // Ищем другие поля по названию (на случай, если ID не совпадают)
+                const fieldName = this.getFieldName(field).toLowerCase();
+                
+                // Филиал
+                if (fieldName.includes('филиал')) {
+                    childInfo.branch = fieldValue;
+                }
+                
+                // Преподаватель
+                if (fieldName.includes('преподаватель')) {
+                    childInfo.teacherName = fieldValue;
+                }
+                
+                // День недели
+                if (fieldName.includes('день недели')) {
+                    childInfo.dayOfWeek = fieldValue;
+                }
+                
+                // Активный абонемент
+                if (fieldName.includes('активн') && fieldName.includes('абонемент')) {
+                    childInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
+                                                     fieldValue === '1' || 
+                                                     fieldValue.toLowerCase() === 'true';
+                }
+                
+                // Email
+                if (fieldName.includes('email') || fieldName.includes('почта')) {
+                    childInfo.email = fieldValue;
+                }
+                
+                // Аллергии
+                if (fieldName.includes('аллерги')) {
+                    childInfo.allergies = fieldValue;
+                }
+                
+                // Возрастная группа
+                if (fieldName.includes('возраст') || fieldName.includes('групп')) {
+                    childInfo.ageGroup = fieldValue;
                 }
             }
             
-            console.log(`📊 Найдено детей: ${students.length}`);
-            
-        } catch (error) {
-            console.error('❌ Ошибка извлечения учеников из контакта:', error);
+            // Если нашли данные о ребенке, добавляем
+            if (hasChildData && childInfo.studentName && childInfo.studentName.trim() !== '') {
+                students.push(childInfo);
+                console.log(`✅ Добавлен ребенок: ${childInfo.studentName}`);
+            } else {
+                console.log(`❌ Ребенок ${childConfig.number}: данные не найдены`);
+            }
         }
         
-        return students;
+        console.log(`\n📊 ИТОГО найдено детей: ${students.length}`);
+        
+        // Если детей не нашли по ID полей, попробуем найти по шаблонам
+        if (students.length === 0) {
+            console.log('\n🔍 Поиск детей по шаблонам...');
+            
+            // Ищем любые поля с "ФИО", "ребенок", "ученик"
+            for (const field of customFields) {
+                const fieldName = this.getFieldName(field).toLowerCase();
+                const fieldValue = this.getFieldValue(field);
+                
+                if (!fieldValue || fieldValue.trim() === '') continue;
+                
+                if ((fieldName.includes('фио') || fieldName.includes('ребен') || 
+                     fieldName.includes('ученик')) && !fieldName.includes('родител')) {
+                    
+                    // Проверяем, что это похоже на имя (не номер телефона, не email)
+                    if (fieldValue.length > 2 && fieldValue.length < 50 && 
+                        !fieldValue.includes('@') && !/\d{10,}/.test(fieldValue)) {
+                        
+                        console.log(`🔍 Найден возможный ребенок: ${fieldValue} (поле: ${fieldName})`);
+                        
+                        students.push({
+                            studentName: fieldValue,
+                            birthDate: '',
+                            branch: '',
+                            dayOfWeek: '',
+                            timeSlot: '',
+                            teacherName: '',
+                            course: '',
+                            ageGroup: '',
+                            allergies: '',
+                            parentName: contactName,
+                            hasActiveSubscription: false,
+                            lastVisitDate: '',
+                            email: ''
+                        });
+                    }
+                }
+            }
+            
+            console.log(`📊 После поиска по шаблонам: ${students.length} детей`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка извлечения учеников из контакта:', error);
+        console.error(error.stack);
     }
+    
+    return students;
+}
 
     // 🔧 ОСНОВНОЙ МЕТОД: getStudentsByPhone
    // 🔧 ОБНОВЛЕННЫЙ МЕТОД: getStudentsByPhone
@@ -1964,6 +2190,71 @@ app.post('/api/subscription', async (req, res) => {
 });
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+
+
+// 📍 ПОЛЯ КОНТАКТОВ
+app.get('/api/debug/contact-fields', async (req, res) => {
+    try {
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const fields = await amoCrmService.debugContactFields();
+        
+        res.json({
+            success: true,
+            message: 'Поля контактов получены',
+            data: fields
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения полей контактов:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения полей контактов'
+        });
+    }
+});
+
+// 📍 ДЕТАЛЬНАЯ ДИАГНОСТИКА КОНТАКТА
+app.get('/api/debug/contact-detailed/:id', async (req, res) => {
+    try {
+        const contactId = req.params.id;
+        
+        console.log(`\n🔍 ЗАПРОС ДЕТАЛЬНОЙ ДИАГНОСТИКИ КОНТАКТА ID: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const analysis = await amoCrmService.debugContactAnalysis(contactId);
+        
+        if (!analysis) {
+            return res.status(404).json({
+                success: false,
+                error: 'Контакт не найден или ошибка анализа'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: analysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка детальной диагностики контакта:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики контакта'
+        });
+    }
+});
 
 // 📍 ДИАГНОСТИКА КОНКРЕТНОЙ СДЕЛКИ
 app.get('/api/debug/lead-analysis/:id', async (req, res) => {
