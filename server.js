@@ -2627,6 +2627,905 @@ app.post('/api/debug/match', async (req, res) => {
     }
 });
 
+// ==================== ДИАГНОСТИКА ЧЕРЕЗ БРАУЗЕР ====================
+
+// 1. Диагностика телефона через GET запрос
+app.get('/debug/phone/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n📱 ДИАГНОСТИКА ТЕЛЕФОНА ЧЕРЕЗ БРАУЗЕР: ${phone}`);
+        
+        const results = await amoCrmService.debugPhoneSearch(phone);
+        
+        // Формируем HTML страницу
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Диагностика телефона: ${phone}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border-left: 4px solid #2196F3;
+            background: #f8f9fa;
+        }
+        .section h2 {
+            color: #2196F3;
+            margin-top: 0;
+        }
+        .contact, .student, .lead {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+        }
+        .success { color: #4CAF50; font-weight: bold; }
+        .warning { color: #FF9800; font-weight: bold; }
+        .error { color: #f44336; font-weight: bold; }
+        .info { color: #2196F3; }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin: 0 5px;
+        }
+        .badge-success { background: #4CAF50; color: white; }
+        .badge-warning { background: #FF9800; color: white; }
+        .badge-danger { background: #f44336; color: white; }
+        .badge-info { background: #2196F3; color: white; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background: #f8f9fa;
+        }
+        .back-link {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        .debug-form {
+            margin: 30px 0;
+            padding: 20px;
+            background: #e8f4fc;
+            border-radius: 5px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            width: 300px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Диагностика телефона: ${phone}</h1>
+        <p><strong>📅 Время проверки:</strong> ${new Date().toISOString()}</p>
+        
+        <div class="debug-form">
+            <h3>🔎 Проверить другой телефон</h3>
+            <form action="/debug/phone" method="GET">
+                <input type="text" name="phone" placeholder="Введите номер телефона" value="${phone}" required>
+                <button type="submit">Запустить диагностику</button>
+            </form>
+        </div>
+        
+        <div class="section">
+            <h2>📞 Статус поиска</h2>
+            <p><span class="info">Найдено контактов:</span> ${results.contacts.length}</p>
+            <p><span class="info">Найдено учеников:</span> ${results.students.length}</p>
+            <p><span class="info">Найдено сделок:</span> ${results.leads.length}</p>
+        </div>
+        
+        ${results.issues.length > 0 ? `
+        <div class="section">
+            <h2>🚨 Проблемы</h2>
+            ${results.issues.map(issue => `<p class="error">❌ ${issue}</p>`).join('')}
+        </div>
+        ` : ''}
+        
+        ${results.contacts.length > 0 ? `
+        <div class="section">
+            <h2>👥 Найденные контакты</h2>
+            ${results.contacts.map(contact => `
+            <div class="contact">
+                <h3>${contact.name || 'Без имени'}</h3>
+                <p><strong>ID:</strong> ${contact.id}</p>
+                <p><strong>Создан:</strong> ${contact.created_at || 'Неизвестно'}</p>
+                <p><strong>Обновлен:</strong> ${contact.updated_at || 'Неизвестно'}</p>
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${results.students.length > 0 ? `
+        <div class="section">
+            <h2>👨‍🎓 Найденные ученики</h2>
+            ${results.students.map(student => `
+            <div class="student">
+                <h3>🎯 ${student.student_name}</h3>
+                <p><strong>Контакта:</strong> ${student.contact_name} (ID: ${student.contact_id})</p>
+                <p><strong>Филиал:</strong> ${student.branch || 'Не указан'}</p>
+                <p><strong>Активный абонемент:</strong> 
+                    ${student.has_active_subscription ? '<span class="success">✅ Да</span>' : '<span class="warning">❌ Нет</span>'}
+                </p>
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${results.leads.length > 0 ? `
+        <div class="section">
+            <h2>📋 Найденные сделки с абонементами</h2>
+            ${results.leads.map(lead => `
+            <div class="lead">
+                <h3>${lead.lead_name}</h3>
+                <p><strong>ID сделки:</strong> ${lead.lead_id}</p>
+                <p><strong>ID контакта:</strong> ${lead.contact_id}</p>
+                <p><strong>Совпадения с учениками:</strong> 
+                    ${lead.student_matches.length > 0 ? 
+                      lead.student_matches.map(name => `<span class="badge badge-success">${name}</span>`).join(' ') : 
+                      '<span class="badge badge-warning">Нет совпадений</span>'}
+                </p>
+                <table>
+                    <tr>
+                        <th>Статус абонемента</th>
+                        <th>Всего занятий</th>
+                        <th>Использовано</th>
+                        <th>Осталось</th>
+                        <th>Активен</th>
+                        <th>Тип</th>
+                    </tr>
+                    <tr>
+                        <td>${lead.subscription_info.subscriptionStatus}</td>
+                        <td>${lead.subscription_info.totalClasses}</td>
+                        <td>${lead.subscription_info.usedClasses}</td>
+                        <td>${lead.subscription_info.remainingClasses}</td>
+                        <td>${lead.subscription_info.subscriptionActive ? '<span class="success">✅ Да</span>' : '<span class="error">❌ Нет</span>'}</td>
+                        <td>${lead.subscription_info.subscriptionType || 'Не указан'}</td>
+                    </tr>
+                </table>
+                <a href="/debug/lead/${lead.lead_id}" target="_blank" style="color: #2196F3; text-decoration: none;">
+                    🔍 Подробный анализ сделки
+                </a>
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        <div class="section">
+            <h2>🔗 Быстрые ссылки</h2>
+            <a href="/debug" class="back-link">📊 Главная диагностика</a>
+            <a href="/api/status" class="back-link" style="background: #4CAF50;">🟢 Статус API</a>
+            <a href="/api/debug/connection" class="back-link" style="background: #9C27B0;">🔗 Проверка amoCRM</a>
+        </div>
+    </div>
+</body>
+</html>`;
+        
+        res.send(html);
+        
+    } catch (error) {
+        console.error('❌ Ошибка HTML диагностики:', error.message);
+        res.status(500).send(`
+<!DOCTYPE html>
+<html>
+<head><title>Ошибка</title></head>
+<body>
+    <h1>❌ Ошибка диагностики</h1>
+    <p>${error.message}</p>
+    <a href="/debug">Вернуться назад</a>
+</body>
+</html>`);
+    }
+});
+
+// 2. Форма для ввода телефона
+app.get('/debug/phone', (req, res) => {
+    const phone = req.query.phone || '';
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Диагностика по телефону</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin: 25px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .examples h3 {
+            margin-top: 0;
+            color: #666;
+        }
+        .example-link {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 15px;
+            background: #e8f4fc;
+            color: #2196F3;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+        .example-link:hover {
+            background: #d1ecf1;
+        }
+        .nav-links {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 10px;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            color: #666;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .nav-links a:hover {
+            background: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔍</div>
+        <h1>Диагностика поиска учеников</h1>
+        
+        <form action="/debug/phone" method="GET">
+            <div class="form-group">
+                <label for="phone">📱 Введите номер телефона:</label>
+                <input type="text" 
+                       id="phone" 
+                       name="phone" 
+                       placeholder="+7 (916) 123-45-67 или 79161234567"
+                       value="${phone}"
+                       required>
+            </div>
+            <button type="submit">
+                🚀 Запустить диагностику
+            </button>
+        </form>
+        
+        <div class="examples">
+            <h3>📋 Примеры для теста:</h3>
+            <p>
+                <a href="/debug/phone/79660587744" class="example-link">79660587744</a>
+                <a href="/debug/phone/79161234567" class="example-link">79161234567</a>
+                <a href="/debug/phone/79251112233" class="example-link">79251112233</a>
+            </p>
+        </div>
+        
+        <div class="nav-links">
+            <a href="/debug">📊 Главная диагностика</a>
+            <a href="/api/status">🟢 Статус API</a>
+            <a href="/api/debug/database">🗄️ База данных</a>
+        </div>
+    </div>
+</body>
+</html>`;
+    
+    res.send(html);
+});
+
+// 3. Диагностика сделки через браузер
+app.get('/debug/lead/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ДИАГНОСТИКА СДЕЛКИ ЧЕРЕЗ БРАУЗЕР: ${leadId}`);
+        
+        const analysis = await amoCrmService.debugLeadAnalysis(leadId);
+        
+        if (!analysis) {
+            return res.status(404).send(`
+<!DOCTYPE html>
+<html>
+<head><title>Сделка не найдена</title></head>
+<body>
+    <h1>❌ Сделка ${leadId} не найдена</h1>
+    <a href="/debug">Вернуться назад</a>
+</body>
+</html>`);
+        }
+        
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Анализ сделки: ${leadId}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #FF9800;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border-left: 4px solid #4CAF50;
+            background: #f8f9fa;
+        }
+        .field {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #eee;
+            background: white;
+        }
+        .subscription {
+            color: #4CAF50;
+        }
+        .important {
+            background: #fff8e1;
+            border-left: 4px solid #FFC107;
+        }
+        .checkbox {
+            color: #9C27B0;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .search-form {
+            margin: 20px 0;
+            padding: 15px;
+            background: #e8f4fc;
+            border-radius: 5px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            width: 300px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Анализ сделки</h1>
+        <p><strong>📅 Время анализа:</strong> ${new Date().toISOString()}</p>
+        
+        <div class="search-form">
+            <h3>🔎 Анализ другой сделки</h3>
+            <form action="/debug/lead" method="GET">
+                <input type="text" name="leadId" placeholder="Введите ID сделки" value="${leadId}" required>
+                <button type="submit">Проанализировать</button>
+            </form>
+        </div>
+        
+        <div class="section">
+            <h2>📋 Информация о сделке</h2>
+            <div class="field">
+                <p><strong>ID:</strong> ${analysis.lead_info.id}</p>
+                <p><strong>Название:</strong> ${analysis.lead_info.name}</p>
+                <p><strong>Pipeline ID:</strong> ${analysis.lead_info.pipeline_id}</p>
+                <p><strong>Status ID:</strong> ${analysis.lead_info.status_id}</p>
+                <p><strong>Стоимость:</strong> ${analysis.lead_info.price || 'Не указана'}</p>
+                <p><strong>Создана:</strong> ${analysis.lead_info.created_at}</p>
+                <p><strong>Обновлена:</strong> ${analysis.lead_info.updated_at}</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🎫 Информация об абонементе</h2>
+            <div class="field">
+                <p><strong>Статус:</strong> ${analysis.subscription_info.subscriptionStatus}</p>
+                <p><strong>Всего занятий:</strong> ${analysis.subscription_info.totalClasses}</p>
+                <p><strong>Использовано:</strong> ${analysis.subscription_info.usedClasses}</p>
+                <p><strong>Осталось:</strong> ${analysis.subscription_info.remainingClasses}</p>
+                <p><strong>Тип абонемента:</strong> ${analysis.subscription_info.subscriptionType || 'Не указан'}</p>
+                <p><strong>Активен:</strong> ${analysis.subscription_info.subscriptionActive ? '✅ Да' : '❌ Нет'}</p>
+                <p><strong>Воронка абонемента:</strong> ${analysis.subscription_info.isInSubscriptionPipeline ? '✅ Да' : '❌ Нет'}</p>
+            </div>
+        </div>
+        
+        ${analysis.fields.length > 0 ? `
+        <div class="section">
+            <h2>📊 Поля сделки (${analysis.fields.length})</h2>
+            ${analysis.fields.map(field => `
+            <div class="field ${field.is_important ? 'important' : ''} ${field.id >= 884899 && field.id <= 884929 ? 'checkbox' : ''}">
+                <p>
+                    <strong>${field.name}</strong> 
+                    <span style="color: #666; font-size: 0.9em;">(ID: ${field.id})</span>
+                    ${field.is_subscription_field ? '<span style="color: #4CAF50; margin-left: 10px;">🎫 Абонемент</span>' : ''}
+                    ${field.is_important && !field.is_subscription_field ? '<span style="color: #FF9800; margin-left: 10px;">⚠️ Важное</span>' : ''}
+                </p>
+                <p><strong>Значение:</strong> ${field.value || 'Пусто'}</p>
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        <a href="/debug" class="back-link">📊 Вернуться к диагностике</a>
+        <a href="/debug/phone" class="back-link" style="background: #4CAF50;">📱 Проверить телефон</a>
+    </div>
+</body>
+</html>`;
+        
+        res.send(html);
+        
+    } catch (error) {
+        console.error('❌ Ошибка HTML анализа сделки:', error.message);
+        res.status(500).send(`
+<!DOCTYPE html>
+<html>
+<head><title>Ошибка</title></head>
+<body>
+    <h1>❌ Ошибка анализа сделки</h1>
+    <p>${error.message}</p>
+    <a href="/debug">Вернуться назад</a>
+</body>
+</html>`);
+    }
+});
+
+// 4. Форма для анализа сделки
+app.get('/debug/lead', (req, res) => {
+    const leadId = req.query.leadId || '';
+    
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Анализ сделки</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin: 25px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            border-color: #f5576c;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .nav-links {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 10px;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            color: #666;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .nav-links a:hover {
+            background: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">📋</div>
+        <h1>Анализ сделки в amoCRM</h1>
+        
+        <form action="/debug/lead" method="GET">
+            <div class="form-group">
+                <label for="leadId">🔢 Введите ID сделки:</label>
+                <input type="text" 
+                       id="leadId" 
+                       name="leadId" 
+                       placeholder="Например: 12345678"
+                       value="${leadId}"
+                       required>
+            </div>
+            <button type="submit">
+                🔍 Проанализировать сделку
+            </button>
+        </form>
+        
+        <div class="nav-links">
+            <a href="/debug">📊 Главная диагностика</a>
+            <a href="/debug/phone">📱 Проверить телефон</a>
+            <a href="/api/status">🟢 Статус API</a>
+        </div>
+    </div>
+</body>
+</html>`;
+    
+    res.send(html);
+});
+
+// 5. Главная страница диагностики
+app.get('/debug', (req, res) => {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Диагностика системы</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            text-align: center;
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            transition: transform 0.3s;
+            border: 2px solid transparent;
+        }
+        .status-card:hover {
+            transform: translateY(-5px);
+            border-color: #4CAF50;
+        }
+        .status-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .status-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .status-value {
+            font-size: 24px;
+            color: #4CAF50;
+        }
+        .card-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+        .action-buttons {
+            margin-top: 40px;
+            text-align: center;
+        }
+        .action-btn {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+        .action-btn:hover {
+            transform: scale(1.05);
+        }
+        .action-btn.secondary {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        }
+        .action-btn.danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+        .quick-links {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .quick-links h3 {
+            margin-top: 0;
+            color: #666;
+        }
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .link-item {
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .link-item a {
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .link-item a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔧</div>
+        <h1>Система диагностики Художественной Студии</h1>
+        
+        <div class="status-grid">
+            <a href="/api/status" class="card-link">
+                <div class="status-card">
+                    <div class="status-icon">🟢</div>
+                    <div class="status-title">Статус API</div>
+                    <div class="status-value">Проверить</div>
+                </div>
+            </a>
+            
+            <a href="/debug/phone" class="card-link">
+                <div class="status-card">
+                    <div class="status-icon">📱</div>
+                    <div class="status-title">Поиск по телефону</div>
+                    <div class="status-value">Диагностика</div>
+                </div>
+            </a>
+            
+            <a href="/api/debug/connection" class="card-link">
+                <div class="status-card">
+                    <div class="status-icon">🔗</div>
+                    <div class="status-title">Соединение amoCRM</div>
+                    <div class="status-value">${amoCrmService.isInitialized ? '✅' : '❌'}</div>
+                </div>
+            </a>
+            
+            <a href="/api/debug/database" class="card-link">
+                <div class="status-card">
+                    <div class="status-icon">🗄️</div>
+                    <div class="status-title">База данных</div>
+                    <div class="status-value">Статистика</div>
+                </div>
+            </a>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/debug/phone?phone=79660587744" class="action-btn secondary">
+                📱 Тестовый телефон
+            </a>
+            <a href="/debug/lead" class="action-btn">
+                🔍 Анализ сделки
+            </a>
+            <a href="/api/sync/now" class="action-btn danger" target="_blank">
+                🔄 Синхронизация
+            </a>
+        </div>
+        
+        <div class="quick-links">
+            <h3>📋 Быстрые ссылки:</h3>
+            <div class="link-grid">
+                <div class="link-item">
+                    <a href="/debug/phone/79660587744">Телефон: 79660587744</a>
+                </div>
+                <div class="link-item">
+                    <a href="/api/debug/connection">Проверка amoCRM</a>
+                </div>
+                <div class="link-item">
+                    <a href="/api/health">Health Check</a>
+                </div>
+                <div class="link-item">
+                    <a href="/api/sync/status">Статус синхронизации</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+    
+    res.send(html);
+});
+
 // Получение списка профилей
 app.get('/api/profiles', async (req, res) => {
     try {
