@@ -1976,108 +1976,87 @@ const ArtApp = {
         `;
     },
     
-   renderSubscription: function(data) {
-    const container = document.getElementById('subscriptionInfo');
-    const statRemaining = document.getElementById('statRemaining');
-    
-    if (!data || !data.subscription) {
-        this.renderSubscriptionFromProfile();
-        return;
-    }
-    
-    const subscription = data.subscription;
-    const student = data.student;
-    
-    const total = subscription.classes.total || 0;
-    const remaining = subscription.classes.remaining || 0;
-    const used = subscription.classes.used || 0;
-    const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-    
-    if (statRemaining) statRemaining.textContent = remaining;
-    
-    const statusClass = subscription.is_active ? 'active' : 
-                       subscription.status?.includes('истек') ? 'expired' :
-                       subscription.status?.includes('заморожен') ? 'frozen' : 'inactive';
-    
-    const statusText = subscription.status || 
-                      (subscription.is_active ? 'Активен' : 'Неактивен');
-    
-    container.innerHTML = `
-        <div class="subscription-header">
-            <div>
-                <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">
-                    ${student.name || 'Ученик'}
-                </h3>
-                <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
-                    <i class="fas fa-map-marker-alt"></i>
-                    ${student.branch || 'Филиал не указан'}
+    renderSubscription: function(data) {
+        const container = document.getElementById('subscriptionInfo');
+        const statRemaining = document.getElementById('statRemaining');
+        
+        if (!data || !data.subscription) {
+            this.renderSubscriptionFromProfile();
+            return;
+        }
+        
+        const subscription = data.subscription;
+        const student = data.student;
+        
+        const total = subscription.classes.total || 0;
+        const remaining = subscription.classes.remaining || 0;
+        const used = subscription.classes.used || 0;
+        const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+        
+        if (statRemaining) statRemaining.textContent = remaining;
+        
+        const statusClass = subscription.is_active ? 'active' : 'expired';
+        const statusText = subscription.is_active ? 'Активен' : 'Завершен';
+        
+        container.innerHTML = `
+            <div class="subscription-header">
+                <div>
+                    <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">${subscription.type || 'Абонемент'}</h3>
+                    <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-map-marker-alt"></i>
+                        ${student.branch || 'Филиал не указан'}
+                    </div>
+                </div>
+                <div class="badge ${statusClass}">${statusText}</div>
+            </div>
+            
+            <div class="subscription-stats">
+                <div class="stat-item">
+                    <div class="stat-value">${total}</div>
+                    <div class="stat-label">Всего занятий</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value">${remaining}</div>
+                    <div class="stat-label">Осталось</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value">${used}</div>
+                    <div class="stat-label">Использовано</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value" style="font-size: 1.5rem;">${subscription.dates.expiration ? new Date(subscription.dates.expiration).toLocaleDateString('ru-RU') : '—'}</div>
+                    <div class="stat-label">Срок действия</div>
                 </div>
             </div>
-            <div class="badge ${statusClass}">${statusText}</div>
-        </div>
-        
-        <div class="subscription-stats">
-            <div class="stat-item">
-                <div class="stat-value">${total}</div>
-                <div class="stat-label">Всего занятий</div>
-            </div>
             
-            <div class="stat-item">
-                <div class="stat-value">${remaining}</div>
-                <div class="stat-label">Осталось</div>
-            </div>
-            
-            <div class="stat-item">
-                <div class="stat-value">${used}</div>
-                <div class="stat-label">Использовано</div>
-            </div>
-            
-            <div class="stat-item">
-                <div class="stat-value" style="font-size: 1.5rem;">
-                    ${subscription.dates?.expiration ? 
-                        new Date(subscription.dates.expiration).toLocaleDateString('ru-RU') : '—'}
+            ${total > 0 ? `
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span>Прогресс</span>
+                    <span>${progress.toFixed(0)}%</span>
                 </div>
-                <div class="stat-label">Срок действия</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
+                </div>
             </div>
-        </div>
-        
-        ${total > 0 ? `
-        <div class="progress-container">
-            <div class="progress-header">
-                <span>Прогресс</span>
-                <span>${progress.toFixed(0)}% (${used}/${total})</span>
+            ` : ''}
+            
+            ${student.teacher_name ? `
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
+                <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    Преподаватель
+                </h4>
+                <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
+                    ${student.teacher_name || subscription.teacher_name}
+                </div>
             </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: ${progress}%"></div>
-            </div>
-        </div>
-        ` : ''}
-        
-        ${student.teacher_name || subscription.teacher_name ? `
-        <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-            <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                <i class="fas fa-chalkboard-teacher"></i>
-                Преподаватель
-            </h4>
-            <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                ${student.teacher_name || subscription.teacher_name}
-            </div>
-        </div>
-        ` : ''}
-        
-        ${subscription.type ? `
-        <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid var(--gray-medium);">
-            <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                <i class="fas fa-ticket-alt"></i>
-                Тип абонемента
-            </h4>
-            <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                ${subscription.type}
-            </div>
-        </div>
-        ` : ''}
-    `;
-},
+            ` : ''}
+        `;
+    },
 
     loadProfile: function() {
         this.updateUserInterface();
@@ -2185,4 +2164,4 @@ document.addEventListener('DOMContentLoaded', function() {
 window.ArtApp = ArtApp;
 </script>
 </body>
-</html>
+</html> 
