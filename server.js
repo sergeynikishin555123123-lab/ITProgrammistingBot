@@ -392,6 +392,88 @@ async debugContactAnalysis(contactId) {
         return null;
     }
 }
+
+// 🔧 МЕТОД: debugStudentSearch - для тестирования
+async debugStudentSearch(phoneNumber) {
+    try {
+        console.log(`\n🔍 ПОЛНАЯ ДИАГНОСТИКА ПОИСКА УЧЕНИКА: ${phoneNumber}`);
+        console.log('='.repeat(80));
+        
+        if (!this.isInitialized) {
+            console.log('❌ amoCRM не инициализирован');
+            return null;
+        }
+        
+        // 1. Ищем контакты
+        const contactsResponse = await this.searchContactsByPhone(phoneNumber);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        
+        const results = [];
+        
+        for (const contact of contacts) {
+            console.log(`\n👤 Контакт: ${contact.name} (ID: ${contact.id})`);
+            
+            // Получаем полный контакт
+            const fullContact = await this.getFullContactInfo(contact.id);
+            const children = this.extractStudentsFromContact(fullContact);
+            
+            console.log(`📊 Детей в контакте: ${children.length}`);
+            
+            // Получаем сделки
+            const leads = await this.getContactLeadsSorted(contact.id);
+            console.log(`📊 Сделок у контакта: ${leads.length}`);
+            
+            // Для каждого ребенка ищем лучшую сделку
+            for (const child of children) {
+                console.log(`\n🎯 Ребенок: "${child.studentName}"`);
+                
+                const bestLead = this.findBestLeadForStudent(child.studentName, leads);
+                
+                results.push({
+                    contact: fullContact.name,
+                    contactId: fullContact.id,
+                    student: child,
+                    bestLead: bestLead ? {
+                        id: bestLead.id,
+                        name: bestLead.name,
+                        subscriptionInfo: this.extractSubscriptionInfo(bestLead)
+                    } : null,
+                    totalLeads: leads.length,
+                    leadsWithSubscription: leads.filter(l => this.extractSubscriptionInfo(l).hasSubscription).length
+                });
+            }
+        }
+        
+        console.log('\n' + '='.repeat(80));
+        console.log('📊 ИТОГИ ПОИСКА:');
+        console.log('='.repeat(80));
+        
+        results.forEach((result, index) => {
+            console.log(`\n${index + 1}. ${result.student.studentName}:`);
+            console.log(`   • Контакт: ${result.contact} (ID: ${result.contactId})`);
+            console.log(`   • Всего сделок: ${result.totalLeads}`);
+            console.log(`   • Сделок с абонементом: ${result.leadsWithSubscription}`);
+            
+            if (result.bestLead) {
+                console.log(`   ✅ Найдена сделка: "${result.bestLead.name}"`);
+                console.log(`      ID: ${result.bestLead.id}`);
+                console.log(`      Абонемент: ${result.bestLead.subscriptionInfo.subscriptionStatus}`);
+                console.log(`      Занятий: ${result.bestLead.subscriptionInfo.usedClasses}/${result.bestLead.subscriptionInfo.totalClasses}`);
+            } else {
+                console.log(`   ❌ Сделка не найдена`);
+            }
+        });
+        
+        return results;
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики поиска:', error.message);
+        return null;
+    }
+}
+
     
     async checkTokenValidity(token) {
         try {
@@ -2592,86 +2674,7 @@ app.get('/api/debug/phone-detailed/:phone', async (req, res) => {
     }
 });
 
-// 🔧 МЕТОД: debugStudentSearch - для тестирования
-async debugStudentSearch(phoneNumber) {
-    try {
-        console.log(`\n🔍 ПОЛНАЯ ДИАГНОСТИКА ПОИСКА УЧЕНИКА: ${phoneNumber}`);
-        console.log('='.repeat(80));
-        
-        if (!this.isInitialized) {
-            console.log('❌ amoCRM не инициализирован');
-            return null;
-        }
-        
-        // 1. Ищем контакты
-        const contactsResponse = await this.searchContactsByPhone(phoneNumber);
-        const contacts = contactsResponse._embedded?.contacts || [];
-        
-        console.log(`📊 Найдено контактов: ${contacts.length}`);
-        
-        const results = [];
-        
-        for (const contact of contacts) {
-            console.log(`\n👤 Контакт: ${contact.name} (ID: ${contact.id})`);
-            
-            // Получаем полный контакт
-            const fullContact = await this.getFullContactInfo(contact.id);
-            const children = this.extractStudentsFromContact(fullContact);
-            
-            console.log(`📊 Детей в контакте: ${children.length}`);
-            
-            // Получаем сделки
-            const leads = await this.getContactLeadsSorted(contact.id);
-            console.log(`📊 Сделок у контакта: ${leads.length}`);
-            
-            // Для каждого ребенка ищем лучшую сделку
-            for (const child of children) {
-                console.log(`\n🎯 Ребенок: "${child.studentName}"`);
-                
-                const bestLead = this.findBestLeadForStudent(child.studentName, leads);
-                
-                results.push({
-                    contact: fullContact.name,
-                    contactId: fullContact.id,
-                    student: child,
-                    bestLead: bestLead ? {
-                        id: bestLead.id,
-                        name: bestLead.name,
-                        subscriptionInfo: this.extractSubscriptionInfo(bestLead)
-                    } : null,
-                    totalLeads: leads.length,
-                    leadsWithSubscription: leads.filter(l => this.extractSubscriptionInfo(l).hasSubscription).length
-                });
-            }
-        }
-        
-        console.log('\n' + '='.repeat(80));
-        console.log('📊 ИТОГИ ПОИСКА:');
-        console.log('='.repeat(80));
-        
-        results.forEach((result, index) => {
-            console.log(`\n${index + 1}. ${result.student.studentName}:`);
-            console.log(`   • Контакт: ${result.contact} (ID: ${result.contactId})`);
-            console.log(`   • Всего сделок: ${result.totalLeads}`);
-            console.log(`   • Сделок с абонементом: ${result.leadsWithSubscription}`);
-            
-            if (result.bestLead) {
-                console.log(`   ✅ Найдена сделка: "${result.bestLead.name}"`);
-                console.log(`      ID: ${result.bestLead.id}`);
-                console.log(`      Абонемент: ${result.bestLead.subscriptionInfo.subscriptionStatus}`);
-                console.log(`      Занятий: ${result.bestLead.subscriptionInfo.usedClasses}/${result.bestLead.subscriptionInfo.totalClasses}`);
-            } else {
-                console.log(`   ❌ Сделка не найдена`);
-            }
-        });
-        
-        return results;
-        
-    } catch (error) {
-        console.error('❌ Ошибка диагностики поиска:', error.message);
-        return null;
-    }
-}
+
 
 // 📍 ДИАГНОСТИКА ПОИСКА УЧЕНИКА
 app.get('/api/debug/student-search/:phone', async (req, res) => {
