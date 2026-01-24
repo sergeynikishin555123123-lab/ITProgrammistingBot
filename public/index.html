@@ -48,6 +48,9 @@
             --blue-medium: #3498DB;
             --blue-light: #85C1E9;
             --pink: #FF6B8B;
+            --green: #2ECC71;
+            --red: #E74C3C;
+            --yellow: #F1C40F;
             --white: #FFFFFF;
             --gray-light: #F5F7FA;
             --gray-medium: #ECF0F1;
@@ -923,11 +926,11 @@
         }
 
         .settings-item.logout {
-            color: var(--pink);
+            color: var(--red);
         }
 
         .settings-item.logout:hover {
-            background: var(--pink);
+            background: var(--red);
             color: var(--white);
         }
 
@@ -955,11 +958,23 @@
         }
 
         .notification.error {
-            border-color: #E74C3C;
+            border-color: var(--red);
+            color: var(--red);
         }
 
         .notification.success {
-            border-color: #2ECC71;
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .notification.info {
+            border-color: var(--blue-medium);
+            color: var(--blue-medium);
+        }
+
+        .notification.warning {
+            border-color: var(--yellow);
+            color: var(--yellow);
         }
 
         /* ==================== СПИННЕР ==================== */
@@ -1125,12 +1140,12 @@
         }
 
         .badge.active {
-            background: #2ECC71;
+            background: var(--green);
             color: white;
         }
 
         .badge.expired {
-            background: #E74C3C;
+            background: var(--red);
             color: white;
         }
 
@@ -1142,6 +1157,74 @@
         .badge.has_subscription {
             background: var(--blue-medium);
             color: white;
+        }
+
+        .badge.frozen {
+            background: var(--yellow);
+            color: var(--blue-dark);
+        }
+
+        /* Специальные классы для данных */
+        .data-value {
+            font-weight: 700;
+            color: var(--blue-dark);
+        }
+
+        .data-label {
+            color: var(--gray-dark);
+            font-size: 0.9rem;
+        }
+
+        .subscription-dates {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .date-item {
+            background: var(--gray-light);
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid var(--gray-medium);
+        }
+
+        .date-label {
+            font-size: 0.8rem;
+            color: var(--gray-dark);
+            margin-bottom: 5px;
+        }
+
+        .date-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--blue-dark);
+        }
+
+        /* Индикатор данных */
+        .data-source {
+            font-size: 0.8rem;
+            padding: 5px 10px;
+            border-radius: 10px;
+            background: var(--gray-light);
+            color: var(--gray-dark);
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .data-source.real {
+            background: var(--green);
+            color: white;
+        }
+
+        /* Ошибки */
+        .error-message {
+            background: var(--red);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
         }
     </style>
 </head>
@@ -1159,7 +1242,7 @@
             <div class="logo-text">АРТ-ШКОЛА</div>
         </div>
         
-        <div class="user-avatar" id="userAvatar" onclick="ArtApp.showProfile()">
+        <div class="user-avatar" id="userAvatar" onclick="ArtApp.navigateToPage('profile')">
             <i class="fas fa-user"></i>
         </div>
     </nav>
@@ -1244,20 +1327,20 @@
                     </div>
                 </div>
                 
-                <section class="hero">
+                <section class="hero" id="heroSection">
                     <h1 class="greeting" id="greeting">Добро пожаловать</h1>
-                    <div class="student-name" id="studentName">Ученик</div>
+                    <div class="student-name" id="studentName">Загрузка...</div>
                     <p class="hero-text" id="studentInfo">
-                        Ваше личное пространство для управления занятиями
+                        Загрузка информации...
                     </p>
                     <div class="hero-actions">
-                        <button class="btn btn-primary" onclick="ArtApp.navigateToPage('schedule')">
-                            <i class="fas fa-calendar-alt"></i>
-                            Расписание
-                        </button>
                         <button class="btn btn-primary" onclick="ArtApp.navigateToPage('subscription')">
                             <i class="fas fa-ticket-alt"></i>
-                            Абонемент
+                            Мой абонемент
+                        </button>
+                        <button class="btn btn-secondary" onclick="ArtApp.navigateToPage('schedule')">
+                            <i class="fas fa-calendar-alt"></i>
+                            Расписание
                         </button>
                     </div>
                 </section>
@@ -1265,8 +1348,19 @@
                 <section class="section">
                     <h2 class="section-title">Быстрый доступ</h2>
                     <div class="grid grid-2">
+                        <div class="card" onclick="ArtApp.navigateToPage('subscription')">
+                            <div class="card-icon" style="background: var(--green);">
+                                <i class="fas fa-ticket-alt"></i>
+                            </div>
+                            <h3 class="card-title">Абонемент</h3>
+                            <p class="card-description">
+                                Остаток занятий и срок действия вашего абонемента
+                            </p>
+                            <div class="data-source" id="subscriptionStatusBadge">...</div>
+                        </div>
+                        
                         <div class="card" onclick="ArtApp.navigateToPage('schedule')">
-                            <div class="card-icon">
+                            <div class="card-icon" style="background: var(--blue-medium);">
                                 <i class="fas fa-calendar-alt"></i>
                             </div>
                             <h3 class="card-title">Расписание</h3>
@@ -1274,25 +1368,15 @@
                                 Расписание художественных занятий на неделю
                             </p>
                         </div>
-                        
-                        <div class="card" onclick="ArtApp.navigateToPage('subscription')">
-                            <div class="card-icon">
-                                <i class="fas fa-ticket-alt"></i>
-                            </div>
-                            <h3 class="card-title">Абонемент</h3>
-                            <p class="card-description">
-                                Остаток занятий и срок действия абонемента
-                            </p>
-                        </div>
                     </div>
                 </section>
                 
                 <section class="section">
-                    <h2 class="section-title">Ближайшие занятия</h2>
-                    <div id="upcomingLessons" class="card">
+                    <h2 class="section-title">Остаток занятий</h2>
+                    <div id="remainingClassesCard" class="card">
                         <div class="text-center">
                             <div class="spinner"></div>
-                            <p class="mt-30">Загрузка расписания...</p>
+                            <p class="mt-30">Загрузка данных...</p>
                         </div>
                     </div>
                 </section>
@@ -1312,7 +1396,12 @@
                 <div id="scheduleContainer">
                     <div class="empty-state">
                         <i class="fas fa-calendar-alt"></i>
-                        <p>Загрузка расписания...</p>
+                        <p>Функция расписания в разработке</p>
+                        <p style="font-size: 0.9rem; margin-top: 10px;">Скоро здесь появится ваше расписание</p>
+                        <button class="btn btn-primary mt-20" onclick="ArtApp.contactAdmin()">
+                            <i class="fas fa-headset"></i>
+                            Уточнить расписание у администратора
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1326,13 +1415,13 @@
                         <i class="fas fa-arrow-left"></i>
                     </div>
                     <h2 class="section-title">Абонемент</h2>
-                    <div class="back-btn" onclick="ArtApp.forceRefreshSubscription()" title="Обновить данные">
+                    <div class="back-btn" onclick="ArtApp.refreshSubscription()" title="Обновить данные">
                         <i class="fas fa-sync-alt"></i>
                     </div>
                 </section>
                 
-                <div id="subscriptionInfo" class="subscription-card">
-                    <!-- Информация об абонементе -->
+                <div id="subscriptionContainer">
+                    <!-- Динамическое содержимое абонемента -->
                 </div>
 
                 <button class="btn btn-primary w-100 mt-30" onclick="ArtApp.contactAdmin()">
@@ -1352,23 +1441,8 @@
                     <h2 class="section-title">Профиль</h2>
                 </section>
                 
-                <div class="profile-header">
-                    <div class="profile-avatar" id="profileAvatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="profile-name" id="profileName">Загрузка...</div>
-                    <div class="profile-email" id="profileEmail"></div>
-                    
-                    <div class="profile-stats">
-                        <div class="profile-stat">
-                            <div class="profile-stat-value" id="statVisits">0</div>
-                            <div class="profile-stat-label">Посещений</div>
-                        </div>
-                        <div class="profile-stat">
-                            <div class="profile-stat-value" id="statRemaining">0</div>
-                            <div class="profile-stat-label">Осталось</div>
-                        </div>
-                    </div>
+                <div id="profileContainer">
+                    <!-- Динамическое содержимое профиля -->
                 </div>
                 
                 <div class="settings-card">
@@ -1404,7 +1478,8 @@ const ArtApp = {
         currentUser: null,
         currentProfile: null,
         profiles: [],
-        token: null
+        token: null,
+        subscriptionData: null
     },
 
     init: function() {
@@ -1442,7 +1517,7 @@ const ArtApp = {
                 
                 this.showMainInterface();
                 this.navigateToPage('home');
-                this.loadUserData();
+                this.loadHomePage();
             }
         } catch (error) {
             console.error('Ошибка загрузки сессии:', error);
@@ -1474,6 +1549,7 @@ const ArtApp = {
         this.config.currentUser = null;
         this.config.currentProfile = null;
         this.config.profiles = [];
+        this.config.subscriptionData = null;
     },
 
     showMainInterface: function() {
@@ -1534,7 +1610,7 @@ const ArtApp = {
         phone = phone.replace(/\D/g, '');
         
         if (phone.length < 10) {
-            this.showNotification('Введите корректный номер телефона', 'error');
+            this.showNotification('Введите корректный номер телефона (10 цифр)', 'error');
             phoneInput.focus();
             return;
         }
@@ -1588,23 +1664,21 @@ const ArtApp = {
                         profiles_count: data.data.profiles.length
                     };
                     
-                    // Сохраняем реальные ID из базы данных
                     this.config.profiles = data.data.profiles.map(p => ({
                         ...p,
                         subscription_active: p.subscription_active === true || p.subscription_active === 1
                     }));
                     
-                    // Первый профиль по умолчанию
                     this.config.currentProfile = this.config.profiles[0];
                     
                     console.log('📊 Сохраненные профили:', this.config.profiles);
                     
                     this.saveSession();
                     this.showMainInterface();
-                    this.loadUserData();
                     this.showNotification('Вход выполнен успешно!', 'success');
+                    this.navigateToPage('home');
                 } else {
-                    this.showNotification('Профили не найдены', 'error');
+                    this.showNotification('Профили не найдены. Проверьте номер телефона.', 'error');
                     document.getElementById('newClientInfo').style.display = 'block';
                 }
             } else {
@@ -1624,147 +1698,32 @@ const ArtApp = {
         });
     },
 
-    loadUserData: function() {
-        this.updateUserInterface();
+    loadHomePage: function() {
         this.updateStudentSelector();
-    },
-
-    updateUserInterface: function() {
-        const userAvatar = document.getElementById('userAvatar');
-        const profileAvatar = document.getElementById('profileAvatar');
-        const profileName = document.getElementById('profileName');
-        const profileEmail = document.getElementById('profileEmail');
-        const studentName = document.getElementById('studentName');
-        const greeting = document.getElementById('greeting');
-        const studentInfo = document.getElementById('studentInfo');
         
         if (this.config.currentProfile) {
-            const name = this.config.currentProfile.student_name || 'Ученик';
-            const branch = this.config.currentProfile.branch || '';
-            const subscription = this.config.currentProfile.subscription_status || '';
-            
-            if (profileName) profileName.textContent = name;
-            if (studentName) studentName.textContent = name;
-            
-            if (profileEmail) {
-                profileEmail.textContent = this.config.currentUser?.phone || '';
-            }
-            
-            if (studentInfo) {
-                let infoText = 'Ваше личное пространство для управления занятиями';
-                if (branch) infoText += ` | Филиал: ${branch}`;
-                studentInfo.textContent = infoText;
-            }
-            
-            const initials = this.getInitials(name);
-            if (userAvatar) {
-                userAvatar.innerHTML = initials;
-            }
-            if (profileAvatar) {
-                profileAvatar.innerHTML = initials;
-            }
-            
-            if (greeting) {
-                const hours = new Date().getHours();
-                let timeGreeting = 'Добро пожаловать';
-                if (hours < 12) timeGreeting = 'Доброе утро';
-                else if (hours < 18) timeGreeting = 'Добрый день';
-                else timeGreeting = 'Добрый вечер';
-                
-                greeting.textContent = timeGreeting;
-            }
-        }
-    },
-
-    loadFastSubscription: function() {
-        if (!this.config.currentProfile) return;
-        
-        const container = document.getElementById('subscriptionInfo');
-        if (!container) return;
-        
-        container.innerHTML = `
-            <div style="text-align: center; padding: 30px;">
-                <div class="spinner"></div>
-                <p style="margin-top: 20px; color: var(--gray-dark);">Загрузка данных...</p>
-            </div>
-        `;
-        
-        if (this.config.currentProfile.id) {
-            fetch('/api/subscription', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.config.token}`
-                },
-                body: JSON.stringify({ 
-                    profile_id: this.config.currentProfile.id,
-                    phone: this.config.currentProfile.phone_number
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    this.renderSubscription(data.data);
-                } else {
-                    this.renderSubscriptionFromProfile();
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки абонемента:', error);
-                this.renderSubscriptionFromProfile();
-            });
+            this.updateUserInterface();
+            this.loadSubscriptionData();
         } else {
-            this.renderSubscriptionFromProfile();
+            this.showNotification('Выберите ученика', 'info');
         }
     },
 
-    forceRefreshSubscription: function() {
-        if (!this.config.currentProfile) return;
-        
-        this.showNotification('Обновление данных...', 'info');
-        
-        fetch('/api/sync/phone', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ phone: this.config.currentProfile.phone_number })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                this.loadSubscription();
-                this.showNotification('Данные успешно обновлены!', 'success');
-            } else {
-                this.showNotification('Ошибка обновления: ' + (data.error || 'неизвестная ошибка'), 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка обновления:', error);
-            this.showNotification('Ошибка соединения', 'error');
-        });
-    },
-    
     updateStudentSelector: function() {
         const selector = document.getElementById('studentSelector');
         const list = document.getElementById('studentsList');
         
-        if (this.config.profiles.length > 1) {
+        if (this.config.profiles && this.config.profiles.length > 1) {
             selector.style.display = 'block';
             
             let html = '';
-            this.config.profiles.forEach(profile => {
+            this.config.profiles.forEach((profile, index) => {
                 const isActive = this.config.currentProfile && 
                                 this.config.currentProfile.id === profile.id;
                 
                 html += `
                     <div class="student-item ${isActive ? 'active' : ''}" 
-                         onclick="ArtApp.selectStudent('${profile.id}')">
+                         onclick="ArtApp.selectStudent(${index})">
                         <div class="student-info">
                             <div class="student-avatar">${this.getInitials(profile.student_name)}</div>
                             <div>
@@ -1785,22 +1744,18 @@ const ArtApp = {
         }
     },
 
-    selectStudent: function(profileId) {
-        const selectedProfile = this.config.profiles.find(p => p.id === profileId);
-        if (selectedProfile) {
-            this.config.currentProfile = selectedProfile;
+    selectStudent: function(index) {
+        if (this.config.profiles && this.config.profiles[index]) {
+            this.config.currentProfile = this.config.profiles[index];
             this.saveSession();
             this.updateUserInterface();
             this.updateStudentSelector();
-            this.showNotification(`Выбран ученик: ${selectedProfile.student_name}`, 'success');
+            this.showNotification(`Выбран ученик: ${this.config.currentProfile.student_name}`, 'success');
             
             const currentPage = document.querySelector('.page.active').id.replace('-page', '');
             switch(currentPage) {
                 case 'home':
-                    this.loadHomePage();
-                    break;
-                case 'schedule':
-                    this.loadSchedule();
+                    this.loadSubscriptionData();
                     break;
                 case 'subscription':
                     this.loadSubscription();
@@ -1812,63 +1767,194 @@ const ArtApp = {
         }
     },
 
-    loadHomePage: function() {
-        this.updateUserInterface();
-        this.updateStudentSelector();
-        this.loadUpcomingLessons();
+    updateUserInterface: function() {
+        const userAvatar = document.getElementById('userAvatar');
+        const profileName = document.getElementById('studentName');
+        const greeting = document.getElementById('greeting');
+        const studentInfo = document.getElementById('studentInfo');
+        
+        if (this.config.currentProfile) {
+            const name = this.config.currentProfile.student_name || 'Ученик';
+            const branch = this.config.currentProfile.branch || '';
+            
+            if (profileName) profileName.textContent = name;
+            
+            if (studentInfo) {
+                let infoText = 'Личный кабинет ученика художественной школы';
+                if (branch) infoText += ` | Филиал: ${branch}`;
+                studentInfo.textContent = infoText;
+            }
+            
+            if (userAvatar) {
+                userAvatar.innerHTML = this.getInitials(name);
+            }
+            
+            if (greeting) {
+                const hours = new Date().getHours();
+                let timeGreeting = 'Добро пожаловать';
+                if (hours < 12) timeGreeting = 'Доброе утро';
+                else if (hours < 18) timeGreeting = 'Добрый день';
+                else timeGreeting = 'Добрый вечер';
+                
+                greeting.textContent = timeGreeting;
+            }
+        }
     },
 
-    loadUpcomingLessons: function() {
-        const container = document.getElementById('upcomingLessons');
-        if (!container) return;
-        
+    loadSubscriptionData: function() {
         if (!this.config.currentProfile) {
-            container.innerHTML = '<p>Для просмотра расписания войдите в систему</p>';
             return;
         }
         
+        const container = document.getElementById('remainingClassesCard');
         container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-calendar-alt"></i>
-                <p>Функция расписания в разработке</p>
-                <p style="font-size: 0.9rem; margin-top: 10px;">Скоро здесь появится ваше расписание</p>
+            <div class="text-center">
+                <div class="spinner"></div>
+                <p class="mt-30">Загрузка данных абонемента...</p>
+            </div>
+        `;
+        
+        fetch('/api/subscription', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.config.token}`
+            },
+            body: JSON.stringify({ 
+                profile_id: this.config.currentProfile.id,
+                phone: this.config.currentProfile.phone_number
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                this.config.subscriptionData = data.data;
+                this.renderRemainingClasses();
+                this.updateSubscriptionBadge();
+            } else {
+                throw new Error(data.error || 'Ошибка загрузки данных');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки абонемента:', error);
+            container.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Не удалось загрузить данные об абонементе</p>
+                    <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscriptionData()">
+                        Попробовать снова
+                    </button>
+                </div>
+            `;
+        });
+    },
+
+    renderRemainingClasses: function() {
+        const container = document.getElementById('remainingClassesCard');
+        const subscription = this.config.subscriptionData?.subscription;
+        
+        if (!subscription) {
+            container.innerHTML = '<p>Нет данных об абонементе</p>';
+            return;
+        }
+        
+        const total = subscription.classes.total || 0;
+        const remaining = subscription.classes.remaining || 0;
+        const used = subscription.classes.used || 0;
+        const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+        
+        container.innerHTML = `
+            <div class="subscription-stats">
+                <div class="stat-item">
+                    <div class="stat-value">${total}</div>
+                    <div class="stat-label">Всего занятий</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value" style="color: ${remaining > 0 ? 'var(--green)' : 'var(--red)'}">
+                        ${remaining}
+                    </div>
+                    <div class="stat-label">Осталось</div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-value">${used}</div>
+                    <div class="stat-label">Использовано</div>
+                </div>
+            </div>
+            
+            ${total > 0 ? `
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span>Прогресс использования</span>
+                    <span>${progress.toFixed(0)}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
+                </div>
+            </div>
+            ` : ''}
+            
+            <div class="subscription-dates">
+                <div class="date-item">
+                    <div class="date-label">Дата активации</div>
+                    <div class="date-value">${subscription.dates.activation ? this.formatDate(subscription.dates.activation) : 'Не указана'}</div>
+                </div>
+                <div class="date-item">
+                    <div class="date-label">Срок действия</div>
+                    <div class="date-value">${subscription.dates.expiration ? this.formatDate(subscription.dates.expiration) : 'Не указан'}</div>
+                </div>
+            </div>
+            
+            <div class="data-source ${subscription.is_active ? 'real' : ''}">
+                <i class="fas fa-database"></i>
+                ${subscription.is_active ? 'Активный абонемент' : 'Абонемент не активен'}
             </div>
         `;
     },
 
-    loadSchedule: function() {
-        const container = document.getElementById('scheduleContainer');
+    updateSubscriptionBadge: function() {
+        const badge = document.getElementById('subscriptionStatusBadge');
+        const subscription = this.config.subscriptionData?.subscription;
         
-        if (!this.config.currentProfile) {
-            this.navigateToPage('auth');
-            return;
+        if (badge && subscription) {
+            if (subscription.is_active) {
+                badge.innerHTML = '<i class="fas fa-check-circle"></i> Активен';
+                badge.className = 'data-source real';
+            } else {
+                badge.innerHTML = '<i class="fas fa-times-circle"></i> Не активен';
+                badge.className = 'data-source';
+            }
         }
-        
-        this.showLoading('Загрузка расписания...');
-        
-        setTimeout(() => {
-            this.hideLoading();
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-calendar-alt"></i>
-                    <p>Функция расписания в разработке</p>
-                    <p style="font-size: 0.9rem; margin-top: 10px;">Скоро здесь появится ваше расписание</p>
-                    <button class="btn btn-primary mt-20" onclick="ArtApp.contactAdmin()">
-                        <i class="fas fa-headset"></i>
-                        Уточнить расписание у администратора
-                    </button>
-                </div>
-            `;
-        }, 1000);
+    },
+
+    loadSchedule: function() {
+        // Функция в разработке
+        console.log('Загрузка расписания...');
     },
 
     loadSubscription: function() {
-        const container = document.getElementById('subscriptionInfo');
+        const container = document.getElementById('subscriptionContainer');
         
         if (!this.config.currentProfile) {
-            this.navigateToPage('auth');
+            this.showNotification('Выберите ученика', 'error');
+            this.navigateToPage('home');
             return;
         }
+        
+        container.innerHTML = `
+            <div class="subscription-card">
+                <div class="text-center">
+                    <div class="spinner"></div>
+                    <p class="mt-30">Загрузка данных абонемента...</p>
+                </div>
+            </div>
+        `;
         
         this.showLoading('Загрузка данных абонемента...');
         
@@ -1891,187 +1977,262 @@ const ArtApp = {
         })
         .then(data => {
             if (data.success) {
-                this.renderSubscription(data.data);
+                this.config.subscriptionData = data.data;
+                this.renderFullSubscription();
             } else {
-                this.renderSubscriptionFromProfile();
+                throw new Error(data.error || 'Ошибка загрузки данных');
             }
         })
         .catch(error => {
             console.error('Ошибка загрузки абонемента:', error);
-            this.renderSubscriptionFromProfile();
+            container.innerHTML = `
+                <div class="subscription-card">
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Не удалось загрузить данные об абонементе</p>
+                        <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscription()">
+                            Попробовать снова
+                        </button>
+                    </div>
+                </div>
+            `;
         })
         .finally(() => {
             this.hideLoading();
         });
     },
 
-    renderSubscriptionFromProfile: function() {
-        const container = document.getElementById('subscriptionInfo');
-        const profile = this.config.currentProfile;
+    renderFullSubscription: function() {
+        const container = document.getElementById('subscriptionContainer');
+        const data = this.config.subscriptionData;
         
-        const total = profile.total_classes || 0;
-        const remaining = profile.remaining_classes || 0;
-        const used = profile.used_classes || 0;
-        const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-        
-        container.innerHTML = `
-            <div class="subscription-header">
-                <div>
-                    <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">${profile.subscription_type || 'Абонемент'}</h3>
-                    <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-map-marker-alt"></i>
-                        ${profile.branch || 'Филиал не указан'}
-                    </div>
-                </div>
-                <div class="badge ${profile.subscription_badge || 'inactive'}">
-                    ${profile.subscription_active ? 'Активен' : 'Неактивен'}
-                </div>
-            </div>
-            
-            <div class="subscription-stats">
-                <div class="stat-item">
-                    <div class="stat-value">${total}</div>
-                    <div class="stat-label">Всего занятий</div>
-                </div>
-                
-                <div class="stat-item">
-                    <div class="stat-value">${remaining}</div>
-                    <div class="stat-label">Осталось</div>
-                </div>
-                
-                <div class="stat-item">
-                    <div class="stat-value">${used}</div>
-                    <div class="stat-label">Использовано</div>
-                </div>
-                
-                <div class="stat-item">
-                    <div class="stat-value" style="font-size: 1.5rem;">${profile.expiration_date || '—'}</div>
-                    <div class="stat-label">Срок действия</div>
-                </div>
-            </div>
-            
-            ${total > 0 ? `
-            <div class="progress-container">
-                <div class="progress-header">
-                    <span>Прогресс</span>
-                    <span>${progress.toFixed(0)}%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progress}%"></div>
-                </div>
-            </div>
-            ` : ''}
-            
-            ${profile.teacher_name ? `
-            <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-                <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    Преподаватель
-                </h4>
-                <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                    ${profile.teacher_name}
-                </div>
-            </div>
-            ` : ''}
-        `;
-    },
-    
-    renderSubscription: function(data) {
-        const container = document.getElementById('subscriptionInfo');
-        const statRemaining = document.getElementById('statRemaining');
-        
-        if (!data || !data.subscription) {
-            this.renderSubscriptionFromProfile();
+        if (!data) {
+            container.innerHTML = '<p>Нет данных</p>';
             return;
         }
         
-        const subscription = data.subscription;
         const student = data.student;
+        const subscription = data.subscription;
+        const parent = data.parent;
         
         const total = subscription.classes.total || 0;
         const remaining = subscription.classes.remaining || 0;
         const used = subscription.classes.used || 0;
         const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
         
-        if (statRemaining) statRemaining.textContent = remaining;
+        const badgeClass = subscription.is_active ? 'active' : 
+                          subscription.status?.includes('истек') ? 'expired' : 
+                          subscription.status?.includes('заморожен') ? 'frozen' : 'inactive';
         
-        const statusClass = subscription.is_active ? 'active' : 'expired';
-        const statusText = subscription.is_active ? 'Активен' : 'Завершен';
+        const badgeText = subscription.is_active ? 'Активен' : 
+                         subscription.status?.includes('истек') ? 'Истек' : 
+                         subscription.status?.includes('заморожен') ? 'Заморожен' : 'Не активен';
         
         container.innerHTML = `
-            <div class="subscription-header">
-                <div>
-                    <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">${subscription.type || 'Абонемент'}</h3>
-                    <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-map-marker-alt"></i>
-                        ${student.branch || 'Филиал не указан'}
+            <div class="subscription-card">
+                <div class="subscription-header">
+                    <div>
+                        <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">
+                            ${subscription.type || 'Абонемент'}
+                        </h3>
+                        <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-map-marker-alt"></i>
+                            ${student.branch || 'Филиал не указан'}
+                        </div>
+                    </div>
+                    <div class="badge ${badgeClass}">${badgeText}</div>
+                </div>
+                
+                <div class="subscription-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${total}</div>
+                        <div class="stat-label">Всего занятий</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-value" style="color: ${remaining > 0 ? 'var(--green)' : 'var(--red)'}">
+                            ${remaining}
+                        </div>
+                        <div class="stat-label">Осталось</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-value">${used}</div>
+                        <div class="stat-label">Использовано</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-value" style="font-size: 1.5rem;">
+                            ${subscription.dates.expiration ? this.formatDate(subscription.dates.expiration) : '—'}
+                        </div>
+                        <div class="stat-label">Срок действия</div>
                     </div>
                 </div>
-                <div class="badge ${statusClass}">${statusText}</div>
-            </div>
-            
-            <div class="subscription-stats">
-                <div class="stat-item">
-                    <div class="stat-value">${total}</div>
-                    <div class="stat-label">Всего занятий</div>
+                
+                ${total > 0 ? `
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span>Прогресс использования</span>
+                        <span>${progress.toFixed(0)}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="subscription-dates">
+                    <div class="date-item">
+                        <div class="date-label">Дата активации</div>
+                        <div class="date-value">${subscription.dates.activation ? this.formatDate(subscription.dates.activation) : 'Не указана'}</div>
+                    </div>
+                    <div class="date-item">
+                        <div class="date-label">Последнее посещение</div>
+                        <div class="date-value">${subscription.dates.last_visit ? this.formatDate(subscription.dates.last_visit) : 'Нет данных'}</div>
+                    </div>
                 </div>
                 
-                <div class="stat-item">
-                    <div class="stat-value">${remaining}</div>
-                    <div class="stat-label">Осталось</div>
+                ${student.teacher_name ? `
+                <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
+                    <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                        Преподаватель
+                    </h4>
+                    <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
+                        ${student.teacher_name}
+                    </div>
                 </div>
+                ` : ''}
                 
-                <div class="stat-item">
-                    <div class="stat-value">${used}</div>
-                    <div class="stat-label">Использовано</div>
+                ${student.age_group ? `
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
+                    <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-users"></i>
+                        Возрастная группа
+                    </h4>
+                    <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
+                        ${student.age_group}
+                    </div>
                 </div>
+                ` : ''}
                 
-                <div class="stat-item">
-                    <div class="stat-value" style="font-size: 1.5rem;">${subscription.dates.expiration ? new Date(subscription.dates.expiration).toLocaleDateString('ru-RU') : '—'}</div>
-                    <div class="stat-label">Срок действия</div>
+                ${parent ? `
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
+                    <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-user-friends"></i>
+                        Родитель
+                    </h4>
+                    <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
+                        ${parent.name}
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="data-source ${subscription.is_active ? 'real' : ''}">
+                    <i class="fas fa-database"></i>
+                    Данные обновлены: ${this.config.currentProfile?.last_sync ? this.formatDateTime(this.config.currentProfile.last_sync) : 'Недавно'}
                 </div>
             </div>
-            
-            ${total > 0 ? `
-            <div class="progress-container">
-                <div class="progress-header">
-                    <span>Прогресс</span>
-                    <span>${progress.toFixed(0)}%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progress}%"></div>
-                </div>
-            </div>
-            ` : ''}
-            
-            ${student.teacher_name ? `
-            <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-                <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    Преподаватель
-                </h4>
-                <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                    ${student.teacher_name || subscription.teacher_name}
-                </div>
-            </div>
-            ` : ''}
         `;
     },
 
-    loadProfile: function() {
-        this.updateUserInterface();
-        
-        if (this.config.currentProfile) {
-            const statRemaining = document.getElementById('statRemaining');
-            const statVisits = document.getElementById('statVisits');
-            
-            if (statRemaining) statRemaining.textContent = this.config.currentProfile.remaining_classes || 0;
-            if (statVisits) statVisits.textContent = this.config.currentProfile.used_classes || 0;
-        }
+    refreshSubscription: function() {
+        this.showNotification('Обновление данных...', 'info');
+        this.loadSubscription();
     },
 
-    showProfile: function() {
-        this.navigateToPage('profile');
+    loadProfile: function() {
+        const container = document.getElementById('profileContainer');
+        
+        if (!this.config.currentProfile) {
+            this.showNotification('Выберите ученика', 'error');
+            this.navigateToPage('home');
+            return;
+        }
+        
+        const profile = this.config.currentProfile;
+        const subscription = this.config.subscriptionData?.subscription;
+        
+        const totalVisits = subscription?.classes.used || profile.used_classes || 0;
+        const remainingClasses = subscription?.classes.remaining || profile.remaining_classes || 0;
+        
+        container.innerHTML = `
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${this.getInitials(profile.student_name)}
+                </div>
+                <div class="profile-name">${profile.student_name}</div>
+                <div class="profile-email">${profile.phone_number || ''}</div>
+                
+                <div class="profile-stats">
+                    <div class="profile-stat">
+                        <div class="profile-stat-value">${totalVisits}</div>
+                        <div class="profile-stat-label">Посещений</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="profile-stat-value" style="color: ${remainingClasses > 0 ? 'var(--green)' : 'var(--red)'}">
+                            ${remainingClasses}
+                        </div>
+                        <div class="profile-stat-label">Осталось</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-card" style="margin-top: 30px;">
+                <h3 class="settings-title">
+                    <i class="fas fa-info-circle"></i>Информация об ученике
+                </h3>
+                
+                ${profile.branch ? `
+                <div class="settings-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>Филиал: ${profile.branch}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.teacher_name ? `
+                <div class="settings-item">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    <span>Преподаватель: ${profile.teacher_name}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.age_group ? `
+                <div class="settings-item">
+                    <i class="fas fa-users"></i>
+                    <span>Возрастная группа: ${profile.age_group}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.course ? `
+                <div class="settings-item">
+                    <i class="fas fa-book"></i>
+                    <span>Курс: ${profile.course}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.day_of_week ? `
+                <div class="settings-item">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>День занятий: ${profile.day_of_week}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.parent_name ? `
+                <div class="settings-item">
+                    <i class="fas fa-user-friends"></i>
+                    <span>Родитель: ${profile.parent_name}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.allergies ? `
+                <div class="settings-item">
+                    <i class="fas fa-allergies"></i>
+                    <span>Особенности: ${profile.allergies}</span>
+                </div>
+                ` : ''}
+            </div>
+        `;
     },
 
     logout: function() {
@@ -2098,6 +2259,7 @@ const ArtApp = {
         let icon = 'fas fa-info-circle';
         if (type === 'error') icon = 'fas fa-exclamation-circle';
         if (type === 'success') icon = 'fas fa-check-circle';
+        if (type === 'warning') icon = 'fas fa-exclamation-triangle';
         
         notification.innerHTML = `<i class="${icon}"></i><span>${message}</span>`;
         container.appendChild(notification);
@@ -2128,6 +2290,42 @@ const ArtApp = {
     getInitials: function(name) {
         if (!name) return 'У';
         return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'У';
+    },
+
+    formatDate: function(dateString) {
+        if (!dateString) return 'Не указано';
+        
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
+            
+            return date.toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        } catch (error) {
+            return dateString;
+        }
+    },
+
+    formatDateTime: function(dateTimeString) {
+        if (!dateTimeString) return 'Не указано';
+        
+        try {
+            const date = new Date(dateTimeString);
+            if (isNaN(date.getTime())) return dateTimeString;
+            
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return dateTimeString;
+        }
     },
 
     setupEventListeners: function() {
@@ -2164,4 +2362,4 @@ document.addEventListener('DOMContentLoaded', function() {
 window.ArtApp = ArtApp;
 </script>
 </body>
-</html> 
+</html>
