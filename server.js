@@ -1964,6 +1964,121 @@ app.post('/api/subscription', async (req, res) => {
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
 
+// 📍 ДИАГНОСТИКА КОНКРЕТНОЙ СДЕЛКИ
+app.get('/api/debug/lead-analysis/:id', async (req, res) => {
+    try {
+        const leadId = req.params.id;
+        
+        console.log(`\n🔍 ЗАПРОС ДИАГНОСТИКИ СДЕЛКИ ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const analysis = await amoCrmService.debugLeadAnalysis(leadId);
+        
+        if (!analysis) {
+            return res.status(404).json({
+                success: false,
+                error: 'Сделка не найдена или ошибка анализа'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: analysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики сделки:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики'
+        });
+    }
+});
+
+// 📍 ПРОВЕРКА ТЕЛЕФОНА С ДЕТАЛЬНОЙ ДИАГНОСТИКОЙ
+app.get('/api/debug/phone-detailed/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n🔍 ПОЛНАЯ ДИАГНОСТИКА ТЕЛЕФОНА: ${phone}`);
+        console.log('='.repeat(80));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        // 1. Ищем контакты
+        console.log('\n🔍 Поиск контактов...');
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        // 2. Для каждого контакта получаем сделки и анализируем
+        const detailedAnalysis = [];
+        
+        for (const contact of contacts) {
+            console.log(`\n👤 Анализ контакта: ${contact.name} (ID: ${contact.id})`);
+            
+            // Получаем полную информацию о контакте
+            const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+            
+            // Получаем сделки контакта
+            const leadsResponse = await amoCrmService.makeRequest(
+                'GET',
+                `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contact.id}&limit=20`
+            );
+            
+            const leads = leadsResponse._embedded?.leads || [];
+            
+            // Анализируем каждую сделку
+            const leadAnalyses = [];
+            for (const lead of leads) {
+                const analysis = await amoCrmService.debugLeadAnalysis(lead.id);
+                if (analysis) {
+                    leadAnalyses.push(analysis);
+                }
+            }
+            
+            detailedAnalysis.push({
+                contact: {
+                    id: contact.id,
+                    name: contact.name,
+                    fields: fullContact?.custom_fields_values || []
+                },
+                leads: leadAnalyses,
+                leadsCount: leads.length
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                phone: formattedPhone,
+                contactsCount: contacts.length,
+                detailedAnalysis: detailedAnalysis,
+                fieldMappings: Object.fromEntries(amoCrmService.fieldMappings)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка детальной диагностики:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики'
+        });
+    }
+});
+
 // Проверка связи с amoCRM
 app.get('/api/debug/connection', async (req, res) => {
     try {
