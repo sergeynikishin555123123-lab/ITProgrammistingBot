@@ -1523,25 +1523,40 @@ const initDatabase = async () => {
         console.log('🔄 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ');
         console.log('='.repeat(80));
         
-        const dbPath = path.join(__dirname, 'data', 'art_school.db');
-        
         try {
-            const dbDir = path.dirname(dbPath);
-            await fs.mkdir(dbDir, { recursive: true });
-            console.log(`📁 Директория данных: ${dbDir}`);
-        } catch (mkdirError) {
-            console.log(`📁 Директория данных уже существует`);
+            const dbDir = path.join(__dirname, 'data');
+            try {
+                await fs.mkdir(dbDir, { recursive: true });
+                console.log('📁 Директория данных создана:', dbDir);
+            } catch (mkdirError) {
+                console.log('📁 Директория данных уже существует');
+            }
+            
+            const dbPath = path.join(dbDir, 'art_school.db');
+            console.log(`💾 Путь к базе данных: ${dbPath}`);
+            
+            db = await open({
+                filename: dbPath,
+                driver: sqlite3.Database
+            });
+
+            console.log('✅ База данных SQLite подключена');
+            
+        } catch (fileError) {
+            console.log('⚠️  Ошибка файловой системы, используем память:', fileError.message);
+            
+            db = await open({
+                filename: ':memory:',
+                driver: sqlite3.Database
+            });
+            
+            console.log('⚠️  ВНИМАНИЕ: БД создана в памяти. Данные будут потеряны при перезапуске!');
         }
-        
-        db = await open({
-            filename: dbPath,
-            driver: sqlite3.Database
-        });
-        
-        console.log(`💾 База данных: ${dbPath}`);
         
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
+        
+        console.log('⚙️  Настройки SQLite применены');
         
         await createTables();
         
@@ -1561,20 +1576,16 @@ const createTables = async () => {
         await db.exec(`
             CREATE TABLE IF NOT EXISTS student_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                
-                -- Связи с amoCRM
                 amocrm_contact_id INTEGER,
                 parent_contact_id INTEGER,
                 amocrm_lead_id INTEGER,
                 
-                -- Основная информация
                 student_name TEXT NOT NULL,
                 phone_number TEXT NOT NULL,
                 email TEXT,
                 birth_date TEXT,
                 branch TEXT,
                 
-                -- Расписание
                 day_of_week TEXT,
                 time_slot TEXT,
                 teacher_name TEXT,
@@ -1582,31 +1593,22 @@ const createTables = async () => {
                 course TEXT,
                 allergies TEXT,
                 
-                -- Родитель
                 parent_name TEXT,
                 
-                -- Абонемент
                 subscription_type TEXT,
                 subscription_active INTEGER DEFAULT 0,
                 subscription_status TEXT,
                 subscription_badge TEXT,
-                
-                -- Занятия
                 total_classes INTEGER DEFAULT 0,
                 used_classes INTEGER DEFAULT 0,
                 remaining_classes INTEGER DEFAULT 0,
-                
-                -- Даты
                 expiration_date TEXT,
                 activation_date TEXT,
                 last_visit_date TEXT,
                 
-                -- Дополнительные данные
                 custom_fields TEXT,
                 raw_contact_data TEXT,
                 lead_data TEXT,
-                
-                -- Системные поля
                 is_demo INTEGER DEFAULT 0,
                 source TEXT DEFAULT 'amocrm',
                 is_active INTEGER DEFAULT 1,
@@ -1615,15 +1617,28 @@ const createTables = async () => {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-        
-        // Индексы
+        console.log('✅ Таблица student_profiles создана');
+
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_phone ON student_profiles(phone_number)');
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_name ON student_profiles(student_name)');
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_active ON student_profiles(is_active)');
-        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_subscription ON student_profiles(subscription_active)');
+        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_branch ON student_profiles(branch)');
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_sync ON student_profiles(last_sync)');
         
-        console.log('✅ Таблица student_profiles создана');
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT UNIQUE NOT NULL,
+                session_data TEXT,
+                phone_number TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                is_active INTEGER DEFAULT 1,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ Таблица user_sessions создана');
         
         await db.exec(`
             CREATE TABLE IF NOT EXISTS sync_logs (
@@ -1648,6 +1663,7 @@ const createTables = async () => {
         throw error;
     }
 };
+
 
 // ==================== СИСТЕМА СИНХРОНИЗАЦИИ ====================
 class SyncService {
