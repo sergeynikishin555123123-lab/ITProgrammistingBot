@@ -1222,6 +1222,104 @@ debugSubscriptionFields(customFields) {
     }
 }
 
+// 🔧 МЕТОД: debugLeadAnalysis - ДЛЯ ДИАГНОСТИКИ
+async debugLeadAnalysis(leadId) {
+    console.log(`\n🔍 ПОЛНАЯ ДИАГНОСТИКА СДЕЛКИ ID: ${leadId}`);
+    console.log('='.repeat(60));
+    
+    try {
+        const lead = await this.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        console.log(`📋 Название: "${lead.name || 'Нет названия'}"`);
+        console.log(`🔢 ID: ${lead.id}`);
+        console.log(`📊 Статус ID: ${lead.status_id || 0}`);
+        console.log(`📅 Создана: ${lead.created_at}`);
+        console.log(`🔄 Обновлена: ${lead.updated_at}`);
+        
+        const customFields = lead.custom_fields_values || [];
+        console.log(`\n📊 НАЙДЕННЫЕ ПОЛЯ (${customFields.length}):`);
+        console.log('='.repeat(60));
+        
+        // Группируем поля по типам
+        const subscriptionFields = [];
+        const contactFields = [];
+        const otherFields = [];
+        
+        for (const field of customFields) {
+            const fieldId = field.field_id || field.id;
+            const fieldName = this.getFieldName(field);
+            const fieldValue = this.getFieldValue(field);
+            const fieldType = field.field_type || 'unknown';
+            
+            const fieldInfo = {
+                id: fieldId,
+                name: fieldName,
+                value: fieldValue,
+                type: fieldType,
+                values: field.values
+            };
+            
+            // Определяем тип поля
+            const isSubscriptionField = Object.values(this.FIELD_IDS.LEAD).includes(fieldId);
+            const isContactField = Object.values(this.FIELD_IDS.CONTACT).includes(fieldId);
+            
+            if (isSubscriptionField) {
+                subscriptionFields.push(fieldInfo);
+            } else if (isContactField) {
+                contactFields.push(fieldInfo);
+            } else {
+                otherFields.push(fieldInfo);
+            }
+        }
+        
+        // Выводим поля абонемента
+        console.log('\n🎫 ПОЛЯ АБОНЕМЕНТА:');
+        subscriptionFields.forEach(f => {
+            console.log(`   • ${f.name} (ID: ${f.id}): "${f.value}"`);
+        });
+        
+        // Выводим поля контакта
+        console.log('\n👤 ПОЛЯ КОНТАКТА:');
+        contactFields.forEach(f => {
+            console.log(`   • ${f.name} (ID: ${f.id}): "${f.value}"`);
+        });
+        
+        // Анализируем абонемент
+        console.log('\n🔍 АНАЛИЗ АБОНЕМЕНТА:');
+        const subscriptionInfo = await this.extractSubscriptionInfo(lead);
+        
+        console.log('\n📊 РЕЗУЛЬТАТ АНАЛИЗА:');
+        console.log(`   • Всего занятий: ${subscriptionInfo.totalClasses}`);
+        console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
+        console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
+        console.log(`   • Статус: ${subscriptionInfo.subscriptionStatus}`);
+        console.log(`   • Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        console.log(`   • Тип: ${subscriptionInfo.subscriptionType}`);
+        console.log(`   • Активация: ${subscriptionInfo.activationDate}`);
+        console.log(`   • Окончание: ${subscriptionInfo.expirationDate}`);
+        console.log(`   • Последний визит: ${subscriptionInfo.lastVisitDate}`);
+        
+        return {
+            lead: lead,
+            subscriptionInfo: subscriptionInfo,
+            fields: {
+                subscription: subscriptionFields,
+                contact: contactFields,
+                other: otherFields
+            }
+        };
+        
+    } catch (error) {
+        console.error(`❌ Ошибка диагностики сделки ${leadId}:`, error.message);
+        return null;
+    }
+ }
+} 
+
+
 // Создаем экземпляр сервиса amoCRM (удален дублирующий код)
 const amoCrmService = new AmoCrmService();
 
@@ -2179,102 +2277,6 @@ app.get('/api/debug/lead-fields', async (req, res) => {
         });
     }
 });
-
-// 🔧 МЕТОД: debugLeadAnalysis - ДЛЯ ДИАГНОСТИКИ
-async debugLeadAnalysis(leadId) {
-    console.log(`\n🔍 ПОЛНАЯ ДИАГНОСТИКА СДЕЛКИ ID: ${leadId}`);
-    console.log('='.repeat(60));
-    
-    try {
-        const lead = await this.makeRequest(
-            'GET',
-            `/api/v4/leads/${leadId}?with=custom_fields_values`
-        );
-        
-        console.log(`📋 Название: "${lead.name || 'Нет названия'}"`);
-        console.log(`🔢 ID: ${lead.id}`);
-        console.log(`📊 Статус ID: ${lead.status_id || 0}`);
-        console.log(`📅 Создана: ${lead.created_at}`);
-        console.log(`🔄 Обновлена: ${lead.updated_at}`);
-        
-        const customFields = lead.custom_fields_values || [];
-        console.log(`\n📊 НАЙДЕННЫЕ ПОЛЯ (${customFields.length}):`);
-        console.log('='.repeat(60));
-        
-        // Группируем поля по типам
-        const subscriptionFields = [];
-        const contactFields = [];
-        const otherFields = [];
-        
-        for (const field of customFields) {
-            const fieldId = field.field_id || field.id;
-            const fieldName = this.getFieldName(field);
-            const fieldValue = this.getFieldValue(field);
-            const fieldType = field.field_type || 'unknown';
-            
-            const fieldInfo = {
-                id: fieldId,
-                name: fieldName,
-                value: fieldValue,
-                type: fieldType,
-                values: field.values
-            };
-            
-            // Определяем тип поля
-            const isSubscriptionField = Object.values(this.FIELD_IDS.LEAD).includes(fieldId);
-            const isContactField = Object.values(this.FIELD_IDS.CONTACT).includes(fieldId);
-            
-            if (isSubscriptionField) {
-                subscriptionFields.push(fieldInfo);
-            } else if (isContactField) {
-                contactFields.push(fieldInfo);
-            } else {
-                otherFields.push(fieldInfo);
-            }
-        }
-        
-        // Выводим поля абонемента
-        console.log('\n🎫 ПОЛЯ АБОНЕМЕНТА:');
-        subscriptionFields.forEach(f => {
-            console.log(`   • ${f.name} (ID: ${f.id}): "${f.value}"`);
-        });
-        
-        // Выводим поля контакта
-        console.log('\n👤 ПОЛЯ КОНТАКТА:');
-        contactFields.forEach(f => {
-            console.log(`   • ${f.name} (ID: ${f.id}): "${f.value}"`);
-        });
-        
-        // Анализируем абонемент
-        console.log('\n🔍 АНАЛИЗ АБОНЕМЕНТА:');
-        const subscriptionInfo = await this.extractSubscriptionInfo(lead);
-        
-        console.log('\n📊 РЕЗУЛЬТАТ АНАЛИЗА:');
-        console.log(`   • Всего занятий: ${subscriptionInfo.totalClasses}`);
-        console.log(`   • Использовано: ${subscriptionInfo.usedClasses}`);
-        console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
-        console.log(`   • Статус: ${subscriptionInfo.subscriptionStatus}`);
-        console.log(`   • Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
-        console.log(`   • Тип: ${subscriptionInfo.subscriptionType}`);
-        console.log(`   • Активация: ${subscriptionInfo.activationDate}`);
-        console.log(`   • Окончание: ${subscriptionInfo.expirationDate}`);
-        console.log(`   • Последний визит: ${subscriptionInfo.lastVisitDate}`);
-        
-        return {
-            lead: lead,
-            subscriptionInfo: subscriptionInfo,
-            fields: {
-                subscription: subscriptionFields,
-                contact: contactFields,
-                other: otherFields
-            }
-        };
-        
-    } catch (error) {
-        console.error(`❌ Ошибка диагностики сделки ${leadId}:`, error.message);
-        return null;
-    }
-}
 
 // Проверка телефона - основной диагностический маршрут
 app.get('/api/debug/phone/:phone', async (req, res) => {
