@@ -1110,28 +1110,44 @@ const initDatabase = async () => {
         console.log('🔄 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ');
         console.log('='.repeat(80));
         
-        const dbDir = path.join(__dirname, 'data');
         try {
-            await fs.mkdir(dbDir, { recursive: true });
-            console.log('📁 Директория данных создана:', dbDir);
-        } catch (mkdirError) {
-            console.log('📁 Директория данных уже существует');
+            const dbDir = path.join(__dirname, 'data');
+            try {
+                await fs.mkdir(dbDir, { recursive: true });
+                console.log('📁 Директория данных создана:', dbDir);
+            } catch (mkdirError) {
+                console.log('📁 Директория данных уже существует');
+            }
+            
+            const dbPath = path.join(dbDir, 'art_school.db');
+            console.log(`💾 Путь к базе данных: ${dbPath}`);
+            
+            db = await open({
+                filename: dbPath,
+                driver: sqlite3.Database
+            });
+
+            console.log('✅ База данных SQLite подключена');
+            
+        } catch (fileError) {
+            console.log('⚠️  Ошибка файловой системы, используем память:', fileError.message);
+            
+            db = await open({
+                filename: ':memory:',
+                driver: sqlite3.Database
+            });
+            
+            console.log('⚠️  ВНИМАНИЕ: БД создана в памяти. Данные будут потеряны при перезапуске!');
         }
         
-        const dbPath = path.join(dbDir, 'art_school.db');
-        console.log(`💾 Путь к базе данных: ${dbPath}`);
-        
-        db = await open({
-            filename: dbPath,
-            driver: sqlite3.Database
-        });
-        
-        console.log('✅ База данных SQLite подключена');
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
         
+        console.log('⚙️  Настройки SQLite применены');
+        
         await createTables();
-        console.log('✅ База данных успешно инициализирована!');
+        
+        console.log('\n✅ База данных успешно инициализирована!');
         
         return db;
     } catch (error) {
@@ -1145,64 +1161,76 @@ const createTables = async () => {
         console.log('\n📊 СОЗДАНИЕ ТАБЛИЦ БАЗЫ ДАННЫХ');
         
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS student_profiles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                amocrm_contact_id INTEGER,
-                amocrm_lead_id INTEGER,
-                
-                -- Основная информация
-                student_name TEXT NOT NULL,
-                phone_number TEXT NOT NULL,
-                email TEXT,
-                birth_date TEXT,
-                branch TEXT,
-                
-                -- Расписание
-                day_of_week TEXT,
-                teacher_name TEXT,
-                age_group TEXT,
-                allergies TEXT,
-                
-                -- Информация о родителе
-                parent_name TEXT,
-                
-                -- Абонемент
-                subscription_type TEXT,
-                subscription_owner TEXT,
-                subscription_description TEXT,
-                subscription_active INTEGER DEFAULT 0,
-                subscription_status TEXT,
-                subscription_badge TEXT,
-                
-                -- Занятия
-                total_classes INTEGER DEFAULT 0,
-                used_classes INTEGER DEFAULT 0,
-                remaining_classes INTEGER DEFAULT 0,
-                
-                -- Даты
-                expiration_date TEXT,
-                activation_date TEXT,
-                last_visit_date TEXT,
-                
-                -- Технические данные
-                custom_fields TEXT,
-                raw_contact_data TEXT,
-                lead_data TEXT,
-                is_demo INTEGER DEFAULT 0,
-                source TEXT DEFAULT 'amocrm',
-                is_active INTEGER DEFAULT 1,
-                last_sync TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    CREATE TABLE IF NOT EXISTS student_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amocrm_contact_id INTEGER,
+        parent_contact_id INTEGER,
+        amocrm_lead_id INTEGER,
         
+        -- Основная информация
+        student_name TEXT NOT NULL,
+        phone_number TEXT NOT NULL,
+        email TEXT,
+        birth_date TEXT,
+        branch TEXT,
+        
+        -- Расписание
+        day_of_week TEXT,
+        time_slot TEXT,
+        teacher_name TEXT,
+        age_group TEXT,
+        course TEXT,
+        allergies TEXT,
+        
+        -- Информация о родителе
+        parent_name TEXT,
+        
+        -- Абонемент (основное)
+        subscription_type TEXT,
+        subscription_owner TEXT,
+        subscription_description TEXT,
+        subscription_active INTEGER DEFAULT 0,
+        subscription_status TEXT,
+        subscription_badge TEXT,
+        
+        -- Занятия
+        total_classes INTEGER DEFAULT 0,
+        used_classes INTEGER DEFAULT 0,
+        remaining_classes INTEGER DEFAULT 0,
+        technical_classes INTEGER DEFAULT 0,
+        used_technical_classes INTEGER DEFAULT 0,
+        
+        -- Даты
+        expiration_date TEXT,
+        activation_date TEXT,
+        last_visit_date TEXT,
+        
+        -- Дополнительная информация
+        price_per_class REAL DEFAULT 0,
+        is_promotion INTEGER DEFAULT 0,
+        is_frozen INTEGER DEFAULT 0,
+        is_old_write_off INTEGER DEFAULT 0,
+        transfer_reason TEXT,
+        
+        -- Технические данные
+        custom_fields TEXT,
+        raw_contact_data TEXT,
+        lead_data TEXT,
+        is_demo INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'amocrm',
+        is_active INTEGER DEFAULT 1,
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
         console.log('✅ Таблица student_profiles создана');
-        
-        // Создаем индексы
+
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_phone ON student_profiles(phone_number)');
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_name ON student_profiles(student_name)');
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_active ON student_profiles(is_active)');
+        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_branch ON student_profiles(branch)');
+        await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_sync ON student_profiles(last_sync)');
         
         await db.exec(`
             CREATE TABLE IF NOT EXISTS user_sessions (
@@ -1210,8 +1238,10 @@ const createTables = async () => {
                 session_id TEXT UNIQUE NOT NULL,
                 session_data TEXT,
                 phone_number TEXT,
-                expires_at TIMESTAMP NOT NULL,
+                ip_address TEXT,
+                user_agent TEXT,
                 is_active INTEGER DEFAULT 1,
+                expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -1233,14 +1263,13 @@ const createTables = async () => {
         `);
         console.log('✅ Таблица sync_logs создана');
         
-        console.log('🎉 Все таблицы созданы успешно!');
+        console.log('\n🎉 Все таблицы созданы успешно!');
         
     } catch (error) {
         console.error('❌ Ошибка создания таблиц:', error.message);
         throw error;
     }
 };
-
 // ==================== СИСТЕМА СИНХРОНИЗАЦИИ ====================
 class SyncService {
     constructor() {
