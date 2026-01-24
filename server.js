@@ -2826,6 +2826,499 @@ app.post('/api/subscription', async (req, res) => {
 });
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+
+
+app.get('/api/debug/subscription-analysis/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПОЛНЫЙ АНАЛИЗ АБОНЕМЕНТА ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                error: 'Сделка не найдена'
+            });
+        }
+        
+        const customFields = lead.custom_fields_values || [];
+        const leadName = lead.name || '';
+        
+        // 1. Анализ всех полей сделки
+        const fieldAnalysis = [];
+        const subscriptionFields = [];
+        const checkboxFields = [];
+        
+        customFields.forEach(field => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = amoCrmService.getFieldName(field);
+            const fieldValue = amoCrmService.getFieldValue(field);
+            const fieldType = field.field_type || 'unknown';
+            
+            const fieldInfo = {
+                id: fieldId,
+                name: fieldName,
+                value: fieldValue,
+                type: fieldType,
+                values: field.values || []
+            };
+            
+            fieldAnalysis.push(fieldInfo);
+            
+            // Определяем тип поля
+            if (fieldId >= 884899 && fieldId <= 884929) {
+                fieldInfo.field_type = 'checkbox_visit';
+                checkboxFields.push(fieldInfo);
+            } else if ([850241, 891819, 850257, 890163, 891007].includes(fieldId)) {
+                fieldInfo.field_type = 'subscription_field';
+                subscriptionFields.push(fieldInfo);
+            }
+        });
+        
+        // 2. Анализ названия сделки
+        const nameAnalysis = {
+            original_name: leadName,
+            cleaned_name: leadName.toLowerCase(),
+            patterns_found: [],
+            class_count_from_name: 0
+        };
+        
+        // Поиск паттернов в названии
+        const patterns = [
+            { regex: /(\d+)\s*занятий?/i, description: 'число занятий' },
+            { regex: /(\d+)\s*уроков?/i, description: 'число уроков' },
+            { regex: /абонемент\s+на\s+(\d+)/i, description: 'абонемент на N' },
+            { regex: /(\d+)\s*занятия/i, description: 'число занятия (множ)' },
+            { regex: /(\d+)\s{0,3}-\s{0,3}занятий?/i, description: 'через дефис' },
+            { regex: /^(\d+)\s*занятий?/i, description: 'в начале' },
+            { regex: /занятий?\s*(\d+)$/i, description: 'в конце' },
+            { regex: /разовый|пробное/i, description: 'разовое' }
+        ];
+        
+        patterns.forEach(pattern => {
+            const match = leadName.match(pattern.regex);
+            if (match) {
+                let count = pattern.description === 'разовое' ? 1 : parseInt(match[1] || 0);
+                nameAnalysis.patterns_found.push({
+                    pattern: pattern.description,
+                    match: match[0],
+                    count: count
+                });
+                
+                if (count > 0 && count <= 50) {
+                    nameAnalysis.class_count_from_name = count;
+                }
+            }
+        });
+        
+        // 3. Анализ посещений по чекбоксам
+        const visitedClasses = checkboxFields.filter(field => {
+            const value = String(field.value).toLowerCase();
+            return value === 'true' || value === '1' || value === 'да';
+        }).length;
+        
+        // 4. Получение данных из полей абонемента
+        const subscriptionData = {
+            totalClasses: { value: 0, source: '', fieldId: null },
+            usedClasses: { value: 0, source: '', fieldId: null },
+            remainingClasses: { value: 0, source: '', fieldId: null },
+            subscriptionType: { value: '', source: '', fieldId: null },
+            expirationDate: { value: '', source: '', fieldId: null },
+            activationDate: { value: '', source: '', fieldId: null },
+            lastVisitDate: { value: '', source: '', fieldId: null }
+        };
+        
+        // Маппинг полей
+        const fieldMapping = {
+            850241: { key: 'totalClasses', description: 'Абонемент занятий:' },
+            891819: { key: 'totalClasses', description: 'Количество занятий (тех)' },
+            850257: { key: 'usedClasses', description: 'Счетчик занятий:' },
+            890163: { key: 'remainingClasses', description: 'Остаток занятий' },
+            891007: { key: 'subscriptionType', description: 'Тип абонемента' },
+            850255: { key: 'expirationDate', description: 'Окончание абонемента:' },
+            851565: { key: 'activationDate', description: 'Дата активации абонемента:' },
+            850259: { key: 'lastVisitDate', description: 'Дата последнего визита:' }
+        };
+        
+        customFields.forEach(field => {
+            const fieldId = field.field_id || field.id;
+            if (fieldMapping[fieldId]) {
+                const mapping = fieldMapping[fieldId];
+                const value = amoCrmService.getFieldValue(field);
+                
+                subscriptionData[mapping.key] = {
+                    value: value,
+                    source: mapping.description,
+                    fieldId: fieldId,
+                    rawValue: field.values || []
+                };
+            }
+        });
+        
+        // 5. Применение логики приоритетов
+        const calculated = {
+            // Всего занятий (приоритеты: 1. поле "Абонемент занятий", 2. поле "Количество занятий", 3. название)
+            finalTotalClasses: 0,
+            totalClassesSource: '',
+            
+            // Использованные занятия (приоритеты: 1. поле "Счетчик занятий", 2. чекбоксы, 3. расчет)
+            finalUsedClasses: 0,
+            usedClassesSource: '',
+            
+            // Остаток занятий (приоритеты: 1. поле "Остаток занятий", 2. расчет)
+            finalRemainingClasses: 0,
+            remainingClassesSource: ''
+        };
+        
+        // Определение всего занятий
+        if (subscriptionData.totalClasses.value && parseInt(subscriptionData.totalClasses.value) > 0) {
+            calculated.finalTotalClasses = parseInt(subscriptionData.totalClasses.value);
+            calculated.totalClassesSource = subscriptionData.totalClasses.source;
+        } else if (nameAnalysis.class_count_from_name > 0) {
+            calculated.finalTotalClasses = nameAnalysis.class_count_from_name;
+            calculated.totalClassesSource = 'Название сделки';
+        }
+        
+        // Определение использованных занятий
+        if (subscriptionData.usedClasses.value && parseInt(subscriptionData.usedClasses.value) > 0) {
+            calculated.finalUsedClasses = parseInt(subscriptionData.usedClasses.value);
+            calculated.usedClassesSource = subscriptionData.usedClasses.source;
+        } else if (visitedClasses > 0) {
+            calculated.finalUsedClasses = visitedClasses;
+            calculated.usedClassesSource = 'Чекбоксы посещений';
+        }
+        
+        // Определение остатка
+        if (subscriptionData.remainingClasses.value && parseInt(subscriptionData.remainingClasses.value) > 0) {
+            calculated.finalRemainingClasses = parseInt(subscriptionData.remainingClasses.value);
+            calculated.remainingClassesSource = subscriptionData.remainingClasses.source;
+        } else if (calculated.finalTotalClasses > 0) {
+            calculated.finalRemainingClasses = Math.max(0, calculated.finalTotalClasses - calculated.finalUsedClasses);
+            calculated.remainingClassesSource = 'Расчет (Всего - Использовано)';
+        }
+        
+        // 6. Вызов текущей логики для сравнения
+        const currentLogicResult = amoCrmService.extractSubscriptionInfo(lead);
+        
+        // 7. Создание отчета
+        const report = {
+            lead_info: {
+                id: lead.id,
+                name: leadName,
+                status_id: lead.status_id,
+                pipeline_id: lead.pipeline_id,
+                price: lead.price,
+                created_at: lead.created_at,
+                updated_at: lead.updated_at
+            },
+            
+            name_analysis: nameAnalysis,
+            
+            fields_analysis: {
+                total_fields: customFields.length,
+                subscription_fields: subscriptionFields,
+                checkbox_fields: {
+                    total: checkboxFields.length,
+                    checked: visitedClasses,
+                    details: checkboxFields.map(f => ({
+                        id: f.id,
+                        name: f.name,
+                        checked: String(f.value).toLowerCase() === 'true' || 
+                                 String(f.value).toLowerCase() === '1' || 
+                                 String(f.value).toLowerCase() === 'да'
+                    }))
+                },
+                all_fields: fieldAnalysis
+            },
+            
+            subscription_data: subscriptionData,
+            
+            calculations: {
+                total_classes: {
+                    value: calculated.finalTotalClasses,
+                    source: calculated.totalClassesSource,
+                    confidence: calculated.totalClassesSource ? 'high' : 'low'
+                },
+                used_classes: {
+                    value: calculated.finalUsedClasses,
+                    source: calculated.usedClassesSource,
+                    confidence: calculated.usedClassesSource ? 'high' : 'low'
+                },
+                remaining_classes: {
+                    value: calculated.finalRemainingClasses,
+                    source: calculated.remainingClassesSource,
+                    confidence: calculated.remainingClassesSource ? 'high' : 'low'
+                }
+            },
+            
+            current_logic_result: currentLogicResult,
+            
+            issues_and_recommendations: []
+        };
+        
+        // 8. Поиск проблем
+        if (calculated.finalTotalClasses === 0) {
+            report.issues_and_recommendations.push({
+                severity: 'high',
+                issue: 'Не удалось определить общее количество занятий',
+                recommendation: 'Проверьте поле 850241 или формат названия сделки'
+            });
+        }
+        
+        if (calculated.finalTotalClasses > 0 && calculated.finalRemainingClasses > calculated.finalTotalClasses) {
+            report.issues_and_recommendations.push({
+                severity: 'high',
+                issue: `Остаток занятий (${calculated.finalRemainingClasses}) больше общего количества (${calculated.finalTotalClasses})`,
+                recommendation: 'Проверьте поле 890163 (остаток)'
+            });
+        }
+        
+        if (visitedClasses > 0 && calculated.finalUsedClasses === 0) {
+            report.issues_and_recommendations.push({
+                severity: 'medium',
+                issue: 'Есть отмеченные посещения, но счетчик занятий не заполнен',
+                recommendation: 'Проверьте поле 850257 (счетчик)'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: report,
+            summary: {
+                total_classes: calculated.finalTotalClasses,
+                used_classes: calculated.finalUsedClasses,
+                remaining_classes: calculated.finalRemainingClasses,
+                subscription_active: currentLogicResult.subscriptionActive,
+                subscription_status: currentLogicResult.subscriptionStatus,
+                issues_count: report.issues_and_recommendations.length
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа абонемента:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// ДОПОЛНИТЕЛЬНЫЙ МАРШРУТ ДЛЯ СТАТИСТИКИ ВСЕХ АБОНЕМЕНТОВ
+app.get('/api/debug/subscription-patterns', async (req, res) => {
+    try {
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        const limit = parseInt(req.query.limit) || 50;
+        
+        const response = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads?with=custom_fields_values&limit=${limit}&order[updated_at]=desc`
+        );
+        
+        const allLeads = response._embedded?.leads || [];
+        
+        const patterns = {
+            name_patterns: new Map(),
+            field_usage: {
+                total_classes_field: 0,
+                used_classes_field: 0,
+                remaining_classes_field: 0,
+                checkbox_usage: 0
+            },
+            class_counts: {},
+            subscription_types: new Map(),
+            issues: []
+        };
+        
+        allLeads.forEach(lead => {
+            const leadName = lead.name || '';
+            const customFields = lead.custom_fields_values || [];
+            
+            // Анализ названия
+            if (leadName) {
+                const nameLower = leadName.toLowerCase();
+                
+                // Поиск количества занятий в названии
+                const classMatch = leadName.match(/(\d+)\s*занятий?/i);
+                if (classMatch) {
+                    const count = parseInt(classMatch[1]);
+                    patterns.class_counts[count] = (patterns.class_counts[count] || 0) + 1;
+                }
+                
+                // Паттерны названий
+                const commonPatterns = [
+                    { pattern: /-\s*\d+\s*занятий?/i, name: 'Дефис-N-занятий' },
+                    { pattern: /\d+\s*-\s*занятий?/i, name: 'N-дефис-занятий' },
+                    { pattern: /абонемент\s+на\s+\d+/i, name: 'Абонемент на N' },
+                    { pattern: /\d+\s*занятий?\s*$/i, name: 'N занятий в конце' },
+                    { pattern: /разовый/i, name: 'Разовый' },
+                    { pattern: /пробное/i, name: 'Пробное' },
+                    { pattern: /база\s*-\s*\d+/i, name: 'База-N' }
+                ];
+                
+                commonPatterns.forEach(p => {
+                    if (p.pattern.test(leadName)) {
+                        patterns.name_patterns.set(p.name, (patterns.name_patterns.get(p.name) || 0) + 1);
+                    }
+                });
+            }
+            
+            // Анализ полей
+            customFields.forEach(field => {
+                const fieldId = field.field_id || field.id;
+                const value = amoCrmService.getFieldValue(field);
+                
+                if (fieldId === 850241 || fieldId === 891819) {
+                    patterns.field_usage.total_classes_field++;
+                    
+                    if (value) {
+                        const typeKey = value.split(' ')[0] || value;
+                        patterns.subscription_types.set(
+                            typeKey, 
+                            (patterns.subscription_types.get(typeKey) || 0) + 1
+                        );
+                    }
+                }
+                
+                if (fieldId === 850257) patterns.field_usage.used_classes_field++;
+                if (fieldId === 890163) patterns.field_usage.remaining_classes_field++;
+                
+                // Чекбоксы
+                if (fieldId >= 884899 && fieldId <= 884929) {
+                    if (value === 'true' || value === '1' || value === 'да') {
+                        patterns.field_usage.checkbox_usage++;
+                    }
+                }
+            });
+            
+            // Проверка консистентности
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            if (subscriptionInfo.totalClasses > 0) {
+                if (subscriptionInfo.totalClasses < subscriptionInfo.usedClasses) {
+                    patterns.issues.push({
+                        lead_id: lead.id,
+                        lead_name: leadName,
+                        issue: `Использовано занятий (${subscriptionInfo.usedClasses}) больше общего количества (${subscriptionInfo.totalClasses})`
+                    });
+                }
+                
+                if (subscriptionInfo.remainingClasses > subscriptionInfo.totalClasses) {
+                    patterns.issues.push({
+                        lead_id: lead.id,
+                        lead_name: leadName,
+                        issue: `Остаток (${subscriptionInfo.remainingClasses}) больше общего количества (${subscriptionInfo.totalClasses})`
+                    });
+                }
+            }
+        });
+        
+        // Статистика
+        const stats = {
+            total_leads_analyzed: allLeads.length,
+            leads_with_subscription: allLeads.filter(lead => {
+                const info = amoCrmService.extractSubscriptionInfo(lead);
+                return info.hasSubscription;
+            }).length,
+            
+            name_patterns: Array.from(patterns.name_patterns.entries()).map(([name, count]) => ({
+                pattern: name,
+                count: count,
+                percentage: ((count / allLeads.length) * 100).toFixed(1) + '%'
+            })),
+            
+            field_usage: {
+                total_classes_field: {
+                    count: patterns.field_usage.total_classes_field,
+                    percentage: ((patterns.field_usage.total_classes_field / allLeads.length) * 100).toFixed(1) + '%'
+                },
+                used_classes_field: {
+                    count: patterns.field_usage.used_classes_field,
+                    percentage: ((patterns.field_usage.used_classes_field / allLeads.length) * 100).toFixed(1) + '%'
+                },
+                remaining_classes_field: {
+                    count: patterns.field_usage.remaining_classes_field,
+                    percentage: ((patterns.field_usage.remaining_classes_field / allLeads.length) * 100).toFixed(1) + '%'
+                },
+                checkbox_usage: {
+                    count: patterns.field_usage.checkbox_usage,
+                    per_lead_avg: (patterns.field_usage.checkbox_usage / allLeads.length).toFixed(1)
+                }
+            },
+            
+            class_distribution: Object.entries(patterns.class_counts)
+                .map(([count, frequency]) => ({
+                    classes: parseInt(count),
+                    frequency: frequency,
+                    percentage: ((frequency / allLeads.length) * 100).toFixed(1) + '%'
+                }))
+                .sort((a, b) => b.frequency - a.frequency),
+            
+            subscription_types: Array.from(patterns.subscription_types.entries())
+                .map(([type, count]) => ({
+                    type: type,
+                    count: count,
+                    percentage: ((count / allLeads.length) * 100).toFixed(1) + '%'
+                }))
+                .sort((a, b) => b.count - a.count),
+            
+            common_issues: {
+                total: patterns.issues.length,
+                issues: patterns.issues.slice(0, 10), // Показываем первые 10
+                most_common: patterns.issues.length > 0 ? 
+                    patterns.issues[0].issue.split(':')[0] : 'Нет проблем'
+            },
+            
+            recommendations: []
+        };
+        
+        // Рекомендации на основе анализа
+        if (stats.field_usage.total_classes_field.percentage < '50%') {
+            stats.recommendations.push('Поле "Абонемент занятий" заполнено менее чем в 50% сделок. Рассмотрите обязательное заполнение.');
+        }
+        
+        if (stats.field_usage.remaining_classes_field.percentage < '30%') {
+            stats.recommendations.push('Поле "Остаток занятий" редко заполняется. Это поле критично для отображения баланса.');
+        }
+        
+        if (stats.common_issues.total > allLeads.length * 0.1) {
+            stats.recommendations.push('Более 10% сделок имеют проблемы с консистентностью данных. Требуется проверка данных в CRM.');
+        }
+        
+        res.json({
+            success: true,
+            data: stats,
+            analysis_date: new Date().toISOString(),
+            leads_analyzed: allLeads.length
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа паттернов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 app.get('/api/debug/connection', async (req, res) => {
     try {
         console.log('\n🔍 ПРОВЕРКА СВЯЗИ С AMOCRM');
