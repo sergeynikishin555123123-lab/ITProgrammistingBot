@@ -1565,42 +1565,95 @@ checkLeadBelongsToAnyStudent(leadName, children) {
     return false;
 }
    
-    async getContactLeadsSorted(contactId) {
-        try {
-            const response = await this.makeRequest(
-                'GET',
-                `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&order[updated_at]=desc&limit=100`
-            );
-            
-            const allLeads = response._embedded?.leads || [];
-            
-            console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
-            
-            const filteredLeads = allLeads.filter(lead => {
-                const leadName = lead.name || '';
+  async getContactLeadsSorted(contactId) {
+    try {
+        console.log(`🔍 Получение ВСЕХ сделок контакта ${contactId}`);
+        
+        let allLeads = [];
+        let page = 1;
+        const limit = 100;
+        let hasMore = true;
+        
+        while (hasMore) {
+            try {
+                const response = await this.makeRequest(
+                    'GET',
+                    `/api/v4/leads?with=custom_fields_values&filter[contact_id]=${contactId}&page=${page}&limit=${limit}&order[updated_at]=desc`
+                );
                 
-                const excludePatterns = [
-                    /^рассылка/i,
-                    /^для рассылки/i,
-                    /^успешн/i,
-                    /^архив/i,
-                    /^отменен/i,
-                    /^не\s+актив/i
-                ];
+                const leads = response._embedded?.leads || [];
+                console.log(`📄 Страница ${page}: найдено ${leads.length} сделок`);
                 
-                return !excludePatterns.some(pattern => pattern.test(leadName));
-            });
-            
-            console.log(`✅ После фильтрации: ${filteredLeads.length} сделок`);
-            
-            return filteredLeads;
-            
-        } catch (error) {
-            console.error(`⚠️  Ошибка получения сделок: ${error.message}`);
-            return [];
+                if (leads.length === 0) {
+                    hasMore = false;
+                } else {
+                    allLeads = [...allLeads, ...leads];
+                    
+                    // Если получено меньше, чем limit, значит это последняя страница
+                    if (leads.length < limit) {
+                        hasMore = false;
+                    } else {
+                        page++;
+                    }
+                }
+                
+                // Защита от бесконечного цикла
+                if (page > 10) {
+                    console.log('⚠️  Превышено максимальное количество страниц (10)');
+                    hasMore = false;
+                }
+                
+            } catch (pageError) {
+                console.error(`❌ Ошибка получения страницы ${page}:`, pageError.message);
+                hasMore = false;
+            }
         }
+        
+        console.log(`📊 Всего сделок у контакта до фильтрации: ${allLeads.length}`);
+        
+        // ФИЛЬТРУЕМ ненужные сделки
+        const filteredLeads = allLeads.filter(lead => {
+            const leadName = lead.name || '';
+            const leadNameLower = leadName.toLowerCase();
+            
+            // ИСКЛЮЧАЕМ:
+            // 1. Рассылки
+            // 2. Архивные
+            // 3. Отмененные
+            // 4. Без названия или с техническими названиями
+            const excludePatterns = [
+                /^рассылка/i,
+                /рассылка\s*\|/i,
+                /^архив/i,
+                /^отменен/i,
+                /^не\s+актив/i,
+                /^успешн/i,
+                /^\d+\s*₽/i,
+                /^сделка\s*#/i,
+                /^#\d+/i,
+                /^test/i,
+                /^тест/i
+            ];
+            
+            const shouldExclude = excludePatterns.some(pattern => pattern.test(leadNameLower));
+            
+            if (shouldExclude) {
+                console.log(`⏭️  Исключена сделка: "${leadName}"`);
+                return false;
+            }
+            
+            return true;
+        });
+        
+        console.log(`✅ После фильтрации: ${filteredLeads.length} сделок`);
+        
+        return filteredLeads;
+        
+    } catch (error) {
+        console.error(`⚠️  Ошибка получения сделок: ${error.message}`);
+        return [];
     }
-
+}
     extractStudentNameFromLead(lead) {
         try {
             const customFields = lead.custom_fields_values || [];
