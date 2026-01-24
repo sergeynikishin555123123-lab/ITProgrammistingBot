@@ -1033,6 +1033,266 @@ extractStudentsFromContact(contact) {
     
     return students;
 }
+
+// 🔧 МЕТОД: getAllActiveSubscriptions - полная выгрузка всех активных абонементов
+async getAllActiveSubscriptions(limit = 100) {
+    try {
+        console.log(`\n📊 ПОЛНАЯ ВЫГРУЗКА ВСЕХ АКТИВНЫХ АБОНЕМЕНТОВ`);
+        console.log('='.repeat(80));
+        
+        if (!this.isInitialized) {
+            console.log('❌ amoCRM не инициализирован');
+            return [];
+        }
+        
+        // Получаем все сделки с полями абонемента
+        const response = await this.makeRequest(
+            'GET',
+            `/api/v4/leads?with=custom_fields_values&limit=${limit}&order[updated_at]=desc`
+        );
+        
+        const allLeads = response._embedded?.leads || [];
+        console.log(`📋 Всего сделок получено: ${allLeads.length}`);
+        
+        // Фильтруем сделки с абонементами
+        const subscriptions = [];
+        
+        for (const lead of allLeads) {
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            
+            if (subscriptionInfo.hasSubscription) {
+                const leadAnalysis = {
+                    leadId: lead.id,
+                    leadName: lead.name || 'Без названия',
+                    statusId: lead.status_id,
+                    pipelineId: lead.pipeline_id,
+                    price: lead.price,
+                    createdAt: lead.created_at,
+                    updatedAt: lead.updated_at,
+                    customFieldsCount: lead.custom_fields_values?.length || 0,
+                    subscriptionInfo: subscriptionInfo,
+                    rawFields: []
+                };
+                
+                // Сохраняем все поля для анализа
+                if (lead.custom_fields_values) {
+                    lead.custom_fields_values.forEach(field => {
+                        const fieldId = field.field_id || field.id;
+                        const fieldName = this.getFieldName(field);
+                        const fieldValue = this.getFieldValue(field);
+                        const fieldType = field.field_type;
+                        
+                        leadAnalysis.rawFields.push({
+                            id: fieldId,
+                            name: fieldName,
+                            value: fieldValue,
+                            type: fieldType,
+                            values: field.values || []
+                        });
+                    });
+                }
+                
+                subscriptions.push(leadAnalysis);
+                
+                console.log(`\n📋 ${subscriptions.length}. "${lead.name}"`);
+                console.log(`   • ID: ${lead.id}`);
+                console.log(`   • Абонемент: ${subscriptionInfo.subscriptionStatus}`);
+                console.log(`   • Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses}`);
+                console.log(`   • Осталось: ${subscriptionInfo.remainingClasses}`);
+                console.log(`   • Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+            }
+        }
+        
+        console.log(`\n📊 ИТОГО найденных абонементов: ${subscriptions.length} из ${allLeads.length} сделок`);
+        
+        // Анализ паттернов
+        this.analyzeSubscriptionPatterns(subscriptions);
+        
+        return subscriptions;
+        
+    } catch (error) {
+        console.error('❌ Ошибка выгрузки абонементов:', error.message);
+        return [];
+    }
+}
+
+// 🔧 МЕТОД: analyzeSubscriptionPatterns - анализ паттернов заполнения
+analyzeSubscriptionPatterns(subscriptions) {
+    console.log('\n🔍 АНАЛИЗ ПАТТЕРНОВ ЗАПОЛНЕНИЯ АБОНЕМЕНТОВ');
+    console.log('='.repeat(80));
+    
+    const patterns = {
+        totalClasses: new Set(),
+        usedClasses: new Set(),
+        remainingClasses: new Set(),
+        subscriptionTypes: new Set(),
+        fieldCombinations: [],
+        commonIssues: []
+    };
+    
+    subscriptions.forEach(sub => {
+        const info = sub.subscriptionInfo;
+        
+        // Анализируем поля
+        patterns.totalClasses.add(`${info.totalClasses} занятий (${sub.leadName})`);
+        patterns.usedClasses.add(`Использовано: ${info.usedClasses} (${sub.leadName})`);
+        patterns.remainingClasses.add(`Осталось: ${info.remainingClasses} (${sub.leadName})`);
+        patterns.subscriptionTypes.add(`${info.subscriptionType || 'Не указан'} (${sub.leadName})`);
+        
+        // Анализируем поля сделки
+        const subscriptionFields = sub.rawFields.filter(f => 
+            f.name.includes('абонемент') || 
+            f.name.includes('занят') || 
+            f.name.includes('счетчик') ||
+            f.name.includes('остаток') ||
+            f.name.includes('окончание') ||
+            f.name.includes('активация')
+        );
+        
+        if (subscriptionFields.length > 0) {
+            patterns.fieldCombinations.push({
+                leadName: sub.leadName,
+                fields: subscriptionFields.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    value: f.value
+                }))
+            });
+        }
+        
+        // Проверяем проблемы
+        if (info.totalClasses > 0 && info.remainingClasses === 0 && info.usedClasses === 0) {
+            patterns.commonIssues.push(`${sub.leadName}: ${info.totalClasses} занятий, но остаток 0 и использовано 0`);
+        }
+        
+        if (info.totalClasses > 0 && info.remainingClasses > info.totalClasses) {
+            patterns.commonIssues.push(`${sub.leadName}: остаток ${info.remainingClasses} > всего ${info.totalClasses}`);
+        }
+    });
+    
+    // Выводим результаты анализа
+    console.log(`\n📊 ВАРИАНТЫ КОЛИЧЕСТВА ЗАНЯТИЙ (${patterns.totalClasses.size}):`);
+    Array.from(patterns.totalClasses).forEach(item => console.log(`   • ${item}`));
+    
+    console.log(`\n📊 ВАРИАНТЫ ИСПОЛЬЗОВАННЫХ ЗАНЯТИЙ (${patterns.usedClasses.size}):`);
+    Array.from(patterns.usedClasses).forEach(item => console.log(`   • ${item}`));
+    
+    console.log(`\n📊 ВАРИАНТЫ ОСТАТКА ЗАНЯТИЙ (${patterns.remainingClasses.size}):`);
+    Array.from(patterns.remainingClasses).forEach(item => console.log(`   • ${item}`));
+    
+    console.log(`\n📊 ТИПЫ АБОНЕМЕНТОВ (${patterns.subscriptionTypes.size}):`);
+    Array.from(patterns.subscriptionTypes).forEach(item => console.log(`   • ${item}`));
+    
+    console.log(`\n🔍 КОМБИНАЦИИ ПОЛЕЙ В СДЕЛКАХ:`);
+    patterns.fieldCombinations.forEach((combo, index) => {
+        console.log(`\n${index + 1}. ${combo.leadName}:`);
+        combo.fields.forEach(field => {
+            console.log(`   • ${field.name} (ID: ${field.id}): "${field.value}"`);
+        });
+    });
+    
+    if (patterns.commonIssues.length > 0) {
+        console.log(`\n🚨 ОБНАРУЖЕННЫЕ ПРОБЛЕМЫ (${patterns.commonIssues.length}):`);
+        patterns.commonIssues.forEach(issue => console.log(`   • ${issue}`));
+    }
+    
+    // Создаем сводный отчет
+    console.log('\n📈 СВОДНЫЙ ОТЧЕТ:');
+    console.log('='.repeat(80));
+    
+    const activeCount = subscriptions.filter(s => s.subscriptionInfo.subscriptionActive).length;
+    const expiredCount = subscriptions.filter(s => s.subscriptionInfo.subscriptionStatus.includes('истек')).length;
+    const frozenCount = subscriptions.filter(s => s.subscriptionInfo.isFrozen).length;
+    const hasRemaining = subscriptions.filter(s => s.subscriptionInfo.remainingClasses > 0).length;
+    
+    console.log(`• Всего абонементов: ${subscriptions.length}`);
+    console.log(`• Активных: ${activeCount}`);
+    console.log(`• Истекших: ${expiredCount}`);
+    console.log(`• Замороженных: ${frozenCount}`);
+    console.log(`• С остатком занятий: ${hasRemaining}`);
+    console.log(`• Без остатка: ${subscriptions.length - hasRemaining}`);
+    
+    // Распределение по количеству занятий
+    const classDistribution = {};
+    subscriptions.forEach(sub => {
+        const classes = sub.subscriptionInfo.totalClasses;
+        if (classes > 0) {
+            classDistribution[classes] = (classDistribution[classes] || 0) + 1;
+        }
+    });
+    
+    console.log('\n📊 РАСПРЕДЕЛЕНИЕ ПО КОЛИЧЕСТВУ ЗАНЯТИЙ:');
+    Object.keys(classDistribution).sort((a, b) => a - b).forEach(key => {
+        console.log(`   • ${key} занятий: ${classDistribution[key]} абонементов`);
+    });
+}
+
+// 🔧 МЕТОД: getSubscriptionStats - статистика по абонементам
+async getSubscriptionStats() {
+    try {
+        console.log('\n📈 СТАТИСТИКА ПО АБОНЕМЕНТАМ');
+        console.log('='.repeat(80));
+        
+        const subscriptions = await this.getAllActiveSubscriptions(200);
+        
+        const stats = {
+            total: subscriptions.length,
+            byStatus: {},
+            byType: {},
+            byClassCount: {},
+            activeCount: 0,
+            expiredCount: 0,
+            frozenCount: 0,
+            withRemaining: 0,
+            withoutRemaining: 0,
+            issues: []
+        };
+        
+        subscriptions.forEach(sub => {
+            const info = sub.subscriptionInfo;
+            
+            // По статусу
+            const status = info.subscriptionStatus.split('(')[0].trim();
+            stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
+            
+            // По типу
+            const type = info.subscriptionType || 'Не указан';
+            stats.byType[type] = (stats.byType[type] || 0) + 1;
+            
+            // По количеству занятий
+            if (info.totalClasses > 0) {
+                stats.byClassCount[info.totalClasses] = (stats.byClassCount[info.totalClasses] || 0) + 1;
+            }
+            
+            // Счетчики
+            if (info.subscriptionActive) stats.activeCount++;
+            if (info.subscriptionStatus.includes('истек')) stats.expiredCount++;
+            if (info.isFrozen) stats.frozenCount++;
+            if (info.remainingClasses > 0) stats.withRemaining++;
+            else stats.withoutRemaining++;
+            
+            // Проблемы
+            if (info.totalClasses > 0 && info.remainingClasses === 0 && info.usedClasses === 0) {
+                stats.issues.push({
+                    leadId: sub.leadId,
+                    leadName: sub.leadName,
+                    problem: `Всего ${info.totalClasses} занятий, но остаток 0 и использовано 0`
+                });
+            }
+        });
+        
+        return {
+            stats: stats,
+            subscriptions: subscriptions.slice(0, 50), // Ограничиваем вывод
+            totalSubscriptions: subscriptions.length
+        };
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения статистики:', error.message);
+        return { stats: {}, subscriptions: [], totalSubscriptions: 0 };
+    }
+}
+    
 // 🔧 ИСПРАВЛЕННЫЙ МЕТОД: getStudentsByPhone
 async getStudentsByPhone(phoneNumber) {
     console.log(`\n🎯 ПОЛУЧЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
@@ -2517,6 +2777,290 @@ app.post('/api/subscription', async (req, res) => {
 });
 
 // ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+
+// 📍 ПОЛНАЯ ВЫГРУЗКА ВСЕХ АКТИВНЫХ АБОНЕМЕНТОВ
+app.get('/api/debug/all-subscriptions', async (req, res) => {
+    try {
+        console.log(`\n📊 ЗАПРОС ПОЛНОЙ ВЫГРУЗКИ ВСЕХ АКТИВНЫХ АБОНЕМЕНТОВ`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const limit = parseInt(req.query.limit) || 100;
+        console.log(`🔧 Лимит: ${limit} сделок`);
+        
+        const subscriptions = await amoCrmService.getAllActiveSubscriptions(limit);
+        
+        res.json({
+            success: true,
+            data: {
+                total: subscriptions.length,
+                limit: limit,
+                subscriptions: subscriptions,
+                analysis: {
+                    patterns: amoCrmService.analyzeSubscriptionPatterns(subscriptions)
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка выгрузки абонементов:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка выгрузки абонементов'
+        });
+    }
+});
+
+// 📍 СТАТИСТИКА ПО АБОНЕМЕНТАМ
+app.get('/api/debug/subscription-stats', async (req, res) => {
+    try {
+        console.log(`\n📈 ЗАПРОС СТАТИСТИКИ ПО АБОНЕМЕНТАМ`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const stats = await amoCrmService.getSubscriptionStats();
+        
+        res.json({
+            success: true,
+            data: stats
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения статистики:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения статистики'
+        });
+    }
+});
+
+// 📍 ПРОВЕРКА КОНКРЕТНЫХ СДЕЛОК (например, проблемных)
+app.get('/api/debug/problematic-subscriptions', async (req, res) => {
+    try {
+        console.log(`\n🔍 ПОИСК ПРОБЛЕМНЫХ АБОНЕМЕНТОВ`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const subscriptions = await amoCrmService.getAllActiveSubscriptions(200);
+        
+        // Находим проблемные абонементы
+        const problematic = subscriptions.filter(sub => {
+            const info = sub.subscriptionInfo;
+            
+            // Проблемы:
+            // 1. Остаток 0, но использовано 0 (все занятия доступны, но не отображаются)
+            // 2. Остаток больше общего количества
+            // 3. Нет даты окончания
+            // 4. Абонемент активен, но остаток 0
+            // 5. Неправильные данные в полях
+            
+            return (
+                (info.totalClasses > 0 && info.remainingClasses === 0 && info.usedClasses === 0) ||
+                (info.totalClasses > 0 && info.remainingClasses > info.totalClasses) ||
+                (!info.expirationDate && info.totalClasses > 0) ||
+                (info.subscriptionActive && info.remainingClasses === 0 && info.totalClasses > 0) ||
+                sub.leadName.includes('закончился') && info.subscriptionActive
+            );
+        });
+        
+        console.log(`📊 Найдено проблемных абонементов: ${problematic.length}`);
+        
+        // Анализируем проблемные поля
+        const fieldAnalysis = {};
+        problematic.forEach(sub => {
+            sub.rawFields.forEach(field => {
+                if (field.name.includes('занят') || field.name.includes('счетчик') || field.name.includes('остаток')) {
+                    const key = `${field.name} (ID: ${field.id})`;
+                    fieldAnalysis[key] = fieldAnalysis[key] || { values: new Set(), count: 0 };
+                    fieldAnalysis[key].values.add(field.value);
+                    fieldAnalysis[key].count++;
+                }
+            });
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                totalProblematic: problematic.length,
+                problematicSubscriptions: problematic,
+                fieldAnalysis: fieldAnalysis,
+                summary: {
+                    '0_остаток_0_использовано': problematic.filter(p => 
+                        p.subscriptionInfo.totalClasses > 0 && 
+                        p.subscriptionInfo.remainingClasses === 0 && 
+                        p.subscriptionInfo.usedClasses === 0
+                    ).length,
+                    'остаток_больше_всего': problematic.filter(p => 
+                        p.subscriptionInfo.totalClasses > 0 && 
+                        p.subscriptionInfo.remainingClasses > p.subscriptionInfo.totalClasses
+                    ).length,
+                    'нет_даты_окончания': problematic.filter(p => 
+                        !p.subscriptionInfo.expirationDate && 
+                        p.subscriptionInfo.totalClasses > 0
+                    ).length,
+                    'активен_но_0_остаток': problematic.filter(p => 
+                        p.subscriptionInfo.subscriptionActive && 
+                        p.subscriptionInfo.remainingClasses === 0 && 
+                        p.subscriptionInfo.totalClasses > 0
+                    ).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска проблемных абонементов:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка поиска проблемных абонементов'
+        });
+    }
+});
+
+// 📍 АНАЛИЗ КОНКРЕТНОЙ ПРОБЛЕМНОЙ СДЕЛКИ
+app.get('/api/debug/analyze-problem/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 АНАЛИЗ ПРОБЛЕМНОЙ СДЕЛКИ ID: ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        // Детальный анализ полей
+        const detailedAnalysis = {
+            leadInfo: {
+                id: lead.id,
+                name: lead.name,
+                statusId: lead.status_id,
+                price: lead.price,
+                createdAt: lead.created_at,
+                updatedAt: lead.updated_at
+            },
+            subscriptionInfo: subscriptionInfo,
+            fields: {
+                all: [],
+                subscription: [],
+                problematic: []
+            },
+            issues: [],
+            recommendations: []
+        };
+        
+        // Анализируем поля
+        if (lead.custom_fields_values) {
+            lead.custom_fields_values.forEach(field => {
+                const fieldId = field.field_id || field.id;
+                const fieldName = amoCrmService.getFieldName(field);
+                const fieldValue = amoCrmService.getFieldValue(field);
+                const fieldType = field.field_type;
+                
+                const fieldInfo = {
+                    id: fieldId,
+                    name: fieldName,
+                    value: fieldValue,
+                    type: fieldType,
+                    values: field.values || []
+                };
+                
+                detailedAnalysis.fields.all.push(fieldInfo);
+                
+                // Поля абонемента
+                if (fieldName.includes('абонемент') || 
+                    fieldName.includes('занят') || 
+                    fieldName.includes('счетчик') ||
+                    fieldName.includes('остаток') ||
+                    fieldName.includes('окончание') ||
+                    fieldName.includes('активация') ||
+                    fieldName.includes('последний визит')) {
+                    detailedAnalysis.fields.subscription.push(fieldInfo);
+                }
+                
+                // Проверяем проблемы
+                if (fieldName.includes('остаток') && fieldValue === '0' && subscriptionInfo.totalClasses > 0) {
+                    detailedAnalysis.fields.problematic.push({
+                        ...fieldInfo,
+                        problem: 'Остаток 0, хотя есть абонемент'
+                    });
+                }
+                
+                if (fieldName.includes('счетчик') && fieldValue === '0' && subscriptionInfo.totalClasses > 0) {
+                    detailedAnalysis.fields.problematic.push({
+                        ...fieldInfo,
+                        problem: 'Счетчик 0, хотя абонемент мог использоваться'
+                    });
+                }
+            });
+        }
+        
+        // Выявляем проблемы
+        if (subscriptionInfo.totalClasses > 0 && subscriptionInfo.remainingClasses === 0 && subscriptionInfo.usedClasses === 0) {
+            detailedAnalysis.issues.push('Абонемент на занятия есть, но остаток 0 и использовано 0');
+            detailedAnalysis.recommendations.push('Проверить поле "Остаток занятий" - должно быть равно количеству занятий');
+        }
+        
+        if (subscriptionInfo.totalClasses > 0 && !subscriptionInfo.expirationDate) {
+            detailedAnalysis.issues.push('Нет даты окончания абонемента');
+            detailedAnalysis.recommendations.push('Заполнить поле "Окончание абонемента:"');
+        }
+        
+        if (subscriptionInfo.subscriptionActive && subscriptionInfo.remainingClasses === 0 && subscriptionInfo.totalClasses > 0) {
+            detailedAnalysis.issues.push('Абонемент активен, но остаток занятий 0');
+            detailedAnalysis.recommendations.push('Проверить корректность данных об абонементе');
+        }
+        
+        // Проверяем названия полей
+        const fieldNames = detailedAnalysis.fields.subscription.map(f => f.name);
+        const requiredFields = ['абонемент занятий:', 'остаток занятий', 'счетчик занятий:', 'окончание абонемента:'];
+        const missingFields = requiredFields.filter(req => 
+            !fieldNames.some(name => name.includes(req.toLowerCase()))
+        );
+        
+        if (missingFields.length > 0) {
+            detailedAnalysis.issues.push(`Отсутствуют поля: ${missingFields.join(', ')}`);
+            detailedAnalysis.recommendations.push(`Добавить недостающие поля в сделку`);
+        }
+        
+        res.json({
+            success: true,
+            data: detailedAnalysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа сделки:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка анализа сделки'
+        });
+    }
+});
+
 
 // 📍 ДИАГНОСТИКА ИЗВЛЕЧЕНИЯ АБОНЕМЕНТА ИЗ СДЕЛКИ
 app.get('/api/debug/subscription-extraction/:id', async (req, res) => {
