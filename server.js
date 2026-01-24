@@ -165,6 +165,193 @@ class AmoCrmService {
         }
     }
 
+
+async debugStudentLeadMatching(contactId, studentName) {
+    console.log(`\n🔬 РАСШИРЕННАЯ ДИАГНОСТИКА СОПОСТАВЛЕНИЯ`);
+    console.log(`👤 Ученик: "${studentName}"`);
+    console.log(`📞 Контакт ID: ${contactId}`);
+    console.log('='.repeat(80));
+    
+    try {
+        // 1. Получаем все сделки контакта
+        const allLeads = await this.getContactLeadsSorted(contactId);
+        
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        
+        // 2. Анализируем каждую сделку
+        const leadsAnalysis = [];
+        
+        for (const lead of allLeads) {
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            
+            if (!subscriptionInfo.hasSubscription) {
+                continue; // Пропускаем сделки без абонемента
+            }
+            
+            const leadName = lead.name || '';
+            const belongs = this.checkIfLeadBelongsToStudent(leadName, studentName);
+            
+            // Детальный анализ совпадения
+            const matchScore = this.calculateMatchScore(leadName, studentName);
+            
+            leadsAnalysis.push({
+                lead_id: lead.id,
+                lead_name: leadName,
+                subscription_info: subscriptionInfo,
+                belongs: belongs,
+                match_score: matchScore,
+                match_details: this.analyzeNameMatch(leadName, studentName)
+            });
+        }
+        
+        // 3. Сортируем по релевантности
+        leadsAnalysis.sort((a, b) => {
+            // Сначала те, что принадлежат ученику
+            if (a.belongs !== b.belongs) {
+                return b.belongs ? 1 : -1;
+            }
+            // Затем по match_score
+            if (a.match_score !== b.match_score) {
+                return b.match_score - a.match_score;
+            }
+            // Затем по активности абонемента
+            if (a.subscription_info.subscriptionActive !== b.subscription_info.subscriptionActive) {
+                return b.subscription_info.subscriptionActive ? 1 : -1;
+            }
+            return 0;
+        });
+        
+        // 4. Выводим результаты
+        console.log(`📊 Сделки с абонементами: ${leadsAnalysis.length}`);
+        
+        leadsAnalysis.forEach((item, index) => {
+            console.log(`\n${index + 1}. "${item.lead_name}"`);
+            console.log(`   ✅ Принадлежит ученику: ${item.belongs ? 'ДА' : 'НЕТ'}`);
+            console.log(`   📊 Оценка совпадения: ${item.match_score}/100`);
+            console.log(`   🎫 Абонемент: ${item.subscription_info.subscriptionStatus}`);
+            console.log(`   📈 Занятий: ${item.subscription_info.remainingClasses}/${item.subscription_info.totalClasses}`);
+            console.log(`   🎯 Активен: ${item.subscription_info.subscriptionActive}`);
+            
+            if (item.match_details) {
+                console.log(`   🔍 Детали совпадения:`);
+                Object.entries(item.match_details).forEach(([key, value]) => {
+                    console.log(`      • ${key}: ${value}`);
+                });
+            }
+        });
+        
+        // 5. Предлагаем лучшую сделку
+        const bestMatch = leadsAnalysis.find(item => item.belongs);
+        const bestOverall = leadsAnalysis[0];
+        
+        console.log('\n' + '='.repeat(80));
+        console.log('🎯 РЕКОМЕНДАЦИЯ СИСТЕМЫ:');
+        
+        if (bestMatch) {
+            console.log(`✅ Лучшая сделка для ученика "${studentName}":`);
+            console.log(`   • Сделка: "${bestMatch.lead_name}"`);
+            console.log(`   • Оценка: ${bestMatch.match_score}/100`);
+            console.log(`   • Абонемент: ${bestMatch.subscription_info.subscriptionStatus}`);
+        } else if (bestOverall) {
+            console.log(`⚠️  Не найдено идеального совпадения. Рекомендуем:`);
+            console.log(`   • Сделка: "${bestOverall.lead_name}"`);
+            console.log(`   • Оценка: ${bestOverall.match_score}/100`);
+            console.log(`   • Причина: ${bestOverall.subscription_info.subscriptionActive ? 'активный абонемент' : 'наиболее релевантный'}`);
+        } else {
+            console.log(`❌ Не найдено подходящих сделок`);
+        }
+        
+        return {
+            student_name: studentName,
+            total_leads: leadsAnalysis.length,
+            analysis: leadsAnalysis,
+            recommended_lead: bestMatch || bestOverall
+        };
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики:', error.message);
+        return null;
+    }
+}
+
+calculateMatchScore(leadName, studentName) {
+    if (!leadName || !studentName) return 0;
+    
+    const cleanLead = leadName.toLowerCase().trim();
+    const cleanStudent = studentName.toLowerCase().trim();
+    let score = 0;
+    
+    // 1. Прямое вхождение (40 баллов)
+    if (cleanLead.includes(cleanStudent) || cleanStudent.includes(cleanLead)) {
+        score += 40;
+    }
+    
+    // 2. Разбиваем на части
+    const studentParts = cleanStudent.split(/\s+/).filter(p => p.length > 1);
+    const leadParts = cleanLead.split(/\s+/).filter(p => p.length > 1);
+    
+    // 3. Совпадение по имени (30 баллов)
+    const firstName = studentParts[0] || '';
+    if (firstName && cleanLead.includes(firstName)) {
+        score += 30;
+    }
+    
+    // 4. Совпадение по фамилии (20 баллов)
+    if (studentParts.length > 1) {
+        const lastName = studentParts[1];
+        if (lastName && cleanLead.includes(lastName)) {
+            score += 20;
+        }
+    }
+    
+    // 5. Паттерн "Имя Фамилия -" (10 баллов)
+    if (cleanLead.match(new RegExp(`^${firstName}\\s+[^-]+-`))) {
+        score += 10;
+    }
+    
+    // Ограничиваем максимум 100 баллов
+    return Math.min(100, score);
+}
+
+analyzeNameMatch(leadName, studentName) {
+    const analysis = {};
+    
+    const cleanLead = leadName.toLowerCase().trim();
+    const cleanStudent = studentName.toLowerCase().trim();
+    
+    // Прямое вхождение
+    analysis['Прямое вхождение'] = cleanLead.includes(cleanStudent) || 
+                                   cleanStudent.includes(cleanLead);
+    
+    // Разбиваем на части
+    const studentParts = cleanStudent.split(/\s+/);
+    const leadParts = cleanLead.split(/\s+/);
+    
+    analysis['Имя ученика'] = studentParts.join(' ');
+    analysis['Имя в сделке'] = leadParts.join(' ');
+    
+    // Проверяем каждую часть
+    studentParts.forEach((part, i) => {
+        if (part.length > 2) {
+            const found = leadParts.some(leadPart => 
+                leadPart.includes(part) || part.includes(leadPart)
+            );
+            analysis[`Часть ${i+1} ("${part}") найдена`] = found;
+        }
+    });
+    
+    // Паттерн с дефисом
+    const dashMatch = leadName.match(/^([а-яё\s]+)\s*-\s*/i);
+    if (dashMatch) {
+        const nameBeforeDash = dashMatch[1].trim().toLowerCase();
+        analysis['Имя перед дефисом'] = nameBeforeDash;
+        analysis['Совпадает с именем перед дефисом'] = 
+            nameBeforeDash.includes(cleanStudent) || cleanStudent.includes(nameBeforeDash);
+    }
+    
+    return analysis;
+}
+    
     async checkTokenValidity(token) {
         try {
             const response = await axios.get(`${this.baseUrl}/api/v4/account`, {
@@ -1185,189 +1372,120 @@ class AmoCrmService {
         }
     }
     
-    async findLeadForStudent(contactId, studentName) {
-        console.log(`\n🎯 ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА: "${studentName}"`);
+   async findLeadForStudent(contactId, studentName) {
+    console.log(`\n🎯 УМНЫЙ ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА: "${studentName}"`);
+    
+    try {
+        const allLeads = await this.getContactLeadsSorted(contactId);
         
-        try {
-            const leads = await this.getContactLeadsSorted(contactId);
+        if (allLeads.length === 0) {
+            console.log(`   ❌ У контакта нет сделок`);
+            return null;
+        }
+        
+        // Группируем сделки
+        const leadsByMatchType = {
+            exact: [],      // Точные совпадения
+            high: [],       // Высокая релевантность (>70%)
+            medium: [],     // Средняя релевантность (40-70%)
+            low: [],        // Низкая релевантность (<40%)
+            active: [],     // Активные без совпадения
+            other: []       // Все остальные
+        };
+        
+        // Анализируем каждую сделку
+        for (const lead of allLeads) {
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
             
-            if (leads.length === 0) {
-                console.log(`   ❌ У контакта нет сделок`);
-                return null;
+            if (!subscriptionInfo.hasSubscription) {
+                continue;
             }
             
-            // УЛУЧШЕННЫЙ ПОИСК: Ищем сделки разными способами
+            const leadName = lead.name || '';
+            const matchScore = this.calculateMatchScore(leadName, studentName);
+            const belongs = matchScore >= 50; // Порог принадлежности
             
-            // 1. Сделки с прямым совпадением имени
-            const exactMatches = [];
+            const leadData = {
+                lead,
+                info: subscriptionInfo,
+                matchScore,
+                belongs,
+                isActive: subscriptionInfo.subscriptionActive,
+                remainingClasses: subscriptionInfo.remainingClasses
+            };
             
-            // 2. Сделки с частичным совпадением (по частям имени)
-            const partialMatches = [];
-            
-            // 3. Сделки без совпадения имени, но с активными абонементами
-            const activeSubscriptions = [];
-            
-            // 4. Все остальные сделки с абонементами
-            const otherSubscriptions = [];
-            
-            console.log(`   🔍 Анализ ${leads.length} сделок...`);
-            
-            for (const lead of leads) {
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                
-                // Пропускаем сделки без абонемента
-                if (!subscriptionInfo.hasSubscription) {
-                    continue;
-                }
-                
-                // Проверяем совпадение имен
-                const belongs = this.checkIfLeadBelongsToStudent(lead.name || '', studentName);
-                
-                if (belongs) {
-                    // Проверяем, насколько точно совпадает
-                    const leadNameLower = (lead.name || '').toLowerCase();
-                    const studentNameLower = studentName.toLowerCase();
-                    
-                    if (leadNameLower.includes(studentNameLower)) {
-                        exactMatches.push({ lead, info: subscriptionInfo, matchType: 'exact' });
-                    } else {
-                        partialMatches.push({ lead, info: subscriptionInfo, matchType: 'partial' });
-                    }
-                } else if (subscriptionInfo.subscriptionActive) {
-                    activeSubscriptions.push({ lead, info: subscriptionInfo, matchType: 'active' });
+            // Классифицируем
+            if (belongs) {
+                if (matchScore >= 90) {
+                    leadsByMatchType.exact.push(leadData);
+                } else if (matchScore >= 70) {
+                    leadsByMatchType.high.push(leadData);
+                } else if (matchScore >= 50) {
+                    leadsByMatchType.medium.push(leadData);
                 } else {
-                    otherSubscriptions.push({ lead, info: subscriptionInfo, matchType: 'other' });
+                    leadsByMatchType.low.push(leadData);
                 }
+            } else if (subscriptionInfo.subscriptionActive) {
+                leadsByMatchType.active.push(leadData);
+            } else {
+                leadsByMatchType.other.push(leadData);
             }
-            
-            console.log(`   📊 Результаты поиска:`);
-            console.log(`       • Точные совпадения: ${exactMatches.length}`);
-            console.log(`       • Частичные совпадения: ${partialMatches.length}`);
-            console.log(`       • Активные абонементы без совпадения: ${activeSubscriptions.length}`);
-            console.log(`       • Другие абонементы: ${otherSubscriptions.length}`);
-            
-            // ВЫБОР ЛУЧШЕЙ СДЕЛКИ ПО ПРИОРИТЕТАМ:
-            let bestLead = null;
-            let bestMatchType = '';
-            
-            // 1. Точные совпадения (сортировка по активности и остатку)
-            if (exactMatches.length > 0) {
-                exactMatches.sort((a, b) => {
-                    // Активные выше
-                    if (a.info.subscriptionActive !== b.info.subscriptionActive) {
-                        return b.info.subscriptionActive ? 1 : -1;
-                    }
-                    
-                    // С остатком выше
-                    if (a.info.remainingClasses !== b.info.remainingClasses) {
-                        return b.info.remainingClasses - a.info.remainingClasses;
-                    }
-                    
-                    // С большим общим количеством
-                    if (a.info.totalClasses !== b.info.totalClasses) {
-                        return b.info.totalClasses - a.info.totalClasses;
-                    }
-                    
-                    // Новые выше
-                    const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
-                    const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
-                    return dateB.getTime() - dateA.getTime();
-                });
-                
-                bestLead = exactMatches[0].lead;
-                bestMatchType = `точное совпадение ("${exactMatches[0].lead.name}")`;
-            }
-            // 2. Частичные совпадения
-            else if (partialMatches.length > 0) {
-                partialMatches.sort((a, b) => {
-                    // Активные выше
-                    if (a.info.subscriptionActive !== b.info.subscriptionActive) {
-                        return b.info.subscriptionActive ? 1 : -1;
-                    }
-                    
-                    // С остатком выше
-                    if (a.info.remainingClasses !== b.info.remainingClasses) {
-                        return b.info.remainingClasses - a.info.remainingClasses;
-                }
-                
-                // С большим общим количеством
-                if (a.info.totalClasses !== b.info.totalClasses) {
-                    return b.info.totalClasses - a.info.totalClasses;
-                }
-                
-                // Новые выше
-                const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
-                const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
-                return dateB.getTime() - dateA.getTime();
-            });
-            
-            bestLead = partialMatches[0].lead;
-            bestMatchType = `частичное совпадение ("${partialMatches[0].lead.name}")`;
         }
-        // 3. Активные абонементы без совпадения имени
-        else if (activeSubscriptions.length > 0) {
-            activeSubscriptions.sort((a, b) => {
-                // С остатком выше
+        
+        // Логируем статистику
+        console.log(`   📊 Статистика совпадений:`);
+        Object.entries(leadsByMatchType).forEach(([type, leads]) => {
+            if (leads.length > 0) {
+                console.log(`       • ${type}: ${leads.length} сделок`);
+            }
+        });
+        
+        // ФУНКЦИЯ ДЛЯ ВЫБОРА ЛУЧШЕЙ СДЕЛКИ ИЗ ГРУППЫ
+        const selectBestFromGroup = (group) => {
+            if (group.length === 0) return null;
+            
+            return group.sort((a, b) => {
+                // 1. По количеству оставшихся занятий
                 if (a.info.remainingClasses !== b.info.remainingClasses) {
                     return b.info.remainingClasses - a.info.remainingClasses;
                 }
-                
-                // С большим общим количеством
-                if (a.info.totalClasses !== b.info.totalClasses) {
-                    return b.info.totalClasses - a.info.totalClasses;
+                // 2. По активности
+                if (a.info.subscriptionActive !== b.info.subscriptionActive) {
+                    return b.info.subscriptionActive ? 1 : -1;
                 }
-                
-                // Новые выше
+                // 3. По match score
+                if (a.matchScore !== b.matchScore) {
+                    return b.matchScore - a.matchScore;
+                }
+                // 4. По дате обновления
                 const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
                 const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
                 return dateB.getTime() - dateA.getTime();
-            });
-            
-            bestLead = activeSubscriptions[0].lead;
-            bestMatchType = `активный абонемент без совпадения имени ("${activeSubscriptions[0].lead.name}")`;
-        }
-        // 4. Любые другие абонементы
-        else if (otherSubscriptions.length > 0) {
-            otherSubscriptions.sort((a, b) => {
-                // С остатком выше
-                if (a.info.remainingClasses !== b.info.remainingClasses) {
-                    return b.info.remainingClasses - a.info.remainingClasses;
-                }
-                
-                // С большим общим количеством
-                if (a.info.totalClasses !== b.info.totalClasses) {
-                    return b.info.totalClasses - a.info.totalClasses;
-                }
-                
-                // Новые выше
-                const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
-                const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
-                return dateB.getTime() - dateA.getTime();
-            });
-            
-            bestLead = otherSubscriptions[0].lead;
-            bestMatchType = `любой абонемент ("${otherSubscriptions[0].lead.name}")`;
+            })[0];
+        };
+        
+        // Пытаемся найти лучшую сделку по приоритету групп
+        let bestMatch = null;
+        
+        for (const groupType of ['exact', 'high', 'medium', 'low', 'active', 'other']) {
+            bestMatch = selectBestFromGroup(leadsByMatchType[groupType]);
+            if (bestMatch) {
+                console.log(`\n   ✅ Выбрана сделка из группы "${groupType}":`);
+                console.log(`       • Название: "${bestMatch.lead.name}"`);
+                console.log(`       • Оценка совпадения: ${bestMatch.matchScore}/100`);
+                console.log(`       • Абонемент: ${bestMatch.info.subscriptionStatus}`);
+                console.log(`       • Занятий: ${bestMatch.info.remainingClasses}/${bestMatch.info.totalClasses}`);
+                break;
+            }
         }
         
-        if (bestLead) {
-            const leadInfo = this.extractSubscriptionInfo(bestLead);
-            console.log(`\n   ✅ Выбрана сделка: ${bestMatchType}`);
-            console.log(`       • Название: "${bestLead.name}"`);
-            console.log(`       • Статус: ${leadInfo.subscriptionStatus}`);
-            console.log(`       • Занятий: ${leadInfo.remainingClasses}/${leadInfo.totalClasses}`);
-            console.log(`       • Активен: ${leadInfo.subscriptionActive ? 'Да' : 'Нет'}`);
-        } else {
-            console.log(`\n   ❌ Не найдено подходящей сделки`);
-        }
-        
-        return bestLead;
+        return bestMatch ? bestMatch.lead : null;
         
     } catch (error) {
         console.error(`❌ Ошибка поиска сделки для ученика: ${error.message}`);
         return null;
     }
 }
-
     // ==================== ОСНОВНОЙ МЕТОД ПОЛУЧЕНИЯ УЧЕНИКОВ ====================
     async getStudentsByPhone(phoneNumber) {
         console.log(`\n📱 ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
@@ -2442,6 +2560,69 @@ app.post('/api/subscription', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Ошибка получения информации об абонементе'
+        });
+    }
+});
+
+// Диагностика сопоставления учеников со сделками
+app.post('/api/debug/match', async (req, res) => {
+    try {
+        const { phone, student_name } = req.body;
+        
+        if (!phone || !student_name) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите телефон и имя ученика'
+            });
+        }
+        
+        console.log(`\n🔬 ДИАГНОСТИКА СОПОСТАВЛЕНИЯ`);
+        console.log(`📞 Телефон: ${phone}`);
+        console.log(`👤 Ученик: "${student_name}"`);
+        console.log('='.repeat(80));
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        // Ищем контакты
+        const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        const results = [];
+        
+        for (const contact of contacts) {
+            console.log(`\n👥 Контакт: "${contact.name}" (ID: ${contact.id})`);
+            
+            const matchResult = await amoCrmService.debugStudentLeadMatching(
+                contact.id, 
+                student_name
+            );
+            
+            if (matchResult) {
+                results.push({
+                    contact_id: contact.id,
+                    contact_name: contact.name,
+                    ...matchResult
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Диагностика сопоставления выполнена',
+            timestamp: new Date().toISOString(),
+            data: {
+                phone: formattedPhone,
+                student_name: student_name,
+                contacts_found: contacts.length,
+                results: results
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики сопоставления:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 });
