@@ -707,7 +707,6 @@ for (const field of customFields) {
                     fieldData.totalClasses = classes;
                     console.log(`📊 [891819] Количество занятий (тех): ${classes}`);
                 }
-            }
             else if (fieldId === 850257) { // "счетчик занятий:"
                 const used = parseInt(fieldValue) || 0;
                 fieldData.usedClasses = used;
