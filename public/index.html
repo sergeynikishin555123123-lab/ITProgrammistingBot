@@ -1479,7 +1479,8 @@ const ArtApp = {
         currentProfile: null,
         profiles: [],
         token: null,
-        subscriptionData: null
+        subscriptionData: null,
+        lastSubscriptionResponse: null  // Добавим для отладки
     },
 
     init: function() {
@@ -1550,6 +1551,7 @@ const ArtApp = {
         this.config.currentProfile = null;
         this.config.profiles = [];
         this.config.subscriptionData = null;
+        this.config.lastSubscriptionResponse = null;
     },
 
     showMainInterface: function() {
@@ -1615,16 +1617,7 @@ const ArtApp = {
             return;
         }
         
-        let formattedPhone;
-        if (phone.length === 10) {
-            formattedPhone = '+7' + phone;
-        } else if (phone.length === 11 && phone.startsWith('8')) {
-            formattedPhone = '+7' + phone.slice(1);
-        } else if (phone.length === 11 && phone.startsWith('7')) {
-            formattedPhone = '+' + phone;
-        } else {
-            formattedPhone = '+7' + phone.slice(-10);
-        }
+        let formattedPhone = '+7' + phone.slice(-10);
         
         console.log(`📱 Отправка запроса для телефона: ${formattedPhone}`);
         
@@ -1653,7 +1646,6 @@ const ArtApp = {
             
             if (data.success) {
                 console.log('✅ Успешный ответ от сервера');
-                console.log('📊 Профилей в ответе:', data.data?.profiles?.length || 0);
                 
                 if (data.data && data.data.profiles && data.data.profiles.length > 0) {
                     console.log('✅ Профили найдены!');
@@ -1664,9 +1656,28 @@ const ArtApp = {
                         profiles_count: data.data.profiles.length
                     };
                     
+                    // Сохраняем ВСЕ данные из сервера
                     this.config.profiles = data.data.profiles.map(p => ({
-                        ...p,
-                        subscription_active: p.subscription_active === true || p.subscription_active === 1
+                        id: p.id,
+                        student_name: p.student_name,
+                        phone_number: p.phone_number,
+                        email: p.email || '',
+                        branch: p.branch || '',
+                        teacher_name: p.teacher_name || '',
+                        subscription_type: p.subscription_type || '',
+                        subscription_active: p.subscription_active === true || p.subscription_active === 1,
+                        subscription_status: p.subscription_status || '',
+                        subscription_badge: p.subscription_badge || 'inactive',
+                        total_classes: p.total_classes || 0,
+                        used_classes: p.used_classes || 0,
+                        remaining_classes: p.remaining_classes || 0,
+                        expiration_date: p.expiration_date || null,
+                        activation_date: p.activation_date || null,
+                        last_visit_date: p.last_visit_date || null,
+                        day_of_week: p.day_of_week || '',
+                        age_group: p.age_group || '',
+                        parent_name: p.parent_name || '',
+                        last_sync: p.last_sync || new Date().toISOString()
                     }));
                     
                     this.config.currentProfile = this.config.profiles[0];
@@ -1721,6 +1732,9 @@ const ArtApp = {
                 const isActive = this.config.currentProfile && 
                                 this.config.currentProfile.id === profile.id;
                 
+                const badgeType = profile.subscription_active ? 'active' : 
+                                 profile.subscription_badge || 'inactive';
+                
                 html += `
                     <div class="student-item ${isActive ? 'active' : ''}" 
                          onclick="ArtApp.selectStudent(${index})">
@@ -1731,7 +1745,7 @@ const ArtApp = {
                                 <div class="student-branch">${profile.branch || 'Филиал не указан'}</div>
                             </div>
                         </div>
-                        <div class="badge ${profile.subscription_badge || 'inactive'}">
+                        <div class="badge ${badgeType}">
                             ${profile.subscription_active ? 'Активен' : 'Неактивен'}
                         </div>
                     </div>
@@ -1751,6 +1765,10 @@ const ArtApp = {
             this.updateUserInterface();
             this.updateStudentSelector();
             this.showNotification(`Выбран ученик: ${this.config.currentProfile.student_name}`, 'success');
+            
+            // Обнуляем данные абонемента при смене ученика
+            this.config.subscriptionData = null;
+            this.config.lastSubscriptionResponse = null;
             
             const currentPage = document.querySelector('.page.active').id.replace('-page', '');
             switch(currentPage) {
@@ -1782,6 +1800,9 @@ const ArtApp = {
             if (studentInfo) {
                 let infoText = 'Личный кабинет ученика художественной школы';
                 if (branch) infoText += ` | Филиал: ${branch}`;
+                if (this.config.currentProfile.teacher_name) {
+                    infoText += ` | Преподаватель: ${this.config.currentProfile.teacher_name}`;
+                }
                 studentInfo.textContent = infoText;
             }
             
@@ -1814,6 +1835,8 @@ const ArtApp = {
             </div>
         `;
         
+        console.log('🔄 Загрузка данных абонемента для профиля:', this.config.currentProfile);
+        
         fetch('/api/subscription', {
             method: 'POST',
             headers: {
@@ -1832,8 +1855,12 @@ const ArtApp = {
             return response.json();
         })
         .then(data => {
+            console.log('📊 Ответ от /api/subscription:', data);
+            this.config.lastSubscriptionResponse = data; // Сохраняем для отладки
+            
             if (data.success) {
                 this.config.subscriptionData = data.data;
+                this.updateProfileWithSubscriptionData(data.data);
                 this.renderRemainingClasses();
                 this.updateSubscriptionBadge();
             } else {
@@ -1846,6 +1873,7 @@ const ArtApp = {
                 <div class="error-message">
                     <i class="fas fa-exclamation-circle"></i>
                     <p>Не удалось загрузить данные об абонементе</p>
+                    <p style="font-size: 0.8rem; margin-top: 10px;">${error.message}</p>
                     <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscriptionData()">
                         Попробовать снова
                     </button>
@@ -1854,12 +1882,53 @@ const ArtApp = {
         });
     },
 
+    updateProfileWithSubscriptionData: function(subscriptionData) {
+        if (!subscriptionData || !subscriptionData.subscription || !this.config.currentProfile) {
+            return;
+        }
+        
+        const subscription = subscriptionData.subscription;
+        const student = subscriptionData.student || {};
+        
+        // ОБНОВЛЯЕМ текущий профиль реальными данными из сервера
+        this.config.currentProfile = {
+            ...this.config.currentProfile,
+            total_classes: subscription.classes.total || 0,
+            used_classes: subscription.classes.used || 0,
+            remaining_classes: subscription.classes.remaining || 0,
+            subscription_type: subscription.type || '',
+            subscription_active: subscription.is_active || false,
+            subscription_status: subscription.status || '',
+            subscription_badge: subscription.is_active ? 'active' : 'inactive',
+            expiration_date: subscription.dates.expiration || null,
+            activation_date: subscription.dates.activation || null,
+            last_visit_date: subscription.dates.last_visit || null,
+            teacher_name: student.teacher_name || this.config.currentProfile.teacher_name || '',
+            age_group: student.age_group || this.config.currentProfile.age_group || '',
+            branch: student.branch || this.config.currentProfile.branch || ''
+        };
+        
+        // Обновляем профиль в массиве profiles
+        const profileIndex = this.config.profiles.findIndex(p => p.id === this.config.currentProfile.id);
+        if (profileIndex !== -1) {
+            this.config.profiles[profileIndex] = { ...this.config.currentProfile };
+        }
+        
+        this.saveSession();
+        console.log('✅ Профиль обновлен данными из сервера:', this.config.currentProfile);
+    },
+
     renderRemainingClasses: function() {
         const container = document.getElementById('remainingClassesCard');
         const subscription = this.config.subscriptionData?.subscription;
         
         if (!subscription) {
-            container.innerHTML = '<p>Нет данных об абонементе</p>';
+            container.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--gray-medium);"></i>
+                    <p class="mt-20">Нет данных об абонементе</p>
+                </div>
+            `;
             return;
         }
         
@@ -1914,6 +1983,7 @@ const ArtApp = {
             <div class="data-source ${subscription.is_active ? 'real' : ''}">
                 <i class="fas fa-database"></i>
                 ${subscription.is_active ? 'Активный абонемент' : 'Абонемент не активен'}
+                ${this.config.currentProfile?.subscription_type ? ` | ${this.config.currentProfile.subscription_type}` : ''}
             </div>
         `;
     },
@@ -1924,7 +1994,7 @@ const ArtApp = {
         
         if (badge && subscription) {
             if (subscription.is_active) {
-                badge.innerHTML = '<i class="fas fa-check-circle"></i> Активен';
+                badge.innerHTML = `<i class="fas fa-check-circle"></i> Активен (${subscription.classes.remaining}/${subscription.classes.total} занятий)`;
                 badge.className = 'data-source real';
             } else {
                 badge.innerHTML = '<i class="fas fa-times-circle"></i> Не активен';
@@ -1958,6 +2028,8 @@ const ArtApp = {
         
         this.showLoading('Загрузка данных абонемента...');
         
+        console.log('🔄 Загрузка полных данных абонемента для:', this.config.currentProfile.student_name);
+        
         fetch('/api/subscription', {
             method: 'POST',
             headers: {
@@ -1976,8 +2048,12 @@ const ArtApp = {
             return response.json();
         })
         .then(data => {
+            console.log('📊 Полный ответ абонемента:', data);
+            this.config.lastSubscriptionResponse = data;
+            
             if (data.success) {
                 this.config.subscriptionData = data.data;
+                this.updateProfileWithSubscriptionData(data.data);
                 this.renderFullSubscription();
             } else {
                 throw new Error(data.error || 'Ошибка загрузки данных');
@@ -1990,6 +2066,7 @@ const ArtApp = {
                     <div class="error-message">
                         <i class="fas fa-exclamation-circle"></i>
                         <p>Не удалось загрузить данные об абонементе</p>
+                        <p style="font-size: 0.8rem; margin-top: 10px;">${error.message}</p>
                         <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscription()">
                             Попробовать снова
                         </button>
@@ -2007,11 +2084,18 @@ const ArtApp = {
         const data = this.config.subscriptionData;
         
         if (!data) {
-            container.innerHTML = '<p>Нет данных</p>';
+            container.innerHTML = `
+                <div class="subscription-card">
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--yellow);"></i>
+                        <p class="mt-20">Нет данных для отображения</p>
+                    </div>
+                </div>
+            `;
             return;
         }
         
-        const student = data.student;
+        const student = data.student || {};
         const subscription = data.subscription;
         const parent = data.parent;
         
@@ -2037,7 +2121,7 @@ const ArtApp = {
                         </h3>
                         <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-map-marker-alt"></i>
-                            ${student.branch || 'Филиал не указан'}
+                            ${student.branch || this.config.currentProfile?.branch || 'Филиал не указан'}
                         </div>
                     </div>
                     <div class="badge ${badgeClass}">${badgeText}</div>
@@ -2092,45 +2176,52 @@ const ArtApp = {
                     </div>
                 </div>
                 
-                ${student.teacher_name ? `
+                ${student.teacher_name || this.config.currentProfile?.teacher_name ? `
                 <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
                     <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
                         <i class="fas fa-chalkboard-teacher"></i>
                         Преподаватель
                     </h4>
                     <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                        ${student.teacher_name}
+                        ${student.teacher_name || this.config.currentProfile?.teacher_name || 'Не указан'}
                     </div>
                 </div>
                 ` : ''}
                 
-                ${student.age_group ? `
+                ${student.age_group || this.config.currentProfile?.age_group ? `
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
                     <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
                         <i class="fas fa-users"></i>
                         Возрастная группа
                     </h4>
                     <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                        ${student.age_group}
+                        ${student.age_group || this.config.currentProfile?.age_group || 'Не указана'}
                     </div>
                 </div>
                 ` : ''}
                 
-                ${parent ? `
+                ${parent?.name || this.config.currentProfile?.parent_name ? `
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
                     <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
                         <i class="fas fa-user-friends"></i>
                         Родитель
                     </h4>
                     <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                        ${parent.name}
+                        ${parent?.name || this.config.currentProfile?.parent_name || 'Не указан'}
                     </div>
                 </div>
                 ` : ''}
                 
                 <div class="data-source ${subscription.is_active ? 'real' : ''}">
                     <i class="fas fa-database"></i>
-                    Данные обновлены: ${this.config.currentProfile?.last_sync ? this.formatDateTime(this.config.currentProfile.last_sync) : 'Недавно'}
+                    Данные из CRM | Тип: ${subscription.type || 'Не указан'}
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: var(--gray-light); border-radius: 12px; border: 2px solid var(--gray-medium);">
+                    <div style="color: var(--gray-dark); font-size: 0.8rem; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Статус: ${subscription.status || 'Не указан'}</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -2138,6 +2229,8 @@ const ArtApp = {
 
     refreshSubscription: function() {
         this.showNotification('Обновление данных...', 'info');
+        this.config.subscriptionData = null;
+        this.config.lastSubscriptionResponse = null;
         this.loadSubscription();
     },
 
@@ -2155,6 +2248,7 @@ const ArtApp = {
         
         const totalVisits = subscription?.classes.used || profile.used_classes || 0;
         const remainingClasses = subscription?.classes.remaining || profile.remaining_classes || 0;
+        const totalClasses = subscription?.classes.total || profile.total_classes || 0;
         
         container.innerHTML = `
             <div class="profile-header">
@@ -2174,6 +2268,10 @@ const ArtApp = {
                             ${remainingClasses}
                         </div>
                         <div class="profile-stat-label">Осталось</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="profile-stat-value">${totalClasses}</div>
+                        <div class="profile-stat-label">Всего занятий</div>
                     </div>
                 </div>
             </div>
@@ -2204,10 +2302,17 @@ const ArtApp = {
                 </div>
                 ` : ''}
                 
-                ${profile.course ? `
+                ${profile.subscription_type ? `
                 <div class="settings-item">
-                    <i class="fas fa-book"></i>
-                    <span>Курс: ${profile.course}</span>
+                    <i class="fas fa-ticket-alt"></i>
+                    <span>Тип абонемента: ${profile.subscription_type}</span>
+                </div>
+                ` : ''}
+                
+                ${profile.subscription_status ? `
+                <div class="settings-item">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Статус: ${profile.subscription_status}</span>
                 </div>
                 ` : ''}
                 
@@ -2296,6 +2401,15 @@ const ArtApp = {
         if (!dateString) return 'Не указано';
         
         try {
+            // Если это timestamp
+            if (/^\d+$/.test(dateString)) {
+                const timestamp = parseInt(dateString);
+                const date = timestamp < 10000000000 
+                    ? new Date(timestamp * 1000)
+                    : new Date(timestamp);
+                return date.toLocaleDateString('ru-RU');
+            }
+            
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return dateString;
             
@@ -2352,6 +2466,15 @@ const ArtApp = {
                 }
             });
         }
+    },
+
+    // Метод для отладки
+    debug: function() {
+        console.log('=== ОТЛАДКА ===');
+        console.log('Текущий профиль:', this.config.currentProfile);
+        console.log('Данные абонемента:', this.config.subscriptionData);
+        console.log('Последний ответ сервера:', this.config.lastSubscriptionResponse);
+        console.log('Все профили:', this.config.profiles);
     }
 };
 
