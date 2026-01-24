@@ -740,13 +740,24 @@ extractSubscriptionInfo(lead) {
         }
         
         // 2. ПАРСИМ НАЗВАНИЕ СДЕЛКИ (как запасной вариант)
-        if (fieldData.totalClasses === 0) {
-            const nameClasses = this.parseLeadNameForSubscription(leadName);
-            if (nameClasses > 0) {
-                fieldData.totalClasses = nameClasses;
-                console.log(`📊 Из названия: ${nameClasses} занятий`);
-            }
+       // В методе extractSubscriptionInfo, в секции парсинга названия:
+
+// Парсим название сделки (как запасной вариант ТОЛЬКО если нет полей)
+if (fieldData.totalClasses === 0) {
+    const nameClasses = this.parseLeadNameForSubscription(leadName);
+    
+    // Если не нашли обычным методом, пробуем расширенный
+    if (nameClasses === 0) {
+        const complexClasses = this.parseComplexLeadName(leadName);
+        if (complexClasses > 0) {
+            fieldData.totalClasses = complexClasses;
+            console.log(`📊 Из сложного названия: ${complexClasses} занятий`);
         }
+    } else if (nameClasses > 0) {
+        fieldData.totalClasses = nameClasses;
+        console.log(`📊 Из названия: ${nameClasses} занятий`);
+    }
+}
         
         // 3. РАСЧЕТ ОСНОВНЫХ ПОКАЗАТЕЛЕЙ
         
@@ -1825,54 +1836,82 @@ parseLeadNameForSubscription(leadName) {
         
         const lowerName = leadName.toLowerCase();
         
-        // Паттерны для поиска количества занятий
-        const patterns = [
-            // "Имя Фамилия - 4 занятия" (самый частый паттерн)
-            { pattern: /-\s*(\d+)\s+занят/i, desc: 'число после дефиса с занятиями' },
-            
-            // "Имя Фамилия 4 занятия" (без дефиса)
-            { pattern: /\s+(\d+)\s+занят/i, desc: 'число с занятиями' },
-            
-            // "4 занятия" в любом месте
-            { pattern: /(\d+)\s+занят/i, desc: 'число занятий' },
-            
-            // "8занятий" (без пробела)
-            { pattern: /(\d+)занят/i, desc: 'число занятий без пробела' },
-            
-            // "Абонемент 8"
-            { pattern: /абонемент\s+(\d+)/i, desc: 'абонемент число' },
-            
-            // "на 8 занятий"
-            { pattern: /на\s+(\d+)\s+занят/i, desc: 'на число занятий' },
-            
-            // "Разовый" или "Пробное"
-            { pattern: /(разовый|пробное)/i, desc: 'разовое занятие' },
-        ];
+        // 🔧 ИСПРАВЛЕННЫЕ ПАТТЕРНЫ ДЛЯ РАЗНЫХ ФОРМАТОВ НАЗВАНИЙ
         
-        // Проверяем специальные случаи
-        if (lowerName.includes('разовый') || lowerName.includes('пробное')) {
-            console.log(`✅ Найдено разовое занятие`);
-            return 1;
+        // 1. Паттерн: "Имя Фамилия - 8  занятий" (может быть несколько пробелов)
+        // Обрабатываем: "Василиса Мышкина - 8  занятий"
+        const dashPattern = /-\s*(\d+)\s{1,3}занят/i;
+        const dashMatch = leadName.match(dashPattern);
+        if (dashMatch && dashMatch[1]) {
+            const num = parseInt(dashMatch[1]);
+            if (num >= 1 && num <= 50) {
+                console.log(`✅ Паттерн 1 (через дефис): ${num} занятий`);
+                return num;
+            }
         }
         
-        // Ищем по паттернам
-        for (const { pattern, desc } of patterns) {
-            const match = lowerName.match(pattern);
-            if (match && match[1]) {
-                const num = parseInt(match[1]);
+        // 2. Паттерн: любые пробелы между числом и "занятий"
+        // Обрабатываем: "8  занятий", "8 занятия", "8занятий"
+        const spacesPattern = /(\d+)\s{0,3}занят/i;
+        const spacesMatch = lowerName.match(spacesPattern);
+        if (spacesMatch && spacesMatch[1]) {
+            const num = parseInt(spacesMatch[1]);
+            if (num >= 1 && num <= 50) {
+                console.log(`✅ Паттерн 2 (пробелы): ${num} занятий`);
+                return num;
+            }
+        }
+        
+        // 3. Паттерн: "Абонемент 8"
+        if (lowerName.includes('абонемент')) {
+            const abonementMatch = lowerName.match(/абонемент\s+(\d+)/i);
+            if (abonementMatch && abonementMatch[1]) {
+                const num = parseInt(abonementMatch[1]);
                 if (num >= 1 && num <= 50) {
-                    console.log(`✅ Найдено по паттерну "${desc}": ${num} занятий`);
+                    console.log(`✅ Паттерн 3 (абонемент): ${num} занятий`);
                     return num;
                 }
             }
         }
         
-        // Если не нашли по паттернам, ищем просто числа в конце
-        const endMatch = leadName.match(/(\d{1,2})\s*(?:занятий|занятия|уроков|урока)?\s*$/i);
+        // 4. Паттерн: "на 8 занятий"
+        if (lowerName.includes('на')) {
+            const naMatch = lowerName.match(/на\s+(\d+)\s+занят/i);
+            if (naMatch && naMatch[1]) {
+                const num = parseInt(naMatch[1]);
+                if (num >= 1 && num <= 50) {
+                    console.log(`✅ Паттерн 4 (на N занятий): ${num} занятий`);
+                    return num;
+                }
+            }
+        }
+        
+        // 5. Паттерн: разовые занятия
+        if (lowerName.includes('разовый') || lowerName.includes('пробное')) {
+            console.log(`✅ Паттерн 5 (разовое): 1 занятие`);
+            return 1;
+        }
+        
+        // 6. Ищем просто число в конце строки (последняя попытка)
+        // Обрабатываем: "... 8" в конце
+        const endMatch = leadName.match(/(\d{1,2})\s*$/);
         if (endMatch && endMatch[1]) {
             const num = parseInt(endMatch[1]);
             if (num >= 1 && num <= 50) {
-                console.log(`✅ Найдено число в конце: ${num} занятий`);
+                console.log(`✅ Паттерн 6 (число в конце): ${num} занятий`);
+                return num;
+            }
+        }
+        
+        // 7. Проверяем римские цифры (редко, но бывает)
+        const romanNumerals = {
+            ' i ': 1, ' ii ': 2, ' iii ': 3, ' iv ': 4, ' v ': 5,
+            ' vi ': 6, ' vii ': 7, ' viii ': 8, ' ix ': 9, ' x ': 10
+        };
+        
+        for (const [roman, num] of Object.entries(romanNumerals)) {
+            if (lowerName.includes(roman)) {
+                console.log(`✅ Паттерн 7 (римские цифры): ${num} занятий`);
                 return num;
             }
         }
@@ -1886,6 +1925,62 @@ parseLeadNameForSubscription(leadName) {
     }
 }
 
+// 🔧 ДОПОЛНИТЕЛЬНЫЙ МЕТОД ДЛЯ СЛОЖНЫХ НАЗВАНИЙ
+parseComplexLeadName(leadName) {
+    if (!leadName) return 0;
+    
+    try {
+        console.log(`🔍 Расширенный парсинг: "${leadName}"`);
+        
+        // 1. Удаляем все лишнее: имена, дефисы, скобки
+        let cleanedName = leadName
+            .replace(/[а-яёА-ЯЁ\s\-–—()«»"']+/g, ' ') // Заменяем все русские буквы и знаки на пробелы
+            .replace(/\s+/g, ' ') // Убираем лишние пробелы
+            .trim();
+        
+        console.log(`🔍 Очищенное название: "${cleanedName}"`);
+        
+        // 2. Ищем паттерн "число занятий" в любом месте
+        const occupationPattern = /(\d+)\s*(?:занятий|занятия|уроков|урока)/i;
+        const occupationMatch = leadName.match(occupiationPattern);
+        
+        if (occupationMatch && occupationMatch[1]) {
+            const num = parseInt(occupationMatch[1]);
+            if (num >= 1 && num <= 50) {
+                console.log(`✅ Найдено в сложном названии: ${num} занятий`);
+                return num;
+            }
+        }
+        
+        // 3. Ищем просто число (последняя попытка)
+        const numbers = leadName.match(/\d+/g);
+        if (numbers && numbers.length > 0) {
+            // Берем первое найденное число, которое выглядит как количество занятий
+            for (const numStr of numbers) {
+                const num = parseInt(numStr);
+                if (num >= 1 && num <= 50) {
+                    // Проверяем контекст - число должно быть рядом со словом "занятий" или в конце
+                    const position = leadName.indexOf(numStr);
+                    const substring = leadName.substring(Math.max(0, position - 10), 
+                                                        Math.min(leadName.length, position + 15));
+                    
+                    if (substring.toLowerCase().includes('занят') || 
+                        position > leadName.length - 5) { // Число в конце
+                        console.log(`✅ Найдено число ${num} в сложном названии`);
+                        return num;
+                    }
+                }
+            }
+        }
+        
+        return 0;
+        
+    } catch (error) {
+        console.error('❌ Ошибка расширенного парсинга:', error);
+        return 0;
+    }
+}
+    
 // 🔧 МЕТОД: countVisitedClasses
 countVisitedClasses(customFields) {
     let visitedCount = 0;
@@ -3082,6 +3177,56 @@ app.get('/api/debug/problematic-subscriptions', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Ошибка поиска проблемных абонементов'
+        });
+    }
+});
+
+// 📍 ТЕСТИРОВАНИЕ ПАРСИНГА НАЗВАНИЙ
+app.get('/api/test/name-parsing', async (req, res) => {
+    try {
+        const testNames = [
+            "Василиса Мышкина - 8  занятий",
+            "Самойловы Фёдор и Ксения и Самойлова Ксения - 16 занятий", 
+            "Огурцов Александр - 4 занятия",
+            "Разовое занятие",
+            "Абонемент 12",
+            "Иванов Иван - пробное занятие",
+            "Петров Петр - 8занятий",
+            "Сидоров - 4  занятия",
+            "Тест - 2  занятия"
+        ];
+        
+        const results = [];
+        
+        for (const name of testNames) {
+            const simpleResult = amoCrmService.parseLeadNameForSubscription(name);
+            const complexResult = amoCrmService.parseComplexLeadName(name);
+            
+            results.push({
+                original: name,
+                simple_parser: simpleResult,
+                complex_parser: complexResult,
+                recommended: complexResult > 0 ? complexResult : simpleResult
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                test_names: results,
+                summary: {
+                    total_tests: testNames.length,
+                    simple_parser_found: results.filter(r => r.simple_parser > 0).length,
+                    complex_parser_found: results.filter(r => r.complex_parser > 0).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестирования парсинга:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка тестирования'
         });
     }
 });
