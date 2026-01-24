@@ -984,30 +984,6 @@ console.log(`       • Статус: ${subscriptionStatus}`);
         }
     }
 
-    checkIfLeadBelongsToStudent(leadName, studentName) {
-        if (!leadName || !studentName) return false;
-        
-        const cleanLeadName = leadName.toLowerCase().trim();
-        const cleanStudentName = studentName.toLowerCase().trim();
-        
-        // Разбиваем имя ученика на части
-        const studentParts = cleanStudentName.split(' ').filter(part => part.length > 1);
-        
-        // Прямое вхождение полного имени
-        if (cleanLeadName.includes(cleanStudentName)) {
-            return true;
-        }
-        
-        // Проверка каждой части имени
-        for (const part of studentParts) {
-            if (part.length <= 2) continue;
-            
-            // Ищем точное вхождение (с границами слова)
-            const regex = new RegExp(`\\b${part}\\b`, 'i');
-            if (regex.test(leadName)) {
-                return true;
-            }
-        }
         
 checkIfLeadBelongsToStudent(leadName, studentName) {
     if (!leadName || !studentName) return false;
