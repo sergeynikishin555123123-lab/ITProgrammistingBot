@@ -2446,6 +2446,930 @@ app.post('/api/subscription', async (req, res) => {
     }
 });
 
+// ==================== ПОЛНАЯ ДИАГНОСТИКА ПОЛЕЙ AMOCRM ====================
+app.get('/api/debug/fields/all', async (req, res) => {
+    try {
+        console.log('\n🔍 ПОЛНАЯ ДИАГНОСТИКА ВСЕХ ПОЛЕЙ AMOCRM');
+        console.log('='.repeat(80));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        const results = {
+            timestamp: new Date().toISOString(),
+            account: amoCrmService.accountInfo?.name || 'Неизвестно',
+            domain: AMOCRM_DOMAIN,
+            fields_loaded: amoCrmService.fieldMappings.size,
+            all_fields: {
+                leads: [],
+                contacts: [],
+                companies: [],
+                customers: [],
+                custom_fields: []
+            },
+            subscription_related_fields: {
+                leads: [],
+                contacts: []
+            },
+            field_statistics: {}
+        };
+        
+        // 1. Получаем все кастомные поля сделок (абонементов)
+        console.log('📊 Получение кастомных полей сделок...');
+        try {
+            const leadFields = await amoCrmService.makeRequest('GET', '/api/v4/leads/custom_fields');
+            
+            if (leadFields && leadFields._embedded && leadFields._embedded.custom_fields) {
+                results.all_fields.leads = leadFields._embedded.custom_fields.map(field => {
+                    const fieldInfo = {
+                        id: field.id,
+                        name: field.name,
+                        type: field.type,
+                        code: field.code || null,
+                        sort: field.sort,
+                        is_multiple: field.is_multiple || false,
+                        is_visible: field.is_visible || true,
+                        is_required: field.is_required || false,
+                        is_deletable: field.is_deletable || true,
+                        enums: field.enums || [],
+                        settings: field.settings || {}
+                    };
+                    
+                    // Проверяем, относится ли поле к абонементам
+                    const isSubscriptionField = amoCrmService.isSubscriptionField(field.id);
+                    const isImportantField = amoCrmService.isImportantField(field.id);
+                    
+                    if (isSubscriptionField || isImportantField) {
+                        results.subscription_related_fields.leads.push({
+                            ...fieldInfo,
+                            subscription_importance: isSubscriptionField ? 'HIGH' : 'MEDIUM',
+                            current_mapping_id: amoCrmService.FIELD_IDS.LEAD[Object.keys(amoCrmService.FIELD_IDS.LEAD).find(
+                                key => amoCrmService.FIELD_IDS.LEAD[key] === field.id
+                            )] || null
+                        });
+                    }
+                    
+                    return fieldInfo;
+                });
+                
+                console.log(`✅ Полей сделок: ${results.all_fields.leads.length}`);
+            }
+        } catch (leadError) {
+            console.error(`❌ Ошибка получения полей сделок: ${leadError.message}`);
+            results.all_fields.leads = { error: leadError.message };
+        }
+        
+        // 2. Получаем все кастомные поля контактов
+        console.log('📊 Получение кастомных полей контактов...');
+        try {
+            const contactFields = await amoCrmService.makeRequest('GET', '/api/v4/contacts/custom_fields');
+            
+            if (contactFields && contactFields._embedded && contactFields._embedded.custom_fields) {
+                results.all_fields.contacts = contactFields._embedded.custom_fields.map(field => {
+                    const fieldInfo = {
+                        id: field.id,
+                        name: field.name,
+                        type: field.type,
+                        code: field.code || null,
+                        sort: field.sort,
+                        is_multiple: field.is_multiple || false,
+                        is_visible: field.is_visible || true,
+                        is_required: field.is_required || false,
+                        is_deletable: field.is_deletable || true,
+                        enums: field.enums || [],
+                        settings: field.settings || {}
+                    };
+                    
+                    // Проверяем, относится ли поле к ученикам/детям
+                    const isStudentField = [
+                        amoCrmService.FIELD_IDS.CONTACT.CHILD_1_NAME,
+                        amoCrmService.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY,
+                        amoCrmService.FIELD_IDS.CONTACT.CHILD_2_NAME,
+                        amoCrmService.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY,
+                        amoCrmService.FIELD_IDS.CONTACT.CHILD_3_NAME,
+                        amoCrmService.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY,
+                        amoCrmService.FIELD_IDS.CONTACT.BRANCH,
+                        amoCrmService.FIELD_IDS.CONTACT.TEACHER,
+                        amoCrmService.FIELD_IDS.CONTACT.DAY_OF_WEEK,
+                        amoCrmService.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB,
+                        amoCrmService.FIELD_IDS.CONTACT.LAST_VISIT,
+                        amoCrmService.FIELD_IDS.CONTACT.AGE_GROUP,
+                        amoCrmService.FIELD_IDS.CONTACT.ALLERGIES,
+                        amoCrmService.FIELD_IDS.CONTACT.BIRTH_DATE,
+                        amoCrmService.FIELD_IDS.CONTACT.EMAIL
+                    ].includes(field.id);
+                    
+                    if (isStudentField) {
+                        results.subscription_related_fields.contacts.push({
+                            ...fieldInfo,
+                            student_importance: 'HIGH',
+                            current_mapping_id: amoCrmService.FIELD_IDS.CONTACT[Object.keys(amoCrmService.FIELD_IDS.CONTACT).find(
+                                key => amoCrmService.FIELD_IDS.CONTACT[key] === field.id
+                            )] || null
+                        });
+                    }
+                    
+                    return fieldInfo;
+                });
+                
+                console.log(`✅ Полей контактов: ${results.all_fields.contacts.length}`);
+            }
+        } catch (contactError) {
+            console.error(`❌ Ошибка получения полей контактов: ${contactError.message}`);
+            results.all_fields.contacts = { error: contactError.message };
+        }
+        
+        // 3. Получаем стандартные поля (если доступно)
+        console.log('📊 Получение стандартных полей...');
+        try {
+            // Поля счетов (customers)
+            const customerFields = await amoCrmService.makeRequest('GET', '/api/v4/customers/custom_fields');
+            if (customerFields && customerFields._embedded && customerFields._embedded.custom_fields) {
+                results.all_fields.customers = customerFields._embedded.custom_fields.map(field => ({
+                    id: field.id,
+                    name: field.name,
+                    type: field.type
+                }));
+                console.log(`✅ Полей счетов: ${results.all_fields.customers.length}`);
+            }
+        } catch (customerError) {
+            console.log(`⚠️  Поля счетов не получены: ${customerError.message}`);
+        }
+        
+        try {
+            // Поля компаний
+            const companyFields = await amoCrmService.makeRequest('GET', '/api/v4/companies/custom_fields');
+            if (companyFields && companyFields._embedded && companyFields._embedded.custom_fields) {
+                results.all_fields.companies = companyFields._embedded.custom_fields.map(field => ({
+                    id: field.id,
+                    name: field.name,
+                    type: field.type
+                }));
+                console.log(`✅ Полей компаний: ${results.all_fields.companies.length}`);
+            }
+        } catch (companyError) {
+            console.log(`⚠️  Поля компаний не получены: ${companyError.message}`);
+        }
+        
+        // 4. Получаем поля воронок (pipelines)
+        console.log('📊 Получение воронок и статусов...');
+        try {
+            const pipelines = await amoCrmService.makeRequest('GET', '/api/v4/leads/pipelines');
+            
+            if (pipelines && pipelines._embedded && pipelines._embedded.pipelines) {
+                results.pipelines = pipelines._embedded.pipelines.map(pipeline => ({
+                    id: pipeline.id,
+                    name: pipeline.name,
+                    is_main: pipeline.is_main || false,
+                    sort: pipeline.sort,
+                    statuses: (pipeline._embedded && pipeline._embedded.statuses) ? 
+                        pipeline._embedded.statuses.map(status => ({
+                            id: status.id,
+                            name: status.name,
+                            sort: status.sort,
+                            color: status.color
+                        })) : []
+                }));
+                
+                console.log(`✅ Воронок: ${results.pipelines.length}`);
+                
+                // Находим воронку абонементов
+                const subscriptionPipeline = results.pipelines.find(
+                    p => p.name.includes('Абонемент') || p.id === amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId
+                );
+                
+                if (subscriptionPipeline) {
+                    results.subscription_pipeline = subscriptionPipeline;
+                    console.log(`✅ Воронка абонементов: "${subscriptionPipeline.name}" (ID: ${subscriptionPipeline.id})`);
+                }
+            }
+        } catch (pipelineError) {
+            console.error(`❌ Ошибка получения воронок: ${pipelineError.message}`);
+        }
+        
+        // 5. Анализ текущих маппингов
+        console.log('\n🔍 АНАЛИЗ ТЕКУЩИХ МАППИНГОВ ПОЛЕЙ');
+        console.log('='.repeat(60));
+        
+        results.current_mappings = {
+            leads: {},
+            contacts: {},
+            issues: []
+        };
+        
+        // Проверяем маппинги для сделок (абонементов)
+        Object.entries(amoCrmService.FIELD_IDS.LEAD).forEach(([key, fieldId]) => {
+            const field = results.all_fields.leads.find(f => f.id === fieldId);
+            
+            if (field) {
+                results.current_mappings.leads[key] = {
+                    id: fieldId,
+                    name: field.name,
+                    type: field.type,
+                    status: '✅ НАЙДЕНО',
+                    importance: amoCrmService.isSubscriptionField(fieldId) ? 'ВЫСОКАЯ' : 'СРЕДНЯЯ'
+                };
+            } else {
+                results.current_mappings.leads[key] = {
+                    id: fieldId,
+                    name: `Неизвестное поле (ID: ${fieldId})`,
+                    status: '❌ НЕ НАЙДЕНО',
+                    importance: 'ВЫСОКАЯ'
+                };
+                
+                results.issues.push({
+                    type: 'MISSING_FIELD',
+                    entity: 'LEAD',
+                    field_key: key,
+                    field_id: fieldId,
+                    severity: 'HIGH'
+                });
+            }
+        });
+        
+        // Проверяем маппинги для контактов (учеников)
+        Object.entries(amoCrmService.FIELD_IDS.CONTACT).forEach(([key, fieldId]) => {
+            if (fieldId === 'name' || fieldId === null) {
+                results.current_mappings.contacts[key] = {
+                    id: fieldId,
+                    name: key === 'PARENT_NAME' ? 'Имя контакта' : 'Не используется',
+                    status: 'ℹ️ СТАНДАРТНОЕ',
+                    importance: key === 'PARENT_NAME' ? 'ВЫСОКАЯ' : 'НИЗКАЯ'
+                };
+                return;
+            }
+            
+            const field = results.all_fields.contacts.find(f => f.id === fieldId);
+            
+            if (field) {
+                results.current_mappings.contacts[key] = {
+                    id: fieldId,
+                    name: field.name,
+                    type: field.type,
+                    status: '✅ НАЙДЕНО',
+                    importance: 'ВЫСОКАЯ'
+                };
+            } else {
+                results.current_mappings.contacts[key] = {
+                    id: fieldId,
+                    name: `Неизвестное поле (ID: ${fieldId})`,
+                    status: '❌ НЕ НАЙДЕНО',
+                    importance: 'ВЫСОКАЯ'
+                };
+                
+                results.issues.push({
+                    type: 'MISSING_FIELD',
+                    entity: 'CONTACT',
+                    field_key: key,
+                    field_id: fieldId,
+                    severity: 'HIGH'
+                });
+            }
+        });
+        
+        // 6. Создаем рекомендации по полям для абонементов
+        console.log('\n💡 РЕКОМЕНДАЦИИ ДЛЯ ПОЛЕЙ АБОНЕМЕНТОВ');
+        console.log('='.repeat(60));
+        
+        results.recommendations = {
+            critical_fields: [],
+            suggested_mappings: [],
+            new_fields_needed: []
+        };
+        
+        // Критические поля для отслеживания абонементов
+        const criticalFieldNames = [
+            'Абонемент занятий:',
+            'Счетчик занятий:',
+            'Остаток занятий',
+            'Окончание абонемента:',
+            'Дата активации абонемента:',
+            'Дата последнего визита:',
+            'Тип абонемента',
+            'Заморозка абонемента:'
+        ];
+        
+        criticalFieldNames.forEach(fieldName => {
+            const foundField = results.all_fields.leads.find(f => 
+                f.name.toLowerCase().includes(fieldName.toLowerCase().replace(':', ''))
+            );
+            
+            if (foundField) {
+                results.recommendations.critical_fields.push({
+                    name: fieldName,
+                    status: '✅ НАЙДЕНО',
+                    field_id: foundField.id,
+                    current_mapping: Object.keys(amoCrmService.FIELD_IDS.LEAD).find(
+                        key => amoCrmService.FIELD_IDS.LEAD[key] === foundField.id
+                    ) || 'НЕ МАППИРОВАНО'
+                });
+            } else {
+                results.recommendations.critical_fields.push({
+                    name: fieldName,
+                    status: '❌ НЕ НАЙДЕНО',
+                    field_id: null,
+                    action: 'СОЗДАТЬ ПОЛЕ В AMOCRM'
+                });
+                
+                results.recommendations.new_fields_needed.push(fieldName);
+            }
+        });
+        
+        // Поля для посещений (чекбоксы)
+        const visitFieldPattern = /занятие|посещение|визит|чекбокс/i;
+        const visitFields = results.all_fields.leads.filter(f => 
+            visitFieldPattern.test(f.name) && f.type === 'checkbox'
+        );
+        
+        if (visitFields.length > 0) {
+            results.recommendations.suggested_mappings.push({
+                type: 'VISIT_FIELDS',
+                count: visitFields.length,
+                fields: visitFields.slice(0, 5).map(f => ({ id: f.id, name: f.name })),
+                note: visitFields.length >= 24 ? '✅ Достаточно для 24 занятий' : `⚠️ Нужно ${24 - visitFields.length} полей`
+            });
+        }
+        
+        // 7. Статистика
+        results.field_statistics = {
+            total_custom_fields: results.all_fields.leads.length + results.all_fields.contacts.length,
+            lead_fields: results.all_fields.leads.length,
+            contact_fields: results.all_fields.contacts.length,
+            subscription_fields_mapped: Object.values(amoCrmService.FIELD_IDS.LEAD).filter(id => 
+                results.all_fields.leads.some(f => f.id === id)
+            ).length,
+            student_fields_mapped: Object.values(amoCrmService.FIELD_IDS.CONTACT).filter(id => 
+                id !== 'name' && id !== null && results.all_fields.contacts.some(f => f.id === id)
+            ).length,
+            missing_critical_fields: results.recommendations.critical_fields.filter(f => f.status === '❌ НЕ НАЙДЕНО').length,
+            issues_count: results.issues.length
+        };
+        
+        // 8. Выводим сводку в консоль
+        console.log('\n' + '='.repeat(80));
+        console.log('📊 СВОДКА ДИАГНОСТИКИ ПОЛЕЙ');
+        console.log('='.repeat(80));
+        console.log(`📋 Всего кастомных полей: ${results.field_statistics.total_custom_fields}`);
+        console.log(`📁 Поля сделок: ${results.field_statistics.lead_fields}`);
+        console.log(`👤 Поля контактов: ${results.field_statistics.contact_fields}`);
+        console.log(`🎫 Маппированных полей абонементов: ${results.field_statistics.subscription_fields_mapped}/${Object.keys(amoCrmService.FIELD_IDS.LEAD).length}`);
+        console.log(`👨‍🎓 Маппированных полей учеников: ${results.field_statistics.student_fields_mapped}/${Object.keys(amoCrmService.FIELD_IDS.CONTACT).length - 2}`);
+        console.log(`⚠️  Отсутствует критических полей: ${results.field_statistics.missing_critical_fields}`);
+        console.log(`🚨 Проблем: ${results.field_statistics.issues_count}`);
+        
+        if (results.field_statistics.missing_critical_fields > 0) {
+            console.log('\n🚨 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:');
+            results.recommendations.critical_fields
+                .filter(f => f.status === '❌ НЕ НАЙДЕНО')
+                .forEach(f => {
+                    console.log(`   • ${f.name} - ${f.action}`);
+                });
+        }
+        
+        console.log('\n' + '='.repeat(80));
+        
+        res.json({
+            success: true,
+            message: 'Полная диагностика полей amoCRM выполнена',
+            timestamp: results.timestamp,
+            data: results
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики полей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ==================== ПОИСК ПОЛЕЙ ПО НАЗВАНИЮ ====================
+app.get('/api/debug/fields/search', async (req, res) => {
+    try {
+        const { query } = req.query;
+        
+        if (!query) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите поисковый запрос (параметр query)'
+            });
+        }
+        
+        console.log(`\n🔍 ПОИСК ПОЛЕЙ ПО ЗАПРОСУ: "${query}"`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        const searchResults = {
+            query: query,
+            timestamp: new Date().toISOString(),
+            leads: [],
+            contacts: [],
+            companies: [],
+            customers: []
+        };
+        
+        const searchLower = query.toLowerCase();
+        
+        // Ищем в полях сделок
+        try {
+            const leadFields = await amoCrmService.makeRequest('GET', '/api/v4/leads/custom_fields');
+            if (leadFields && leadFields._embedded && leadFields._embedded.custom_fields) {
+                searchResults.leads = leadFields._embedded.custom_fields
+                    .filter(field => field.name.toLowerCase().includes(searchLower))
+                    .map(field => ({
+                        id: field.id,
+                        name: field.name,
+                        type: field.type,
+                        code: field.code,
+                        is_multiple: field.is_multiple,
+                        enums: field.enums || []
+                    }));
+            }
+        } catch (error) {
+            console.error('❌ Ошибка поиска полей сделок:', error.message);
+        }
+        
+        // Ищем в полях контактов
+        try {
+            const contactFields = await amoCrmService.makeRequest('GET', '/api/v4/contacts/custom_fields');
+            if (contactFields && contactFields._embedded && contactFields._embedded.custom_fields) {
+                searchResults.contacts = contactFields._embedded.custom_fields
+                    .filter(field => field.name.toLowerCase().includes(searchLower))
+                    .map(field => ({
+                        id: field.id,
+                        name: field.name,
+                        type: field.type,
+                        code: field.code,
+                        is_multiple: field.is_multiple,
+                        enums: field.enums || []
+                    }));
+            }
+        } catch (error) {
+            console.error('❌ Ошибка поиска полей контактов:', error.message);
+        }
+        
+        // Рекомендации для абонементов
+        const subscriptionKeywords = ['абонемент', 'занят', 'счетчик', 'остаток', 'окончание', 'активац', 'посещ', 'визит', 'заморозк'];
+        const isSubscriptionSearch = subscriptionKeywords.some(keyword => searchLower.includes(keyword));
+        
+        if (isSubscriptionSearch) {
+            searchResults.subscription_recommendations = [];
+            
+            // Проверяем поля, связанные с абонементами
+            const allSubscriptionFields = [
+                ...searchResults.leads.filter(f => 
+                    f.name.toLowerCase().includes('абонемент') || 
+                    f.name.toLowerCase().includes('занят')
+                ),
+                ...searchResults.contacts.filter(f => 
+                    f.name.toLowerCase().includes('ребен') || 
+                    f.name.toLowerCase().includes('учен') || 
+                    f.name.toLowerCase().includes('дет')
+                )
+            ];
+            
+            allSubscriptionFields.forEach(field => {
+                // Определяем тип поля для рекомендации
+                let fieldType = 'unknown';
+                let mappingSuggestion = null;
+                
+                if (field.name.toLowerCase().includes('абонемент') && field.name.toLowerCase().includes('занят')) {
+                    fieldType = 'TOTAL_CLASSES';
+                    mappingSuggestion = 'FIELD_IDS.LEAD.TOTAL_CLASSES';
+                } else if (field.name.toLowerCase().includes('счетчик')) {
+                    fieldType = 'USED_CLASSES';
+                    mappingSuggestion = 'FIELD_IDS.LEAD.USED_CLASSES';
+                } else if (field.name.toLowerCase().includes('остаток')) {
+                    fieldType = 'REMAINING_CLASSES';
+                    mappingSuggestion = 'FIELD_IDS.LEAD.REMAINING_CLASSES';
+                } else if (field.name.toLowerCase().includes('окончание')) {
+                    fieldType = 'EXPIRATION_DATE';
+                    mappingSuggestion = 'FIELD_IDS.LEAD.EXPIRATION_DATE';
+                } else if (field.name.toLowerCase().includes('активац')) {
+                    fieldType = 'ACTIVATION_DATE';
+                    mappingSuggestion = 'FIELD_IDS.LEAD.ACTIVATION_DATE';
+                } else if (field.name.toLowerCase().includes('ребен')) {
+                    fieldType = 'CHILD_NAME';
+                    mappingSuggestion = 'FIELD_IDS.CONTACT.CHILD_1_NAME (или CHILD_2_NAME, CHILD_3_NAME)';
+                }
+                
+                searchResults.subscription_recommendations.push({
+                    field_id: field.id,
+                    field_name: field.name,
+                    field_type: field.type,
+                    detected_as: fieldType,
+                    mapping_suggestion: mappingSuggestion,
+                    current_mapping: amoCrmService.FIELD_IDS.LEAD[Object.keys(amoCrmService.FIELD_IDS.LEAD).find(
+                        key => amoCrmService.FIELD_IDS.LEAD[key] === field.id
+                    )] || amoCrmService.FIELD_IDS.CONTACT[Object.keys(amoCrmService.FIELD_IDS.CONTACT).find(
+                        key => amoCrmService.FIELD_IDS.CONTACT[key] === field.id
+                    )] || 'Не маппировано'
+                });
+            });
+        }
+        
+        console.log(`📊 Результаты поиска:`);
+        console.log(`   • Поля сделок: ${searchResults.leads.length}`);
+        console.log(`   • Поля контактов: ${searchResults.contacts.length}`);
+        console.log(`   • Рекомендаций: ${searchResults.subscription_recommendations?.length || 0}`);
+        
+        res.json({
+            success: true,
+            message: 'Поиск полей выполнен',
+            data: searchResults
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска полей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== ОБНОВЛЕНИЕ МАППИНГОВ ПОЛЕЙ ====================
+app.post('/api/debug/fields/update-mappings', async (req, res) => {
+    try {
+        const { mappings } = req.body;
+        
+        if (!mappings) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите маппинги в теле запроса'
+            });
+        }
+        
+        console.log('\n🔄 ОБНОВЛЕНИЕ МАППИНГОВ ПОЛЕЙ');
+        console.log('='.repeat(60));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        const updates = [];
+        const errors = [];
+        
+        // Обрабатываем маппинги для сделок
+        if (mappings.leads) {
+            for (const [key, fieldId] of Object.entries(mappings.leads)) {
+                try {
+                    // Проверяем, что поле существует
+                    const leadFields = await amoCrmService.makeRequest('GET', '/api/v4/leads/custom_fields');
+                    const fieldExists = leadFields._embedded?.custom_fields?.some(f => f.id === fieldId);
+                    
+                    if (fieldExists) {
+                        // Обновляем маппинг в сервисе
+                        amoCrmService.FIELD_IDS.LEAD[key] = fieldId;
+                        
+                        updates.push({
+                            entity: 'LEAD',
+                            key: key,
+                            old_value: amoCrmService.FIELD_IDS.LEAD[key],
+                            new_value: fieldId,
+                            status: '✅ ОБНОВЛЕНО'
+                        });
+                        
+                        console.log(`   ✅ LEAD.${key} = ${fieldId}`);
+                    } else {
+                        errors.push({
+                            entity: 'LEAD',
+                            key: key,
+                            field_id: fieldId,
+                            error: 'Поле не найдено в amoCRM'
+                        });
+                        
+                        console.log(`   ❌ LEAD.${key}: поле ${fieldId} не найдено`);
+                    }
+                } catch (error) {
+                    errors.push({
+                        entity: 'LEAD',
+                        key: key,
+                        field_id: fieldId,
+                        error: error.message
+                    });
+                    
+                    console.log(`   ❌ LEAD.${key}: ${error.message}`);
+                }
+            }
+        }
+        
+        // Обрабатываем маппинги для контактов
+        if (mappings.contacts) {
+            for (const [key, fieldId] of Object.entries(mappings.contacts)) {
+                try {
+                    // Пропускаем специальные значения
+                    if (fieldId === 'name' || fieldId === null) {
+                        amoCrmService.FIELD_IDS.CONTACT[key] = fieldId;
+                        
+                        updates.push({
+                            entity: 'CONTACT',
+                            key: key,
+                            value: fieldId,
+                            status: '✅ ОБНОВЛЕНО (специальное значение)'
+                        });
+                        
+                        console.log(`   ✅ CONTACT.${key} = ${fieldId}`);
+                        continue;
+                    }
+                    
+                    // Проверяем, что поле существует
+                    const contactFields = await amoCrmService.makeRequest('GET', '/api/v4/contacts/custom_fields');
+                    const fieldExists = contactFields._embedded?.custom_fields?.some(f => f.id === fieldId);
+                    
+                    if (fieldExists) {
+                        // Обновляем маппинг в сервисе
+                        amoCrmService.FIELD_IDS.CONTACT[key] = fieldId;
+                        
+                        updates.push({
+                            entity: 'CONTACT',
+                            key: key,
+                            old_value: amoCrmService.FIELD_IDS.CONTACT[key],
+                            new_value: fieldId,
+                            status: '✅ ОБНОВЛЕНО'
+                        });
+                        
+                        console.log(`   ✅ CONTACT.${key} = ${fieldId}`);
+                    } else {
+                        errors.push({
+                            entity: 'CONTACT',
+                            key: key,
+                            field_id: fieldId,
+                            error: 'Поле не найдено в amoCRM'
+                        });
+                        
+                        console.log(`   ❌ CONTACT.${key}: поле ${fieldId} не найдено`);
+                    }
+                } catch (error) {
+                    errors.push({
+                        entity: 'CONTACT',
+                        key: key,
+                        field_id: fieldId,
+                        error: error.message
+                    });
+                    
+                    console.log(`   ❌ CONTACT.${key}: ${error.message}`);
+                }
+            }
+        }
+        
+        // Перезагружаем маппинги полей
+        await amoCrmService.loadFieldMappings();
+        
+        console.log('='.repeat(60));
+        console.log(`📊 ИТОГО: ${updates.length} обновлений, ${errors.length} ошибок`);
+        
+        res.json({
+            success: true,
+            message: 'Маппинги полей обновлены',
+            timestamp: new Date().toISOString(),
+            data: {
+                updates: updates,
+                errors: errors,
+                current_mappings: {
+                    leads: amoCrmService.FIELD_IDS.LEAD,
+                    contacts: amoCrmService.FIELD_IDS.CONTACT
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления маппингов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== ПОЛНАЯ ПРОВЕРКА ТЕСТОВОЙ СДЕЛКИ ====================
+app.get('/api/debug/test-subscription/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПОЛНАЯ ПРОВЕРКА ТЕСТОВОЙ СДЕЛКИ: ${leadId}`);
+        console.log('='.repeat(80));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values,contacts`
+        );
+        
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                error: 'Сделка не найдена'
+            });
+        }
+        
+        // Полный анализ
+        const analysis = {
+            lead_info: {
+                id: lead.id,
+                name: lead.name,
+                pipeline_id: lead.pipeline_id,
+                status_id: lead.status_id,
+                price: lead.price,
+                created_at: lead.created_at ? new Date(lead.created_at * 1000).toISOString() : null,
+                updated_at: lead.updated_at ? new Date(lead.updated_at * 1000).toISOString() : null
+            },
+            
+            // Извлекаем информацию об абонементе
+            subscription_info: amoCrmService.extractSubscriptionInfo(lead),
+            
+            // Все поля сделки
+            fields: [],
+            
+            // Контакты связанные со сделкой
+            contacts: [],
+            
+            // Подробный анализ каждого поля
+            detailed_field_analysis: []
+        };
+        
+        // Анализ полей
+        const customFields = lead.custom_fields_values || [];
+        
+        customFields.forEach(field => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = amoCrmService.getFieldName(field);
+            const fieldValue = amoCrmService.getFieldValue(field);
+            const fieldType = amoCrmService.fieldMappings.get(fieldId)?.type || 'unknown';
+            
+            analysis.fields.push({
+                id: fieldId,
+                name: fieldName,
+                value: fieldValue,
+                type: fieldType,
+                raw_value: field.values || []
+            });
+            
+            // Подробный анализ для полей абонемента
+            if (amoCrmService.isSubscriptionField(fieldId)) {
+                analysis.detailed_field_analysis.push({
+                    field_id: fieldId,
+                    field_name: fieldName,
+                    field_value: fieldValue,
+                    field_type: fieldType,
+                    
+                    // Как интерпретируется значение
+                    interpretation: {
+                        as_number: amoCrmService.parseNumberFromField(fieldValue),
+                        as_date: amoCrmService.parseDate(fieldValue),
+                        as_boolean: fieldValue === 'Да' || fieldValue === 'true' || fieldValue === '1',
+                        raw_interpretation: `Тип: ${fieldType}, Значение: "${fieldValue}"`
+                    },
+                    
+                    // К какому полю абонемента относится
+                    subscription_field: Object.keys(amoCrmService.FIELD_IDS.LEAD).find(
+                        key => amoCrmService.FIELD_IDS.LEAD[key] === fieldId
+                    ) || 'Не маппировано',
+                    
+                    // Важность
+                    importance: amoCrmService.isSubscriptionField(fieldId) ? 'CRITICAL' : 'NORMAL'
+                });
+            }
+        });
+        
+        // Анализ контактов
+        if (lead._embedded && lead._embedded.contacts) {
+            for (const contactLink of lead._embedded.contacts) {
+                try {
+                    const contact = await amoCrmService.makeRequest(
+                        'GET',
+                        `/api/v4/contacts/${contactLink.id}?with=custom_fields_values`
+                    );
+                    
+                    if (contact) {
+                        const children = amoCrmService.extractStudentsFromContact(contact);
+                        
+                        analysis.contacts.push({
+                            id: contact.id,
+                            name: contact.name,
+                            children_count: children.length,
+                            children: children.map(child => ({
+                                name: child.studentName,
+                                branch: child.branch,
+                                has_active_subscription: child.hasActiveSubscription
+                            })),
+                            custom_fields: contact.custom_fields_values?.map(field => ({
+                                id: field.field_id || field.id,
+                                name: amoCrmService.getFieldName(field),
+                                value: amoCrmService.getFieldValue(field)
+                            })) || []
+                        });
+                    }
+                } catch (contactError) {
+                    console.error(`❌ Ошибка получения контакта ${contactLink.id}:`, contactError.message);
+                }
+            }
+        }
+        
+        // Проверяем воронку
+        if (lead.pipeline_id) {
+            try {
+                const pipeline = await amoCrmService.makeRequest(
+                    'GET',
+                    `/api/v4/leads/pipelines/${lead.pipeline_id}`
+                );
+                
+                if (pipeline) {
+                    analysis.pipeline_info = {
+                        id: pipeline.id,
+                        name: pipeline.name,
+                        is_subscription_pipeline: pipeline.id === amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId
+                    };
+                }
+            } catch (pipelineError) {
+                console.error(`❌ Ошибка получения воронки:`, pipelineError.message);
+            }
+        }
+        
+        // Проверяем статус
+        if (lead.pipeline_id && lead.status_id) {
+            try {
+                const pipeline = await amoCrmService.makeRequest(
+                    'GET',
+                    `/api/v4/leads/pipelines/${lead.pipeline_id}`
+                );
+                
+                if (pipeline && pipeline._embedded && pipeline._embedded.statuses) {
+                    const status = pipeline._embedded.statuses.find(s => s.id === lead.status_id);
+                    if (status) {
+                        analysis.status_info = {
+                            id: status.id,
+                            name: status.name,
+                            color: status.color,
+                            is_active_status: [
+                                amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].statusIds['Активный абонемент'],
+                                amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].statusIds['Активирован']
+                            ].includes(status.id)
+                        };
+                    }
+                }
+            } catch (statusError) {
+                console.error(`❌ Ошибка получения статуса:`, statusError.message);
+            }
+        }
+        
+        // Вывод в консоль
+        console.log(`\n📋 СДЕЛКА: "${lead.name}"`);
+        console.log(`📊 Pipeline: ${lead.pipeline_id}, Status: ${lead.status_id}`);
+        console.log(`📊 Полей: ${analysis.fields.length}`);
+        console.log(`📊 Контактов: ${analysis.contacts.length}`);
+        console.log(`\n🎯 ИНФОРМАЦИЯ ОБ АБОНЕМЕНТЕ:`);
+        console.log(`   • Всего занятий: ${analysis.subscription_info.totalClasses}`);
+        console.log(`   • Использовано: ${analysis.subscription_info.usedClasses}`);
+        console.log(`   • Осталось: ${analysis.subscription_info.remainingClasses}`);
+        console.log(`   • Статус: ${analysis.subscription_info.subscriptionStatus}`);
+        console.log(`   • Активен: ${analysis.subscription_info.subscriptionActive ? '✅ Да' : '❌ Нет'}`);
+        console.log(`   • Воронка абонемента: ${analysis.subscription_info.isInSubscriptionPipeline ? '✅ Да' : '❌ Нет'}`);
+        
+        console.log(`\n🔑 КРИТИЧЕСКИЕ ПОЛЯ:`);
+        analysis.detailed_field_analysis.forEach(field => {
+            if (field.importance === 'CRITICAL') {
+                console.log(`   • ${field.field_name} (ID: ${field.field_id}): ${field.field_value}`);
+            }
+        });
+        
+        res.json({
+            success: true,
+            message: 'Полный анализ сделки выполнен',
+            timestamp: new Date().toISOString(),
+            data: analysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа сделки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Получение списка профилей
 app.get('/api/profiles', async (req, res) => {
     try {
