@@ -713,7 +713,321 @@ class AmoCrmService {
         }
     }
 
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ДИАГНОСТИКИ ====================
 
+    // Получение описания паттерна заполнения
+    getPatternDescription(fieldPresence) {
+        const descriptions = [];
+        
+        if (fieldPresence.total_classes) descriptions.push('Абонемент занятий');
+        if (fieldPresence.used_classes) descriptions.push('Счетчик занятий');
+        if (fieldPresence.remaining_classes) descriptions.push('Остаток занятий');
+        if (fieldPresence.expiration_date) descriptions.push('Дата окончания');
+        if (fieldPresence.activation_date) descriptions.push('Дата активации');
+        if (fieldPresence.subscription_type) descriptions.push('Тип абонемента');
+        if (fieldPresence.freeze) descriptions.push('Заморозка');
+        
+        const missing = [];
+        if (!fieldPresence.total_classes) missing.push('Абонемент занятий');
+        if (!fieldPresence.used_classes) missing.push('Счетчик занятий');
+        if (!fieldPresence.remaining_classes) missing.push('Остаток занятий');
+        
+        let result = `Заполнено: ${descriptions.join(', ')}`;
+        if (missing.length > 0) {
+            result += ` | Отсутствуют: ${missing.join(', ')}`;
+        }
+        
+        return result;
+    }
+
+    // Проверка целостности данных для сделки
+    checkDataIntegrityForLead(fieldValues) {
+        const problems = [];
+        
+        // Проверяем, что если есть total_classes, то должны быть used_classes и remaining_classes
+        if (fieldValues.total_classes && (!fieldValues.used_classes || !fieldValues.remaining_classes)) {
+            problems.push({
+                type: 'INCOMPLETE_DATA',
+                message: `Есть "Абонемент занятий: ${fieldValues.total_classes}", но нет счетчика или остатка`
+            });
+        }
+        
+        // Проверяем логику total = used + remaining
+        if (fieldValues.total_classes && fieldValues.used_classes && fieldValues.remaining_classes) {
+            const total = this.parseNumberFromField(fieldValues.total_classes);
+            const used = this.parseNumberFromField(fieldValues.used_classes);
+            const remaining = this.parseNumberFromField(fieldValues.remaining_classes);
+            
+            if (total !== used + remaining) {
+                problems.push({
+                    type: 'DATA_INTEGRITY',
+                    message: `Некорректная сумма: ${used} + ${remaining} ≠ ${total}`,
+                    expected: total,
+                    actual: used + remaining
+                });
+            }
+        }
+        
+        // Проверяем даты
+        if (fieldValues.activation_date && fieldValues.expiration_date) {
+            const activation = new Date(this.parseDate(fieldValues.activation_date));
+            const expiration = new Date(this.parseDate(fieldValues.expiration_date));
+            
+            if (activation > expiration) {
+                problems.push({
+                    type: 'DATE_ORDER',
+                    message: `Дата активации позже даты окончания`
+                });
+            }
+        }
+        
+        return {
+            hasProblems: problems.length > 0,
+            problems: problems
+        };
+    }
+
+    // Анализ названия сделки для хранения
+    analyzeLeadNameForStorage(leadName) {
+        const patterns = [
+            {
+                pattern: 'NAME - N занятий',
+                regex: /^(.+?)\s*-\s*(\d+)\s*занят/i,
+                description: 'ФИО - N занятий',
+                extract: (match) => ({
+                    student_name: match[1].trim(),
+                    class_count: parseInt(match[2])
+                })
+            },
+            {
+                pattern: 'NAME (N занятий)',
+                regex: /^(.+?)\s*\((\d+)\s*занят/i,
+                description: 'ФИО (N занятий)',
+                extract: (match) => ({
+                    student_name: match[1].trim(),
+                    class_count: parseInt(match[2])
+                })
+            },
+            {
+                pattern: 'Абонемент N занятий: NAME',
+                regex: /^Абонемент\s*(\d+)\s*занят.*:\s*(.+)/i,
+                description: 'Абонемент N занятий: ФИО',
+                extract: (match) => ({
+                    student_name: match[2].trim(),
+                    class_count: parseInt(match[1])
+                })
+            },
+            {
+                pattern: 'Закончился N занятий - NAME',
+                regex: /^Закончился\s*(\d+)\s*занят.*-\s*(.+)/i,
+                description: 'Закончился N занятий - ФИО',
+                extract: (match) => ({
+                    student_name: match[2].trim(),
+                    class_count: parseInt(match[1])
+                })
+            },
+            {
+                pattern: 'NAME и NAME - N занятий',
+                regex: /^(.+?)\s+и\s+(.+?)\s*-\s*(\d+)\s*занят/i,
+                description: 'ФИО и ФИО - N занятий',
+                extract: (match) => ({
+                    student_name: `${match[1].trim()} и ${match[2].trim()}`,
+                    class_count: parseInt(match[3])
+                })
+            }
+        ];
+        
+        for (const pattern of patterns) {
+            const match = leadName.match(pattern.regex);
+            if (match) {
+                const extracted = pattern.extract(match);
+                return {
+                    pattern: pattern.pattern,
+                    description: pattern.description,
+                    student_name: extracted.student_name,
+                    class_count: extracted.class_count
+                };
+            }
+        }
+        
+        // Если не нашли стандартный паттерн, анализируем структуру
+        const words = leadName.split(/\s+/);
+        const hasNumber = words.some(word => /\d+/.test(word));
+        const hasZanyatiy = leadName.toLowerCase().includes('занят');
+        
+        return {
+            pattern: 'CUSTOM',
+            description: hasNumber && hasZanyatiy ? 'Кастомный с числом занятий' : 'Нестандартный формат',
+            student_name: null,
+            class_count: null
+        };
+    }
+
+    // Определение типичной конфигурации для статуса
+    getTypicalConfiguration(fieldPresence) {
+        const presentFields = Object.keys(fieldPresence).filter(k => fieldPresence[k]);
+        return presentFields.join(', ');
+    }
+
+    // Проверка, является ли абонемент активным
+    isActiveSubscription(statusId, fieldValues) {
+        // Активные статусы из диагностики: 65473306, 142 (нужно уточнить)
+        const activeStatusIds = [65473306, 142]; // Добавьте правильные ID
+        
+        if (!activeStatusIds.includes(parseInt(statusId))) {
+            return false;
+        }
+        
+        // Проверяем, есть ли остаток занятий
+        if (fieldValues.remaining_classes) {
+            const remaining = this.parseNumberFromField(fieldValues.remaining_classes);
+            if (remaining > 0) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    // Может ли сделка быть выбрана как активный абонемент
+    canBeSelectedAsActive(lead, fieldValues) {
+        // Проверяем основные критерии
+        const checks = [];
+        
+        // 1. В правильной воронке
+        checks.push({
+            name: 'Воронка абонементов',
+            passed: lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID,
+            weight: 100
+        });
+        
+        // 2. Активный статус
+        const activeStatusIds = [65473306, 142];
+        checks.push({
+            name: 'Активный статус',
+            passed: activeStatusIds.includes(parseInt(lead.status_id)),
+            weight: 80
+        });
+        
+        // 3. Есть общее количество занятий
+        checks.push({
+            name: 'Указано общее кол-во занятий',
+            passed: !!fieldValues.total_classes,
+            weight: 60
+        });
+        
+        // 4. Есть остаток занятий
+        if (fieldValues.remaining_classes) {
+            const remaining = this.parseNumberFromField(fieldValues.remaining_classes);
+            checks.push({
+                name: 'Есть остаток занятий',
+                passed: remaining > 0,
+                weight: 50,
+                details: `Осталось: ${remaining}`
+            });
+        } else {
+            checks.push({
+                name: 'Есть остаток занятий',
+                passed: false,
+                weight: 50
+            });
+        }
+        
+        // 5. Не заморожен
+        checks.push({
+            name: 'Не заморожен',
+            passed: !fieldValues.freeze || fieldValues.freeze.toLowerCase() !== 'да',
+            weight: 40
+        });
+        
+        // 6. Есть дата активации
+        checks.push({
+            name: 'Есть дата активации',
+            passed: !!fieldValues.activation_date,
+            weight: 30
+        });
+        
+        // 7. Есть дата окончания
+        checks.push({
+            name: 'Есть дата окончания',
+            passed: !!fieldValues.expiration_date,
+            weight: 20
+        });
+        
+        // Рассчитываем общий балл
+        const totalScore = checks.reduce((sum, check) => {
+            return sum + (check.passed ? check.weight : 0);
+        }, 0);
+        
+        const maxScore = checks.reduce((sum, check) => sum + check.weight, 0);
+        const percentage = (totalScore / maxScore) * 100;
+        
+        return {
+            can_be_selected: percentage >= 70,
+            score: totalScore,
+            max_score: maxScore,
+            percentage: percentage.toFixed(1),
+            checks: checks,
+            failed_checks: checks.filter(c => !c.passed).map(c => c.name)
+        };
+    }
+
+    // Генерация рекомендаций на основе анализа
+    generateStorageRecommendations(analysis) {
+        const recommendations = [];
+        
+        // Анализируем паттерны заполнения
+        const mostCommonPattern = analysis.data_completeness_patterns[0];
+        if (mostCommonPattern) {
+            const percentage = (mostCommonPattern.count / analysis.total_subscriptions_analyzed * 100).toFixed(1);
+            recommendations.push(`Самый частый паттерн заполнения (${percentage}%): ${mostCommonPattern.description}`);
+            
+            // Если в самом частом паттерне не хватает ключевых полей
+            const example = mostCommonPattern.examples[0];
+            if (example && example.fields_missing && example.fields_missing.length > 0) {
+                recommendations.push(`⚠️ В ${percentage}% сделок отсутствуют: ${example.fields_missing.join(', ')}`);
+            }
+        }
+        
+        // Анализируем варианты хранения "Абонемент занятий:"
+        const totalClassesVariants = Object.keys(analysis.field_storage_patterns.total_classes).length;
+        if (totalClassesVariants > 3) {
+            recommendations.push(`Много вариантов записи "Абонемент занятий:" (${totalClassesVariants}). Нужна унификация.`);
+        }
+        
+        // Анализируем проблемы с данными
+        if (analysis.data_problems.length > 0) {
+            const problemPercentage = (analysis.data_problems.length / analysis.total_subscriptions_analyzed * 100).toFixed(1);
+            recommendations.push(`Обнаружены проблемы в данных: ${analysis.data_problems.length} сделок (${problemPercentage}%)`);
+        }
+        
+        // Анализируем рабочие конфигурации
+        if (analysis.working_configurations.length > 0) {
+            const workingPercentage = (analysis.working_configurations.length / analysis.total_subscriptions_analyzed * 100).toFixed(1);
+            recommendations.push(`✅ Полностью заполненные абонементы: ${analysis.working_configurations.length} (${workingPercentage}%)`);
+        } else {
+            recommendations.push(`🚨 КРИТИЧЕСКО: Нет ни одного полностью заполненного абонемента!`);
+        }
+        
+        // Рекомендации по парсингу на основе анализа
+        const totalClassesValues = Object.entries(analysis.field_storage_patterns.total_classes)
+            .filter(([value, data]) => data.parsed_as_number === 0 && data.count > 1)
+            .map(([value]) => value);
+        
+        if (totalClassesValues.length > 0) {
+            recommendations.push(`Проблемы парсинга "Абонемент занятий:" для значений: ${totalClassesValues.join(', ')}`);
+        }
+        
+        // Рекомендации по выбору активного абонемента
+        const activeConfigs = analysis.working_configurations.filter(c => c.can_be_selected);
+        if (activeConfigs.length > 0) {
+            recommendations.push(`Можно выбирать как активные: ${activeConfigs.length} абонементов`);
+        } else {
+            recommendations.push(`⚠️ Нет абонементов, которые можно выбрать как активные по текущим критериям`);
+        }
+        
+        return recommendations;
+    }
     
     // ==================== ИСПРАВЛЕННАЯ ЛОГИКА ВЫБОРА СДЕЛКИ ====================
     async findLeadForStudent(contactId, studentName) {
@@ -1590,321 +1904,7 @@ class AmoCrmService {
             return null;
         }
     }
-// ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ДИАГНОСТИКИ ====================
 
-// Получение описания паттерна заполнения
-function getPatternDescription(fieldPresence) {
-    const descriptions = [];
-    
-    if (fieldPresence.total_classes) descriptions.push('Абонемент занятий');
-    if (fieldPresence.used_classes) descriptions.push('Счетчик занятий');
-    if (fieldPresence.remaining_classes) descriptions.push('Остаток занятий');
-    if (fieldPresence.expiration_date) descriptions.push('Дата окончания');
-    if (fieldPresence.activation_date) descriptions.push('Дата активации');
-    if (fieldPresence.subscription_type) descriptions.push('Тип абонемента');
-    if (fieldPresence.freeze) descriptions.push('Заморозка');
-    
-    const missing = [];
-    if (!fieldPresence.total_classes) missing.push('Абонемент занятий');
-    if (!fieldPresence.used_classes) missing.push('Счетчик занятий');
-    if (!fieldPresence.remaining_classes) missing.push('Остаток занятий');
-    
-    let result = `Заполнено: ${descriptions.join(', ')}`;
-    if (missing.length > 0) {
-        result += ` | Отсутствуют: ${missing.join(', ')}`;
-    }
-    
-    return result;
-}
-
-// Проверка целостности данных для сделки
-function checkDataIntegrityForLead(fieldValues) {
-    const problems = [];
-    
-    // Проверяем, что если есть total_classes, то должны быть used_classes и remaining_classes
-    if (fieldValues.total_classes && (!fieldValues.used_classes || !fieldValues.remaining_classes)) {
-        problems.push({
-            type: 'INCOMPLETE_DATA',
-            message: `Есть "Абонемент занятий: ${fieldValues.total_classes}", но нет счетчика или остатка`
-        });
-    }
-    
-    // Проверяем логику total = used + remaining
-    if (fieldValues.total_classes && fieldValues.used_classes && fieldValues.remaining_classes) {
-        const total = amoCrmService.parseNumberFromField(fieldValues.total_classes);
-        const used = amoCrmService.parseNumberFromField(fieldValues.used_classes);
-        const remaining = amoCrmService.parseNumberFromField(fieldValues.remaining_classes);
-        
-        if (total !== used + remaining) {
-            problems.push({
-                type: 'DATA_INTEGRITY',
-                message: `Некорректная сумма: ${used} + ${remaining} ≠ ${total}`,
-                expected: total,
-                actual: used + remaining
-            });
-        }
-    }
-    
-    // Проверяем даты
-    if (fieldValues.activation_date && fieldValues.expiration_date) {
-        const activation = new Date(amoCrmService.parseDate(fieldValues.activation_date));
-        const expiration = new Date(amoCrmService.parseDate(fieldValues.expiration_date));
-        
-        if (activation > expiration) {
-            problems.push({
-                type: 'DATE_ORDER',
-                message: `Дата активации позже даты окончания`
-            });
-        }
-    }
-    
-    return {
-        hasProblems: problems.length > 0,
-        problems: problems
-    };
-}
-
-// Анализ названия сделки для хранения
-function analyzeLeadNameForStorage(leadName) {
-    const patterns = [
-        {
-            pattern: 'NAME - N занятий',
-            regex: /^(.+?)\s*-\s*(\d+)\s*занят/i,
-            description: 'ФИО - N занятий',
-            extract: (match) => ({
-                student_name: match[1].trim(),
-                class_count: parseInt(match[2])
-            })
-        },
-        {
-            pattern: 'NAME (N занятий)',
-            regex: /^(.+?)\s*\((\d+)\s*занят/i,
-            description: 'ФИО (N занятий)',
-            extract: (match) => ({
-                student_name: match[1].trim(),
-                class_count: parseInt(match[2])
-            })
-        },
-        {
-            pattern: 'Абонемент N занятий: NAME',
-            regex: /^Абонемент\s*(\d+)\s*занят.*:\s*(.+)/i,
-            description: 'Абонемент N занятий: ФИО',
-            extract: (match) => ({
-                student_name: match[2].trim(),
-                class_count: parseInt(match[1])
-            })
-        },
-        {
-            pattern: 'Закончился N занятий - NAME',
-            regex: /^Закончился\s*(\d+)\s*занят.*-\s*(.+)/i,
-            description: 'Закончился N занятий - ФИО',
-            extract: (match) => ({
-                student_name: match[2].trim(),
-                class_count: parseInt(match[1])
-            })
-        },
-        {
-            pattern: 'NAME и NAME - N занятий',
-            regex: /^(.+?)\s+и\s+(.+?)\s*-\s*(\d+)\s*занят/i,
-            description: 'ФИО и ФИО - N занятий',
-            extract: (match) => ({
-                student_name: `${match[1].trim()} и ${match[2].trim()}`,
-                class_count: parseInt(match[3])
-            })
-        }
-    ];
-    
-    for (const pattern of patterns) {
-        const match = leadName.match(pattern.regex);
-        if (match) {
-            const extracted = pattern.extract(match);
-            return {
-                pattern: pattern.pattern,
-                description: pattern.description,
-                student_name: extracted.student_name,
-                class_count: extracted.class_count
-            };
-        }
-    }
-    
-    // Если не нашли стандартный паттерн, анализируем структуру
-    const words = leadName.split(/\s+/);
-    const hasNumber = words.some(word => /\d+/.test(word));
-    const hasZanyatiy = leadName.toLowerCase().includes('занят');
-    
-    return {
-        pattern: 'CUSTOM',
-        description: hasNumber && hasZanyatiy ? 'Кастомный с числом занятий' : 'Нестандартный формат',
-        student_name: null,
-        class_count: null
-    };
-}
-
-// Определение типичной конфигурации для статуса
-function getTypicalConfiguration(fieldPresence) {
-    const presentFields = Object.keys(fieldPresence).filter(k => fieldPresence[k]);
-    return presentFields.join(', ');
-}
-
-// Проверка, является ли абонемент активным
-function isActiveSubscription(statusId, fieldValues) {
-    // Активные статусы из диагностики: 65473306, 142 (нужно уточнить)
-    const activeStatusIds = [65473306, 142]; // Добавьте правильные ID
-    
-    if (!activeStatusIds.includes(parseInt(statusId))) {
-        return false;
-    }
-    
-    // Проверяем, есть ли остаток занятий
-    if (fieldValues.remaining_classes) {
-        const remaining = amoCrmService.parseNumberFromField(fieldValues.remaining_classes);
-        if (remaining > 0) {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-// Может ли сделка быть выбрана как активный абонемент
-function canBeSelectedAsActive(lead, fieldValues) {
-    // Проверяем основные критерии
-    const checks = [];
-    
-    // 1. В правильной воронке
-    checks.push({
-        name: 'Воронка абонементов',
-        passed: lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID,
-        weight: 100
-    });
-    
-    // 2. Активный статус
-    const activeStatusIds = [65473306, 142];
-    checks.push({
-        name: 'Активный статус',
-        passed: activeStatusIds.includes(parseInt(lead.status_id)),
-        weight: 80
-    });
-    
-    // 3. Есть общее количество занятий
-    checks.push({
-        name: 'Указано общее кол-во занятий',
-        passed: !!fieldValues.total_classes,
-        weight: 60
-    });
-    
-    // 4. Есть остаток занятий
-    if (fieldValues.remaining_classes) {
-        const remaining = amoCrmService.parseNumberFromField(fieldValues.remaining_classes);
-        checks.push({
-            name: 'Есть остаток занятий',
-            passed: remaining > 0,
-            weight: 50,
-            details: `Осталось: ${remaining}`
-        });
-    } else {
-        checks.push({
-            name: 'Есть остаток занятий',
-            passed: false,
-            weight: 50
-        });
-    }
-    
-    // 5. Не заморожен
-    checks.push({
-        name: 'Не заморожен',
-        passed: !fieldValues.freeze || fieldValues.freeze.toLowerCase() !== 'да',
-        weight: 40
-    });
-    
-    // 6. Есть дата активации
-    checks.push({
-        name: 'Есть дата активации',
-        passed: !!fieldValues.activation_date,
-        weight: 30
-    });
-    
-    // 7. Есть дата окончания
-    checks.push({
-        name: 'Есть дата окончания',
-        passed: !!fieldValues.expiration_date,
-        weight: 20
-    });
-    
-    // Рассчитываем общий балл
-    const totalScore = checks.reduce((sum, check) => {
-        return sum + (check.passed ? check.weight : 0);
-    }, 0);
-    
-    const maxScore = checks.reduce((sum, check) => sum + check.weight, 0);
-    const percentage = (totalScore / maxScore) * 100;
-    
-    return {
-        can_be_selected: percentage >= 70,
-        score: totalScore,
-        max_score: maxScore,
-        percentage: percentage.toFixed(1),
-        checks: checks,
-        failed_checks: checks.filter(c => !c.passed).map(c => c.name)
-    };
-}
-
-// Генерация рекомендаций на основе анализа
-function generateStorageRecommendations(analysis) {
-    const recommendations = [];
-    
-    // Анализируем паттерны заполнения
-    const mostCommonPattern = analysis.data_completeness_patterns[0];
-    if (mostCommonPattern) {
-        const percentage = (mostCommonPattern.count / analysis.total_subscriptions_analyzed * 100).toFixed(1);
-        recommendations.push(`Самый частый паттерн заполнения (${percentage}%): ${mostCommonPattern.description}`);
-        
-        // Если в самом частом паттерне не хватает ключевых полей
-        const example = mostCommonPattern.examples[0];
-        if (example && example.fields_missing && example.fields_missing.length > 0) {
-            recommendations.push(`⚠️ В ${percentage}% сделок отсутствуют: ${example.fields_missing.join(', ')}`);
-        }
-    }
-    
-    // Анализируем варианты хранения "Абонемент занятий:"
-    const totalClassesVariants = Object.keys(analysis.field_storage_patterns.total_classes).length;
-    if (totalClassesVariants > 3) {
-        recommendations.push(`Много вариантов записи "Абонемент занятий:" (${totalClassesVariants}). Нужна унификация.`);
-    }
-    
-    // Анализируем проблемы с данными
-    if (analysis.data_problems.length > 0) {
-        const problemPercentage = (analysis.data_problems.length / analysis.total_subscriptions_analyzed * 100).toFixed(1);
-        recommendations.push(`Обнаружены проблемы в данных: ${analysis.data_problems.length} сделок (${problemPercentage}%)`);
-    }
-    
-    // Анализируем рабочие конфигурации
-    if (analysis.working_configurations.length > 0) {
-        const workingPercentage = (analysis.working_configurations.length / analysis.total_subscriptions_analyzed * 100).toFixed(1);
-        recommendations.push(`✅ Полностью заполненные абонементы: ${analysis.working_configurations.length} (${workingPercentage}%)`);
-    } else {
-        recommendations.push(`🚨 КРИТИЧЕСКО: Нет ни одного полностью заполненного абонемента!`);
-    }
-    
-    // Рекомендации по парсингу на основе анализа
-    const totalClassesValues = Object.entries(analysis.field_storage_patterns.total_classes)
-        .filter(([value, data]) => data.parsed_as_number === 0 && data.count > 1)
-        .map(([value]) => value);
-    
-    if (totalClassesValues.length > 0) {
-        recommendations.push(`Проблемы парсинга "Абонемент занятий:" для значений: ${totalClassesValues.join(', ')}`);
-    }
-    
-    // Рекомендации по выбору активного абонемента
-    const activeConfigs = analysis.working_configurations.filter(c => c.can_be_selected);
-    if (activeConfigs.length > 0) {
-        recommendations.push(`Можно выбирать как активные: ${activeConfigs.length} абонементов`);
-    } else {
-        recommendations.push(`⚠️ Нет абонементов, которые можно выбрать как активные по текущим критериям`);
-    }
-    
-    return recommendations;
-}
     async debugLeadAnalysis(leadId) {
         try {
             console.log(`\n🔍 ДИАГНОСТИКА СДЕЛКИ: ${leadId}`);
@@ -2744,7 +2744,7 @@ app.get('/api/debug/subscriptions-storage', async (req, res) => {
             } else {
                 storageAnalysis.data_completeness_patterns.push({
                     pattern: presenceKey,
-                    description: this.getPatternDescription(fieldPresence),
+                    description: amoCrmService.getPatternDescription(fieldPresence),
                     count: 1,
                     examples: [{
                         lead_id: leadId,
@@ -2760,7 +2760,7 @@ app.get('/api/debug/subscriptions-storage', async (req, res) => {
                 storageAnalysis.subscription_statuses[statusId] = {
                     count: 1,
                     examples: [leadName],
-                    typical_configuration: this.getTypicalConfiguration(fieldPresence)
+                    typical_configuration: amoCrmService.getTypicalConfiguration(fieldPresence)
                 };
             } else {
                 storageAnalysis.subscription_statuses[statusId].count++;
@@ -2770,7 +2770,7 @@ app.get('/api/debug/subscriptions-storage', async (req, res) => {
             }
             
             // Проверяем целостность данных
-            const integrityCheck = this.checkDataIntegrityForLead(fieldValues);
+            const integrityCheck = amoCrmService.checkDataIntegrityForLead(fieldValues);
             if (integrityCheck.hasProblems) {
                 storageAnalysis.data_problems.push({
                     lead_id: leadId,
@@ -2788,8 +2788,8 @@ app.get('/api/debug/subscriptions-storage', async (req, res) => {
                     lead_name: leadName,
                     status_id: statusId,
                     field_values: fieldValues,
-                    is_active: this.isActiveSubscription(statusId, fieldValues),
-                    can_be_selected: this.canBeSelectedAsActive(lead, fieldValues)
+                    is_active: amoCrmService.isActiveSubscription(statusId, fieldValues),
+                    can_be_selected: amoCrmService.canBeSelectedAsActive(lead, fieldValues)
                 });
             }
             
@@ -2800,7 +2800,7 @@ app.get('/api/debug/subscriptions-storage', async (req, res) => {
         console.log('\n📊 ШАГ 2: Анализ паттернов названий...');
         
         leads.forEach(lead => {
-            const pattern = this.analyzeLeadNameForStorage(lead.name);
+            const pattern = amoCrmService.analyzeLeadNameForStorage(lead.name);
             
             const existingPattern = storageAnalysis.lead_naming_patterns.find(p => p.pattern === pattern.pattern);
             if (existingPattern) {
@@ -2827,7 +2827,7 @@ app.get('/api/debug/subscriptions-storage', async (req, res) => {
         // 5. ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ
         console.log('\n📊 ШАГ 3: Генерация рекомендаций...');
         
-        const recommendations = this.generateStorageRecommendations(storageAnalysis);
+        const recommendations = amoCrmService.generateStorageRecommendations(storageAnalysis);
         storageAnalysis.recommendations = recommendations;
         
         // 6. ВЫВОД В КОНСОЛЬ ДЛЯ ОТЛАДКИ
