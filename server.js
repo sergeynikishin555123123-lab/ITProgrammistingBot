@@ -535,35 +535,43 @@ this.FIELD_IDS = {
         }
     }
 
-    parseNumberFromField(value) {
-        if (!value) return 0;
+   parseNumberFromField(value) {
+    if (!value) return 0;
+    
+    try {
+        // Если это уже число
+        if (typeof value === 'number') return value;
         
-        try {
-            // Если это уже число
-            if (typeof value === 'number') return value;
-            
-            const str = String(value).trim();
-            
-            // Ищем число в строке
-            const match = str.match(/(\d+)/);
-            if (match) {
+        const str = String(value).trim();
+        
+        // ОСОБЫЙ СЛУЧАЙ: значения из select типа "8 занятий", "16 занятий"
+        if (str.includes('занятий')) {
+            const match = str.match(/(\d+)\s*занятий/i);
+            if (match && match[1]) {
                 const num = parseInt(match[1]);
                 return isNaN(num) ? 0 : num;
             }
-            
-            // Специальные случаи
-            if (str.toLowerCase().includes('разовый') || 
-                str.toLowerCase().includes('пробное')) {
-                return 1;
-            }
-            
-            return 0;
-        } catch (error) {
-            console.error('❌ Ошибка парсинга числа:', error);
-            return 0;
         }
+        
+        // Ищем число в строке
+        const match = str.match(/(\d+)/);
+        if (match) {
+            const num = parseInt(match[1]);
+            return isNaN(num) ? 0 : num;
+        }
+        
+        // Специальные случаи
+        if (str.toLowerCase().includes('разовый') || 
+            str.toLowerCase().includes('пробное')) {
+            return 1;
+        }
+        
+        return 0;
+    } catch (error) {
+        console.error('❌ Ошибка парсинга числа:', error);
+        return 0;
     }
-
+}
     parseLeadNameForSubscription(leadName) {
         if (!leadName) return 0;
         
