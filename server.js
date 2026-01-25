@@ -2590,6 +2590,149 @@ app.get('/api/test/phone/:phone', async (req, res) => {
     }
 });
 
+// ==================== ПОДРОБНАЯ ДИАГНОСТИКА ТЕЛЕФОНА ====================
+app.get('/api/debug/phone-detailed/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n🔍 ПОДРОБНАЯ ДИАГНОСТИКА ТЕЛЕФОНА: ${phone}`);
+        console.log('='.repeat(80));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Ищем контакты
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        const detailedResults = {
+            phone: phone,
+            contacts_found: contacts.length,
+            contacts: [],
+            raw_data: []
+        };
+        
+        for (const contact of contacts) {
+            const contactData = {
+                id: contact.id,
+                name: contact.name,
+                leads: []
+            };
+            
+            // Получаем сделки контакта
+            const leads = await amoCrmService.getContactLeadsSorted(contact.id);
+            
+            for (const lead of leads.slice(0, 10)) { // Первые 10 сделок
+                const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                
+                // Собираем все поля сделки для анализа
+                const leadFields = lead.custom_fields_values || [];
+                const fieldAnalysis = [];
+                
+                leadFields.forEach(field => {
+                    const fieldId = field.field_id || field.id;
+                    const fieldName = amoCrmService.getFieldName(field);
+                    const fieldValue = amoCrmService.getFieldValue(field);
+                    const fieldType = amoCrmService.fieldMappings.get(fieldId)?.type || 'unknown';
+                    
+                    fieldAnalysis.push({
+                        id: fieldId,
+                        name: fieldName,
+                        value: fieldValue,
+                        type: fieldType,
+                        interpreted_as_number: amoCrmService.parseNumberFromField(fieldValue),
+                        interpreted_as_date: amoCrmService.parseDate(fieldValue),
+                        is_subscription_field: amoCrmService.isSubscriptionField(fieldId)
+                    });
+                });
+                
+                contactData.leads.push({
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id,
+                    subscription_info: subscriptionInfo,
+                    fields: fieldAnalysis,
+                    raw_lead: lead // Для глубокой отладки
+                });
+            }
+            
+            detailedResults.contacts.push(contactData);
+        }
+        
+        // Анализ расхождений
+        const analysis = {
+            potential_issues: []
+        };
+        
+        detailedResults.contacts.forEach(contact => {
+            contact.leads.forEach(lead => {
+                const sub = lead.subscription_info;
+                
+                // Проверка 1: расхождение между totalClasses и полем "Абонемент занятий:"
+                const totalField = lead.fields.find(f => f.id === 850241);
+                if (totalField && totalField.interpreted_as_number !== sub.totalClasses) {
+                    analysis.potential_issues.push({
+                        type: 'TOTAL_CLASSES_MISMATCH',
+                        lead_id: lead.id,
+                        lead_name: lead.name,
+                        field_value: totalField.value,
+                        interpreted_number: totalField.interpreted_as_number,
+                        system_total: sub.totalClasses,
+                        recommendation: 'Проверить парсинг поля 850241'
+                    });
+                }
+                
+                // Проверка 2: поле "Остаток занятий" не совпадает с расчетом
+                const remainingField = lead.fields.find(f => f.id === 890163);
+                if (remainingField && remainingField.interpreted_as_number !== sub.remainingClasses) {
+                    analysis.potential_issues.push({
+                        type: 'REMAINING_CLASSES_MISMATCH',
+                        lead_id: lead.id,
+                        lead_name: lead.name,
+                        field_value: remainingField.value,
+                        field_number: remainingField.interpreted_as_number,
+                        system_remaining: sub.remainingClasses,
+                        recommendation: 'Использовать значение из поля 890163 вместо расчета'
+                    });
+                }
+                
+                // Проверка 3: заморозка
+                const freezeField = lead.fields.find(f => f.id === 867693);
+                if (freezeField && freezeField.value === 'ДА' && !sub.isFrozen) {
+                    analysis.potential_issues.push({
+                        type: 'FREEZE_NOT_DETECTED',
+                        lead_id: lead.id,
+                        lead_name: lead.name,
+                        field_value: freezeField.value,
+                        system_frozen: sub.isFrozen,
+                        recommendation: 'Проверить парсинг поля 867693'
+                    });
+                }
+            });
+        });
+        
+        detailedResults.analysis = analysis;
+        
+        res.json({
+            success: true,
+            message: 'Подробная диагностика выполнена',
+            data: detailedResults
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка детальной диагностики:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // ==================== ПОЛНАЯ ДИАГНОСТИКА ПОЛЕЙ AMOCRM ====================
 app.get('/api/debug/fields/all', async (req, res) => {
     try {
