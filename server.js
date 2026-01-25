@@ -1015,6 +1015,132 @@ class AmoCrmService {
         }
     }
 
+// Анализ паттерна названия сделки
+function analyzeLeadNamePattern(leadName) {
+    const patterns = [
+        { pattern: 'ФИО - N занятий', regex: /^(.+)\s+-\s+(\d+)\s+занят/i },
+        { pattern: 'ФИО (N занятий)', regex: /^(.+)\s+\((\d+)\s+занят/i },
+        { pattern: 'Абонемент N занятий: ФИО', regex: /^Абонемент\s+(\d+)\s+занят.+:\s*(.+)/i },
+        { pattern: 'ФИО - абонемент N', regex: /^(.+)\s+-\s+абонемент\s+(\d+)/i },
+        { pattern: 'Разовый: ФИО', regex: /^Разовый.+:\s*(.+)/i },
+        { pattern: 'ФИО - заморозка', regex: /^(.+)\s+-\s+заморозка/i },
+        { pattern: 'ФИО', regex: /^[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+$/ }
+    ];
+    
+    for (const p of patterns) {
+        const match = leadName.match(p.regex);
+        if (match) {
+            return {
+                pattern: p.pattern,
+                student_name: match[1]?.trim(),
+                class_count: match[2] ? parseInt(match[2]) : null,
+                match: match[0]
+            };
+        }
+    }
+    
+    return {
+        pattern: 'Неизвестный паттерн',
+        student_name: null,
+        class_count: null,
+        match: leadName
+    };
+}
+
+// Генерация ключа паттерна заполнения полей
+function getFieldPatternKey(fieldsAnalysis) {
+    const parts = [];
+    
+    const keyFields = [
+        'total_classes', 
+        'used_classes', 
+        'remaining_classes', 
+        'subscription_type',
+        'freeze'
+    ];
+    
+    keyFields.forEach(key => {
+        if (fieldsAnalysis[key] && fieldsAnalysis[key].exists) {
+            parts.push(`${key}:YES`);
+        } else {
+            parts.push(`${key}:NO`);
+        }
+    });
+    
+    return parts.join('|');
+}
+
+// Проверка целостности данных
+function checkDataIntegrity(subscriptionInfo, fieldsAnalysis) {
+    const problems = [];
+    
+    // Проверка 1: total = used + remaining
+    const total = subscriptionInfo.totalClasses;
+    const used = subscriptionInfo.usedClasses;
+    const remaining = subscriptionInfo.remainingClasses;
+    
+    if (total > 0 && used + remaining !== total) {
+        problems.push({
+            type: 'DATA_INTEGRITY',
+            message: `Некорректная сумма: ${used} + ${remaining} ≠ ${total}`,
+            expected: total,
+            actual: used + remaining,
+            recommendation: 'Проверить поля "Счетчик занятий:" и "Остаток занятий"'
+        });
+    }
+    
+    // Проверка 2: поле "Остаток занятий" должно совпадать с расчетом
+    if (fieldsAnalysis.remaining_classes && fieldsAnalysis.remaining_classes.exists) {
+        const fieldRemaining = fieldsAnalysis.remaining_classes.parsed_number;
+        if (fieldRemaining !== remaining) {
+            problems.push({
+                type: 'REMAINING_CALCULATION_MISMATCH',
+                message: `Поле "Остаток занятий" (${fieldRemaining}) не совпадает с расчетом (${remaining})`,
+                field_value: fieldRemaining,
+                calculated_value: remaining,
+                recommendation: 'Использовать значение из поля или пересчитать логику'
+            });
+        }
+    }
+    
+    // Проверка 3: даты должны быть в правильном порядке
+    if (subscriptionInfo.activationDate && subscriptionInfo.expirationDate) {
+        const activation = new Date(subscriptionInfo.activationDate);
+        const expiration = new Date(subscriptionInfo.expirationDate);
+        
+        if (activation > expiration) {
+            problems.push({
+                type: 'DATE_ORDER',
+                message: `Дата активации (${subscriptionInfo.activationDate}) позже даты окончания (${subscriptionInfo.expirationDate})`,
+                recommendation: 'Проверить корректность дат'
+            });
+        }
+    }
+    
+    return { problems };
+}
+
+// Рекомендации для проблемных случаев
+function getRecommendationForProblems(problems) {
+    const recommendations = [];
+    
+    problems.forEach(problem => {
+        switch (problem.type) {
+            case 'TOTAL_CLASSES_MISMATCH':
+                recommendations.push('Исправить парсинг поля "Абонемент занятий:"');
+                break;
+            case 'REMAINING_CLASSES_MISMATCH':
+                recommendations.push('Проверить логику расчета остатка занятий');
+                break;
+            case 'DATA_INTEGRITY':
+                recommendations.push('Пересчитать used_classes и remaining_classes');
+                break;
+        }
+    });
+    
+    return [...new Set(recommendations)].join('; ');
+}
+    
     async checkSubscriptionPipeline() {
         try {
             const pipelines = await this.makeRequest('GET', '/api/v4/leads/pipelines');
@@ -3073,6 +3199,382 @@ app.get('/api/debug/final-check/:phone/:studentName', async (req, res) => {
     }
 });
 
+// ==================== УНИВЕРСАЛЬНЫЙ АНАЛИЗ ВСЕХ АБОНЕМЕНТОВ В СИСТЕМЕ ====================
+app.get('/api/debug/all-subscriptions-analysis', async (req, res) => {
+    try {
+        console.log('\n🔍 УНИВЕРСАЛЬНЫЙ АНАЛИЗ ВСЕХ АБОНЕМЕНТОВ В СИСТЕМЕ');
+        console.log('='.repeat(100));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        const startTime = Date.now();
+        const analysis = {
+            timestamp: new Date().toISOString(),
+            total_leads_analyzed: 0,
+            subscription_patterns: [],
+            field_variations: {},
+            lead_naming_patterns: [],
+            status_distribution: {},
+            problems_detected: [],
+            recommendations: []
+        };
+        
+        // 1. ПОЛУЧАЕМ ВСЕ СДЕЛКИ ИЗ ВОРОНКИ АБОНЕМЕНТОВ
+        console.log('\n📊 ШАГ 1: Получение всех сделок из воронки абонементов...');
+        
+        let page = 1;
+        const limit = 250;
+        let allLeads = [];
+        
+        while (true) {
+            try {
+                const response = await amoCrmService.makeRequest(
+                    'GET',
+                    `/api/v4/leads?with=custom_fields_values&page=${page}&limit=${limit}&filter[pipeline_id][]=${amoCrmService.SUBSCRIPTION_PIPELINE_ID}`
+                );
+                
+                const leads = response._embedded?.leads || [];
+                if (leads.length === 0) break;
+                
+                allLeads = [...allLeads, ...leads];
+                console.log(`   📄 Страница ${page}: ${leads.length} сделок`);
+                
+                if (leads.length < limit) break;
+                page++;
+                
+                if (page > 10) { // Ограничиваем 2500 сделок для анализа
+                    console.log(`   ⚠️  Ограничение: проанализировано 2500 сделок`);
+                    break;
+                }
+                
+            } catch (error) {
+                console.error(`   ❌ Ошибка страницы ${page}:`, error.message);
+                break;
+            }
+        }
+        
+        analysis.total_leads_analyzed = allLeads.length;
+        console.log(`✅ Всего сделок в воронке: ${allLeads.length}`);
+        
+        // 2. АНАЛИЗИРУЕМ КАЖДУЮ СДЕЛКУ
+        console.log('\n📊 ШАГ 2: Анализ структуры каждой сделки...');
+        
+        for (let i = 0; i < Math.min(allLeads.length, 100); i++) { // Анализируем первые 100 сделок для скорости
+            const lead = allLeads[i];
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            
+            if (!subscriptionInfo.hasSubscription) continue;
+            
+            const customFields = lead.custom_fields_values || [];
+            
+            // Анализируем КАК хранятся данные
+            const fieldPattern = {
+                lead_id: lead.id,
+                lead_name: lead.name,
+                status_id: lead.status_id,
+                subscription_info: subscriptionInfo,
+                
+                // Как заполнены КЛЮЧЕВЫЕ поля
+                fields_analysis: {},
+                
+                // Какие поля вообще есть в сделке
+                all_fields: customFields.map(f => ({
+                    id: f.field_id || f.id,
+                    name: amoCrmService.getFieldName(f),
+                    value: amoCrmService.getFieldValue(f),
+                    raw_value: f.values || []
+                })),
+                
+                // Проблемы в данных
+                data_problems: []
+            };
+            
+            // АНАЛИЗ КЛЮЧЕВЫХ ПОЛЕЙ АБОНЕМЕНТА
+            const keyFields = [
+                { id: 850241, name: 'Абонемент занятий:', key: 'total_classes' },
+                { id: 850257, name: 'Счетчик занятий:', key: 'used_classes' },
+                { id: 890163, name: 'Остаток занятий', key: 'remaining_classes' },
+                { id: 850255, name: 'Окончание абонемента:', key: 'expiration_date' },
+                { id: 851565, name: 'Дата активации абонемента:', key: 'activation_date' },
+                { id: 850259, name: 'Дата последнего визита:', key: 'last_visit_date' },
+                { id: 891007, name: 'Тип абонемента', key: 'subscription_type' },
+                { id: 867693, name: 'Заморозка абонемента:', key: 'freeze' },
+                { id: 805465, name: 'Принадлежность абонемента:', key: 'subscription_owner' }
+            ];
+            
+            for (const fieldDef of keyFields) {
+                const field = customFields.find(f => (f.field_id || f.id) === fieldDef.id);
+                
+                if (field) {
+                    const rawValue = field.values || [];
+                    const fieldValue = amoCrmService.getFieldValue(field);
+                    const parsedNumber = amoCrmService.parseNumberFromField(fieldValue);
+                    const parsedDate = amoCrmService.parseDate(fieldValue);
+                    
+                    fieldPattern.fields_analysis[fieldDef.key] = {
+                        field_id: fieldDef.id,
+                        field_name: fieldDef.name,
+                        exists: true,
+                        raw_value: rawValue,
+                        string_value: fieldValue,
+                        parsed_number: parsedNumber,
+                        parsed_date: parsedDate,
+                        field_type: amoCrmService.fieldMappings.get(fieldDef.id)?.type || 'unknown'
+                    };
+                    
+                    // Проверяем проблемы в данных
+                    if (fieldDef.key === 'total_classes' && subscriptionInfo.totalClasses !== parsedNumber) {
+                        fieldPattern.data_problems.push({
+                            type: 'TOTAL_CLASSES_MISMATCH',
+                            field_value: fieldValue,
+                            parsed: parsedNumber,
+                            system_total: subscriptionInfo.totalClasses,
+                            message: `Поле "${fieldDef.name}": "${fieldValue}" → ${parsedNumber}, но в системе: ${subscriptionInfo.totalClasses}`
+                        });
+                    }
+                    
+                    if (fieldDef.key === 'remaining_classes' && subscriptionInfo.remainingClasses !== parsedNumber) {
+                        fieldPattern.data_problems.push({
+                            type: 'REMAINING_CLASSES_MISMATCH',
+                            field_value: fieldValue,
+                            parsed: parsedNumber,
+                            system_remaining: subscriptionInfo.remainingClasses,
+                            message: `Поле "${fieldDef.name}": "${fieldValue}" → ${parsedNumber}, но в системе: ${subscriptionInfo.remainingClasses}`
+                        });
+                    }
+                    
+                } else {
+                    fieldPattern.fields_analysis[fieldDef.key] = {
+                        field_id: fieldDef.id,
+                        field_name: fieldDef.name,
+                        exists: false,
+                        message: 'Поле отсутствует в сделке'
+                    };
+                }
+            }
+            
+            // Анализ названия сделки
+            const namePattern = this.analyzeLeadNamePattern(lead.name);
+            fieldPattern.name_pattern = namePattern;
+            
+            // Проверка целостности данных
+            const integrityCheck = this.checkDataIntegrity(subscriptionInfo, fieldPattern.fields_analysis);
+            if (integrityCheck.problems.length > 0) {
+                fieldPattern.data_problems.push(...integrityCheck.problems);
+            }
+            
+            // Добавляем в анализ
+            analysis.subscription_patterns.push(fieldPattern);
+            
+            // Собираем статистику по статусам
+            const statusKey = `${lead.status_id}`;
+            analysis.status_distribution[statusKey] = (analysis.status_distribution[statusKey] || 0) + 1;
+            
+            // Собираем статистику по названиям
+            if (namePattern.pattern) {
+                const patternKey = namePattern.pattern;
+                if (!analysis.lead_naming_patterns.find(p => p.pattern === patternKey)) {
+                    analysis.lead_naming_patterns.push({
+                        pattern: patternKey,
+                        example: lead.name,
+                        count: 1
+                    });
+                } else {
+                    const pattern = analysis.lead_naming_patterns.find(p => p.pattern === patternKey);
+                    pattern.count++;
+                }
+            }
+        }
+        
+        // 3. АНАЛИЗ РАЗНЫХ ВАРИАНТОВ ХРАНЕНИЯ ДАННЫХ
+        console.log('\n📊 ШАГ 3: Анализ вариантов хранения данных...');
+        
+        // Группируем по паттернам заполнения полей
+        const fieldPatternGroups = {};
+        
+        analysis.subscription_patterns.forEach(pattern => {
+            const key = this.getFieldPatternKey(pattern.fields_analysis);
+            
+            if (!fieldPatternGroups[key]) {
+                fieldPatternGroups[key] = {
+                    pattern_key: key,
+                    examples: [],
+                    field_config: pattern.fields_analysis,
+                    count: 0
+                };
+            }
+            
+            fieldPatternGroups[key].examples.push({
+                lead_id: pattern.lead_id,
+                lead_name: pattern.lead_name,
+                data_problems: pattern.data_problems
+            });
+            fieldPatternGroups[key].count++;
+        });
+        
+        // Преобразуем в массив и сортируем
+        analysis.field_variations = Object.values(fieldPatternGroups)
+            .sort((a, b) => b.count - a.count);
+        
+        // 4. ВЫЯВЛЯЕМ ПРОБЛЕМНЫЕ СЛУЧАИ
+        console.log('\n📊 ШАГ 4: Выявление проблемных случаев...');
+        
+        analysis.subscription_patterns.forEach(pattern => {
+            if (pattern.data_problems.length > 0) {
+                analysis.problems_detected.push({
+                    lead_id: pattern.lead_id,
+                    lead_name: pattern.lead_name,
+                    problems: pattern.data_problems,
+                    recommendation: this.getRecommendationForProblems(pattern.data_problems)
+                });
+            }
+        });
+        
+        // 5. ГЕНЕРИРУЕМ РЕКОМЕНДАЦИИ
+        console.log('\n📊 ШАГ 5: Генерация рекомендаций...');
+        
+        // Анализ распределения полей
+        const fieldStats = {};
+        analysis.subscription_patterns.forEach(pattern => {
+            Object.entries(pattern.fields_analysis).forEach(([key, field]) => {
+                if (!fieldStats[key]) {
+                    fieldStats[key] = { exists: 0, missing: 0, total: 0 };
+                }
+                
+                if (field.exists) {
+                    fieldStats[key].exists++;
+                } else {
+                    fieldStats[key].missing++;
+                }
+                fieldStats[key].total++;
+            });
+        });
+        
+        // Рекомендации по полям
+        Object.entries(fieldStats).forEach(([key, stats]) => {
+            const percentage = Math.round((stats.exists / stats.total) * 100);
+            
+            if (percentage < 80) {
+                analysis.recommendations.push({
+                    type: 'FIELD_COVERAGE',
+                    field: key,
+                    coverage: `${percentage}%`,
+                    recommendation: `Поле заполнено только в ${percentage}% сделок. Рассмотреть альтернативные поля.`
+                });
+            }
+        });
+        
+        // Рекомендации по парсингу
+        const parsingProblems = analysis.problems_detected.filter(p => 
+            p.problems.some(prob => prob.type.includes('MISMATCH'))
+        );
+        
+        if (parsingProblems.length > 0) {
+            analysis.recommendations.push({
+                type: 'PARSING_ISSUE',
+                count: parsingProblems.length,
+                recommendation: `Обнаружено ${parsingProblems.length} проблем с парсингом полей. Проверить логику parseNumberFromField() и getFieldValue().`
+            });
+        }
+        
+        // 6. ВЫВОД РЕЗУЛЬТАТОВ В КОНСОЛЬ
+        console.log('\n' + '='.repeat(100));
+        console.log('📈 ИТОГИ АНАЛИЗА');
+        console.log('='.repeat(100));
+        
+        console.log(`📊 Всего проанализировано сделок: ${analysis.total_leads_analyzed}`);
+        console.log(`📊 Уникальных паттернов заполнения: ${analysis.field_variations.length}`);
+        console.log(`🚨 Проблемных сделок: ${analysis.problems_detected.length}`);
+        
+        console.log('\n📋 РАСПРЕДЕЛЕНИЕ ПО СТАТУСАМ:');
+        Object.entries(analysis.status_distribution).forEach(([statusId, count]) => {
+            const percentage = Math.round((count / analysis.subscription_patterns.length) * 100);
+            console.log(`   • Статус ${statusId}: ${count} сделок (${percentage}%)`);
+        });
+        
+        console.log('\n🏷️  ПАТТЕРНЫ НАЗВАНИЙ СДЕЛОК:');
+        analysis.lead_naming_patterns
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10)
+            .forEach(pattern => {
+                const percentage = Math.round((pattern.count / analysis.subscription_patterns.length) * 100);
+                console.log(`   • "${pattern.pattern}": ${pattern.count} сделок (${percentage}%)`);
+                console.log(`     Пример: "${pattern.example}"`);
+            });
+        
+        console.log('\n🔧 ВАРИАНТЫ ЗАПОЛНЕНИЯ ПОЛЕЙ (Топ-5):');
+        analysis.field_variations.slice(0, 5).forEach((variation, index) => {
+            const percentage = Math.round((variation.count / analysis.subscription_patterns.length) * 100);
+            console.log(`\n${index + 1}. Паттерн ${variation.pattern_key} (${variation.count} сделок, ${percentage}%):`);
+            
+            Object.entries(variation.field_config).forEach(([key, field]) => {
+                if (field.exists) {
+                    const examples = variation.examples.slice(0, 2).map(e => e.lead_name);
+                    console.log(`   • ${key}: ЗАПОЛНЕНО (${field.field_name})`);
+                    if (examples.length > 0) {
+                        console.log(`     Примеры: ${examples.join(', ')}`);
+                    }
+                }
+            });
+        });
+        
+        console.log('\n🚨 ПРОБЛЕМЫ В ДАННЫХ:');
+        if (analysis.problems_detected.length === 0) {
+            console.log('   ✅ Проблем не обнаружено');
+        } else {
+            analysis.problems_detected.slice(0, 10).forEach((problem, index) => {
+                console.log(`\n${index + 1}. "${problem.lead_name}" (ID: ${problem.lead_id}):`);
+                problem.problems.forEach(prob => {
+                    console.log(`   • ${prob.message}`);
+                });
+                if (problem.recommendation) {
+                    console.log(`   💡 Рекомендация: ${problem.recommendation}`);
+                }
+            });
+        }
+        
+        console.log('\n💡 РЕКОМЕНДАЦИИ:');
+        analysis.recommendations.forEach((rec, index) => {
+            console.log(`${index + 1}. ${rec.recommendation}`);
+        });
+        
+        const duration = Date.now() - startTime;
+        console.log(`\n⏱️  Время выполнения: ${duration}ms`);
+        console.log('='.repeat(100));
+        
+        res.json({
+            success: true,
+            message: 'Универсальный анализ всех абонементов выполнен',
+            timestamp: analysis.timestamp,
+            data: {
+                summary: {
+                    total_leads_analyzed: analysis.total_leads_analyzed,
+                    field_variations_count: analysis.field_variations.length,
+                    problems_detected: analysis.problems_detected.length,
+                    execution_time_ms: duration
+                },
+                field_variations: analysis.field_variations,
+                problems_detected: analysis.problems_detected,
+                recommendations: analysis.recommendations,
+                status_distribution: analysis.status_distribution,
+                lead_naming_patterns: analysis.lead_naming_patterns
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка универсального анализа:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // ==================== ЭКСТРЕННЫЙ ПОИСК ИВАНА ЮРЛОВА ====================
 app.get('/api/find-ivan-yurlov', async (req, res) => {
     try {
@@ -3685,6 +4187,138 @@ app.get('/api/emergency-test/:leadId', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка экстренного теста:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== АНАЛИЗ ВАРИАНТОВ ДЛЯ КОНКРЕТНОГО УЧЕНИКА ====================
+app.get('/api/debug/student-subscription-variations/:studentName', async (req, res) => {
+    try {
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n🔍 АНАЛИЗ ВАРИАНТОВ ДЛЯ УЧЕНИКА: ${studentName}`);
+        console.log('='.repeat(100));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.status(503).json({
+                success: false,
+                error: 'amoCRM не инициализирован'
+            });
+        }
+        
+        // Ищем все сделки с именем ученика
+        const searchResponse = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads?query=${encodeURIComponent(studentName)}&with=custom_fields_values&limit=100`
+        );
+        
+        const leads = searchResponse._embedded?.leads || [];
+        
+        const analysis = {
+            student_name: studentName,
+            total_leads_found: leads.length,
+            leads_in_subscription_pipeline: 0,
+            subscription_variations: [],
+            field_value_examples: {},
+            recommendations: []
+        };
+        
+        // Анализируем каждую сделку
+        leads.forEach(lead => {
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            const customFields = lead.custom_fields_values || [];
+            
+            const isInSubscriptionPipeline = lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID;
+            if (isInSubscriptionPipeline) {
+                analysis.leads_in_subscription_pipeline++;
+            }
+            
+            // Собираем ВСЕ значения ключевых полей
+            const keyFields = [
+                { id: 850241, name: 'Абонемент занятий:' },
+                { id: 850257, name: 'Счетчик занятий:' },
+                { id: 890163, name: 'Остаток занятий' },
+                { id: 850255, name: 'Окончание абонемента:' },
+                { id: 851565, name: 'Дата активации абонемента:' }
+            ];
+            
+            keyFields.forEach(fieldDef => {
+                const field = customFields.find(f => (f.field_id || f.id) === fieldDef.id);
+                if (field) {
+                    const value = amoCrmService.getFieldValue(field);
+                    
+                    if (!analysis.field_value_examples[fieldDef.id]) {
+                        analysis.field_value_examples[fieldDef.id] = {
+                            field_name: fieldDef.name,
+                            values: new Set(),
+                            examples: []
+                        };
+                    }
+                    
+                    analysis.field_value_examples[fieldDef.id].values.add(value);
+                    analysis.field_value_examples[fieldDef.id].examples.push({
+                        lead_name: lead.name,
+                        value: value,
+                        parsed: amoCrmService.parseNumberFromField(value)
+                    });
+                }
+            });
+            
+            // Добавляем информацию о сделке
+            analysis.subscription_variations.push({
+                lead_id: lead.id,
+                lead_name: lead.name,
+                pipeline_id: lead.pipeline_id,
+                status_id: lead.status_id,
+                is_in_subscription_pipeline: isInSubscriptionPipeline,
+                subscription_info: subscriptionInfo,
+                custom_fields_count: customFields.length
+            });
+        });
+        
+        // Вывод в консоль
+        console.log(`📊 Найдено сделок: ${analysis.total_leads_found}`);
+        console.log(`📊 В воронке абонементов: ${analysis.leads_in_subscription_pipeline}`);
+        
+        console.log('\n🔧 ВАРИАНТЫ ЗНАЧЕНИЙ ПОЛЕЙ:');
+        Object.entries(analysis.field_value_examples).forEach(([fieldId, data]) => {
+            console.log(`\n📋 ${data.field_name} (ID: ${fieldId}):`);
+            console.log(`   Уникальных значений: ${data.values.size}`);
+            data.values.forEach(value => {
+                const examples = data.examples
+                    .filter(e => e.value === value)
+                    .slice(0, 3)
+                    .map(e => `"${e.lead_name}" → ${e.parsed}`);
+                
+                console.log(`   • "${value}"`);
+                if (examples.length > 0) {
+                    console.log(`     Примеры: ${examples.join(', ')}`);
+                }
+            });
+        });
+        
+        // Рекомендации
+        Object.entries(analysis.field_value_examples).forEach(([fieldId, data]) => {
+            if (data.values.size > 5) {
+                analysis.recommendations.push({
+                    field: data.field_name,
+                    issue: `Много разных форматов (${data.values.size})`,
+                    recommendation: 'Унифицировать формат заполнения поля'
+                });
+            }
+        });
+        
+        res.json({
+            success: true,
+            message: `Анализ вариантов для ученика ${studentName} выполнен`,
+            data: analysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа вариантов:', error.message);
         res.status(500).json({
             success: false,
             error: error.message
