@@ -1375,7 +1375,21 @@ async findLeadForStudent(contactId, studentName) {
                 console.log(`      ✅ НОВЫЙ ЛУЧШИЙ ВЫБОР!`);
             }
         }
+         if (bestLead) {
+        console.log(`\n   🏆 ВЫБРАНА СДЕЛКА: "${bestLead.name}"`);
+        console.log(`      • Баллы: ${bestScore}`);
+        console.log(`      • Статус: ${bestLeadInfo.subscriptionStatus}`);
         
+        // 🔥 ВАЖНО: Возвращаем и сделку, и информацию об абонементе
+        return {
+            lead: bestLead,
+            subscriptionInfo: bestLeadInfo,
+            score: bestScore
+        };
+    }
+    
+    return null;
+}
         if (bestLead) {
             console.log(`\n   🏆 ВЫБРАНА СДЕЛКА: "${bestLead.name}"`);
             console.log(`      • Баллы: ${bestScore}`);
@@ -1645,96 +1659,95 @@ async getStudentsByPhone(phoneNumber) {
                     continue;
                 }
                 
-                // 3. Для каждого ученика ищем сделку
-                for (const child of children) {
-                    console.log(`\n🎯 Поиск сделки для ученика: "${child.studentName}"`);
-                    
-                    // Ищем лучшую сделку для ученика
-                    let bestLead = await this.findLeadForStudent(contact.id, child.studentName);
-                    
-                    // 🔥 ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если сделка не найдена или не совпадает по имени
-                    if (!bestLead || !this.checkIfLeadBelongsToStudent(bestLead.name || '', child.studentName)) {
-                        console.log(`   🔍 Поиск сделки с точным совпадением имени...`);
-                        
-                        // Ищем все сделки контакта
-                        const allLeads = await this.getContactLeadsSorted(contact.id);
-                        
-                        // Ищем сделки с точным совпадением имени
-                        const exactNameMatches = allLeads.filter(lead => {
-                            const leadName = lead.name || '';
-                            return leadName.toLowerCase().includes(child.studentName.toLowerCase()) ||
-                                   child.studentName.toLowerCase().includes(leadName.toLowerCase());
-                        });
-                        
-                        if (exactNameMatches.length > 0) {
-                            console.log(`   ✅ Найдено ${exactNameMatches.length} сделок с точным совпадением имени`);
-                            
-                            // Выбираем самую свежую сделку с абонементом
-                            for (const lead of exactNameMatches) {
-                                const info = this.extractSubscriptionInfo(lead);
-                                if (info.hasSubscription) {
-                                    bestLead = lead;
-                                    console.log(`   🎯 Выбрана сделка с точным совпадением: "${lead.name}"`);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    
-                    if (bestLead) {
-                        // Получаем информацию об абонементе
-                        const subscriptionInfo = this.extractSubscriptionInfo(bestLead);
-                        
-                        // Проверяем, что сделка действительно принадлежит ученику
-                        const leadBelongsToStudent = this.checkIfLeadBelongsToStudent(
-                            bestLead.name || '', 
-                            child.studentName
-                        );
-                        
-                        if (!leadBelongsToStudent) {
-                            console.log(`   ⚠️  ВНИМАНИЕ: Сделка "${bestLead.name}" не совпадает с учеником "${child.studentName}"`);
-                        }
-                        
-                        // Создаем профиль
-                        const profile = this.createStudentProfile(
-                            fullContact,
-                            phoneNumber,
-                            child,
-                            subscriptionInfo,
-                            bestLead
-                        );
-                        
-                        studentProfiles.push(profile);
-                        console.log(`✅ Профиль создан: ${child.studentName}`);
-                    } else {
-                        console.log(`⚠️  Для ученика "${child.studentName}" не найдено подходящей сделки`);
-                        
-                        // Создаем профиль без абонемента
-                        const profile = this.createStudentProfile(
-                            fullContact,
-                            phoneNumber,
-                            child,
-                            {
-                                hasSubscription: false,
-                                totalClasses: 0,
-                                usedClasses: 0,
-                                remainingClasses: 0,
-                                subscriptionType: '',
-                                subscriptionActive: false,
-                                activationDate: null,
-                                expirationDate: null,
-                                lastVisitDate: null,
-                                subscriptionStatus: 'Нет абонемента',
-                                subscriptionBadge: 'inactive',
-                                isFrozen: false
-                            },
-                            null
-                        );
-                        
-                        studentProfiles.push(profile);
-                    }
-                }
-                
+// В цикле обработки детей:
+for (const child of children) {
+    console.log(`\n🎯 Поиск сделки для ученика: "${child.studentName}"`);
+    
+    // Ищем лучшую сделку для ученика
+    const leadResult = await this.findLeadForStudent(contact.id, child.studentName);
+    
+    if (leadResult && leadResult.lead) {
+        const bestLead = leadResult.lead;
+        const subscriptionInfo = leadResult.subscriptionInfo; // 🔥 Используем информацию из результата
+        
+        console.log(`✅ Выбрана сделка: "${bestLead.name}"`);
+        console.log(`📊 ${subscriptionInfo.remainingClasses}/${subscriptionInfo.totalClasses} занятий`);
+        
+        // Проверяем, что сделка действительно принадлежит ученику
+        const leadBelongsToStudent = this.checkIfLeadBelongsToStudent(
+            bestLead.name || '', 
+            child.studentName
+        );
+        
+        if (!leadBelongsToStudent) {
+            console.log(`⚠️  ВНИМАНИЕ: Сделка "${bestLead.name}" не совпадает с учеником "${child.studentName}"`);
+        }
+        
+        // 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем subscriptionInfo из результата, а не пересчитываем
+        const profile = this.createStudentProfile(
+            fullContact,
+            phoneNumber,
+            child,
+            subscriptionInfo, // 🔥 Используем уже вычисленную информацию
+            bestLead
+        );
+        
+        studentProfiles.push(profile);
+    } else {
+        console.log(`⚠️  Для ученика "${child.studentName}" не найдено подходящей сделки`);
+        
+        // Создаем профиль без абонемента
+        const profile = this.createStudentProfile(
+            fullContact,
+            phoneNumber,
+            child,
+            {
+                hasSubscription: false,
+                totalClasses: 0,
+                usedClasses: 0,
+                remainingClasses: 0,
+                subscriptionType: '',
+                subscriptionActive: false,
+                activationDate: null,
+                expirationDate: null,
+                lastVisitDate: null,
+                subscriptionStatus: 'Нет абонемента',
+                subscriptionBadge: 'inactive',
+                isFrozen: false
+            },
+            null
+        );
+        
+        studentProfiles.push(profile);
+    }
+}
+                // После создания профиля добавьте проверку:
+if (bestLead && subscriptionInfo) {
+    console.log(`\n🔍 ПРОВЕРКА СОЗДАННОГО ПРОФИЛЯ:`);
+    console.log(`   👤 Ученик: ${child.studentName}`);
+    console.log(`   📋 Сделка: "${bestLead.name}"`);
+    console.log(`   🎯 Абонемент: ${subscriptionInfo.subscriptionStatus}`);
+    console.log(`   📊 Занятий: ${subscriptionInfo.totalClasses} (ожидалось 4)`);
+    
+    // Проверяем, что выбрана правильная сделка
+    if (!bestLead.name.includes(child.studentName) && subscriptionInfo.totalClasses !== 4) {
+        console.log(`🚨 КРИТИЧЕСКАЯ ОШИБКА: Выбрана неверная сделка!`);
+        console.log(`   Ученик: ${child.studentName}`);
+        console.log(`   Сделка: "${bestLead.name}"`);
+        console.log(`   Занятий: ${subscriptionInfo.totalClasses} (должно быть 4)`);
+        
+        // Ищем сделки с точным совпадением имени
+        console.log(`   🔍 Поиск альтернативных сделок...`);
+        const allLeads = await this.getContactLeadsSorted(contact.id);
+        const exactMatches = allLeads.filter(l => 
+            l.name.toLowerCase().includes(child.studentName.toLowerCase())
+        );
+        
+        if (exactMatches.length > 0) {
+            console.log(`   ✅ Найдено ${exactMatches.length} сделок с точным совпадением`);
+            // Пересоздаем профиль с правильной сделкой
+        }
+    }
             } catch (contactError) {
                 console.error(`❌ Ошибка обработки контакта ${contact.id}:`, contactError.message);
             }
@@ -1791,7 +1804,11 @@ async getContactLeadsCount(contactId) {
         }
     }
 
-    createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
+   createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
+    console.log(`\n📊 СОЗДАНИЕ ПРОФИЛЯ ДЛЯ: ${studentInfo.studentName}`);
+    console.log(`   🎫 Абонемент: ${subscriptionInfo.subscriptionStatus}`);
+    console.log(`   📊 Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses} (осталось: ${subscriptionInfo.remainingClasses})`);
+    console.log(`   📋 Сделка: ${lead ? lead.name : 'Нет сделки'}`);
         const email = studentInfo.email || this.findEmail(contact);
         
         const formatDisplayDate = (dateStr) => {
@@ -3799,6 +3816,86 @@ app.get('/api/find-correct-contact/:studentName', async (req, res) => {
             success: false,
             error: error.message
         });
+    }
+});
+
+app.get('/api/debug/final-check/:phone/:studentName', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n🔍 ФИНАЛЬНАЯ ПРОВЕРКА: ${studentName} (${phone})`);
+        
+        // Получаем контакты
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        if (contacts.length === 0) {
+            return res.json({ success: false, error: 'Контакты не найдены' });
+        }
+        
+        const contact = contacts[0];
+        console.log(`📞 Контакт: "${contact.name}" (ID: ${contact.id})`);
+        
+        // Получаем лучшую сделку
+        const leadResult = await amoCrmService.findLeadForStudent(contact.id, studentName);
+        
+        if (!leadResult || !leadResult.lead) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        // Получаем данные ученика
+        const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+        const children = amoCrmService.extractStudentsFromContact(fullContact);
+        const child = children.find(c => c.studentName.includes(studentName));
+        
+        if (!child) {
+            return res.json({ success: false, error: 'Ученик не найден в контакте' });
+        }
+        
+        // Создаем профиль
+        const profile = amoCrmService.createStudentProfile(
+            fullContact,
+            phone,
+            child,
+            leadResult.subscriptionInfo,
+            leadResult.lead
+        );
+        
+        console.log(`\n📊 ИТОГОВЫЙ ПРОФИЛЬ:`);
+        console.log(`   👤 ${profile.student_name}`);
+        console.log(`   📋 Сделка: "${leadResult.lead.name}"`);
+        console.log(`   🎫 Абонемент: ${profile.subscription_status}`);
+        console.log(`   📊 Занятий: ${profile.total_classes} всего, ${profile.remaining_classes} осталось`);
+        console.log(`   ✅ Активен: ${profile.subscription_active === 1 ? 'Да' : 'Нет'}`);
+        
+        res.json({
+            success: true,
+            data: {
+                contact: { id: contact.id, name: contact.name },
+                student: child.studentName,
+                selected_lead: {
+                    id: leadResult.lead.id,
+                    name: leadResult.lead.name,
+                    pipeline_id: leadResult.lead.pipeline_id,
+                    status_id: leadResult.lead.status_id
+                },
+                subscription_info: leadResult.subscriptionInfo,
+                profile: {
+                    student_name: profile.student_name,
+                    branch: profile.branch,
+                    subscription_status: profile.subscription_status,
+                    total_classes: profile.total_classes,
+                    remaining_classes: profile.remaining_classes,
+                    used_classes: profile.used_classes,
+                    subscription_active: profile.subscription_active
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
