@@ -1015,6 +1015,8 @@ class AmoCrmService {
         }
     }
 
+// ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ АНАЛИЗА ====================
+
 // Анализ паттерна названия сделки
 function analyzeLeadNamePattern(leadName) {
     const patterns = [
