@@ -1,4 +1,4 @@
-// server.js - ИСПРАВЛЕННАЯ ВЕРСИЯ v2.1
+// server.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -54,8 +54,7 @@ app.use((req, res, next) => {
 class AmoCrmService {
     constructor() {
         console.log('\n' + '='.repeat(80));
-        console.log('🔄 ИНИЦИАЛИЗАЦИЯ AmoCrmService v2.1');
-        console.log('📌 СТРОГАЯ ЛОГИКА СОПОСТАВЛЕНИЯ УЧЕНИКОВ СО СДЕЛКАМИ');
+        console.log('🔄 ИНИЦИАЛИЗАЦИЯ AmoCrmService v2.0');
         console.log('='.repeat(80));
         
         this.baseUrl = `https://${AMOCRM_SUBDOMAIN}.amocrm.ru`;
@@ -758,194 +757,6 @@ class AmoCrmService {
         }
     }
 
-    // ==================== СТРОГИЙ МЕТОД ПРОВЕРКИ ПРИНАДЛЕЖНОСТИ СДЕЛКИ ====================
-    checkIfLeadBelongsToStudent(leadName, studentName) {
-        if (!leadName || !studentName) return false;
-        
-        console.log(`\n🔍 СТРОГОЕ СОПОСТАВЛЕНИЕ:`);
-        console.log(`   Ученик: "${studentName}"`);
-        console.log(`   Сделка: "${leadName}"`);
-        
-        const cleanLeadName = leadName.toLowerCase().trim();
-        const cleanStudentName = studentName.toLowerCase().trim();
-        
-        // 1. Полное имя ученика должно быть в названии сделки
-        if (cleanLeadName.includes(cleanStudentName)) {
-            console.log(`   ✅ Прямое вхождение: имя ученика найдено в названии сделки`);
-            return true;
-        }
-        
-        // 2. Разбиваем имена на части
-        const studentParts = cleanStudentName.split(/\s+/).filter(part => part.length > 2);
-        const leadParts = cleanLeadName.split(/\s+/).filter(part => part.length > 2);
-        
-        console.log(`   Части имени ученика: ${studentParts.join(', ')}`);
-        console.log(`   Части названия сделки: ${leadParts.join(', ')}`);
-        
-        // 3. Проверяем каждую часть имени ученика
-        let exactMatches = 0;
-        
-        for (const studentPart of studentParts) {
-            // Ищем точное вхождение части в любом слове названия сделки
-            const foundExact = leadParts.some(leadPart => 
-                leadPart === studentPart || 
-                leadPart.startsWith(studentPart) || 
-                leadPart.includes(studentPart)
-            );
-            
-            if (foundExact) {
-                exactMatches++;
-                console.log(`   ✅ Найдена часть "${studentPart}" в названии сделки`);
-            } else {
-                console.log(`   ❌ Часть "${studentPart}" не найдена в названии сделки`);
-            }
-        }
-        
-        // Требуем совпадение ВСЕХ частей имени
-        const allPartsMatch = exactMatches === studentParts.length && studentParts.length > 0;
-        
-        console.log(`   📊 Результат: ${exactMatches}/${studentParts.length} частей совпало`);
-        console.log(`   🎯 Итог: ${allPartsMatch ? '✅ ПРИНАДЛЕЖИТ' : '❌ НЕ ПРИНАДЛЕЖИТ'}`);
-        
-        return allPartsMatch;
-    }
-
-    // ==================== УМНЫЙ МЕТОД ПРОВЕРКИ С УЧЕТОМ РАЗНЫХ ФОРМАТОВ ====================
-    checkIfLeadBelongsToStudentV2(leadName, studentName) {
-        console.log(`\n🎯 УМНОЕ СОПОСТАВЛЕНИЕ: "${studentName}" ↔ "${leadName}"`);
-        
-        const patterns = [
-            // Паттерн 1: "Имя Фамилия - N занятий"
-            {
-                regex: /^([А-Яа-яЁё\s]+?)\s*-\s*\d+/,
-                extractName: (match) => match[1].trim(),
-                description: 'Имя перед дефисом с числом'
-            },
-            // Паттерн 2: "Имя Фамилия" в начале
-            {
-                regex: /^([А-Яа-яЁё\s]+?)(?=\s+-|\s+\(|\s+\d|$)/,
-                extractName: (match) => match[1].trim(),
-                description: 'Имя в начале строки'
-            },
-            // Паттерн 3: "Фамилия Имя" (часто используется в скобках)
-            {
-                regex: /[\(\[]([А-Яа-яЁё\s]+)[\)\]]/,
-                extractName: (match) => match[1].trim(),
-                description: 'Имя в скобках'
-            }
-        ];
-        
-        // Нормализуем имена для сравнения
-        const normalizeName = (name) => {
-            return name.toLowerCase()
-                .replace(/ё/g, 'е')
-                .replace(/[^а-яе\s]/g, '')
-                .trim();
-        };
-        
-        const normalizedStudent = normalizeName(studentName);
-        console.log(`   👤 Нормализованное имя ученика: "${normalizedStudent}"`);
-        
-        // Пытаемся извлечь имя из названия сделки
-        let extractedName = '';
-        
-        for (const pattern of patterns) {
-            const match = leadName.match(pattern.regex);
-            if (match) {
-                extractedName = pattern.extractName(match);
-                console.log(`   🔍 По паттерну "${pattern.description}": "${extractedName}"`);
-                
-                const normalizedExtracted = normalizeName(extractedName);
-                
-                // Сравниваем нормализованные имена
-                if (normalizedExtracted === normalizedStudent) {
-                    console.log(`   ✅ ТОЧНОЕ СОВПАДЕНИЕ!`);
-                    return true;
-                }
-                
-                // Проверяем по частям
-                const studentParts = normalizedStudent.split(/\s+/);
-                const extractedParts = normalizedExtracted.split(/\s+/);
-                
-                let matchedParts = 0;
-                
-                for (const studentPart of studentParts) {
-                    if (studentPart.length < 2) continue;
-                    
-                    for (const extractedPart of extractedParts) {
-                        if (extractedPart.includes(studentPart) || studentPart.includes(extractedPart)) {
-                            matchedParts++;
-                            break;
-                        }
-                    }
-                }
-                
-                const matchThreshold = Math.ceil(studentParts.length * 0.8); // 80% совпадение
-                if (matchedParts >= matchThreshold && studentParts.length > 0) {
-                    console.log(`   ✅ ЧАСТИЧНОЕ СОВПАДЕНИЕ: ${matchedParts}/${studentParts.length} частей`);
-                    return true;
-                }
-            }
-        }
-        
-        // Если не нашли паттерн, используем простой поиск
-        const leadNameLower = leadName.toLowerCase();
-        const studentNameLower = studentName.toLowerCase();
-        
-        // Только если имя ученика ДЕЙСТВИТЕЛЬНО содержится в названии
-        if (leadNameLower.includes(studentNameLower)) {
-            console.log(`   ✅ Прямое вхождение`);
-            return true;
-        }
-        
-        console.log(`   ❌ Нет совпадения`);
-        return false;
-    }
-
-    // ==================== ФИЛЬТРАЦИЯ АДМИНИСТРАТИВНЫХ СДЕЛОК ====================
-    filterAdministrativeLeads(leads) {
-        console.log(`\n🚫 ФИЛЬТРАЦИЯ АДМИНИСТРАТИВНЫХ СДЕЛОК`);
-        
-        const filteredLeads = leads.filter(lead => {
-            const leadName = lead.name || '';
-            const lowerName = leadName.toLowerCase();
-            
-            // 1. Пропускаем сделки без абонемента
-            const subscriptionInfo = this.extractSubscriptionInfo(lead);
-            if (!subscriptionInfo.hasSubscription) {
-                console.log(`   ⏭️  Пропущено (нет абонемента): "${leadName.substring(0, 50)}..."`);
-                return false;
-            }
-            
-            // 2. Оставляем только сделки с активными или почти активными абонементами
-            if (!subscriptionInfo.subscriptionActive && subscriptionInfo.remainingClasses <= 0) {
-                console.log(`   ⏭️  Пропущено (неактивный): "${leadName.substring(0, 50)}..."`);
-                return false;
-            }
-            
-            // 3. Проверяем, не содержит ли сделка много имен
-            // (как "Вероника Блутштейн 8 лет и Виктор Блутштейн 6 лет")
-            const namePatterns = [
-                /и\s+[А-Яа-яёЁ]+\s+[А-Яа-яёЁ]+/i, // "и Имя Фамилия"
-                /\d+\s+лет\s+и\s+\d+\s+лет/i,      // "8 лет и 6 лет"
-                /,\s*[А-Яа-яёЁ]+/i,                // Запятая между именами
-                /[А-Яа-яёЁ]+\s+[А-Яа-яёЁ]+\s+и\s+[А-Яа-яёЁ]+\s+[А-Яа-яёЁ]+/i // "Имя Фамилия и Имя Фамилия"
-            ];
-            
-            const hasMultipleNames = namePatterns.some(pattern => pattern.test(leadName));
-            if (hasMultipleNames) {
-                console.log(`   ⚠️  Множественные имена: "${leadName.substring(0, 50)}..."`);
-            }
-            
-            return true;
-        });
-        
-        console.log(`   📊 До фильтрации: ${leads.length}`);
-        console.log(`   📊 После фильтрации: ${filteredLeads.length}`);
-        
-        return filteredLeads;
-    }
-
     // ==================== ПОИСК КОНТАКТОВ И УЧЕНИКОВ ====================
     async searchContactsByPhone(phoneNumber) {
         console.log(`\n🔍 ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
@@ -1004,7 +815,6 @@ class AmoCrmService {
         }
     }
 
-    // ==================== УЛУЧШЕННЫЙ МЕТОД ИЗВЛЕЧЕНИЯ УЧЕНИКОВ ====================
     extractStudentsFromContact(contact) {
         const students = [];
         
@@ -1012,22 +822,7 @@ class AmoCrmService {
             const customFields = contact.custom_fields_values || [];
             const contactName = contact.name || '';
             
-            console.log(`\n👤 ПОИСК ДЕТЕЙ В КОНТАКТЕ: "${contactName}"`);
-            console.log(`   📊 Поля контакта: ${customFields.length}`);
-            
-            // Отладочная информация - покажем все поля
-            console.log(`   🔍 Список всех полей контакта:`);
-            customFields.forEach(field => {
-                const fieldId = field.field_id || field.id;
-                const fieldName = this.getFieldName(field);
-                const fieldValue = this.getFieldValue(field);
-                
-                // Поля детей
-                const childFieldIds = [867233, 867235, 867733];
-                if (childFieldIds.includes(fieldId)) {
-                    console.log(`      👶 ПОЛЕ РЕБЕНКА: ${fieldName} = "${fieldValue}" (ID: ${fieldId})`);
-                }
-            });
+            console.log(`\n👤 Поиск детей в контакте: "${contactName}"`);
             
             // Конфигурация полей детей
             const childrenConfig = [
@@ -1036,24 +831,24 @@ class AmoCrmService {
                 { number: 3, nameFieldId: 867733 }
             ];
             
+            // Ищем каждого ребенка
             for (const childConfig of childrenConfig) {
                 let studentName = '';
                 
+                // Ищем имя ребенка
                 for (const field of customFields) {
                     const fieldId = field.field_id || field.id;
                     const fieldValue = this.getFieldValue(field);
                     
                     if (fieldId === childConfig.nameFieldId && fieldValue && fieldValue.trim()) {
                         studentName = fieldValue.trim();
-                        console.log(`\n   🎯 НАЙДЕН РЕБЕНОК ${childConfig.number}: "${studentName}"`);
+                        console.log(`   ✅ Найден ребенок ${childConfig.number}: "${studentName}"`);
                         break;
                     }
                 }
                 
+                // Если нашли ребенка
                 if (studentName) {
-                    // Ищем дополнительные поля для этого ребенка
-                    console.log(`   🔍 Поиск данных для: "${studentName}"`);
-                    
                     const studentInfo = {
                         studentName: studentName,
                         birthDate: '',
@@ -1070,58 +865,35 @@ class AmoCrmService {
                         email: ''
                     };
                     
-                    // Ищем филиал, преподавателя и т.д.
+                    // Ищем дополнительные данные
                     for (const field of customFields) {
                         const fieldId = field.field_id || field.id;
                         const fieldValue = this.getFieldValue(field);
                         
                         if (!fieldValue) continue;
                         
-                        // Филиал
                         if (fieldId === 871273) {
                             studentInfo.branch = fieldValue;
-                            console.log(`   🏢 Филиал: ${fieldValue}`);
-                        }
-                        // Преподаватель
-                        else if (fieldId === 888881) {
+                        } else if (fieldId === 888881) {
                             studentInfo.teacherName = fieldValue;
-                            console.log(`   👩‍🏫 Преподаватель: ${fieldValue}`);
-                        }
-                        // День недели
-                        else if (fieldId === 892225) {
+                        } else if (fieldId === 892225) {
                             studentInfo.dayOfWeek = fieldValue;
-                            console.log(`   📅 День недели: ${fieldValue}`);
-                        }
-                        // Активный абонемент
-                        else if (fieldId === 890179) {
+                        } else if (fieldId === 888903) {
+                            studentInfo.ageGroup = fieldValue;
+                        } else if (fieldId === 890179) {
                             studentInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да' || 
                                                              fieldValue === '1';
-                            console.log(`   🎫 Активный абонемент: ${studentInfo.hasActiveSubscription ? 'Да' : 'Нет'}`);
-                        }
-                        // Группа возраста
-                        else if (fieldId === 888903) {
-                            studentInfo.ageGroup = fieldValue;
-                            console.log(`   📊 Возрастная группа: ${fieldValue}`);
-                        }
-                        // Аллергии
-                        else if (fieldId === 850239) {
-                            studentInfo.allergies = fieldValue;
-                            console.log(`   ⚠️  Аллергии: ${fieldValue}`);
-                        }
-                        // Email
-                        else if (fieldId === 216617 && fieldValue.includes('@')) {
-                            studentInfo.email = fieldValue;
-                            console.log(`   📧 Email: ${fieldValue}`);
-                        }
-                        // Дата рождения
-                        else if (fieldId === 850219) {
-                            studentInfo.birthDate = this.parseDate(fieldValue);
-                            console.log(`   🎂 Дата рождения: ${fieldValue}`);
-                        }
-                        // Дата последнего визита
-                        else if (fieldId === 885380) {
+                        } else if (fieldId === 885380) {
                             studentInfo.lastVisitDate = this.parseDate(fieldValue);
-                            console.log(`   📅 Последний визит: ${fieldValue}`);
+                        } else if (fieldId === 850239) {
+                            studentInfo.allergies = fieldValue;
+                        } else if (fieldId === 216617 || fieldId === 850219) {
+                            // Email или дата рождения
+                            if (fieldValue.includes('@')) {
+                                studentInfo.email = fieldValue;
+                            } else if (fieldId === 850219) {
+                                studentInfo.birthDate = this.parseDate(fieldValue);
+                            }
                         }
                     }
                     
@@ -1129,16 +901,16 @@ class AmoCrmService {
                 }
             }
             
-            console.log(`\n   📊 ИТОГО детей в контакте: ${students.length}`);
+            console.log(`📊 ИТОГО найдено детей: ${students.length}`);
             
         } catch (error) {
-            console.error('❌ Ошибка извлечения учеников:', error);
+            console.error('❌ Ошибка извлечения учеников из контакта:', error);
         }
         
         return students;
     }
 
-    // ==================== УЛУЧШЕННЫЙ ПОИСК СДЕЛОК ДЛЯ УЧЕНИКА ====================
+    // ==================== ПОИСК СДЕЛОК ДЛЯ УЧЕНИКА ====================
     async getContactLeadsSorted(contactId) {
         console.log(`\n📋 ПОЛУЧЕНИЕ СДЕЛОК КОНТАКТА: ${contactId}`);
         
@@ -1215,286 +987,167 @@ class AmoCrmService {
         }
     }
 
-    async findLeadForStudent(contactId, studentName) {
-        console.log(`\n🎯 ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА: "${studentName}"`);
+    checkIfLeadBelongsToStudent(leadName, studentName) {
+        if (!leadName || !studentName) return false;
         
-        try {
-            const allLeads = await this.getContactLeadsSorted(contactId);
-            
-            if (allLeads.length === 0) {
-                console.log(`   ❌ У контакта нет сделок`);
-                return null;
-            }
-            
-            // ФИЛЬТРУЕМ сделки
-            const filteredLeads = this.filterAdministrativeLeads(allLeads);
-            
-            // ТЕПЕРЬ ищем среди отфильтрованных сделок
-            const relevantLeads = filteredLeads.filter(lead => {
-                const belongs = this.checkIfLeadBelongsToStudentV2(lead.name || '', studentName);
-                return belongs;
-            });
-            
-            console.log(`\n   📊 Найдено релевантных сделок: ${relevantLeads.length}`);
-            
-            if (relevantLeads.length === 0) {
-                console.log(`   ❌ Не найдено сделок для ученика "${studentName}"`);
-                
-                // Последняя попытка: поиск любой сделки с активным абонементом
-                console.log(`   🔍 Последняя попытка: поиск любой активной сделки...`);
-                
-                const activeLeads = filteredLeads.filter(lead => {
-                    const info = this.extractSubscriptionInfo(lead);
-                    return info.subscriptionActive && info.remainingClasses > 0;
-                });
-                
-                if (activeLeads.length > 0) {
-                    console.log(`   ⚠️  Найдено ${activeLeads.length} активных сделок без совпадения имен`);
-                    // Возвращаем самую новую активную сделку
-                    const newestActive = activeLeads.sort((a, b) => {
-                        const dateA = new Date(a.updated_at || a.created_at || 0);
-                        const dateB = new Date(b.updated_at || b.created_at || 0);
-                        return dateB.getTime() - dateA.getTime();
-                    })[0];
-                    
-                    console.log(`   🎯 Выбрана активная сделка: "${newestActive.name}"`);
-                    return newestActive;
-                }
-                
-                return null;
-            }
-            
-            // Выбираем лучшую сделку
-            const bestLead = relevantLeads.sort((a, b) => {
-                const infoA = this.extractSubscriptionInfo(a);
-                const infoB = this.extractSubscriptionInfo(b);
-                
-                // Активные выше
-                if (infoA.subscriptionActive !== infoB.subscriptionActive) {
-                    return infoB.subscriptionActive ? 1 : -1;
-                }
-                
-                // С большим остатком выше
-                if (infoA.remainingClasses !== infoB.remainingClasses) {
-                    return infoB.remainingClasses - infoA.remainingClasses;
-                }
-                
-                // Новые выше
-                const dateA = new Date(a.updated_at || a.created_at || 0);
-                const dateB = new Date(b.updated_at || b.created_at || 0);
-                return dateB.getTime() - dateA.getTime();
-            })[0];
-            
-            const leadInfo = this.extractSubscriptionInfo(bestLead);
-            
-            console.log(`\n   ✅ НАЙДЕНА СДЕЛКА:`);
-            console.log(`       • Название: "${bestLead.name}"`);
-            console.log(`       • Статус: ${leadInfo.subscriptionStatus}`);
-            console.log(`       • Занятий: ${leadInfo.remainingClasses}/${leadInfo.totalClasses}`);
-            console.log(`       • Активен: ${leadInfo.subscriptionActive ? 'Да' : 'Нет'}`);
-            
-            return bestLead;
-            
-        } catch (error) {
-            console.error(`❌ Ошибка поиска сделки: ${error.message}`);
-            return null;
-        }
-    }
-
-    // ==================== ДИАГНОСТИЧЕСКИЕ МЕТОДЫ ====================
-    async debugStudentLeadMatching(contactId, studentName) {
-        console.log(`\n🔬 РАСШИРЕННАЯ ДИАГНОСТИКА СОПОСТАВЛЕНИЯ`);
-        console.log(`👤 Ученик: "${studentName}"`);
-        console.log(`📞 Контакт ID: ${contactId}`);
-        console.log('='.repeat(80));
+        console.log(`   🔍 Сопоставление: "${studentName}" ↔ "${leadName}"`);
         
-        try {
-            // 1. Получаем все сделки контакта
-            const allLeads = await this.getContactLeadsSorted(contactId);
-            
-            console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
-            
-            // 2. Анализируем каждую сделку
-            const leadsAnalysis = [];
-            
-            for (const lead of allLeads) {
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                
-                if (!subscriptionInfo.hasSubscription) {
-                    continue; // Пропускаем сделки без абонемента
-                }
-                
-                const leadName = lead.name || '';
-                const belongsV1 = this.checkIfLeadBelongsToStudent(leadName, studentName);
-                const belongsV2 = this.checkIfLeadBelongsToStudentV2(leadName, studentName);
-                
-                // Детальный анализ совпадения
-                const matchScore = this.calculateMatchScore(leadName, studentName);
-                
-                leadsAnalysis.push({
-                    lead_id: lead.id,
-                    lead_name: leadName,
-                    subscription_info: subscriptionInfo,
-                    belongs_v1: belongsV1,
-                    belongs_v2: belongsV2,
-                    match_score: matchScore,
-                    is_multiple_names: this.hasMultipleNames(leadName),
-                    match_details: this.analyzeNameMatch(leadName, studentName)
-                });
-            }
-            
-            // 3. Сортируем по релевантности (используем новую логику V2)
-            leadsAnalysis.sort((a, b) => {
-                // Сначала те, что принадлежат ученику по новой логике
-                if (a.belongs_v2 !== b.belongs_v2) {
-                    return b.belongs_v2 ? 1 : -1;
-                }
-                // Затем по match_score
-                if (a.match_score !== b.match_score) {
-                    return b.match_score - a.match_score;
-                }
-                // Затем по активности абонемента
-                if (a.subscription_info.subscriptionActive !== b.subscription_info.subscriptionActive) {
-                    return b.subscription_info.subscriptionActive ? 1 : -1;
-                }
-                return 0;
-            });
-            
-            // 4. Выводим результаты
-            console.log(`📊 Сделки с абонементами: ${leadsAnalysis.length}`);
-            
-            leadsAnalysis.forEach((item, index) => {
-                console.log(`\n${index + 1}. "${item.lead_name}"`);
-                console.log(`   ✅ Принадлежит (старая логика): ${item.belongs_v1 ? 'ДА' : 'НЕТ'}`);
-                console.log(`   ✅ Принадлежит (новая логика): ${item.belongs_v2 ? 'ДА' : 'НЕТ'}`);
-                console.log(`   📊 Оценка совпадения: ${item.match_score}/100`);
-                console.log(`   🎫 Абонемент: ${item.subscription_info.subscriptionStatus}`);
-                console.log(`   📈 Занятий: ${item.subscription_info.remainingClasses}/${item.subscription_info.totalClasses}`);
-                console.log(`   🎯 Активен: ${item.subscription_info.subscriptionActive}`);
-                console.log(`   👥 Множественные имена: ${item.is_multiple_names ? '⚠️ ДА' : 'НЕТ'}`);
-            });
-            
-            // 5. Предлагаем лучшую сделку
-            const bestMatch = leadsAnalysis.find(item => item.belongs_v2);
-            const bestOverall = leadsAnalysis[0];
-            
-            console.log('\n' + '='.repeat(80));
-            console.log('🎯 РЕКОМЕНДАЦИЯ СИСТЕМЫ:');
-            
-            if (bestMatch) {
-                console.log(`✅ Лучшая сделка для ученика "${studentName}":`);
-                console.log(`   • Сделка: "${bestMatch.lead_name}"`);
-                console.log(`   • Оценка: ${bestMatch.match_score}/100`);
-                console.log(`   • Абонемент: ${bestMatch.subscription_info.subscriptionStatus}`);
-            } else if (bestOverall) {
-                console.log(`⚠️  Не найдено идеального совпадения. Рекомендуем:`);
-                console.log(`   • Сделка: "${bestOverall.lead_name}"`);
-                console.log(`   • Оценка: ${bestOverall.match_score}/100`);
-                console.log(`   • Причина: ${bestOverall.subscription_info.subscriptionActive ? 'активный абонемент' : 'наиболее релевантный'}`);
-            } else {
-                console.log(`❌ Не найдено подходящих сделок`);
-            }
-            
-            return {
-                student_name: studentName,
-                total_leads: leadsAnalysis.length,
-                analysis: leadsAnalysis,
-                recommended_lead: bestMatch || bestOverall
-            };
-            
-        } catch (error) {
-            console.error('❌ Ошибка диагностики:', error.message);
-            return null;
-        }
-    }
-
-    calculateMatchScore(leadName, studentName) {
-        if (!leadName || !studentName) return 0;
+        const cleanLeadName = leadName.toLowerCase().trim();
+        const cleanStudentName = studentName.toLowerCase().trim();
         
-        const cleanLead = leadName.toLowerCase().trim();
-        const cleanStudent = studentName.toLowerCase().trim();
-        let score = 0;
-        
-        // 1. Прямое вхождение (40 баллов)
-        if (cleanLead.includes(cleanStudent) || cleanStudent.includes(cleanLead)) {
-            score += 40;
+        // 1. Прямое вхождение (полное имя)
+        if (cleanLeadName.includes(cleanStudentName)) {
+            console.log(`   ✅ Прямое вхождение`);
+            return true;
         }
         
-        // 2. Разбиваем на части
-        const studentParts = cleanStudent.split(/\s+/).filter(p => p.length > 1);
-        const leadParts = cleanLead.split(/\s+/).filter(p => p.length > 1);
+        // 2. Разбиваем имена на части
+        const studentParts = cleanStudentName.split(/\s+/).filter(part => part.length > 1);
+        const leadParts = cleanLeadName.split(/\s+/).filter(part => part.length > 1);
         
-        // 3. Совпадение по имени (30 баллов)
-        const firstName = studentParts[0] || '';
-        if (firstName && cleanLead.includes(firstName)) {
-            score += 30;
-        }
+        // 3. Ищем совпадения по отдельным частям имени
+        let matchedParts = 0;
+        let totalParts = studentParts.length;
         
-        // 4. Совпадение по фамилии (20 баллов)
-        if (studentParts.length > 1) {
-            const lastName = studentParts[1];
-            if (lastName && cleanLead.includes(lastName)) {
-                score += 20;
+        for (const studentPart of studentParts) {
+            // Пропускаем короткие части
+            if (studentPart.length <= 2) continue;
+            
+            // Ищем вхождение этой части
+            for (const leadPart of leadParts) {
+                // Прямое вхождение части
+                if (leadPart.includes(studentPart) || studentPart.includes(leadPart)) {
+                    matchedParts++;
+                    console.log(`   ✅ Совпадение части: "${studentPart}" → "${leadPart}"`);
+                    break;
+                }
+                
+                // Проверка с учетом транслитерации/опечаток
+                if (this.stringsAreSimilar(leadPart, studentPart, 0.7)) {
+                    matchedParts++;
+                    console.log(`   ✅ Похожие строки: "${studentPart}" ≈ "${leadPart}"`);
+                    break;
+                }
             }
         }
         
-        // 5. Паттерн "Имя Фамилия -" (10 баллов)
-        if (cleanLead.match(new RegExp(`^${firstName}\\s+[^-]+-`))) {
-            score += 10;
+        // Если совпало больше половины частей имени
+        const matchThreshold = Math.max(1, Math.floor(totalParts * 0.7));
+        if (matchedParts >= matchThreshold) {
+            console.log(`   ✅ Совпало частей: ${matchedParts}/${totalParts} (порог: ${matchThreshold})`);
+            return true;
         }
         
-        // Ограничиваем максимум 100 баллов
-        return Math.min(100, score);
-    }
-
-    analyzeNameMatch(leadName, studentName) {
-        const analysis = {};
+        // 4. Специальный случай: имя может быть на первом месте перед дефисом
+        const dashPattern = /^([а-яё\s]+)\s*-\s*/i;
+        const dashMatch = leadName.match(dashPattern);
         
-        const cleanLead = leadName.toLowerCase().trim();
-        const cleanStudent = studentName.toLowerCase().trim();
-        
-        // Прямое вхождение
-        analysis['Прямое вхождение'] = cleanLead.includes(cleanStudent) || 
-                                       cleanStudent.includes(cleanLead);
-        
-        // Разбиваем на части
-        const studentParts = cleanStudent.split(/\s+/);
-        const leadParts = cleanLead.split(/\s+/);
-        
-        analysis['Имя ученика'] = studentParts.join(' ');
-        analysis['Имя в сделке'] = leadParts.join(' ');
-        
-        // Проверяем каждую часть
-        studentParts.forEach((part, i) => {
-            if (part.length > 2) {
-                const found = leadParts.some(leadPart => 
-                    leadPart.includes(part) || part.includes(leadPart)
-                );
-                analysis[`Часть ${i+1} ("${part}") найдена`] = found;
-            }
-        });
-        
-        // Паттерн с дефисом
-        const dashMatch = leadName.match(/^([а-яё\s]+)\s*-\s*/i);
         if (dashMatch) {
             const nameBeforeDash = dashMatch[1].trim().toLowerCase();
-            analysis['Имя перед дефисом'] = nameBeforeDash;
-            analysis['Совпадает с именем перед дефисом'] = 
-                nameBeforeDash.includes(cleanStudent) || cleanStudent.includes(nameBeforeDash);
+            console.log(`   🔍 Имя перед дефисом: "${nameBeforeDash}"`);
+            
+            if (nameBeforeDash.includes(cleanStudentName) || cleanStudentName.includes(nameBeforeDash)) {
+                console.log(`   ✅ Совпадение с именем перед дефисом`);
+                return true;
+            }
+            
+            // Проверяем части
+            const dashNameParts = nameBeforeDash.split(/\s+/).filter(part => part.length > 1);
+            let dashMatched = 0;
+            
+            for (const studentPart of studentParts) {
+                if (studentPart.length <= 2) continue;
+                
+                for (const dashPart of dashNameParts) {
+                    if (dashPart.includes(studentPart) || studentPart.includes(dashPart)) {
+                        dashMatched++;
+                        break;
+                    }
+                }
+            }
+            
+            if (dashMatched >= matchThreshold) {
+                console.log(`   ✅ Совпадение частей с именем перед дефисом: ${dashMatched}/${totalParts}`);
+                return true;
+            }
         }
         
-        return analysis;
+        // 5. Проверяем русские имена с английской транслитерацией
+        const transliteratedMatches = this.checkTransliteration(leadName, studentName);
+        if (transliteratedMatches) {
+            console.log(`   ✅ Совпадение по транслитерации`);
+            return true;
+        }
+        
+        console.log(`   ❌ Нет совпадения: только ${matchedParts}/${totalParts} частей`);
+        return false;
     }
 
-    hasMultipleNames(leadName) {
-        const namePatterns = [
-            /и\s+[А-Яа-яёЁ]+\s+[А-Яа-яёЁ]+/i,
-            /\d+\s+лет\s+и\s+\d+\s+лет/i,
-            /,\s*[А-Яа-яёЁ]+/i,
-            /[А-Яа-яёЁ]+\s+[А-Яа-яёЁ]+\s+и\s+[А-Яа-яёЁ]+\s+[А-Яа-яёЁ]+/i
-        ];
+    stringsAreSimilar(str1, str2, threshold = 0.7) {
+        if (!str1 || !str2) return false;
         
-        return namePatterns.some(pattern => pattern.test(leadName));
+        const s1 = str1.toLowerCase();
+        const s2 = str2.toLowerCase();
+        
+        // Если строки почти одинаковы
+        if (s1 === s2) return true;
+        
+        // Если одна строка содержит другую
+        if (s1.includes(s2) || s2.includes(s1)) return true;
+        
+        // Проверка по расстоянию Левенштейна (упрощенная)
+        const len = Math.max(s1.length, s2.length);
+        const diff = Math.abs(s1.length - s2.length);
+        
+        // Если разница в длине больше 2 символов - скорее всего разные
+        if (diff > 2) return false;
+        
+        // Простая проверка первых 3 символов
+        if (s1.slice(0, 3) === s2.slice(0, 3)) return true;
+        
+        // Проверка последних 3 символов
+        if (s1.slice(-3) === s2.slice(-3)) return true;
+        
+        return false;
+    }
+
+    checkTransliteration(leadName, studentName) {
+        const rusToEng = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
+            'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
+            'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+            'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+            'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch',
+            'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '',
+            'э': 'e', 'ю': 'yu', 'я': 'ya'
+        };
+        
+        // Транслитерируем русское имя на английский
+        const transliterate = (text) => {
+            return text.toLowerCase().split('').map(char => 
+                rusToEng[char] || char
+            ).join('');
+        };
+        
+        const transliteratedStudent = transliterate(studentName.toLowerCase());
+        const leadNameLower = leadName.toLowerCase();
+        
+        // Проверяем вхождение транслитерированного имени
+        if (leadNameLower.includes(transliteratedStudent)) {
+            return true;
+        }
+        
+        // Проверяем части
+        const studentParts = transliteratedStudent.split(/\s+/);
+        let matched = 0;
+        
+        for (const part of studentParts) {
+            if (part.length > 2 && leadNameLower.includes(part)) {
+                matched++;
+            }
+        }
+        
+        return matched >= Math.max(1, studentParts.length * 0.6);
     }
 
     async loadPipelineStatuses() {
@@ -1532,6 +1185,189 @@ class AmoCrmService {
         }
     }
     
+    async findLeadForStudent(contactId, studentName) {
+        console.log(`\n🎯 ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА: "${studentName}"`);
+        
+        try {
+            const leads = await this.getContactLeadsSorted(contactId);
+            
+            if (leads.length === 0) {
+                console.log(`   ❌ У контакта нет сделок`);
+                return null;
+            }
+            
+            // УЛУЧШЕННЫЙ ПОИСК: Ищем сделки разными способами
+            
+            // 1. Сделки с прямым совпадением имени
+            const exactMatches = [];
+            
+            // 2. Сделки с частичным совпадением (по частям имени)
+            const partialMatches = [];
+            
+            // 3. Сделки без совпадения имени, но с активными абонементами
+            const activeSubscriptions = [];
+            
+            // 4. Все остальные сделки с абонементами
+            const otherSubscriptions = [];
+            
+            console.log(`   🔍 Анализ ${leads.length} сделок...`);
+            
+            for (const lead of leads) {
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                
+                // Пропускаем сделки без абонемента
+                if (!subscriptionInfo.hasSubscription) {
+                    continue;
+                }
+                
+                // Проверяем совпадение имен
+                const belongs = this.checkIfLeadBelongsToStudent(lead.name || '', studentName);
+                
+                if (belongs) {
+                    // Проверяем, насколько точно совпадает
+                    const leadNameLower = (lead.name || '').toLowerCase();
+                    const studentNameLower = studentName.toLowerCase();
+                    
+                    if (leadNameLower.includes(studentNameLower)) {
+                        exactMatches.push({ lead, info: subscriptionInfo, matchType: 'exact' });
+                    } else {
+                        partialMatches.push({ lead, info: subscriptionInfo, matchType: 'partial' });
+                    }
+                } else if (subscriptionInfo.subscriptionActive) {
+                    activeSubscriptions.push({ lead, info: subscriptionInfo, matchType: 'active' });
+                } else {
+                    otherSubscriptions.push({ lead, info: subscriptionInfo, matchType: 'other' });
+                }
+            }
+            
+            console.log(`   📊 Результаты поиска:`);
+            console.log(`       • Точные совпадения: ${exactMatches.length}`);
+            console.log(`       • Частичные совпадения: ${partialMatches.length}`);
+            console.log(`       • Активные абонементы без совпадения: ${activeSubscriptions.length}`);
+            console.log(`       • Другие абонементы: ${otherSubscriptions.length}`);
+            
+            // ВЫБОР ЛУЧШЕЙ СДЕЛКИ ПО ПРИОРИТЕТАМ:
+            let bestLead = null;
+            let bestMatchType = '';
+            
+            // 1. Точные совпадения (сортировка по активности и остатку)
+            if (exactMatches.length > 0) {
+                exactMatches.sort((a, b) => {
+                    // Активные выше
+                    if (a.info.subscriptionActive !== b.info.subscriptionActive) {
+                        return b.info.subscriptionActive ? 1 : -1;
+                    }
+                    
+                    // С остатком выше
+                    if (a.info.remainingClasses !== b.info.remainingClasses) {
+                        return b.info.remainingClasses - a.info.remainingClasses;
+                    }
+                    
+                    // С большим общим количеством
+                    if (a.info.totalClasses !== b.info.totalClasses) {
+                        return b.info.totalClasses - a.info.totalClasses;
+                    }
+                    
+                    // Новые выше
+                    const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
+                    const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
+                    return dateB.getTime() - dateA.getTime();
+                });
+                
+                bestLead = exactMatches[0].lead;
+                bestMatchType = `точное совпадение ("${exactMatches[0].lead.name}")`;
+            }
+            // 2. Частичные совпадения
+            else if (partialMatches.length > 0) {
+                partialMatches.sort((a, b) => {
+                    // Активные выше
+                    if (a.info.subscriptionActive !== b.info.subscriptionActive) {
+                        return b.info.subscriptionActive ? 1 : -1;
+                    }
+                    
+                    // С остатком выше
+                    if (a.info.remainingClasses !== b.info.remainingClasses) {
+                        return b.info.remainingClasses - a.info.remainingClasses;
+                }
+                
+                // С большим общим количеством
+                if (a.info.totalClasses !== b.info.totalClasses) {
+                    return b.info.totalClasses - a.info.totalClasses;
+                }
+                
+                // Новые выше
+                const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
+                const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
+                return dateB.getTime() - dateA.getTime();
+            });
+            
+            bestLead = partialMatches[0].lead;
+            bestMatchType = `частичное совпадение ("${partialMatches[0].lead.name}")`;
+        }
+        // 3. Активные абонементы без совпадения имени
+        else if (activeSubscriptions.length > 0) {
+            activeSubscriptions.sort((a, b) => {
+                // С остатком выше
+                if (a.info.remainingClasses !== b.info.remainingClasses) {
+                    return b.info.remainingClasses - a.info.remainingClasses;
+                }
+                
+                // С большим общим количеством
+                if (a.info.totalClasses !== b.info.totalClasses) {
+                    return b.info.totalClasses - a.info.totalClasses;
+                }
+                
+                // Новые выше
+                const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
+                const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
+                return dateB.getTime() - dateA.getTime();
+            });
+            
+            bestLead = activeSubscriptions[0].lead;
+            bestMatchType = `активный абонемент без совпадения имени ("${activeSubscriptions[0].lead.name}")`;
+        }
+        // 4. Любые другие абонементы
+        else if (otherSubscriptions.length > 0) {
+            otherSubscriptions.sort((a, b) => {
+                // С остатком выше
+                if (a.info.remainingClasses !== b.info.remainingClasses) {
+                    return b.info.remainingClasses - a.info.remainingClasses;
+                }
+                
+                // С большим общим количеством
+                if (a.info.totalClasses !== b.info.totalClasses) {
+                    return b.info.totalClasses - a.info.totalClasses;
+                }
+                
+                // Новые выше
+                const dateA = new Date(a.lead.updated_at || a.lead.created_at || 0);
+                const dateB = new Date(b.lead.updated_at || b.lead.created_at || 0);
+                return dateB.getTime() - dateA.getTime();
+            });
+            
+            bestLead = otherSubscriptions[0].lead;
+            bestMatchType = `любой абонемент ("${otherSubscriptions[0].lead.name}")`;
+        }
+        
+        if (bestLead) {
+            const leadInfo = this.extractSubscriptionInfo(bestLead);
+            console.log(`\n   ✅ Выбрана сделка: ${bestMatchType}`);
+            console.log(`       • Название: "${bestLead.name}"`);
+            console.log(`       • Статус: ${leadInfo.subscriptionStatus}`);
+            console.log(`       • Занятий: ${leadInfo.remainingClasses}/${leadInfo.totalClasses}`);
+            console.log(`       • Активен: ${leadInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        } else {
+            console.log(`\n   ❌ Не найдено подходящей сделки`);
+        }
+        
+        return bestLead;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска сделки для ученика: ${error.message}`);
+        return null;
+    }
+}
+
     // ==================== ОСНОВНОЙ МЕТОД ПОЛУЧЕНИЯ УЧЕНИКОВ ====================
     async getStudentsByPhone(phoneNumber) {
         console.log(`\n📱 ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
@@ -1573,56 +1409,83 @@ class AmoCrmService {
                         continue;
                     }
                     
-                    // 3. Для каждого ученика ищем сделку
-                    for (const child of children) {
-                        console.log(`\n🎯 Поиск сделки для ученика: "${child.studentName}"`);
-                        
-                        // Ищем лучшую сделку для ученика
-                        let bestLead = await this.findLeadForStudent(contact.id, child.studentName);
-                        
-                        if (bestLead) {
-                            // Получаем информацию об абонементе
-                            const subscriptionInfo = this.extractSubscriptionInfo(bestLead);
-                            
-                            // Создаем профиль
-                            const profile = this.createStudentProfile(
-                                fullContact,
-                                phoneNumber,
-                                child,
-                                subscriptionInfo,
-                                bestLead
-                            );
-                            
-                            studentProfiles.push(profile);
-                            console.log(`✅ Профиль создан: ${child.studentName}`);
-                        } else {
-                            console.log(`⚠️  Для ученика "${child.studentName}" не найдено подходящей сделки`);
-                            
-                            // Создаем профиль без абонемента
-                            const profile = this.createStudentProfile(
-                                fullContact,
-                                phoneNumber,
-                                child,
-                                {
-                                    hasSubscription: false,
-                                    totalClasses: 0,
-                                    usedClasses: 0,
-                                    remainingClasses: 0,
-                                    subscriptionType: '',
-                                    subscriptionActive: false,
-                                    activationDate: null,
-                                    expirationDate: null,
-                                    lastVisitDate: null,
-                                    subscriptionStatus: 'Нет абонемента',
-                                    subscriptionBadge: 'inactive',
-                                    isFrozen: false
-                                },
-                                null
-                            );
-                            
-                            studentProfiles.push(profile);
-                        }
-                    }
+// 3. Для каждого ученика ищем сделку
+for (const child of children) {
+    console.log(`\n🎯 Поиск сделки для ученика: "${child.studentName}"`);
+    
+    // Ищем лучшую сделку для ученика
+    let bestLead = await this.findLeadForStudent(contact.id, child.studentName);
+    
+    // 🔥 ДОБАВЛЯЕМ ЗДЕСЬ: Форсированный поиск активного абонемента (если не нашли)
+    if (!bestLead) {
+        console.log(`   🔍 Форсированный поиск активного абонемента...`);
+        
+        // Ищем любую сделку с остатком занятий
+        const allLeads = await this.getContactLeadsSorted(contact.id);
+        const leadsWithRemaining = allLeads.filter(lead => {
+            const info = this.extractSubscriptionInfo(lead);
+            return info.remainingClasses > 0 && info.totalClasses > 0;
+        });
+        
+        if (leadsWithRemaining.length > 0) {
+            // Сортируем по остатку
+            leadsWithRemaining.sort((a, b) => {
+                const infoA = this.extractSubscriptionInfo(a);
+                const infoB = this.extractSubscriptionInfo(b);
+                return infoB.remainingClasses - infoA.remainingClasses;
+            });
+            
+            bestLead = leadsWithRemaining[0];
+            const leadInfo = this.extractSubscriptionInfo(bestLead);
+            console.log(`   🎯 Найден абонемент с остатком: "${bestLead.name}"`);
+            console.log(`       • Занятий: ${leadInfo.remainingClasses}/${leadInfo.totalClasses}`);
+            console.log(`       • Статус: ${leadInfo.subscriptionStatus}`);
+        }
+    }
+    
+    if (bestLead) {
+        // Получаем информацию об абонементе
+        const subscriptionInfo = this.extractSubscriptionInfo(bestLead);
+        
+        // Создаем профиль
+        const profile = this.createStudentProfile(
+            fullContact,
+            phoneNumber,
+            child,
+            subscriptionInfo,
+            bestLead
+        );
+        
+        studentProfiles.push(profile);
+        console.log(`✅ Профиль создан: ${child.studentName}`);
+    } else {
+        console.log(`⚠️  Для ученика "${child.studentName}" не найдено подходящей сделки`);
+        
+        // Создаем профиль без абонемента
+        const profile = this.createStudentProfile(
+            fullContact,
+            phoneNumber,
+            child,
+            {
+                hasSubscription: false,
+                totalClasses: 0,
+                usedClasses: 0,
+                remainingClasses: 0,
+                subscriptionType: '',
+                subscriptionActive: false,
+                activationDate: null,
+                expirationDate: null,
+                lastVisitDate: null,
+                subscriptionStatus: 'Нет абонемента',
+                subscriptionBadge: 'inactive',
+                isFrozen: false
+            },
+            null
+        );
+        
+        studentProfiles.push(profile);
+    }
+}
                     
                 } catch (contactError) {
                     console.error(`❌ Ошибка обработки контакта ${contact.id}:`, contactError.message);
@@ -1815,19 +1678,14 @@ class AmoCrmService {
                 leads.forEach(lead => {
                     const subscriptionInfo = this.extractSubscriptionInfo(lead);
                     
-                    const belongsV2 = this.checkIfLeadBelongsToStudentV2(lead.name || '', 
-                        children.length > 0 ? children[0].studentName : '');
-                    
                     results.leads.push({
                         lead_id: lead.id,
                         lead_name: lead.name,
                         contact_id: contact.id,
                         student_matches: children.filter(child => 
-                            this.checkIfLeadBelongsToStudentV2(lead.name || '', child.studentName)
+                            this.checkIfLeadBelongsToStudent(lead.name, child.studentName)
                         ).map(child => child.studentName),
-                        subscription_info: subscriptionInfo,
-                        belongs_v2: belongsV2,
-                        has_multiple_names: this.hasMultipleNames(lead.name || '')
+                        subscription_info: subscriptionInfo
                     });
                 });
             }
@@ -2124,6 +1982,7 @@ const createTables = async () => {
     }
 };
 
+
 // ==================== СИСТЕМА СИНХРОНИЗАЦИИ ====================
 class SyncService {
     constructor() {
@@ -2332,12 +2191,11 @@ app.get('/api/status', (req, res) => {
         success: true,
         message: 'Сервер школы рисования работает',
         timestamp: new Date().toISOString(),
-        version: '2.1.0',
+        version: '2.0.0',
         amocrm_connected: amoCrmService.isInitialized,
         amocrm_account: amoCrmService.accountInfo?.name || null,
         sync_status: syncService.getSyncStatus(),
-        data_source: 'Реальные данные из amoCRM',
-        improved_matching: '✅ Строгая логика сопоставления'
+        data_source: 'Реальные данные из amoCRM'
     });
 });
 
@@ -2588,1415 +2446,67 @@ app.post('/api/subscription', async (req, res) => {
     }
 });
 
-// Диагностика сопоставления учеников со сделками
-app.post('/api/debug/match', async (req, res) => {
+// Получение списка профилей
+app.get('/api/profiles', async (req, res) => {
     try {
-        const { phone, student_name } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
         
-        if (!phone || !student_name) {
-            return res.status(400).json({
+        if (!token) {
+            return res.status(401).json({
                 success: false,
-                error: 'Укажите телефон и имя ученика'
+                error: 'Токен не предоставлен'
             });
         }
         
-        console.log(`\n🔬 ДИАГНОСТИКА СОПОСТАВЛЕНИЯ`);
-        console.log(`📞 Телефон: ${phone}`);
-        console.log(`👤 Ученик: "${student_name}"`);
-        console.log('='.repeat(80));
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const phone = decoded.phone;
         
-        const formattedPhone = formatPhoneNumber(phone);
+        const profiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number = ? AND is_active = 1
+             ORDER BY 
+               CASE WHEN subscription_active = 1 THEN 1 ELSE 2 END,
+               student_name`,
+            [phone]
+        );
         
-        // Ищем контакты
-        const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
-        const contacts = contactsResponse._embedded?.contacts || [];
-        
-        const results = [];
-        
-        for (const contact of contacts) {
-            console.log(`\n👥 Контакт: "${contact.name}" (ID: ${contact.id})`);
-            
-            const matchResult = await amoCrmService.debugStudentLeadMatching(
-                contact.id, 
-                student_name
-            );
-            
-            if (matchResult) {
-                results.push({
-                    contact_id: contact.id,
-                    contact_name: contact.name,
-                    ...matchResult
-                });
-            }
-        }
+        const formattedProfiles = profiles.map(p => ({
+            id: p.id,
+            student_name: p.student_name,
+            branch: p.branch || 'Филиал не указан',
+            teacher_name: p.teacher_name,
+            subscription_type: p.subscription_type,
+            subscription_status: p.subscription_status,
+            subscription_badge: p.subscription_badge,
+            total_classes: p.total_classes,
+            remaining_classes: p.remaining_classes,
+            used_classes: p.used_classes,
+            expiration_date: p.expiration_date,
+            last_visit_date: p.last_visit_date,
+            is_active: p.subscription_active === 1,
+            last_sync: p.last_sync
+        }));
         
         res.json({
             success: true,
-            message: 'Диагностика сопоставления выполнена',
-            timestamp: new Date().toISOString(),
             data: {
-                phone: formattedPhone,
-                student_name: student_name,
-                contacts_found: contacts.length,
-                results: results
+                profiles: formattedProfiles,
+                total: profiles.length,
+                has_multiple: profiles.length > 1,
+                last_sync: profiles.length > 0 ? profiles[0].last_sync : null
             }
         });
         
     } catch (error) {
-        console.error('❌ Ошибка диагностики сопоставления:', error.message);
+        console.error('❌ Ошибка получения профилей:', error);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: 'Ошибка получения профилей'
         });
     }
 });
 
-// ==================== ДИАГНОСТИКА ЧЕРЕЗ БРАУЗЕР ====================
-
-// 1. Диагностика телефона через GET запрос
-app.get('/debug/phone/:phone', async (req, res) => {
-    try {
-        const phone = req.params.phone;
-        
-        console.log(`\n📱 ДИАГНОСТИКА ТЕЛЕФОНА ЧЕРЕЗ БРАУЗЕР: ${phone}`);
-        
-        const results = await amoCrmService.debugPhoneSearch(phone);
-        
-        // Формируем HTML страницу
-        const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Диагностика телефона: ${phone}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            border-bottom: 3px solid #4CAF50;
-            padding-bottom: 10px;
-        }
-        .section {
-            margin: 30px 0;
-            padding: 20px;
-            border-left: 4px solid #2196F3;
-            background: #f8f9fa;
-        }
-        .contact, .student, .lead {
-            margin: 15px 0;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background: white;
-        }
-        .success { color: #4CAF50; font-weight: bold; }
-        .warning { color: #FF9800; font-weight: bold; }
-        .error { color: #f44336; font-weight: bold; }
-        .info { color: #2196F3; }
-        .badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            margin: 0 5px;
-        }
-        .badge-success { background: #4CAF50; color: white; }
-        .badge-warning { background: #FF9800; color: white; }
-        .badge-danger { background: #f44336; color: white; }
-        .badge-info { background: #2196F3; color: white; }
-        .badge-secondary { background: #6c757d; color: white; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-        }
-        th, td {
-            padding: 10px;
-            border: 1px solid #ddd;
-            text-align: left;
-        }
-        th {
-            background: #f8f9fa;
-        }
-        .back-link {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background: #2196F3;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            display: inline-block;
-        }
-        .debug-form {
-            margin: 30px 0;
-            padding: 20px;
-            background: #e8f4fc;
-            border-radius: 5px;
-        }
-        input[type="text"] {
-            padding: 10px;
-            width: 300px;
-            margin-right: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .matching-info {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 5px;
-        }
-        .matching-success {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-        }
-        .matching-warning {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-        }
-        .matching-error {
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔍 Диагностика телефона: ${phone}</h1>
-        <p><strong>📅 Время проверки:</strong> ${new Date().toISOString()}</p>
-        <p><strong>🔄 Версия системы:</strong> 2.1 (строгое сопоставление)</p>
-        
-        <div class="debug-form">
-            <h3>🔎 Проверить другой телефон</h3>
-            <form action="/debug/phone" method="GET">
-                <input type="text" name="phone" placeholder="Введите номер телефона" value="${phone}" required>
-                <button type="submit">Запустить диагностику</button>
-            </form>
-        </div>
-        
-        <div class="section">
-            <h2>📞 Статус поиска</h2>
-            <p><span class="info">Найдено контактов:</span> ${results.contacts.length}</p>
-            <p><span class="info">Найдено учеников:</span> ${results.students.length}</p>
-            <p><span class="info">Найдено сделок:</span> ${results.leads.length}</p>
-            <p><span class="info">Активных абонементов:</span> ${results.leads.filter(l => l.subscription_info.subscriptionActive).length}</p>
-        </div>
-        
-        ${results.issues.length > 0 ? `
-        <div class="section">
-            <h2>🚨 Проблемы</h2>
-            ${results.issues.map(issue => `<p class="error">❌ ${issue}</p>`).join('')}
-        </div>
-        ` : ''}
-        
-        ${results.contacts.length > 0 ? `
-        <div class="section">
-            <h2>👥 Найденные контакты</h2>
-            ${results.contacts.map(contact => `
-            <div class="contact">
-                <h3>${contact.name || 'Без имени'}</h3>
-                <p><strong>ID:</strong> ${contact.id}</p>
-                <p><strong>Создан:</strong> ${contact.created_at || 'Неизвестно'}</p>
-                <p><strong>Обновлен:</strong> ${contact.updated_at || 'Неизвестно'}</p>
-            </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${results.students.length > 0 ? `
-        <div class="section">
-            <h2>👨‍🎓 Найденные ученики</h2>
-            ${results.students.map(student => `
-            <div class="student">
-                <h3>🎯 ${student.student_name}</h3>
-                <p><strong>Контакта:</strong> ${student.contact_name} (ID: ${student.contact_id})</p>
-                <p><strong>Филиал:</strong> ${student.branch || 'Не указан'}</p>
-                <p><strong>Активный абонемент:</strong> 
-                    ${student.has_active_subscription ? '<span class="success">✅ Да</span>' : '<span class="warning">❌ Нет</span>'}
-                </p>
-            </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        ${results.leads.length > 0 ? `
-        <div class="section">
-            <h2>📋 Найденные сделки с абонементами</h2>
-            <p><strong>ℹ️  Строгая логика сопоставления:</strong> показываем только сделки, которые действительно принадлежат ученикам</p>
-            
-            ${results.leads.map(lead => `
-            <div class="lead">
-                <h3>${lead.lead_name}</h3>
-                <p><strong>ID сделки:</strong> ${lead.lead_id}</p>
-                <p><strong>ID контакта:</strong> ${lead.contact_id}</p>
-                
-                <div class="matching-info ${lead.belongs_v2 ? 'matching-success' : lead.has_multiple_names ? 'matching-warning' : 'matching-error'}">
-                    <p><strong>🔍 Сопоставление:</strong></p>
-                    <p><strong>Принадлежит ученику (новая логика):</strong> ${lead.belongs_v2 ? '<span class="success">✅ ДА</span>' : '<span class="error">❌ НЕТ</span>'}</p>
-                    <p><strong>Множественные имена в сделке:</strong> ${lead.has_multiple_names ? '<span class="warning">⚠️ ДА</span>' : '<span class="success">✅ НЕТ</span>'}</p>
-                    <p><strong>Совпадения с учениками:</strong> 
-                        ${lead.student_matches.length > 0 ? 
-                          lead.student_matches.map(name => `<span class="badge badge-success">${name}</span>`).join(' ') : 
-                          '<span class="badge badge-warning">Нет совпадений</span>'}
-                    </p>
-                </div>
-                
-                <table>
-                    <tr>
-                        <th>Статус абонемента</th>
-                        <th>Всего занятий</th>
-                        <th>Использовано</th>
-                        <th>Осталось</th>
-                        <th>Активен</th>
-                        <th>Тип</th>
-                    </tr>
-                    <tr>
-                        <td>${lead.subscription_info.subscriptionStatus}</td>
-                        <td>${lead.subscription_info.totalClasses}</td>
-                        <td>${lead.subscription_info.usedClasses}</td>
-                        <td>${lead.subscription_info.remainingClasses}</td>
-                        <td>${lead.subscription_info.subscriptionActive ? '<span class="success">✅ Да</span>' : '<span class="error">❌ Нет</span>'}</td>
-                        <td>${lead.subscription_info.subscriptionType || 'Не указан'}</td>
-                    </tr>
-                </table>
-                <a href="/debug/lead/${lead.lead_id}" target="_blank" style="color: #2196F3; text-decoration: none;">
-                    🔍 Подробный анализ сделки
-                </a>
-            </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        <div class="section">
-            <h2>🔗 Быстрые ссылки</h2>
-            <a href="/debug" class="back-link">📊 Главная диагностика</a>
-            <a href="/api/status" class="back-link" style="background: #4CAF50;">🟢 Статус API</a>
-            <a href="/api/debug/connection" class="back-link" style="background: #9C27B0;">🔗 Проверка amoCRM</a>
-            <a href="/debug/match" class="back-link" style="background: #FF9800;">🔬 Тест сопоставления</a>
-        </div>
-    </div>
-</body>
-</html>`;
-        
-        res.send(html);
-        
-    } catch (error) {
-        console.error('❌ Ошибка HTML диагностики:', error.message);
-        res.status(500).send(`
-<!DOCTYPE html>
-<html>
-<head><title>Ошибка</title></head>
-<body>
-    <h1>❌ Ошибка диагностики</h1>
-    <p>${error.message}</p>
-    <a href="/debug">Вернуться назад</a>
-</body>
-</html>`);
-    }
-});
-
-// 2. Форма для ввода телефона
-app.get('/debug/phone', (req, res) => {
-    const phone = req.query.phone || '';
-    
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Диагностика по телефону</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo {
-            text-align: center;
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin: 25px 0;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        input[type="text"]:focus {
-            border-color: #4CAF50;
-            outline: none;
-        }
-        button {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        button:hover {
-            transform: translateY(-2px);
-        }
-        .examples {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .examples h3 {
-            margin-top: 0;
-            color: #666;
-        }
-        .example-link {
-            display: inline-block;
-            margin: 5px;
-            padding: 8px 15px;
-            background: #e8f4fc;
-            color: #2196F3;
-            border-radius: 20px;
-            text-decoration: none;
-            transition: background 0.3s;
-        }
-        .example-link:hover {
-            background: #d1ecf1;
-        }
-        .nav-links {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .nav-links a {
-            display: inline-block;
-            margin: 0 10px;
-            padding: 10px 20px;
-            background: #f8f9fa;
-            color: #666;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: background 0.3s;
-        }
-        .nav-links a:hover {
-            background: #e9ecef;
-        }
-        .version-info {
-            margin-top: 20px;
-            padding: 10px;
-            background: #e8f4fc;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 14px;
-            color: #2196F3;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">🔍</div>
-        <h1>Диагностика поиска учеников</h1>
-        <div class="version-info">
-            <strong>Версия 2.1:</strong> Строгая логика сопоставления учеников со сделками
-        </div>
-        
-        <form action="/debug/phone" method="GET">
-            <div class="form-group">
-                <label for="phone">📱 Введите номер телефона:</label>
-                <input type="text" 
-                       id="phone" 
-                       name="phone" 
-                       placeholder="+7 (916) 123-45-67 или 79161234567"
-                       value="${phone}"
-                       required>
-            </div>
-            <button type="submit">
-                🚀 Запустить диагностику
-            </button>
-        </form>
-        
-        <div class="examples">
-            <h3>📋 Примеры для теста:</h3>
-            <p>
-                <a href="/debug/phone/79660587744" class="example-link">79660587744</a>
-                <a href="/debug/phone/79161234567" class="example-link">79161234567</a>
-                <a href="/debug/phone/79251112233" class="example-link">79251112233</a>
-            </p>
-        </div>
-        
-        <div class="nav-links">
-            <a href="/debug">📊 Главная диагностика</a>
-            <a href="/api/status">🟢 Статус API</a>
-            <a href="/api/debug/database">🗄️ База данных</a>
-            <a href="/debug/match">🔬 Тест сопоставления</a>
-        </div>
-    </div>
-</body>
-</html>`;
-    
-    res.send(html);
-});
-
-// 3. Диагностика сделки через браузер
-app.get('/debug/lead/:leadId', async (req, res) => {
-    try {
-        const leadId = req.params.leadId;
-        
-        console.log(`\n🔍 ДИАГНОСТИКА СДЕЛКИ ЧЕРЕЗ БРАУЗЕР: ${leadId}`);
-        
-        const analysis = await amoCrmService.debugLeadAnalysis(leadId);
-        
-        if (!analysis) {
-            return res.status(404).send(`
-<!DOCTYPE html>
-<html>
-<head><title>Сделка не найдена</title></head>
-<body>
-    <h1>❌ Сделка ${leadId} не найдена</h1>
-    <a href="/debug">Вернуться назад</a>
-</body>
-</html>`);
-        }
-        
-        const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Анализ сделки: ${leadId}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            border-bottom: 3px solid #FF9800;
-            padding-bottom: 10px;
-        }
-        .section {
-            margin: 30px 0;
-            padding: 20px;
-            border-left: 4px solid #4CAF50;
-            background: #f8f9fa;
-        }
-        .field {
-            margin: 10px 0;
-            padding: 10px;
-            border: 1px solid #eee;
-            background: white;
-        }
-        .subscription {
-            color: #4CAF50;
-        }
-        .important {
-            background: #fff8e1;
-            border-left: 4px solid #FFC107;
-        }
-        .checkbox {
-            color: #9C27B0;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 20px;
-            background: #2196F3;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-        .search-form {
-            margin: 20px 0;
-            padding: 15px;
-            background: #e8f4fc;
-            border-radius: 5px;
-        }
-        input[type="text"] {
-            padding: 10px;
-            width: 300px;
-            margin-right: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .match-analysis {
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 5px;
-            background: #e8f4fc;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔍 Анализ сделки</h1>
-        <p><strong>📅 Время анализа:</strong> ${new Date().toISOString()}</p>
-        <p><strong>🔄 Версия системы:</strong> 2.1 (строгое сопоставление)</p>
-        
-        <div class="search-form">
-            <h3>🔎 Анализ другой сделки</h3>
-            <form action="/debug/lead" method="GET">
-                <input type="text" name="leadId" placeholder="Введите ID сделки" value="${leadId}" required>
-                <button type="submit">Проанализировать</button>
-            </form>
-        </div>
-        
-        <div class="section">
-            <h2>📋 Информация о сделке</h2>
-            <div class="field">
-                <p><strong>ID:</strong> ${analysis.lead_info.id}</p>
-                <p><strong>Название:</strong> ${analysis.lead_info.name}</p>
-                <p><strong>Pipeline ID:</strong> ${analysis.lead_info.pipeline_id}</p>
-                <p><strong>Status ID:</strong> ${analysis.lead_info.status_id}</p>
-                <p><strong>Стоимость:</strong> ${analysis.lead_info.price || 'Не указана'}</p>
-                <p><strong>Создана:</strong> ${analysis.lead_info.created_at}</p>
-                <p><strong>Обновлена:</strong> ${analysis.lead_info.updated_at}</p>
-            </div>
-        </div>
-        
-        <div class="section">
-            <h2>🎫 Информация об абонементе</h2>
-            <div class="field">
-                <p><strong>Статус:</strong> ${analysis.subscription_info.subscriptionStatus}</p>
-                <p><strong>Всего занятий:</strong> ${analysis.subscription_info.totalClasses}</p>
-                <p><strong>Использовано:</strong> ${analysis.subscription_info.usedClasses}</p>
-                <p><strong>Осталось:</strong> ${analysis.subscription_info.remainingClasses}</p>
-                <p><strong>Тип абонемента:</strong> ${analysis.subscription_info.subscriptionType || 'Не указан'}</p>
-                <p><strong>Активен:</strong> ${analysis.subscription_info.subscriptionActive ? '✅ Да' : '❌ Нет'}</p>
-                <p><strong>Воронка абонемента:</strong> ${analysis.subscription_info.isInSubscriptionPipeline ? '✅ Да' : '❌ Нет'}</p>
-            </div>
-        </div>
-        
-        ${analysis.fields.length > 0 ? `
-        <div class="section">
-            <h2>📊 Поля сделки (${analysis.fields.length})</h2>
-            ${analysis.fields.map(field => `
-            <div class="field ${field.is_important ? 'important' : ''} ${field.id >= 884899 && field.id <= 884929 ? 'checkbox' : ''}">
-                <p>
-                    <strong>${field.name}</strong> 
-                    <span style="color: #666; font-size: 0.9em;">(ID: ${field.id})</span>
-                    ${field.is_subscription_field ? '<span style="color: #4CAF50; margin-left: 10px;">🎫 Абонемент</span>' : ''}
-                    ${field.is_important && !field.is_subscription_field ? '<span style="color: #FF9800; margin-left: 10px;">⚠️ Важное</span>' : ''}
-                </p>
-                <p><strong>Значение:</strong> ${field.value || 'Пусто'}</p>
-            </div>
-            `).join('')}
-        </div>
-        ` : ''}
-        
-        <div class="match-analysis">
-            <h3>🔍 Анализ сопоставления сделки с учениками</h3>
-            <p>Эта сделка будет проверена по <strong>строгой логике</strong>:</p>
-            <ul>
-                <li>✅ Имя ученика должно быть в названии сделки</li>
-                <li>✅ Проверка всех частей имени (имя, фамилия)</li>
-                <li>✅ Фильтрация сделок с множественными именами</li>
-                <li>✅ Только сделки с активными абонементами</li>
-            </ul>
-        </div>
-        
-        <a href="/debug" class="back-link">📊 Вернуться к диагностике</a>
-        <a href="/debug/phone" class="back-link" style="background: #4CAF50;">📱 Проверить телефон</a>
-        <a href="/debug/match" class="back-link" style="background: #FF9800;">🔬 Тест сопоставления</a>
-    </div>
-</body>
-</html>`;
-        
-        res.send(html);
-        
-    } catch (error) {
-        console.error('❌ Ошибка HTML анализа сделки:', error.message);
-        res.status(500).send(`
-<!DOCTYPE html>
-<html>
-<head><title>Ошибка</title></head>
-<body>
-    <h1>❌ Ошибка анализа сделки</h1>
-    <p>${error.message}</p>
-    <a href="/debug">Вернуться назад</a>
-</body>
-</html>`);
-    }
-});
-
-// 4. Форма для анализа сделки
-app.get('/debug/lead', (req, res) => {
-    const leadId = req.query.leadId || '';
-    
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Анализ сделки</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            min-height: 100vh;
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo {
-            text-align: center;
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin: 25px 0;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        input[type="text"]:focus {
-            border-color: #f5576c;
-            outline: none;
-        }
-        button {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        button:hover {
-            transform: translateY(-2px);
-        }
-        .nav-links {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .nav-links a {
-            display: inline-block;
-            margin: 0 10px;
-            padding: 10px 20px;
-            background: #f8f9fa;
-            color: #666;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: background 0.3s;
-        }
-        .nav-links a:hover {
-            background: #e9ecef;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">📋</div>
-        <h1>Анализ сделки в amoCRM</h1>
-        
-        <form action="/debug/lead" method="GET">
-            <div class="form-group">
-                <label for="leadId">🔢 Введите ID сделки:</label>
-                <input type="text" 
-                       id="leadId" 
-                       name="leadId" 
-                       placeholder="Например: 12345678"
-                       value="${leadId}"
-                       required>
-            </div>
-            <button type="submit">
-                🔍 Проанализировать сделку
-            </button>
-        </form>
-        
-        <div class="nav-links">
-            <a href="/debug">📊 Главная диагностика</a>
-            <a href="/debug/phone">📱 Проверить телефон</a>
-            <a href="/api/status">🟢 Статус API</a>
-            <a href="/debug/match">🔬 Тест сопоставления</a>
-        </div>
-    </div>
-</body>
-</html>`;
-    
-    res.send(html);
-});
-
-// 5. Форма для теста сопоставления
-app.get('/debug/match', (req, res) => {
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Тест сопоставления учеников со сделками</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-            min-height: 100vh;
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .logo {
-            text-align: center;
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin: 20px 0;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            margin-bottom: 10px;
-        }
-        input[type="text"]:focus {
-            border-color: #4CAF50;
-            outline: none;
-        }
-        button {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-            margin-top: 20px;
-        }
-        button:hover {
-            transform: translateY(-2px);
-        }
-        .info-box {
-            margin: 25px 0;
-            padding: 20px;
-            background: #e8f4fc;
-            border-radius: 8px;
-            border-left: 4px solid #2196F3;
-        }
-        .info-box h3 {
-            margin-top: 0;
-            color: #2196F3;
-        }
-        .nav-links {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .nav-links a {
-            display: inline-block;
-            margin: 0 10px;
-            padding: 10px 20px;
-            background: #f8f9fa;
-            color: #666;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: background 0.3s;
-        }
-        .nav-links a:hover {
-            background: #e9ecef;
-        }
-        .examples {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .examples h4 {
-            margin-top: 0;
-            color: #666;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">🔬</div>
-        <h1>Тест сопоставления учеников со сделками</h1>
-        
-        <div class="info-box">
-            <h3>🎯 Что проверяем?</h3>
-            <p>Эта страница позволяет протестировать <strong>строгую логику сопоставления</strong> учеников со сделками в amoCRM.</p>
-            <p>Введите телефон и имя ученика, система покажет:</p>
-            <ul>
-                <li>✅ Какие сделки действительно принадлежат ученику</li>
-                <li>⚠️ Какие сделки содержат множество имен</li>
-                <li>❌ Какие сделки не подходят ученику</li>
-            </ul>
-        </div>
-        
-        <form action="/api/debug/match" method="POST" id="matchForm">
-            <div class="form-group">
-                <label for="phone">📱 Номер телефона:</label>
-                <input type="text" 
-                       id="phone" 
-                       name="phone" 
-                       placeholder="79161234567"
-                       required>
-                <small>Телефон для поиска контакта в amoCRM</small>
-            </div>
-            
-            <div class="form-group">
-                <label for="student_name">👤 Имя ученика:</label>
-                <input type="text" 
-                       id="student_name" 
-                       name="student_name" 
-                       placeholder="Захар Веребрюсов"
-                       required>
-                <small>Точное имя ученика как в amoCRM</small>
-            </div>
-            
-            <button type="submit">
-                🚀 Протестировать сопоставление
-            </button>
-        </form>
-        
-        <div class="examples">
-            <h4>📋 Пример для теста:</h4>
-            <p><strong>Телефон:</strong> 79660587744</p>
-            <p><strong>Ученик:</strong> Захар Веребрюсов</p>
-            <p><em>Этот тест покажет, как система отличает сделки администратора от сделок реального ученика.</em></p>
-        </div>
-        
-        <div class="nav-links">
-            <a href="/debug">📊 Главная диагностика</a>
-            <a href="/debug/phone">📱 Проверить телефон</a>
-            <a href="/debug/lead">📋 Анализ сделки</a>
-            <a href="/api/status">🟢 Статус API</a>
-        </div>
-    </div>
-    
-    <script>
-        document.getElementById('matchForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = {
-                phone: document.getElementById('phone').value,
-                student_name: document.getElementById('student_name').value
-            };
-            
-            // Показываем сообщение о загрузке
-            const button = this.querySelector('button');
-            const originalText = button.textContent;
-            button.textContent = '⏳ Загрузка...';
-            button.disabled = true;
-            
-            fetch('/api/debug/match', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Восстанавливаем кнопку
-                button.textContent = originalText;
-                button.disabled = false;
-                
-                // Открываем результаты в новом окне
-                const resultWindow = window.open('', '_blank');
-                resultWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Результаты сопоставления</title>
-                        <style>
-                            body {
-                                font-family: Arial, sans-serif;
-                                padding: 20px;
-                                background: #f5f5f5;
-                            }
-                            .container {
-                                background: white;
-                                border-radius: 10px;
-                                padding: 30px;
-                                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                                max-width: 1200px;
-                                margin: 0 auto;
-                            }
-                            h1 {
-                                color: #333;
-                                border-bottom: 3px solid #4CAF50;
-                                padding-bottom: 10px;
-                            }
-                            .result {
-                                margin: 20px 0;
-                                padding: 20px;
-                                border: 1px solid #ddd;
-                                border-radius: 5px;
-                                background: #f8f9fa;
-                            }
-                            .success { color: #4CAF50; }
-                            .warning { color: #FF9800; }
-                            .error { color: #f44336; }
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin: 10px 0;
-                            }
-                            th, td {
-                                padding: 10px;
-                                border: 1px solid #ddd;
-                                text-align: left;
-                            }
-                            th {
-                                background: #f8f9fa;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <h1>🔬 Результаты сопоставления</h1>
-                            <p><strong>📅 Время:</strong> ${new Date().toISOString()}</p>
-                            <p><strong>📱 Телефон:</strong> ${formData.phone}</p>
-                            <p><strong>👤 Ученик:</strong> ${formData.student_name}</p>
-                            
-                            ${data.data ? `
-                                <p><strong>👥 Найдено контактов:</strong> ${data.data.contacts_found}</p>
-                                
-                                ${data.data.results && data.data.results.length > 0 ? 
-                                    data.data.results.map(result => \`
-                                        <div class="result">
-                                            <h3>👥 Контакт: "\${result.contact_name}" (ID: \${result.contact_id})</h3>
-                                            <p><strong>📊 Всего сделок с абонементами:</strong> \${result.total_leads}</p>
-                                            
-                                            \${result.recommended_lead ? \`
-                                                <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 15px 0;">
-                                                    <h4>🎯 Рекомендуемая сделка:</h4>
-                                                    <p><strong>Название:</strong> "\${result.recommended_lead.lead_name}"</p>
-                                                    <p><strong>Оценка совпадения:</strong> \${result.recommended_lead.match_score}/100</p>
-                                                    <p><strong>Абонемент:</strong> \${result.recommended_lead.subscription_info.subscriptionStatus}</p>
-                                                    <p><strong>Занятий:</strong> \${result.recommended_lead.subscription_info.remainingClasses}/\${result.recommended_lead.subscription_info.totalClasses}</p>
-                                                </div>
-                                            \` : \`<p class="warning">⚠️ Не найдено подходящей сделки</p>\`}
-                                            
-                                            \${result.analysis && result.analysis.length > 0 ? \`
-                                                <h4>📋 Детальный анализ сделок:</h4>
-                                                <table>
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Сделка</th>
-                                                            <th>Совпадение (новая логика)</th>
-                                                            <th>Оценка</th>
-                                                            <th>Абонемент</th>
-                                                            <th>Занятий</th>
-                                                            <th>Активен</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        \${result.analysis.map(lead => \`
-                                                            <tr>
-                                                                <td>"\${lead.lead_name}"</td>
-                                                                <td>\${lead.belongs_v2 ? '<span class="success">✅ Да</span>' : '<span class="error">❌ Нет</span>'}</td>
-                                                                <td>\${lead.match_score}/100</td>
-                                                                <td>\${lead.subscription_info.subscriptionStatus}</td>
-                                                                <td>\${lead.subscription_info.remainingClasses}/\${lead.subscription_info.totalClasses}</td>
-                                                                <td>\${lead.subscription_info.subscriptionActive ? '<span class="success">✅ Да</span>' : '<span class="error">❌ Нет</span>'}</td>
-                                                            </tr>
-                                                        \`).join('')}
-                                                    </tbody>
-                                                </table>
-                                            \` : \`<p>Нет сделок для анализа</p>\`}
-                                        </div>
-                                    \`).join('') 
-                                : \`<p class="error">❌ Не найдено результатов сопоставления</p>\`}
-                            \` : \`<p class="error">❌ Ошибка получения данных</p>\`}
-                            
-                            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
-                                <p><strong>🔄 Система использует строгую логику сопоставления:</strong></p>
-                                <ul>
-                                    <li>✅ Проверка вхождения имени ученика в название сделки</li>
-                                    <li>✅ Проверка всех частей имени (имя, фамилия)</li>
-                                    <li>✅ Фильтрация сделок с множественными именами</li>
-                                    <li>✅ Приоритет активных абонементов</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </body>
-                    </html>
-                `);
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                button.textContent = originalText;
-                button.disabled = false;
-                alert('Ошибка: ' + error.message);
-            });
-        });
-    </script>
-</body>
-</html>`;
-    
-    res.send(html);
-});
-
-// 6. Главная страница диагностики
-app.get('/debug', (req, res) => {
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Диагностика системы v2.1</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .logo {
-            text-align: center;
-            font-size: 60px;
-            margin-bottom: 20px;
-        }
-        .version-badge {
-            display: inline-block;
-            background: #4CAF50;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-        .status-card {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 25px;
-            text-align: center;
-            transition: transform 0.3s;
-            border: 2px solid transparent;
-        }
-        .status-card:hover {
-            transform: translateY(-5px);
-            border-color: #4CAF50;
-        }
-        .status-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        .status-title {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .status-value {
-            font-size: 24px;
-            color: #4CAF50;
-        }
-        .card-link {
-            display: block;
-            text-decoration: none;
-            color: inherit;
-        }
-        .action-buttons {
-            margin-top: 40px;
-            text-align: center;
-        }
-        .action-btn {
-            display: inline-block;
-            margin: 10px;
-            padding: 15px 30px;
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 18px;
-            transition: transform 0.2s;
-        }
-        .action-btn:hover {
-            transform: scale(1.05);
-        }
-        .action-btn.secondary {
-            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-        }
-        .action-btn.danger {
-            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
-        }
-        .action-btn.warning {
-            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-        }
-        .quick-links {
-            margin-top: 40px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-        }
-        .quick-links h3 {
-            margin-top: 0;
-            color: #666;
-        }
-        .link-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-        }
-        .link-item {
-            padding: 10px;
-            background: white;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .link-item a {
-            color: #2196F3;
-            text-decoration: none;
-            font-weight: bold;
-        }
-        .link-item a:hover {
-            text-decoration: underline;
-        }
-        .whats-new {
-            margin: 30px 0;
-            padding: 20px;
-            background: #e8f4fc;
-            border-radius: 10px;
-            border-left: 4px solid #2196F3;
-        }
-        .whats-new h3 {
-            margin-top: 0;
-            color: #2196F3;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">🔧</div>
-        <h1>Система диагностики Художественной Студии</h1>
-        <div style="text-align: center;">
-            <span class="version-badge">Версия 2.1</span>
-        </div>
-        
-        <div class="whats-new">
-            <h3>🎯 Что нового в версии 2.1:</h3>
-            <ul>
-                <li><strong>✅ Строгая логика сопоставления</strong> учеников со сделками</li>
-                <li><strong>✅ Фильтрация административных сделок</strong> с множественными именами</li>
-                <li><strong>✅ Улучшенная проверка принадлежности сделок</strong></li>
-                <li><strong>✅ Новая страница тестирования сопоставления</strong></li>
-                <li><strong>✅ Подробная диагностика для каждого ученика</strong></li>
-            </ul>
-        </div>
-        
-        <div class="status-grid">
-            <a href="/api/status" class="card-link">
-                <div class="status-card">
-                    <div class="status-icon">🟢</div>
-                    <div class="status-title">Статус API</div>
-                    <div class="status-value">Проверить</div>
-                </div>
-            </a>
-            
-            <a href="/debug/phone" class="card-link">
-                <div class="status-card">
-                    <div class="status-icon">📱</div>
-                    <div class="status-title">Поиск по телефону</div>
-                    <div class="status-value">Диагностика</div>
-                </div>
-            </a>
-            
-            <a href="/debug/match" class="card-link">
-                <div class="status-card">
-                    <div class="status-icon">🔬</div>
-                    <div class="status-title">Тест сопоставления</div>
-                    <div class="status-value">Новинка!</div>
-                </div>
-            </a>
-            
-            <a href="/api/debug/connection" class="card-link">
-                <div class="status-card">
-                    <div class="status-icon">🔗</div>
-                    <div class="status-title">Соединение amoCRM</div>
-                    <div class="status-value">${amoCrmService.isInitialized ? '✅' : '❌'}</div>
-                </div>
-            </a>
-            
-            <a href="/debug/lead" class="card-link">
-                <div class="status-card">
-                    <div class="status-icon">📋</div>
-                    <div class="status-title">Анализ сделки</div>
-                    <div class="status-value">Детально</div>
-                </div>
-            </a>
-            
-            <a href="/api/debug/database" class="card-link">
-                <div class="status-card">
-                    <div class="status-icon">🗄️</div>
-                    <div class="status-title">База данных</div>
-                    <div class="status-value">Статистика</div>
-                </div>
-            </a>
-        </div>
-        
-        <div class="action-buttons">
-            <a href="/debug/phone?phone=79660587744" class="action-btn secondary">
-                📱 Тестовый телефон
-            </a>
-            <a href="/debug/match" class="action-btn warning">
-                🔬 Тест сопоставления
-            </a>
-            <a href="/api/sync/now" class="action-btn danger" target="_blank">
-                🔄 Синхронизация
-            </a>
-        </div>
-        
-        <div class="quick-links">
-            <h3>📋 Быстрые ссылки:</h3>
-            <div class="link-grid">
-                <div class="link-item">
-                    <a href="/debug/phone/79660587744">Телефон: 79660587744</a>
-                </div>
-                <div class="link-item">
-                    <a href="/api/debug/connection">Проверка amoCRM</a>
-                </div>
-                <div class="link-item">
-                    <a href="/api/health">Health Check</a>
-                </div>
-                <div class="link-item">
-                    <a href="/api/sync/status">Статус синхронизации</a>
-                </div>
-                <div class="link-item">
-                    <a href="/debug/match">Тест сопоставления</a>
-                </div>
-                <div class="link-item">
-                    <a href="/api/auth/phone" target="_blank">API авторизации</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</body>
-</html>`;
-    
-    res.send(html);
-});
-
-// ==================== ДИАГНОСТИЧЕСКИЕ API МАРШРУТЫ ====================
+// ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
 
 // Диагностика поиска по телефону
 app.get('/api/debug/phone/:phone', async (req, res) => {
@@ -4089,9 +2599,7 @@ app.get('/api/debug/connection', async (req, res) => {
                 amocrm_domain: AMOCRM_DOMAIN,
                 fields_loaded: amoCrmService.fieldMappings.size,
                 service_initialized: amoCrmService.isInitialized,
-                subscription_pipeline_id: amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId,
-                version: '2.1',
-                improved_matching: true
+                subscription_pipeline_id: amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId
             }
         });
         
@@ -4212,9 +2720,7 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         amocrm_status: amoCrmService.isInitialized ? 'connected' : 'disconnected',
-        sync_status: syncService.getSyncStatus(),
-        version: '2.1',
-        improved_matching: true
+        sync_status: syncService.getSyncStatus()
     });
 });
 
@@ -4233,8 +2739,7 @@ app.get('/api/sync/status', async (req, res) => {
             data: {
                 sync_status: status,
                 last_sync: lastSync || null,
-                amocrm_status: amoCrmService.isInitialized,
-                version: '2.1'
+                amocrm_status: amoCrmService.isInitialized
             }
         });
         
@@ -4251,12 +2756,11 @@ app.get('/api/sync/status', async (req, res) => {
 const startServer = async () => {
     try {
         console.log('\n' + '='.repeat(80));
-        console.log('🎨 ЗАПУСК СИСТЕМЫ ХУДОЖЕСТВЕННОЙ СТУДИИ v2.1');
+        console.log('🎨 ЗАПУСК СИСТЕМЫ ХУДОЖЕСТВЕННОЙ СТУДИИ v2.0');
         console.log('='.repeat(80));
         console.log('✨ РЕАЛЬНЫЕ ДАННЫЕ ИЗ AMOCRM');
         console.log('✨ ВОРОНКА "!АБОНЕМЕНТ"');
         console.log('✨ АВТОМАТИЧЕСКАЯ СИНХРОНИЗАЦИЯ');
-        console.log('✨ СТРОГАЯ ЛОГИКА СОПОСТАВЛЕНИЯ');
         console.log('='.repeat(80));
         
         await initDatabase();
@@ -4268,7 +2772,6 @@ const startServer = async () => {
         if (crmInitialized) {
             console.log('✅ amoCRM инициализирован успешно');
             console.log(`🔗 Домен: ${AMOCRM_DOMAIN}`);
-            console.log('🎯 Используется СТРОГАЯ логика сопоставления учеников со сделками');
             
             // Запускаем синхронизацию через 5 секунд
             setTimeout(() => {
@@ -4289,29 +2792,18 @@ const startServer = async () => {
             console.log(`📊 База данных: SQLite`);
             console.log(`🔗 amoCRM: ${amoCrmService.isInitialized ? '✅ Подключен' : '❌ Не подключен'}`);
             console.log(`🔄 Автосинхронизация: ✅ Каждые 10 минут`);
-            console.log(`🎯 Сопоставление: ✅ СТРОГАЯ логика`);
             console.log('='.repeat(80));
             
             console.log('\n🔗 ОСНОВНЫЕ ССЫЛКИ:');
-            console.log('='.repeat(60));
+            console.log('='.repeat(50));
             console.log(`📱 Веб-приложение: http://localhost:${PORT}`);
             console.log(`📊 Статус API: http://localhost:${PORT}/api/status`);
             console.log(`🔐 Авторизация: POST http://localhost:${PORT}/api/auth/phone`);
             console.log(`🔍 Профили: GET http://localhost:${PORT}/api/profiles`);
-            console.log(`📋 Абонемент: POST http://localhost:${PORT}/api/subscription`);
+            console.log(`📋 Абонемент: POST http://localhost:3000/api/subscription`);
             console.log(`🔄 Статус синхронизации: GET http://localhost:${PORT}/api/sync/status`);
-            console.log(`🔧 Диагностика телефона: http://localhost:${PORT}/debug/phone/79660587744`);
-            console.log(`🔬 Тест сопоставления: http://localhost:${PORT}/debug/match`);
-            console.log('='.repeat(60));
-            
-            console.log('\n🎯 ТЕСТОВЫЙ СЦЕНАРИЙ:');
-            console.log('='.repeat(60));
-            console.log('1. Откройте: http://localhost:3000/debug/phone/79660587744');
-            console.log('2. Увидите, что система теперь правильно различает:');
-            console.log('   • Сделки администратора (много имен)');
-            console.log('   • Сделки реального ученика Захара Веребрюсова');
-            console.log('3. Протестируйте: http://localhost:3000/debug/match');
-            console.log('='.repeat(60));
+            console.log(`🔧 Диагностика телефона: GET http://localhost:${PORT}/api/debug/phone/79660587744`);
+            console.log('='.repeat(50));
         });
         
         process.on('SIGINT', async () => {
@@ -4336,4 +2828,4 @@ const startServer = async () => {
     }
 };
 
-startServer();
+startServer();   
