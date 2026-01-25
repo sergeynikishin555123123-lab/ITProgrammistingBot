@@ -418,71 +418,82 @@ this.FIELD_IDS = {
                 console.log(`   🧮 Расчет остатка: ${totalClasses} - ${usedClasses} = ${remainingClasses}`);
             }
             
-            // 5. Определяем статус абонемента
-            let subscriptionStatus = 'Нет абонемента';
-            let subscriptionActive = false;
-            let subscriptionBadge = 'inactive';
+// В методе extractSubscriptionInfo заменяем логику определения активности:
 
-            if (totalClasses > 0) {
-                // УЛУЧШЕННАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ АКТИВНОСТИ:
-                // 1. Проверяем, находится ли сделка в воронке абонементов
-                // 2. Проверяем по статусу
-                // 3. Проверяем по остатку занятий и датам
-                
-                const isInCorrectPipeline = pipelineId === this.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId;
-                
-                // Статусы, которые считаются активными
-                const activeStatusIds = [
-                    this.SUBSCRIPTION_STATUS_IDS['!Абонемент'].statusIds['Активный абонемент'],
-                    this.SUBSCRIPTION_STATUS_IDS['!Абонемент'].statusIds['Активирован'],
-                    65473306,  // Статус из реальных данных
-                    72490890   // Другой статус из данных
-                ];
-                
-                // Проверяем, есть ли остаток занятий
-                const hasRemainingClasses = remainingClasses > 0;
-                
-                // Проверяем, не истек ли абонемент
-                let isExpired = false;
-                if (expirationDate) {
-                    const expDate = new Date(expirationDate);
-                    const today = new Date();
-                    isExpired = expDate < today;
-                }
-                
-                // Определяем активность
-                subscriptionActive = (
-                    isInCorrectPipeline && 
-                    activeStatusIds.includes(statusId) &&
-                    hasRemainingClasses &&
-                    !isExpired &&
-                    !isFrozen
-                );
-                
-                // Формируем статус
-                if (isFrozen) {
-                    subscriptionStatus = `Заморожен (осталось ${remainingClasses} занятий)`;
-                    subscriptionBadge = 'warning';
-                } else if (subscriptionActive) {
-                    subscriptionStatus = `Активный (осталось ${remainingClasses} занятий)`;
-                    subscriptionBadge = 'success';
-                } else if (hasRemainingClasses && !isExpired) {
-                    subscriptionStatus = `Есть остаток (${remainingClasses} занятий)`;
-                    subscriptionBadge = 'info';
-                } else if (totalClasses > 0 && usedClasses >= totalClasses) {
-                    subscriptionStatus = `Использован (${usedClasses}/${totalClasses} занятий)`;
-                    subscriptionBadge = 'secondary';
-                } else if (isExpired) {
-                    subscriptionStatus = `Истек (было ${totalClasses} занятий)`;
-                    subscriptionBadge = 'secondary';
-                } else {
-                    subscriptionStatus = `Неактивный (осталось ${remainingClasses} занятий)`;
-                    subscriptionBadge = 'secondary';
-                }
-            } else if (leadName.toLowerCase().includes('занятий') || leadName.toLowerCase().includes('абонемент')) {
-                subscriptionStatus = 'Абонемент без указания занятий';
-                subscriptionBadge = 'warning';
-            }
+// 6. УЛУЧШЕННАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ АКТИВНОСТИ
+if (totalClasses > 0) {
+    const isInSubscriptionPipeline = pipelineId === this.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId;
+    
+    // 🔥 ВАЖНО: Активные статусы из воронки абонементов
+    const activeStatusIds = [
+        65473306,  // Активный абонемент
+        72490890   // Активирован
+    ];
+    
+    // 🔥 ВАЖНО: Закрытые/неактивные статусы
+    const closedStatusIds = [
+        142        // Закрытые сделки (из данных видно, что это статус для "Закончился")
+    ];
+    
+    // Проверяем, находится ли сделка в правильной воронке
+    if (!isInSubscriptionPipeline) {
+        subscriptionActive = false;
+        subscriptionStatus = `Не в воронке абонементов (${remainingClasses} занятий)`;
+        subscriptionBadge = 'secondary';
+    }
+    // Проверяем, не закрыта ли сделка
+    else if (closedStatusIds.includes(statusId)) {
+        subscriptionActive = false;
+        subscriptionStatus = `Закрыт (было ${totalClasses} занятий)`;
+        subscriptionBadge = 'secondary';
+    }
+    // Проверяем активные статусы
+    else if (activeStatusIds.includes(statusId)) {
+        // 🔥 Ключевая логика: абонемент активен если:
+        // 1. Есть остаток занятий ИЛИ
+        // 2. Заморожен (даже если остаток 0)
+        // 3. Не истек срок
+        
+        let isExpired = false;
+        if (expirationDate) {
+            const expDate = new Date(expirationDate);
+            const today = new Date();
+            isExpired = expDate < today;
+        }
+        
+        if (isFrozen) {
+            subscriptionActive = true; // Замороженный абонемент все еще активен
+            subscriptionStatus = `Заморожен (осталось ${remainingClasses} занятий)`;
+            subscriptionBadge = 'warning';
+        } 
+        else if (remainingClasses > 0 && !isExpired) {
+            subscriptionActive = true;
+            subscriptionStatus = `Активный (осталось ${remainingClasses} занятий)`;
+            subscriptionBadge = 'success';
+        }
+        else if (remainingClasses === 0) {
+            subscriptionActive = false;
+            subscriptionStatus = `Использован (${usedClasses}/${totalClasses} занятий)`;
+            subscriptionBadge = 'secondary';
+        }
+        else if (isExpired) {
+            subscriptionActive = false;
+            subscriptionStatus = `Истек (было ${totalClasses} занятий)`;
+            subscriptionBadge = 'secondary';
+        }
+        else {
+            subscriptionActive = false;
+            subscriptionStatus = `Неактивный (осталось ${remainingClasses} занятий)`;
+            subscriptionBadge = 'secondary';
+        }
+    }
+    // Все другие статусы
+    else {
+        subscriptionActive = false;
+        subscriptionStatus = `Не в активном статусе (осталось ${remainingClasses} занятий)`;
+        subscriptionBadge = 'secondary';
+    }
+}
 
             console.log(`   🎯 СТАТУС АБОНЕМЕНТА:`);
             console.log(`       • Всего занятий: ${totalClasses}`);
@@ -544,29 +555,49 @@ this.FIELD_IDS = {
         
         const str = String(value).trim();
         
-        // ОСОБЫЙ СЛУЧАЙ: значения из select типа "8 занятий", "16 занятий"
-        if (str.includes('занятий')) {
-            const match = str.match(/(\d+)\s*занятий/i);
-            if (match && match[1]) {
-                const num = parseInt(match[1]);
-                return isNaN(num) ? 0 : num;
+        // 🔥 СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ ПОЛЯ 850241:
+        // Значения: "1 занятие", "2 занятия", "3 занятия", "4 занятия", 
+        // "8 занятий", "16 занятий", "24 занятия", "Разовый"
+        if (str.includes('занят')) {
+            // Сначала ищем точное соответствие
+            const exactMatches = [
+                { pattern: /^1\s*занятие$/i, value: 1 },
+                { pattern: /^2\s*занятия$/i, value: 2 },
+                { pattern: /^3\s*занятия$/i, value: 3 },
+                { pattern: /^4\s*занятия$/i, value: 4 },
+                { pattern: /^8\s*занятий$/i, value: 8 },
+                { pattern: /^16\s*занятий$/i, value: 16 },
+                { pattern: /^24\s*занятия$/i, value: 24 },
+                { pattern: /^разовый$/i, value: 1 }
+            ];
+            
+            for (const match of exactMatches) {
+                if (match.pattern.test(str)) {
+                    console.log(`   🔥 Точное соответствие: "${str}" → ${match.value} занятий`);
+                    return match.value;
+                }
             }
+            
+            // Если нет точного соответствия, ищем число
+            const numberMatch = str.match(/(\d+)/);
+            if (numberMatch && numberMatch[1]) {
+                const num = parseInt(numberMatch[1]);
+                console.log(`   🔥 Число из строки: "${str}" → ${num} занятий`);
+                return num;
+            }
+            
+            return 0;
         }
         
-        // Ищем число в строке
+        // Стандартная логика для других полей
         const match = str.match(/(\d+)/);
         if (match) {
             const num = parseInt(match[1]);
             return isNaN(num) ? 0 : num;
         }
         
-        // Специальные случаи
-        if (str.toLowerCase().includes('разовый') || 
-            str.toLowerCase().includes('пробное')) {
-            return 1;
-        }
-        
         return 0;
+        
     } catch (error) {
         console.error('❌ Ошибка парсинга числа:', error);
         return 0;
@@ -2545,6 +2576,134 @@ app.post('/api/quick-setup', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка настройки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==================== ТЕСТ ВСЕХ ТИПОВ АБОНЕМЕНТОВ ====================
+app.get('/api/test/all-subscription-types', async (req, res) => {
+    try {
+        console.log('\n🧪 ТЕСТИРОВАНИЕ ВСЕХ ТИПОВ АБОНЕМЕНТОВ');
+        console.log('='.repeat(80));
+        
+        const testCases = [
+            { phone: '+79161916984', expected: 'Полина Кунахович - 8 занятий (заморожен)' },
+            { phone: '+79160577611', expected: 'Никифорова Алиса - 4 занятия' },
+            { phone: '+79852541504', expected: 'Зайцева Агния - 16 занятий (активный)' },
+            // Добавьте другие телефоны для тестирования
+        ];
+        
+        const results = [];
+        
+        for (const testCase of testCases) {
+            try {
+                console.log(`\n📱 Тест: ${testCase.phone}`);
+                const profiles = await amoCrmService.getStudentsByPhone(testCase.phone);
+                
+                const studentInfo = profiles.map(p => ({
+                    name: p.student_name,
+                    total: p.total_classes,
+                    remaining: p.remaining_classes,
+                    used: p.used_classes,
+                    status: p.subscription_status,
+                    active: p.subscription_active ? '✅ Да' : '❌ Нет',
+                    type: p.subscription_type
+                }));
+                
+                results.push({
+                    phone: testCase.phone,
+                    students_found: profiles.length,
+                    students: studentInfo,
+                    success: profiles.length > 0
+                });
+                
+                console.log(`   👥 Учеников: ${profiles.length}`);
+                profiles.forEach(p => {
+                    console.log(`   👤 ${p.student_name}: ${p.subscription_status}`);
+                    console.log(`      📊 ${p.used_classes}/${p.total_classes} (осталось: ${p.remaining_classes})`);
+                });
+                
+            } catch (error) {
+                console.error(`   ❌ Ошибка: ${error.message}`);
+                results.push({
+                    phone: testCase.phone,
+                    error: error.message,
+                    success: false
+                });
+            }
+        }
+        
+        // Анализ результатов
+        const analysis = {
+            total_tests: results.length,
+            successful_tests: results.filter(r => r.success).length,
+            failed_tests: results.filter(r => !r.success).length,
+            subscription_types_found: [],
+            issues_detected: []
+        };
+        
+        results.forEach(result => {
+            if (result.students) {
+                result.students.forEach(student => {
+                    if (!analysis.subscription_types_found.includes(student.total)) {
+                        analysis.subscription_types_found.push(student.total);
+                    }
+                    
+                    // Проверяем логику
+                    if (student.remaining > student.total) {
+                        analysis.issues_detected.push({
+                            phone: result.phone,
+                            student: student.name,
+                            issue: `Остаток (${student.remaining}) > Всего (${student.total})`,
+                            severity: 'HIGH'
+                        });
+                    }
+                    
+                    if (student.used + student.remaining !== student.total) {
+                        analysis.issues_detected.push({
+                            phone: result.phone,
+                            student: student.name,
+                            issue: `Использовано (${student.used}) + Остаток (${student.remaining}) ≠ Всего (${student.total})`,
+                            severity: 'MEDIUM'
+                        });
+                    }
+                });
+            }
+        });
+        
+        console.log('\n📊 АНАЛИЗ РЕЗУЛЬТАТОВ:');
+        console.log(`   • Всего тестов: ${analysis.total_tests}`);
+        console.log(`   • Успешных: ${analysis.successful_tests}`);
+        console.log(`   • Неудачных: ${analysis.failed_tests}`);
+        console.log(`   • Найдено типов абонементов: ${analysis.subscription_types_found.sort((a,b) => a-b).join(', ')} занятий`);
+        console.log(`   • Проблем обнаружено: ${analysis.issues_detected.length}`);
+        
+        if (analysis.issues_detected.length > 0) {
+            console.log('\n🚨 ОБНАРУЖЕНЫ ПРОБЛЕМЫ:');
+            analysis.issues_detected.forEach(issue => {
+                console.log(`   • ${issue.student} (${issue.phone}): ${issue.issue}`);
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Тестирование завершено',
+            data: {
+                results: results,
+                analysis: analysis,
+                system_status: {
+                    pipeline_id: amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].pipelineId,
+                    active_status_ids: amoCrmService.SUBSCRIPTION_STATUS_IDS['!Абонемент'].activeStatusIds,
+                    fields_configured: Object.keys(amoCrmService.FIELD_IDS.LEAD).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестирования:', error.message);
         res.status(500).json({
             success: false,
             error: error.message
