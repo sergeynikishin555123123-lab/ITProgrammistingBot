@@ -3598,14 +3598,35 @@ app.post('/api/auth/phone', async (req, res) => {
     }
 });
 
-// Получение информации об абонементе
+// ==================== ИСПРАВЛЕННЫЙ МАРШРУТ ДЛЯ АБОНЕМЕНТОВ ====================
 app.post('/api/subscription', async (req, res) => {
     try {
         const { profile_id, phone } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
         
         console.log(`\n📋 ЗАПРОС АБОНЕМЕНТА`);
         console.log(`📌 profile_id: ${profile_id}`);
         console.log(`📌 phone: ${phone}`);
+        console.log(`🔑 Token: ${token ? 'Присутствует' : 'Отсутствует'}`);
+        
+        // Проверяем токен
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                error: 'Требуется авторизация'
+            });
+        }
+        
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            console.log(`✅ Токен валиден для телефона: ${decoded.phone}`);
+        } catch (tokenError) {
+            console.log(`❌ Ошибка токена: ${tokenError.message}`);
+            return res.status(401).json({
+                success: false,
+                error: 'Невалидный токен'
+            });
+        }
         
         let profile;
         
@@ -3645,7 +3666,7 @@ app.post('/api/subscription', async (req, res) => {
             progress = Math.round((profile.used_classes / profile.total_classes) * 100);
         }
         
-        res.json({
+        const response = {
             success: true,
             data: {
                 student: {
@@ -3698,13 +3719,17 @@ app.post('/api/subscription', async (req, res) => {
                     profile_id: profile.id
                 }
             }
-        });
+        };
+        
+        console.log(`✅ Отправлен ответ с данными абонемента`);
+        res.json(response);
         
     } catch (error) {
         console.error('❌ Ошибка получения абонемента:', error);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения информации об абонементе'
+            error: 'Ошибка получения информации об абонементе',
+            details: error.message
         });
     }
 });
