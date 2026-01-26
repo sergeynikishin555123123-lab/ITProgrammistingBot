@@ -573,6 +573,90 @@ class AmoCrmService {
         return this.getDefaultSubscriptionInfo();
     }
 }
+
+        // ==================== ТЕСТ ПАРСИНГА СДЕЛКИ ====================
+    async debugLeadParsing(leadId) {
+        try {
+            console.log(`\n🔍 ТЕСТ ПАРСИНГА СДЕЛКИ ${leadId}`);
+            console.log('='.repeat(80));
+            
+            const lead = await this.makeRequest(
+                'GET',
+                `/api/v4/leads/${leadId}?with=custom_fields_values`
+            );
+            
+            if (!lead) {
+                console.log('❌ Сделка не найдена');
+                return null;
+            }
+            
+            console.log(`📋 Сделка: "${lead.name}"`);
+            console.log(`📍 Pipeline: ${lead.pipeline_id}, Status: ${lead.status_id}`);
+            
+            const customFields = lead.custom_fields_values || [];
+            console.log(`📊 Полей в сделке: ${customFields.length}`);
+            
+            // Ключевые поля для проверки
+            const keyFields = [
+                { id: 850241, name: 'Абонемент занятий:' },
+                { id: 850257, name: 'Счетчик занятий:' },
+                { id: 890163, name: 'Остаток занятий' },
+                { id: 851565, name: 'Дата активации:' },
+                { id: 850255, name: 'Дата окончания:' },
+                { id: 891007, name: 'Тип абонемента' },
+                { id: 867693, name: 'Заморозка' }
+            ];
+            
+            console.log('\n🔑 КЛЮЧЕВЫЕ ПОЛЯ:');
+            keyFields.forEach(fieldDef => {
+                const field = customFields.find(f => (f.field_id || f.id) === fieldDef.id);
+                if (field) {
+                    const rawValue = field.values?.[0];
+                    const parsedValue = this.getFieldValue(field);
+                    const numericValue = this.parseNumberFromField(parsedValue);
+                    
+                    console.log(`\n${fieldDef.name} (ID: ${fieldDef.id}):`);
+                    console.log(`   📦 Сырые данные:`, JSON.stringify(rawValue));
+                    console.log(`   📝 Парсинг: "${parsedValue}"`);
+                    console.log(`   🔢 Число: ${numericValue}`);
+                    console.log(`   🏷️  Тип поля: ${field.field_type || field.type}`);
+                    if (rawValue?.enum_id) console.log(`   🆔 Enum ID: ${rawValue.enum_id}`);
+                } else {
+                    console.log(`\n${fieldDef.name}: ❌ НЕ НАЙДЕНО`);
+                }
+            });
+            
+            // Показываем ВСЕ поля для отладки
+            console.log('\n📋 ВСЕ ПОЛЯ СДЕЛКИ:');
+            customFields.slice(0, 10).forEach(field => {
+                const fieldId = field.field_id || field.id;
+                const fieldName = this.fieldMappings.get(fieldId)?.name || `Поле ${fieldId}`;
+                const parsedValue = this.getFieldValue(field);
+                
+                console.log(`${fieldId}: ${fieldName} = "${parsedValue}"`);
+            });
+            
+            // Тест извлечения абонемента
+            console.log('\n🧪 ТЕСТ extractSubscriptionInfo:');
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            console.log(`   • hasSubscription: ${subscriptionInfo.hasSubscription}`);
+            console.log(`   • totalClasses: ${subscriptionInfo.totalClasses}`);
+            console.log(`   • usedClasses: ${subscriptionInfo.usedClasses}`);
+            console.log(`   • remainingClasses: ${subscriptionInfo.remainingClasses}`);
+            console.log(`   • subscriptionActive: ${subscriptionInfo.subscriptionActive}`);
+            console.log(`   • subscriptionStatus: ${subscriptionInfo.subscriptionStatus}`);
+            
+            return {
+                lead: lead,
+                fields: customFields,
+                subscriptionInfo: subscriptionInfo
+            };
+            
+        } catch (error) {
+            console.error('❌ Ошибка отладки парсинга:', error.message);
+            return null;
+        }
+    }
     // ==================== НОВЫЙ МЕТОД ДЛЯ ПАРСИНГА SELECT-ПОЛЕЙ ====================
     parseNumberFromSelectField(field) {
         if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
@@ -679,54 +763,31 @@ parseNumberFromField(value) {
             return 0;
         }
         
-        // ⚡ УЛУЧШЕННЫЙ ПАРСИНГ ДЛЯ "N занятий"
+        // ⚡ УЛУЧШЕННЫЙ ПАРСИНГ ДЛЯ AMOCRM
+        // 1. Пробуем найти число напрямую
+        const numberMatch = str.match(/(\d+)/);
+        if (numberMatch) {
+            return parseInt(numberMatch[1]);
+        }
+        
+        // 2. Парсим текст "N занятий", "N занятия"
         if (str.toLowerCase().includes('занят')) {
-            // Обрабатываем варианты: "4 занятия", "8 занятий", "16 занятий"
-            const match = str.match(/(\d+)\s+занят/i);
-            if (match && match[1]) {
-                return parseInt(match[1]);
-            }
-            
-            // Обрабатываем "Разовый" как 1 занятие
-            if (str.toLowerCase().includes('разовый')) {
-                return 1;
-            }
-            
-            // Обрабатываем "Продвинутый 16 занятий"
-            if (str.toLowerCase().includes('продвинутый')) {
-                const match = str.match(/(\d+)/);
-                if (match && match[1]) {
-                    return parseInt(match[1]);
-                }
-            }
-            
-            // Обрабатываем "База - 16 занятий"
-            if (str.toLowerCase().includes('база')) {
-                const match = str.match(/(\d+)/);
-                if (match && match[1]) {
-                    return parseInt(match[1]);
-                }
-            }
-            
-            // Обрабатываем "База Блок № 1 - 5 занятий"
-            if (str.toLowerCase().includes('блок')) {
-                const match = str.match(/блок\s*№\s*(\d+).*?(\d+)/i);
-                if (match && match[2]) {
-                    return parseInt(match[2]);
-                }
-            }
-            
-            return 0;
+            if (str.toLowerCase().includes('разовый')) return 1;
+            if (str.toLowerCase().includes('4 занятия')) return 4;
+            if (str.toLowerCase().includes('8 занятий')) return 8;
+            if (str.toLowerCase().includes('16 занятий')) return 16;
+            if (str.toLowerCase().includes('5 занятий')) return 5;
+            if (str.toLowerCase().includes('12 занятий')) return 12;
+            if (str.toLowerCase().includes('24 занятия')) return 24;
         }
         
-        // Для числовых значений
-        const match = str.match(/(\d+)/);
-        if (match && match[1]) {
-            const num = parseInt(match[1]);
-            return isNaN(num) ? 0 : num;
+        // 3. Парсим "База - N занятий"
+        if (str.toLowerCase().includes('база')) {
+            if (str.includes('16')) return 16;
+            if (str.includes('5')) return 5;
         }
         
-        // Для boolean значений
+        // 4. Булевы значения
         if (str.toLowerCase() === 'да' || str.toLowerCase() === 'true') {
             return 1;
         }
@@ -764,25 +825,64 @@ isSubscriptionActive(subscriptionInfo) {
             return '';
         }
         
-        // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Для select-полей
+        // ⚡ КРИТИЧЕСКОЕ: Для select-полей в amoCRM
         if (field.field_type === 'select' || field.type === 'select') {
-            // Для select полей текст хранится в value, а не enum_id
+            // Вариант 1: Есть текстовое значение
             if (firstValue.value !== undefined && firstValue.value !== null) {
                 return String(firstValue.value).trim();
             }
-            // Если нет value, но есть enum_id, пытаемся найти в маппинге
+            // Вариант 2: Есть enum_id - пытаемся найти текстовое значение
             else if (firstValue.enum_id !== undefined && firstValue.enum_id !== null) {
-                // Получаем маппинг из загруженных полей
-                const fieldMapping = this.fieldMappings.get(field.field_id || field.id);
-                if (fieldMapping && fieldMapping.enums) {
-                    const enumItem = fieldMapping.enums.find(e => e.id === firstValue.enum_id);
-                    if (enumItem) return enumItem.value;
-                }
+                // Маппинг enum_id → текстовые значения (из вашей диагностики)
+                const enumMapping = {
+                    // "Абонемент занятий:" 
+                    504033: '4 занятия',
+                    504035: '8 занятий', 
+                    504037: '16 занятий',
+                    504039: 'Продвинутый 4 занятия',
+                    504041: 'Разовый',
+                    504043: '2 занятия',
+                    504045: '3 занятия',
+                    504047: '24 занятия',
+                    504237: 'База Блок № 1 - 5 занятий',
+                    504241: 'База Блок № 3 - 5 занятий',
+                    504243: 'База - 16 занятий',
+                    
+                    // "Счетчик занятий:"
+                    504105: '1',
+                    504107: '2',
+                    504109: '3', 
+                    504111: '4',
+                    504113: '5',
+                    504115: '6',
+                    504117: '7',
+                    504119: '8',
+                    504121: '9',
+                    504123: '10',
+                    504125: '11',
+                    504127: '12',
+                    504129: '13',
+                    504131: '14',
+                    504133: '15',
+                    504135: '16',
+                    
+                    // "Тип абонемента"
+                    554163: 'Первчиный',
+                    554165: 'Повторный',
+                    
+                    // "Заморозка абонемента:"
+                    527317: 'НЕТ',
+                    527319: 'ДА'
+                };
+                
+                const textValue = enumMapping[firstValue.enum_id];
+                if (textValue) return textValue;
+                
                 return String(firstValue.enum_id);
             }
         }
         
-        // Остальная логика остается...
+        // Для остальных типов полей
         if (typeof firstValue === 'string') {
             return firstValue.trim();
         } else if (typeof firstValue === 'number') {
@@ -800,7 +900,6 @@ isSubscriptionActive(subscriptionInfo) {
         return '';
     }
 }
-
     parseDate(value) {
         if (!value) return null;
         
@@ -4145,7 +4244,116 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
         });
     }
 });
+// ==================== ТЕСТ ПАРСИНГА КОНКРЕТНОЙ СДЕЛКИ ====================
+app.get('/api/debug/parsing/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        const result = await amoCrmService.debugLeadParsing(leadId);
+        
+        if (!result) {
+            return res.status(404).json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        res.json({
+            success: true,
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста парсинга:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
+// ==================== ТЕСТ ПОИСКА УЧЕНИКА С ДЕТАЛЯМИ ====================
+app.get('/api/test-full/:phone/:studentName', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n🧪 ПОЛНЫЙ ТЕСТ: ${studentName} (${phone})`);
+        console.log('='.repeat(80));
+        
+        // 1. Ищем контакты
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        
+        if (contacts.length === 0) {
+            return res.json({ success: false, error: 'Контакты не найдены' });
+        }
+        
+        const results = [];
+        
+        for (const contact of contacts) {
+            console.log(`\n📋 КОНТАКТ: "${contact.name}" (ID: ${contact.id})`);
+            
+            const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+            const students = amoCrmService.extractStudentsFromContact(fullContact);
+            
+            console.log(`👥 Ученики: ${students.map(s => s.studentName).join(', ')}`);
+            
+            const targetStudent = students.find(s => 
+                s.studentName.toLowerCase().includes(studentName.toLowerCase())
+            );
+            
+            if (!targetStudent) continue;
+            
+            console.log(`✅ Найден ученик: "${targetStudent.studentName}"`);
+            
+            // Получаем ВСЕ сделки
+            const leads = await amoCrmService.getContactLeadsSorted(contact.id);
+            console.log(`📊 Сделок у контакта: ${leads.length}`);
+            
+            const leadResults = [];
+            
+            for (const lead of leads) {
+                const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                
+                if (!subscriptionInfo.hasSubscription) continue;
+                
+                // ВЫЧИСЛЯЕМ правильный остаток
+                const correctRemaining = Math.max(0, subscriptionInfo.totalClasses - subscriptionInfo.usedClasses);
+                
+                leadResults.push({
+                    lead_id: lead.id,
+                    lead_name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id,
+                    has_subscription: subscriptionInfo.hasSubscription,
+                    total_classes: subscriptionInfo.totalClasses,
+                    used_classes: subscriptionInfo.usedClasses,
+                    remaining_in_field: subscriptionInfo.remainingClasses,
+                    remaining_calculated: correctRemaining,
+                    subscription_active: subscriptionInfo.subscriptionActive,
+                    subscription_status: subscriptionInfo.subscriptionStatus,
+                    is_in_subscription_pipeline: lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID
+                });
+            }
+            
+            results.push({
+                contact_id: contact.id,
+                contact_name: contact.name,
+                student: targetStudent,
+                leads_with_subscription: leadResults.length,
+                leads: leadResults
+            });
+            
+            break; // Обрабатываем только первый найденный контакт
+        }
+        
+        res.json({
+            success: true,
+            message: `Найдено результатов: ${results.length}`,
+            data: results
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка полного теста:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ТЕСТОВЫЙ МАРШРУТ ДЛЯ ПРОВЕРКИ ИСПРАВЛЕНИЯ ====================
 app.get('/api/test-fix/:phone/:studentName', async (req, res) => {
     try {
