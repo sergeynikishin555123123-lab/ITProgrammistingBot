@@ -477,8 +477,11 @@ class AmoCrmService {
         
         // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ АКТИВНОСТИ
         
-        const isInSubscriptionPipeline = pipelineId === this.SUBSCRIPTION_PIPELINE_ID;
-        const isActiveStatus = this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(statusId);
+        // УДАЛИТЬ ЭТУ СТРОКУ (строка 480 в оригинале) - переменная уже объявлена выше!
+        // const isInSubscriptionPipeline = pipelineId === this.SUBSCRIPTION_PIPELINE_ID;
+        
+        // ИСПОЛЬЗУЕМ переменную, которая уже объявлена в начале метода
+        // const isActiveStatus = this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(statusId);
         
         console.log(`\n🎯 ОПРЕДЕЛЕНИЕ АКТИВНОСТИ:`);
         console.log(`   • Воронка абонементов: ${isInSubscriptionPipeline ? '✅ Да' : '❌ Нет'}`);
@@ -570,7 +573,6 @@ class AmoCrmService {
         return this.getDefaultSubscriptionInfo();
     }
 }
-
     // ==================== НОВЫЙ МЕТОД ДЛЯ ПАРСИНГА SELECT-ПОЛЕЙ ====================
     parseNumberFromSelectField(field) {
         if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
