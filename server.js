@@ -3823,6 +3823,85 @@ app.get('/api/debug/contact-leads/:phone', async (req, res) => {
         });
     }
 });
+
+// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ДИАГНОСТИКИ АКТИВНЫХ АБОНЕМЕНТОВ ====================
+
+// Расчет дней с момента активации
+function calculateDaysSince(dateString) {
+    if (!dateString) return null;
+    
+    try {
+        const activationDate = new Date(dateString);
+        const today = new Date();
+        const diffTime = today.getTime() - activationDate.getTime();
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    } catch (error) {
+        return null;
+    }
+}
+
+// Расчет дней до окончания
+function calculateDaysUntil(dateString) {
+    if (!dateString) return null;
+    
+    try {
+        const expirationDate = new Date(dateString);
+        const today = new Date();
+        const diffTime = expirationDate.getTime() - today.getTime();
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    } catch (error) {
+        return null;
+    }
+}
+
+// Генерация рекомендаций по настройке системы
+function generateSetupRecommendations(summary, activeSubscriptions) {
+    const recommendations = [];
+    
+    // Анализ типов абонементов
+    const subscriptionTypes = Object.keys(summary.subscription_types);
+    if (subscriptionTypes.length > 1) {
+        const mostCommonType = Object.entries(summary.subscription_types)
+            .sort((a, b) => b[1] - a[1])[0][0];
+        
+        recommendations.push(`Самый частый тип абонемента: "${mostCommonType}" (${summary.subscription_types[mostCommonType]} случаев)`);
+    }
+    
+    // Анализ количества занятий
+    const mostCommonClasses = Object.entries(summary.class_distribution)
+        .filter(([_, count]) => count > 0)
+        .sort((a, b) => b[1] - a[1])[0];
+    
+    if (mostCommonClasses) {
+        recommendations.push(`Самый частый абонемент: ${mostCommonClasses[0]} (${mostCommonClasses[1]} случаев)`);
+    }
+    
+    // Проблемы с данными
+    if (summary.problematic_cases.length > 0) {
+        const problemPercentage = (summary.problematic_cases.length / summary.active_subscriptions_found * 100).toFixed(1);
+        recommendations.push(`Обнаружены проблемы в ${problemPercentage}% активных абонементов`);
+    }
+    
+    // Рекомендации по настройке парсинга
+    const firstActive = activeSubscriptions[0];
+    if (firstActive) {
+        recommendations.push(`Пример для настройки: сделка ${firstActive.lead.id} (${firstActive.student.name})`);
+        recommendations.push(`ID поля "Абонемент занятий:": 850241`);
+        recommendations.push(`ID поля "Счетчик занятий:": 850257`);
+        recommendations.push(`ID поля "Остаток занятий": 890163`);
+        recommendations.push(`ID поля "Дата активации": 851565`);
+        recommendations.push(`ID поля "Дата окончания": 850255`);
+    }
+    
+    // Рекомендации по логике
+    recommendations.push('Добавить пересчет остатка занятий: total - used = remaining');
+    recommendations.push('Проверять статус сделки: должен быть активным в воронке абонементов');
+    recommendations.push('Проверять дату окончания: абонемент активен если не истек');
+    
+    return recommendations;
+}
+
+
 // ==================== ДИАГНОСТИКА ВСЕХ АКТИВНЫХ АБОНЕМЕНТОВ ====================
 app.get('/api/debug/active-subscriptions', async (req, res) => {
     try {
@@ -3905,7 +3984,7 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                 let contact = null;
                 let phone = 'Не найден';
                 let parentName = 'Не найден';
-                let studentName = this.extractStudentNameFromLead(lead.name);
+                let studentName = amoCrmService.extractStudentNameFromLead(lead.name);
                 
                 // Получаем связанные контакты
                 try {
@@ -3932,7 +4011,7 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                                 const phoneField = customFields.find(f => {
                                     const fieldId = f.field_id || f.id;
                                     return fieldId === 216615 || // Основной телефон
-                                           (fieldId && this.isPhoneField(fieldId));
+                                           amoCrmService.isPhoneField(fieldId);
                                 });
                                 
                                 if (phoneField) {
@@ -3942,7 +4021,7 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                                 // Пытаемся определить ученика из контакта
                                 const students = amoCrmService.extractStudentsFromContact(contact);
                                 const matchedStudent = students.find(s => 
-                                    this.checkIfLeadBelongsToStudent(lead.name, s.studentName)
+                                    amoCrmService.checkIfLeadBelongsToStudent(lead.name, s.studentName)
                                 );
                                 
                                 if (matchedStudent) {
@@ -3965,7 +4044,7 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                         name: lead.name,
                         pipeline_id: lead.pipeline_id,
                         status_id: lead.status_id,
-                        status_name: this.getStatusName(lead.status_id),
+                        status_name: await amoCrmService.getStatusName(lead.status_id),
                         created_at: new Date(lead.created_at * 1000).toISOString(),
                         updated_at: new Date(lead.updated_at * 1000).toISOString()
                     },
@@ -3975,7 +4054,7 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                         id: contact.id,
                         name: parentName,
                         phone: phone,
-                        email: this.findEmail(contact)
+                        email: amoCrmService.findEmail(contact)
                     } : null,
                     
                     // ИНФОРМАЦИЯ ОБ УЧЕНИКЕ
@@ -4000,8 +4079,8 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                         last_visit_date: subscriptionInfo.lastVisitDate,
                         
                         // ВРЕМЕННЫЕ МЕТКИ
-                        days_since_activation: this.calculateDaysSince(subscriptionInfo.activationDate),
-                        days_until_expiration: this.calculateDaysUntil(subscriptionInfo.expirationDate),
+                        days_since_activation: calculateDaysSince(subscriptionInfo.activationDate),
+                        days_until_expiration: calculateDaysUntil(subscriptionInfo.expirationDate),
                         
                         // ПРОГРЕСС
                         progress_percentage: subscriptionInfo.totalClasses > 0 ? 
@@ -4013,20 +4092,20 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
                     // ПОЛЯ ДЛЯ НАСТРОЙКИ СИСТЕМЫ
                     configuration_fields: {
                         // ID полей, которые используются в этой сделке
-                        field_ids: this.extractFieldIds(lead.custom_fields_values),
+                        field_ids: amoCrmService.extractFieldIds(lead.custom_fields_values),
                         
                         // Примеры значений для настройки парсинга
-                        field_examples: this.getFieldExamples(lead.custom_fields_values),
+                        field_examples: amoCrmService.getFieldExamples(lead.custom_fields_values),
                         
                         // Рекомендации по настройке
-                        recommendations: this.generateConfigurationRecommendations(subscriptionInfo, lead)
+                        recommendations: amoCrmService.generateConfigurationRecommendations(subscriptionInfo, lead)
                     },
                     
                     // ДИАГНОСТИЧЕСКАЯ ИНФОРМАЦИЯ
                     diagnostics: {
                         data_source: 'amocrm_direct',
-                        has_all_required_fields: this.hasAllRequiredFields(lead.custom_fields_values),
-                        data_quality_score: this.calculateDataQualityScore(lead.custom_fields_values),
+                        has_all_required_fields: amoCrmService.hasAllRequiredFields(lead.custom_fields_values),
+                        data_quality_score: amoCrmService.calculateDataQualityScore(lead.custom_fields_values),
                         last_analysis: new Date().toISOString()
                     }
                 };
@@ -4057,9 +4136,6 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
             
             // СТАТИСТИКА ПО ТИПАМ АБОНЕМЕНТОВ
             subscription_types: {},
-            
-            // СТАТИСТИКА ПО ФИЛИАЛАМ (если есть данные)
-            branches: {},
             
             // СТАТИСТИКА ПО КОЛИЧЕСТВУ ЗАНЯТИЙ
             class_distribution: {
@@ -4113,7 +4189,7 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
         // 6. ФОРМИРУЕМ РЕКОМЕНДАЦИИ ПО НАСТРОЙКЕ
         console.log('\n💡 ФОРМИРОВАНИЕ РЕКОМЕНДАЦИЙ...');
         
-        const setupRecommendations = this.generateSetupRecommendations(summary, activeSubscriptions);
+        const setupRecommendations = generateSetupRecommendations(summary, activeSubscriptions);
         
         // 7. ВЫВОД В КОНСОЛЬ
         console.log('\n' + '='.repeat(120));
