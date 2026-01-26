@@ -3465,6 +3465,354 @@ app.post('/api/app/get-profiles', async (req, res) => {
         });
     }
 });
+// ==================== ПРАВИЛЬНЫЙ API ДЛЯ ПРИЛОЖЕНИЯ ====================
+app.post('/api/v2/auth/phone', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        
+        if (!phone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите номер телефона'
+            });
+        }
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        console.log(`\n📱 V2 API: ПОИСК ДЛЯ ${formattedPhone}`);
+        
+        // 1. Ищем контакт в CRM
+        const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        if (contacts.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Контакт не найден'
+            });
+        }
+        
+        const contact = contacts[0];
+        console.log(`📋 Контакт: "${contact.name}" (ID: ${contact.id})`);
+        
+        // 2. Получаем учеников из контакта
+        const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+        const students = amoCrmService.extractStudentsFromContact(fullContact);
+        
+        if (students.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Ученики не найдены'
+            });
+        }
+        
+        // 3. Для каждого ученика находим лучший активный абонемент
+        const profiles = [];
+        
+        for (const student of students) {
+            console.log(`\n🔍 Поиск абонемента для: "${student.studentName}"`);
+            
+            // Ищем сделку с абонементом
+            const leadResult = await amoCrmService.findLeadForStudent(contact.id, student.studentName);
+            
+            if (leadResult && leadResult.subscriptionInfo.hasSubscription) {
+                // Создаем профиль с правильными данными
+                const profile = {
+                    id: Date.now() + Math.random(), // Временный ID
+                    student_name: student.studentName,
+                    phone_number: formattedPhone,
+                    branch: student.branch || '',
+                    teacher_name: student.teacherName || '',
+                    age_group: student.ageGroup || '',
+                    
+                    subscription: {
+                        type: leadResult.subscriptionInfo.subscriptionType,
+                        active: leadResult.subscriptionInfo.subscriptionActive,
+                        status: leadResult.subscriptionInfo.subscriptionStatus,
+                        badge: leadResult.subscriptionInfo.subscriptionBadge,
+                        
+                        classes: {
+                            total: leadResult.subscriptionInfo.totalClasses,
+                            used: leadResult.subscriptionInfo.usedClasses,
+                            remaining: leadResult.subscriptionInfo.remainingClasses,
+                            progress: leadResult.subscriptionInfo.totalClasses > 0 
+                                ? Math.round((leadResult.subscriptionInfo.usedClasses / leadResult.subscriptionInfo.totalClasses) * 100)
+                                : 0
+                        },
+                        
+                        dates: {
+                            activation: leadResult.subscriptionInfo.activationDate,
+                            expiration: leadResult.subscriptionInfo.expirationDate,
+                            last_visit: leadResult.subscriptionInfo.lastVisitDate
+                        }
+                    },
+                    
+                    parent: {
+                        name: student.parentName || contact.name
+                    },
+                    
+                    metadata: {
+                        lead_id: leadResult.lead?.id,
+                        contact_id: contact.id,
+                        is_real_data: true,
+                        last_sync: new Date().toISOString()
+                    }
+                };
+                
+                profiles.push(profile);
+                console.log(`✅ Найден абонемент: ${leadResult.subscriptionInfo.totalClasses} занятий`);
+                
+            } else {
+                // Если нет активного абонемента, создаем профиль без абонемента
+                const profile = {
+                    id: Date.now() + Math.random(),
+                    student_name: student.studentName,
+                    phone_number: formattedPhone,
+                    branch: student.branch || '',
+                    teacher_name: student.teacherName || '',
+                    age_group: student.ageGroup || '',
+                    
+                    subscription: {
+                        type: 'Нет абонемента',
+                        active: false,
+                        status: 'Нет активного абонемента',
+                        badge: 'inactive',
+                        classes: { total: 0, used: 0, remaining: 0, progress: 0 },
+                        dates: { activation: null, expiration: null, last_visit: null }
+                    },
+                    
+                    parent: {
+                        name: student.parentName || contact.name
+                    },
+                    
+                    metadata: {
+                        contact_id: contact.id,
+                        is_real_data: true,
+                        last_sync: new Date().toISOString()
+                    }
+                };
+                
+                profiles.push(profile);
+                console.log(`ℹ️  Нет активного абонемента`);
+            }
+        }
+        
+        // 4. Создаем токен
+        const token = jwt.sign(
+            {
+                phone: formattedPhone,
+                contact_id: contact.id,
+                profiles_count: profiles.length,
+                timestamp: Date.now()
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.json({
+            success: true,
+            message: `Найдено ${profiles.length} учеников`,
+            data: {
+                user: {
+                    phone: formattedPhone,
+                    name: contact.name,
+                    profiles_count: profiles.length
+                },
+                profiles: profiles,
+                token: token,
+                metadata: {
+                    amocrm_connected: true,
+                    source: 'direct_crm_data',
+                    timestamp: new Date().toISOString()
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка V2 API:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения данных',
+            debug: error.message
+        });
+    }
+});
+
+// ==================== ПРАВИЛЬНЫЙ API ДЛЯ АБОНЕМЕНТОВ ====================
+app.post('/api/v2/subscription', async (req, res) => {
+    try {
+        const { profile_id, phone } = req.body;
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        
+        console.log(`\n📋 V2 API: АБОНЕМЕНТ`);
+        console.log(`📌 phone: ${phone}`);
+        
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                error: 'Требуется авторизация'
+            });
+        }
+        
+        // Валидируем токен
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+            console.log(`✅ Токен валиден для: ${decoded.phone}`);
+        } catch (tokenError) {
+            return res.status(401).json({
+                success: false,
+                error: 'Невалидный токен'
+            });
+        }
+        
+        const formattedPhone = formatPhoneNumber(phone || decoded.phone);
+        
+        // Ищем контакт
+        const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        if (contacts.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Контакт не найден'
+            });
+        }
+        
+        const contact = contacts[0];
+        
+        // Если указан profile_id, ищем конкретного ученика
+        let targetStudentName = null;
+        if (profile_id && profile_id.includes('_')) {
+            // profile_id может быть в формате "student_name_phone"
+            const parts = profile_id.split('_');
+            if (parts.length > 1) {
+                targetStudentName = parts.slice(0, -1).join('_');
+            }
+        }
+        
+        // Получаем всех учеников
+        const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+        const allStudents = amoCrmService.extractStudentsFromContact(fullContact);
+        
+        // Находим ученика
+        let student = null;
+        if (targetStudentName) {
+            student = allStudents.find(s => 
+                s.studentName.toLowerCase().includes(targetStudentName.toLowerCase())
+            );
+        }
+        
+        // Если не нашли конкретного ученика, берем первого
+        if (!student && allStudents.length > 0) {
+            student = allStudents[0];
+        }
+        
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                error: 'Ученик не найден'
+            });
+        }
+        
+        console.log(`👤 Ученик: "${student.studentName}"`);
+        
+        // Ищем абонемент
+        const leadResult = await amoCrmService.findLeadForStudent(contact.id, student.studentName);
+        
+        if (!leadResult || !leadResult.subscriptionInfo.hasSubscription) {
+            return res.json({
+                success: true,
+                data: {
+                    student: {
+                        name: student.studentName,
+                        branch: student.branch || '',
+                        teacher_name: student.teacherName || '',
+                        age_group: student.ageGroup || ''
+                    },
+                    subscription: {
+                        type: 'Нет абонемента',
+                        status: 'Нет активного абонемента',
+                        active: false,
+                        badge: 'inactive',
+                        classes: { total: 0, used: 0, remaining: 0, progress: 0 },
+                        dates: { activation: null, expiration: null, last_visit: null }
+                    }
+                }
+            });
+        }
+        
+        // Форматируем даты для отображения
+        const formatDate = (dateStr) => {
+            if (!dateStr) return null;
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('ru-RU');
+            } catch (e) {
+                return dateStr;
+            }
+        };
+        
+        const progress = leadResult.subscriptionInfo.totalClasses > 0 
+            ? Math.round((leadResult.subscriptionInfo.usedClasses / leadResult.subscriptionInfo.totalClasses) * 100)
+            : 0;
+        
+        res.json({
+            success: true,
+            data: {
+                student: {
+                    name: student.studentName,
+                    phone: formattedPhone,
+                    branch: student.branch || '',
+                    teacher_name: student.teacherName || '',
+                    age_group: student.ageGroup || ''
+                },
+                
+                subscription: {
+                    type: leadResult.subscriptionInfo.subscriptionType || 'Абонемент',
+                    status: leadResult.subscriptionInfo.subscriptionStatus,
+                    active: leadResult.subscriptionInfo.subscriptionActive,
+                    badge: leadResult.subscriptionInfo.subscriptionBadge,
+                    
+                    classes: {
+                        total: leadResult.subscriptionInfo.totalClasses,
+                        used: leadResult.subscriptionInfo.usedClasses,
+                        remaining: leadResult.subscriptionInfo.remainingClasses,
+                        progress: progress
+                    },
+                    
+                    dates: {
+                        activation: leadResult.subscriptionInfo.activationDate,
+                        activation_display: formatDate(leadResult.subscriptionInfo.activationDate),
+                        expiration: leadResult.subscriptionInfo.expirationDate,
+                        expiration_display: formatDate(leadResult.subscriptionInfo.expirationDate),
+                        last_visit: leadResult.subscriptionInfo.lastVisitDate,
+                        last_visit_display: formatDate(leadResult.subscriptionInfo.lastVisitDate)
+                    }
+                },
+                
+                parent: student.parentName ? {
+                    name: student.parentName
+                } : null,
+                
+                metadata: {
+                    lead_id: leadResult.lead?.id,
+                    contact_id: contact.id,
+                    source: 'direct_crm',
+                    is_real_data: true,
+                    last_updated: new Date().toISOString()
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка V2 subscription:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения данных абонемента',
+            debug: error.message
+        });
+    }
+});
 // Авторизация по телефону
 app.post('/api/auth/phone', async (req, res) => {
     try {
