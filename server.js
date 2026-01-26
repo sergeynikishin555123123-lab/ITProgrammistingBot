@@ -4272,7 +4272,119 @@ function generateSetupRecommendations(summary, activeSubscriptions) {
     
     return recommendations;
 }
-
+// ==================== ДИАГНОСТИКА ДЛЯ ПРИЛОЖЕНИЯ ====================
+app.get('/api/debug/for-app/:phone/:studentName', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n📱 ДИАГНОСТИКА ДЛЯ ПРИЛОЖЕНИЯ`);
+        console.log(`📱 Телефон: ${phone}`);
+        console.log(`👤 Ученик: "${studentName}"`);
+        console.log('='.repeat(80));
+        
+        // 1. Получаем контакты
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        
+        if (contacts.length === 0) {
+            return res.json({ success: false, error: 'Контакты не найдены' });
+        }
+        
+        const contact = contacts[0];
+        console.log(`📋 Контакт: "${contact.name}" (ID: ${contact.id})`);
+        
+        // 2. Получаем профили через getStudentsByPhone
+        const profiles = await amoCrmService.getStudentsByPhone(phone);
+        
+        console.log(`📊 Профилей найдено: ${profiles.length}`);
+        
+        // 3. Находим нужного ученика
+        const targetProfile = profiles.find(p => 
+            p.student_name.toLowerCase().includes(studentName.toLowerCase()) ||
+            studentName.toLowerCase().includes(p.student_name.toLowerCase())
+        );
+        
+        if (!targetProfile) {
+            return res.json({
+                success: false,
+                error: `Ученик "${studentName}" не найден`,
+                available_students: profiles.map(p => p.student_name)
+            });
+        }
+        
+        console.log(`\n🎯 ПРОФИЛЬ, КОТОРЫЙ ВИДИТ ПРИЛОЖЕНИЕ:`);
+        console.log(`👤 Ученик: ${targetProfile.student_name}`);
+        console.log(`🏫 Филиал: ${targetProfile.branch}`);
+        console.log(`🎫 Абонемент: ${targetProfile.subscription_status}`);
+        console.log(`📊 Занятий: ${targetProfile.used_classes}/${targetProfile.total_classes} (осталось: ${targetProfile.remaining_classes})`);
+        console.log(`✅ Активен: ${targetProfile.subscription_active === 1 ? 'Да' : 'Нет'}`);
+        
+        // 4. Проверяем lead_data
+        let leadData = null;
+        if (targetProfile.lead_data && targetProfile.lead_data !== '{}') {
+            try {
+                leadData = JSON.parse(targetProfile.lead_data);
+                console.log(`📄 Lead ID: ${leadData.id}`);
+                console.log(`📄 Lead Name: "${leadData.name}"`);
+            } catch (e) {
+                console.log('❌ Ошибка парсинга lead_data');
+            }
+        }
+        
+        // 5. Проверяем, правильно ли выбран lead
+        const correctLeadId = 28674081; // ID правильной сделки
+        const isCorrectLead = leadData && leadData.id === correctLeadId;
+        
+        if (!isCorrectLead) {
+            console.log(`\n⚠️  ВНИМАНИЕ: Приложение видит НЕ ту сделку!`);
+            console.log(`   ❌ Текущий lead_id: ${leadData?.id || 'не найден'}`);
+            console.log(`   ✅ Правильный lead_id: ${correctLeadId}`);
+            
+            // Получаем все сделки контакта
+            const allLeads = await amoCrmService.getContactLeadsSorted(contact.id);
+            const leadsWithSubscriptions = allLeads.filter(lead => {
+                const info = amoCrmService.extractSubscriptionInfo(lead);
+                return info.hasSubscription;
+            });
+            
+            console.log(`\n📊 Все сделки с абонементами у контакта:`);
+            leadsWithSubscriptions.forEach((lead, index) => {
+                const info = amoCrmService.extractSubscriptionInfo(lead);
+                console.log(`\n${index + 1}. "${lead.name}" (ID: ${lead.id})`);
+                console.log(`   📊 ${info.usedClasses}/${info.totalClasses} занятий`);
+                console.log(`   🎯 ${info.subscriptionStatus}`);
+                console.log(`   ✅ Активен: ${info.subscriptionActive ? 'Да' : 'Нет'}`);
+                console.log(`   📍 Воронка: ${lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID ? '✅ Да' : '❌ Нет'}`);
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                profile: targetProfile,
+                lead_data: leadData,
+                is_correct_lead: isCorrectLead,
+                correct_lead_id: correctLeadId,
+                debug: {
+                    profiles_count: profiles.length,
+                    profiles: profiles.map(p => ({
+                        student_name: p.student_name,
+                        total_classes: p.total_classes,
+                        remaining_classes: p.remaining_classes,
+                        lead_id: p.lead_data && p.lead_data !== '{}' ? JSON.parse(p.lead_data)?.id : null
+                    }))
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ПРОВЕРКА ВСЕХ СДЕЛОК КОНТАКТА ====================
 app.get('/api/debug/contact-leads/:phone', async (req, res) => {
     try {
