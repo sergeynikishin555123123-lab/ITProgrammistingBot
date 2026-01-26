@@ -700,43 +700,82 @@ isSubscriptionActive(subscriptionInfo) {
            !subscriptionInfo.isFrozen;
 }
     getFieldValue(field) {
-        try {
-            if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
-                return '';
-            }
-            
-            const firstValue = field.values[0];
-            
-            if (firstValue === null || firstValue === undefined) {
-                return '';
-            }
-            
-            if (typeof firstValue === 'string') {
-                return firstValue.trim();
-            } else if (typeof firstValue === 'number') {
-                return String(firstValue);
-            } else if (typeof firstValue === 'object' && firstValue !== null) {
-                if (firstValue.value !== undefined && firstValue.value !== null) {
-                    return String(firstValue.value).trim();
-                } else if (firstValue.enum_value !== undefined && firstValue.enum_value !== null) {
-                    return String(firstValue.enum_value).trim();
-                } else if (firstValue.enum_id !== undefined && firstValue.enum_id !== null) {
-                    // Для select полей нужно получить текст из enum
-                    if (field.enums) {
-                        const enumItem = field.enums.find(e => e.id === firstValue.enum_id);
-                        if (enumItem) return enumItem.value;
-                    }
-                    return String(firstValue.enum_id);
-                }
-            }
-            
-            return String(firstValue).trim();
-        } catch (error) {
-            console.error('❌ Ошибка получения значения поля:', error);
+    try {
+        if (!field || !field.values || !Array.isArray(field.values) || field.values.length === 0) {
             return '';
         }
+        
+        const firstValue = field.values[0];
+        
+        if (firstValue === null || firstValue === undefined) {
+            return '';
+        }
+        
+        // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Для select-полей
+        if (field.field_type === 'select' || field.type === 'select') {
+            // Для select полей текст хранится в value, а не enum_id
+            if (firstValue.value !== undefined && firstValue.value !== null) {
+                return String(firstValue.value).trim();
+            }
+            // Если нет value, но есть enum_id, пытаемся найти в маппинге
+            else if (firstValue.enum_id !== undefined && firstValue.enum_id !== null) {
+                // Получаем маппинг из загруженных полей
+                const fieldMapping = this.fieldMappings.get(field.field_id || field.id);
+                if (fieldMapping && fieldMapping.enums) {
+                    const enumItem = fieldMapping.enums.find(e => e.id === firstValue.enum_id);
+                    if (enumItem) return enumItem.value;
+                }
+                return String(firstValue.enum_id);
+            }
+        }
+        
+        // Остальная логика остается...
+        if (typeof firstValue === 'string') {
+            return firstValue.trim();
+        } else if (typeof firstValue === 'number') {
+            return String(firstValue);
+        } else if (typeof firstValue === 'object' && firstValue !== null) {
+            if (firstValue.value !== undefined && firstValue.value !== null) {
+                return String(firstValue.value).trim();
+            }
+        }
+        
+        return String(firstValue).trim();
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения значения поля:', error);
+        return '';
     }
-
+}
+parseNumberFromField(value) {
+    if (!value && value !== 0) {
+        return 0;
+    }
+    
+    try {
+        if (typeof value === 'number') {
+            return value;
+        }
+        
+        const str = String(value).trim();
+        
+        // ⚡ ДОБАВЬТЕ ЭТУ ЛОГИКУ для select-полей:
+        // Пример: "4 занятия", "8 занятий", "16 занятий"
+        if (str.includes('занят')) {
+            const match = str.match(/(\d+)\s+занят/);
+            if (match && match[1]) {
+                return parseInt(match[1]);
+            }
+        }
+        
+        // Остальная логика...
+        
+    } catch (error) {
+        console.error(`❌ Ошибка парсинга "${value}":`, error.message);
+        return 0;
+    }
+}
+    
     parseDate(value) {
         if (!value) return null;
         
@@ -3620,7 +3659,82 @@ app.get('/api/debug/lead-selection/:phone/:studentName', async (req, res) => {
         });
     }
 });
-
+// Тестовый маршрут для отладки парсинга
+app.get('/api/debug/field-parsing/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.status(404).json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        const customFields = lead.custom_fields_values || [];
+        const analysis = {};
+        
+        // Анализируем каждое поле
+        customFields.forEach(field => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = field.field_name || `Поле ${fieldId}`;
+            const fieldType = field.field_type || field.type;
+            
+            const rawValue = field.values ? field.values[0] : null;
+            const parsedValue = amoCrmService.getFieldValue(field);
+            const numericValue = amoCrmService.parseNumberFromField(parsedValue);
+            
+            analysis[fieldName] = {
+                field_id: fieldId,
+                field_type: fieldType,
+                raw_value: rawValue,
+                parsed_value: parsedValue,
+                numeric_value: numericValue,
+                enum_id: field.values?.[0]?.enum_id,
+                value: field.values?.[0]?.value
+            };
+        });
+        
+        // Проверяем конкретные поля
+        const criticalFields = [
+            { id: 850241, name: 'Абонемент занятий:' },
+            { id: 850257, name: 'Счетчик занятий:' },
+            { id: 890163, name: 'Остаток занятий' },
+            { id: 851565, name: 'Дата активации абонемента:' },
+            { id: 850255, name: 'Окончание абонемента:' },
+            { id: 891007, name: 'Тип абонемента' }
+        ];
+        
+        const criticalAnalysis = {};
+        criticalFields.forEach(fieldDef => {
+            const field = customFields.find(f => (f.field_id || f.id) === fieldDef.id);
+            if (field) {
+                criticalAnalysis[fieldDef.name] = {
+                    exists: true,
+                    value: amoCrmService.getFieldValue(field),
+                    number: amoCrmService.parseNumberFromField(amoCrmService.getFieldValue(field))
+                };
+            } else {
+                criticalAnalysis[fieldDef.name] = { exists: false };
+            }
+        });
+        
+        res.json({
+            success: true,
+            lead_name: lead.name,
+            pipeline_id: lead.pipeline_id,
+            status_id: lead.status_id,
+            critical_fields: criticalAnalysis,
+            all_fields: analysis
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка отладки:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== БЫСТРЫЙ ТЕСТ ВЫБОРА ====================
 app.get('/api/test-selection/:phone/:studentName', async (req, res) => {
     try {
