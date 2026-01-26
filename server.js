@@ -2938,7 +2938,129 @@ function formatPhoneNumber(phone) {
 }
 
 // ==================== API МАРШРУТЫ ====================
-
+// ==================== ОЧИСТКА КЭША И ПЕРЕСИНХРОНИЗАЦИЯ ====================
+app.post('/api/clear-cache/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        console.log(`\n🗑️  ОЧИСТКА КЭША ДЛЯ: ${formattedPhone}`);
+        
+        // Удаляем все профили этого телефона
+        await db.run(
+            `DELETE FROM student_profiles WHERE phone_number LIKE ?`,
+            [`%${formattedPhone.slice(-10)}%`]
+        );
+        
+        console.log(`✅ Кэш очищен`);
+        
+        // Запрашиваем свежие данные из amoCRM
+        const profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        const savedCount = await saveProfilesToDatabase(profiles);
+        
+        console.log(`🔄 Получено свежих данных: ${savedCount} профилей`);
+        
+        res.json({
+            success: true,
+            message: 'Кэш очищен и данные обновлены',
+            data: {
+                phone: formattedPhone,
+                profiles_found: profiles.length,
+                profiles_saved: savedCount,
+                profiles: profiles.map(p => ({
+                    student_name: p.student_name,
+                    subscription_status: p.subscription_status,
+                    total_classes: p.total_classes,
+                    remaining_classes: p.remaining_classes
+                }))
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка очистки кэша:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// ==================== ЧТО ВИДИТ ПРИЛОЖЕНИЕ ====================
+app.get('/api/debug/app-view/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        console.log(`\n📱 ЧТО ВИДИТ ПРИЛОЖЕНИЕ ДЛЯ: ${formattedPhone}`);
+        
+        // 1. Что в базе данных
+        const dbProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? 
+             ORDER BY last_sync DESC`,
+            [`%${formattedPhone.slice(-10)}%`]
+        );
+        
+        console.log(`📊 В базе данных: ${dbProfiles.length} профилей`);
+        
+        // 2. Что в amoCRM (реальные данные)
+        const crmProfiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        console.log(`📊 В amoCRM: ${crmProfiles.length} профилей`);
+        
+        // 3. Сравниваем
+        const comparison = dbProfiles.map(dbProfile => {
+            const crmProfile = crmProfiles.find(p => 
+                p.student_name === dbProfile.student_name &&
+                p.phone_number === dbProfile.phone_number
+            );
+            
+            return {
+                student_name: dbProfile.student_name,
+                db_data: {
+                    total_classes: dbProfile.total_classes,
+                    remaining_classes: dbProfile.remaining_classes,
+                    subscription_status: dbProfile.subscription_status,
+                    last_sync: dbProfile.last_sync
+                },
+                crm_data: crmProfile ? {
+                    total_classes: crmProfile.total_classes,
+                    remaining_classes: crmProfile.remaining_classes,
+                    subscription_status: crmProfile.subscription_status
+                } : null,
+                matches: crmProfile 
+                    ? (dbProfile.total_classes === crmProfile.total_classes && 
+                       dbProfile.remaining_classes === crmProfile.remaining_classes)
+                    : false
+            };
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                phone: formattedPhone,
+                database_profiles: dbProfiles.map(p => ({
+                    id: p.id,
+                    student_name: p.student_name,
+                    total_classes: p.total_classes,
+                    remaining_classes: p.remaining_classes,
+                    subscription_status: p.subscription_status,
+                    last_sync: p.last_sync
+                })),
+                crm_profiles: crmProfiles.map(p => ({
+                    student_name: p.student_name,
+                    total_classes: p.total_classes,
+                    remaining_classes: p.remaining_classes,
+                    subscription_status: p.subscription_status
+                })),
+                comparison: comparison,
+                issues: comparison.filter(c => !c.matches).map(c => ({
+                    student: c.student_name,
+                    problem: `Данные не совпадают: БД=${c.db_data.total_classes}/${c.db_data.remaining_classes}, CRM=${c.crm_data?.total_classes}/${c.crm_data?.remaining_classes}`
+                }))
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка отладки:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Статус сервера
 app.get('/api/status', (req, res) => {
     res.json({
@@ -2952,7 +3074,152 @@ app.get('/api/status', (req, res) => {
         data_source: 'Реальные данные из amoCRM'
     });
 });
-
+// ==================== ПРЯМОЙ API ДЛЯ ПРИЛОЖЕНИЯ ====================
+app.post('/api/app/get-profiles', async (req, res) => {
+    try {
+        const { phone, force_refresh = false } = req.body;
+        
+        if (!phone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Укажите номер телефона'
+            });
+        }
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        console.log(`\n📱 ЗАПРОС ОТ ПРИЛОЖЕНИЯ: ${formattedPhone} ${force_refresh ? '(force refresh)' : ''}`);
+        
+        // Если нужно обновить - очищаем кэш
+        if (force_refresh) {
+            await db.run(
+                `DELETE FROM student_profiles WHERE phone_number LIKE ?`,
+                [`%${formattedPhone.slice(-10)}%`]
+            );
+            console.log('🗑️  Кэш очищен');
+        }
+        
+        // Проверяем, есть ли свежие данные в БД (менее 5 минут назад)
+        const recentProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? 
+               AND last_sync > datetime('now', '-5 minutes')
+             ORDER BY subscription_active DESC, updated_at DESC`,
+            [`%${formattedPhone.slice(-10)}%`]
+        );
+        
+        let profiles = [];
+        
+        if (recentProfiles.length > 0 && !force_refresh) {
+            console.log(`📊 Используем кэшированные данные (${recentProfiles.length} профилей)`);
+            profiles = recentProfiles;
+        } else {
+            // Получаем свежие данные из amoCRM
+            console.log('🔄 Получение свежих данных из amoCRM...');
+            const crmProfiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+            
+            if (crmProfiles.length === 0) {
+                return res.json({
+                    success: true,
+                    message: 'Ученики не найдены',
+                    data: {
+                        profiles: [],
+                        source: 'crm',
+                        cache_hit: false,
+                        timestamp: new Date().toISOString()
+                    }
+                });
+            }
+            
+            // Сохраняем в БД
+            const savedCount = await saveProfilesToDatabase(crmProfiles);
+            console.log(`💾 Сохранено в БД: ${savedCount} профилей`);
+            
+            // Читаем из БД
+            profiles = await db.all(
+                `SELECT * FROM student_profiles 
+                 WHERE phone_number LIKE ? 
+                 ORDER BY subscription_active DESC, updated_at DESC`,
+                [`%${formattedPhone.slice(-10)}%`]
+            );
+        }
+        
+        // Форматируем ответ для приложения
+        const responseProfiles = profiles.map(p => ({
+            id: p.id,
+            student_name: p.student_name,
+            phone_number: p.phone_number,
+            branch: p.branch || 'Филиал не указан',
+            
+            subscription: {
+                type: p.subscription_type,
+                active: p.subscription_active === 1,
+                status: p.subscription_status,
+                badge: p.subscription_badge,
+                
+                classes: {
+                    total: p.total_classes,
+                    used: p.used_classes,
+                    remaining: p.remaining_classes,
+                    progress: p.total_classes > 0 
+                        ? Math.round((p.used_classes / p.total_classes) * 100) 
+                        : 0
+                },
+                
+                dates: {
+                    activation: p.activation_date,
+                    expiration: p.expiration_date,
+                    last_visit: p.last_visit_date
+                }
+            },
+            
+            schedule: {
+                day_of_week: p.day_of_week,
+                time_slot: p.time_slot,
+                teacher_name: p.teacher_name
+            },
+            
+            parent: p.parent_name ? {
+                name: p.parent_name
+            } : null,
+            
+            metadata: {
+                profile_id: p.id,
+                last_sync: p.last_sync,
+                source: p.source,
+                is_real_data: true
+            }
+        }));
+        
+        console.log(`✅ Отправлено приложению: ${responseProfiles.length} профилей`);
+        
+        res.json({
+            success: true,
+            message: 'Профили получены',
+            data: {
+                profiles: responseProfiles,
+                total: responseProfiles.length,
+                has_multiple: responseProfiles.length > 1,
+                source: profiles[0]?.source || 'unknown',
+                cache_hit: recentProfiles.length > 0 && !force_refresh,
+                timestamp: new Date().toISOString(),
+                debug_info: {
+                    phone_requested: phone,
+                    phone_formatted: formattedPhone,
+                    server_time: new Date().toISOString(),
+                    amocrm_connected: amoCrmService.isInitialized
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка API для приложения:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения данных',
+            debug: error.message
+        });
+    }
+});
 // Авторизация по телефону
 app.post('/api/auth/phone', async (req, res) => {
     try {
@@ -4243,6 +4510,88 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
         });
     }
 });
+// ==================== ТЕСТ ПРИЛОЖЕНИЯ ====================
+app.get('/api/test-app/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        // Эмулируем запрос приложения
+        const testResponse = {
+            success: true,
+            message: 'ТЕСТ: Что видит приложение',
+            timestamp: new Date().toISOString(),
+            
+            // 1. Что возвращает текущий API
+            current_api_response: {
+                endpoint: '/api/auth/phone',
+                method: 'POST',
+                sample_request: { phone: phone },
+                expected_response_structure: {
+                    success: true,
+                    data: {
+                        user: { /* данные пользователя */ },
+                        profiles: [{
+                            student_name: '...',
+                            subscription: {
+                                active: true,
+                                classes: {
+                                    total: 8,
+                                    used: 1,
+                                    remaining: 7
+                                }
+                            }
+                        }]
+                    }
+                }
+            },
+            
+            // 2. Что на самом деле в amoCRM
+            real_data_from_crm: null,
+            
+            // 3. Что в базе данных
+            database_data: null
+        };
+        
+        // Получаем реальные данные
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        // Из amoCRM
+        const crmProfiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        testResponse.real_data_from_crm = crmProfiles.map(p => ({
+            student_name: p.student_name,
+            total_classes: p.total_classes,
+            remaining_classes: p.remaining_classes,
+            subscription_active: p.subscription_active
+        }));
+        
+        // Из базы данных
+        const dbProfiles = await db.all(
+            `SELECT student_name, total_classes, remaining_classes, subscription_active, last_sync 
+             FROM student_profiles 
+             WHERE phone_number LIKE ?`,
+            [`%${formattedPhone.slice(-10)}%`]
+        );
+        testResponse.database_data = dbProfiles;
+        
+        // Проверяем совпадение
+        testResponse.data_match = crmProfiles.every(crmProfile => {
+            const dbProfile = dbProfiles.find(p => p.student_name === crmProfile.student_name);
+            return dbProfile && 
+                   dbProfile.total_classes === crmProfile.total_classes &&
+                   dbProfile.remaining_classes === crmProfile.remaining_classes;
+        });
+        
+        res.json(testResponse);
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста приложения:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
 // ==================== ТЕСТ КОНКРЕТНОЙ СДЕЛКИ ====================
 app.get('/api/test-deal/:leadId', async (req, res) => {
     try {
