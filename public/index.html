@@ -1613,13 +1613,40 @@ const ArtApp = {
                 throw new Error('Некорректный ответ от сервера');
             }
         })
+                .then(authData => {
+            console.log('✅ Авторизация успешна:', authData);
+            
+            if (authData.success && authData.data && authData.data.profiles) {
+                this.config.token = authData.data.token;
+                this.config.currentUser = authData.data.user || { phone: formattedPhone };
+                this.config.profiles = authData.data.profiles || [];
+                
+                // 2. ДЛЯ КАЖДОГО УЧЕНИКА ИЩЕМ ЕГО АБОНЕМЕНТ
+                console.log('🔍 Ищем индивидуальные абонементы для каждого ученика...');
+                
+                // Сохраняем все профили
+                this.config.currentProfile = this.config.profiles[0] || null;
+                
+                if (!this.config.currentProfile) {
+                    throw new Error('Профили не найдены');
+                }
+                
+                console.log(`🎯 Выбран профиль: ${this.config.currentProfile.student_name}`);
+                
+                // 3. ЗАГРУЖАЕМ ИНДИВИДУАЛЬНЫЕ ДАННЫЕ ДЛЯ КАЖДОГО УЧЕНИКА
+                return this.loadIndividualSubscriptions();
+                
+            } else {
+                throw new Error('Некорректный ответ от сервера');
+            }
+        })
         .then(subscriptionData => {
             // 4. Сохраняем сессию
             this.saveSession();
             
             // 5. Показываем интерфейс
             this.showMainInterface();
-            this.showNotification('✅ Данные гарантированно загружены!', 'success');
+            this.showNotification('✅ Данные загружены для всех учеников!', 'success');
             
             // 6. Переходим на главную
             this.navigateToPage('home');
@@ -1649,112 +1676,143 @@ const ArtApp = {
     },
 
     // ГАРАНТИРОВАННАЯ ЗАГРУЗКА АБОНЕМЕНТА
-    loadGuaranteedSubscription: function() {
+    // ИНДИВИДУАЛЬНАЯ ЗАГРУЗКА АБОНЕМЕНТОВ ДЛЯ ВСЕХ УЧЕНИКОВ
+    loadIndividualSubscriptions: function() {
         return new Promise((resolve, reject) => {
-            if (!this.config.currentProfile || !this.config.token) {
-                reject('Нет активного профиля');
+            if (!this.config.profiles || this.config.profiles.length === 0) {
+                reject('Нет профилей учеников');
                 return;
             }
             
-            console.log(`🔐 ГАРАНТИРОВАННАЯ ЗАГРУЗКА для: ${this.config.currentProfile.student_name}`);
+            console.log(`🔐 ИНДИВИДУАЛЬНАЯ ЗАГРУЗКА для ${this.config.profiles.length} учеников`);
             
-            this.showLoading(`Загрузка данных для ${this.config.currentProfile.student_name}...`);
+            this.showLoading(`Загрузка данных для ${this.config.profiles.length} учеников...`);
             
-            // 1. Сначала пробуем обычный API
-            fetch('/api/subscription', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.config.token}`
-                },
-                body: JSON.stringify({ 
-                    profile_id: this.config.currentProfile.id,
-                    phone: this.config.currentUser.phone,
-                    force_correct: true
+            // Массив для хранения данных всех учеников
+            this.config.allSubscriptions = [];
+            
+            // Для каждого профиля загружаем отдельно
+            const subscriptionPromises = this.config.profiles.map(profile => {
+                return this.loadSubscriptionForProfile(profile);
+            });
+            
+            // Ждем загрузки всех абонементов
+            Promise.all(subscriptionPromises)
+                .then(results => {
+                    console.log(`✅ Загружены данные для ${results.length} учеников`);
+                    
+                    // Сохраняем все абонементы
+                    this.config.allSubscriptions = results;
+                    
+                    // Для текущего профиля используем первый результат
+                    if (results.length > 0) {
+                        this.config.subscriptionData = results[0];
+                    }
+                    
+                    resolve(results);
                 })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    console.log('✅ Данные получены через основной API');
-                    this.config.subscriptionData = data.data;
-                    resolve(data.data);
-                } else {
-                    throw new Error(data.error || 'Ошибка API');
-                }
-            })
-            .catch(error => {
-                console.log('⚠️  Основной API не сработал, пробуем резервный...');
-                
-                // 2. РЕЗЕРВНЫЙ ВАРИАНТ: Прямой запрос на диагностику
-                return fetch(`/api/debug/for-app/${this.config.currentUser.phone}/${encodeURIComponent(this.config.currentProfile.student_name)}`);
-            })
-            .then(response => {
-                if (!response) return;
-                return response.json();
-            })
-            .then(debugData => {
-                if (debugData && debugData.success) {
-                    console.log('✅ Данные получены через диагностический API');
+                .catch(error => {
+                    console.error('❌ Ошибка загрузки абонементов:', error);
+                    reject(error);
+                })
+                .finally(() => {
+                    this.hideLoading();
+                });
+        });
+    },
+
+    // ЗАГРУЗКА АБОНЕМЕНТА ДЛЯ КОНКРЕТНОГО ПРОФИЛЯ
+    loadSubscriptionForProfile: function(profile) {
+        return new Promise((resolve, reject) => {
+            console.log(`   🔍 Загрузка для: ${profile.student_name}`);
+            
+            // 1. Пробуем получить индивидуальные данные через диагностический API
+            fetch(`/api/debug/for-app/${this.config.currentUser.phone}/${encodeURIComponent(profile.student_name)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.data && data.data.profile) {
+                        console.log(`   ✅ Данные получены для ${profile.student_name}`);
+                        
+                        const subscriptionData = {
+                            student: {
+                                name: profile.student_name,
+                                branch: data.data.profile.branch || profile.branch,
+                                teacher_name: profile.teacher_name || data.data.profile.teacher_name,
+                                age_group: profile.age_group || data.data.profile.age_group
+                            },
+                            subscription: {
+                                type: data.data.profile.subscription_type || profile.subscription_type,
+                                status: data.data.profile.subscription_status || profile.subscription_status,
+                                active: data.data.profile.subscription_active === 1 || profile.subscription_active === 1,
+                                badge: data.data.profile.subscription_badge || profile.subscription_badge,
+                                classes: {
+                                    total: data.data.profile.total_classes || profile.total_classes || 0,
+                                    used: data.data.profile.used_classes || profile.used_classes || 0,
+                                    remaining: data.data.profile.remaining_classes || profile.remaining_classes || 0,
+                                    progress: (data.data.profile.total_classes > 0 
+                                        ? Math.round(((data.data.profile.used_classes || 0) / data.data.profile.total_classes) * 100)
+                                        : 0)
+                                },
+                                dates: {
+                                    activation: data.data.profile.activation_date || profile.activation_date,
+                                    expiration: data.data.profile.expiration_date || profile.expiration_date,
+                                    last_visit: data.data.profile.last_visit_date || profile.last_visit_date
+                                }
+                            },
+                            metadata: {
+                                source: "INDIVIDUAL_API",
+                                student_name: profile.student_name,
+                                is_correct_lead: data.data.is_correct_lead || false,
+                                match_score: data.data.match_score || 0
+                            }
+                        };
+                        
+                        resolve(subscriptionData);
+                    } else {
+                        throw new Error(data.error || 'Нет данных в ответе');
+                    }
+                })
+                .catch(error => {
+                    console.log(`   ⚠️  Для ${profile.student_name} используем данные из профиля`);
                     
-                    const correctData = this.extractCorrectData(debugData);
-                    this.config.subscriptionData = correctData;
-                    resolve(correctData);
-                } else {
-                    throw new Error('Резервный API также не сработал');
-                }
-            })
-            .catch(backupError => {
-                console.error('❌ Все API не сработали:', backupError);
-                
-                // 3. ФИНАЛЬНЫЙ ВАРИАНТ: Ручные данные для Захара
-                if (this.config.currentProfile.student_name.toLowerCase().includes('захар')) {
-                    console.log('⚠️  Используем РУЧНЫЕ ДАННЫЕ для Захара');
-                    
-                    const manualData = {
+                    // Резервные данные из профиля
+                    const subscriptionData = {
                         student: {
-                            name: "Захар Веребрюсов",
-                            branch: "Чертаново",
-                            teacher_name: "Света К",
-                            age_group: "4-6 лет"
+                            name: profile.student_name,
+                            branch: profile.branch,
+                            teacher_name: profile.teacher_name,
+                            age_group: profile.age_group
                         },
                         subscription: {
-                            type: "Повторный",
-                            status: "Активный (осталось 7 занятий)",
-                            active: true,
-                            badge: "success",
+                            type: profile.subscription_type || 'Без абонемента',
+                            status: profile.subscription_status || 'Нет данных',
+                            active: profile.subscription_active === 1,
+                            badge: profile.subscription_badge || 'inactive',
                             classes: {
-                                total: 8,
-                                used: 1,
-                                remaining: 7,
-                                progress: 12
+                                total: profile.total_classes || 0,
+                                used: profile.used_classes || 0,
+                                remaining: profile.remaining_classes || 0,
+                                progress: 0
                             },
                             dates: {
-                                activation: "2026-01-23",
-                                expiration: "2026-04-17",
-                                last_visit: "2026-01-23"
+                                activation: profile.activation_date,
+                                expiration: profile.expiration_date,
+                                last_visit: profile.last_visit_date
                             }
                         },
                         metadata: {
-                            source: "MANUAL_FIX_FOR_ZAHAR",
-                            warning: "Используются ручные данные из-за ошибки системы"
+                            source: "FALLBACK_PROFILE_DATA",
+                            warning: "Используются данные из профиля"
                         }
                     };
                     
-                    this.config.subscriptionData = manualData;
-                    resolve(manualData);
-                } else {
-                    reject('Не удалось загрузить данные');
-                }
-            })
-            .finally(() => {
-                this.hideLoading();
-            });
+                    resolve(subscriptionData);
+                });
         });
     },
 
@@ -1800,114 +1858,11 @@ const ArtApp = {
         };
     },
 
-    // ВАЛИДАЦИЯ ДАННЫХ
-    validateData: function() {
-        if (!this.config.subscriptionData) {
-            console.warn('⚠️  Нет данных для валидации');
-            return;
-        }
-        
-        const subscription = this.config.subscriptionData.subscription;
-        const student = this.config.subscriptionData.student;
-        
-        console.log('🔍 ВАЛИДАЦИЯ ДАННЫХ:');
-        console.log('='.repeat(60));
-        
-        if (student.name && student.name.toLowerCase().includes('захар')) {
-            console.log('✅ Ученик: Захар Веребрюсов');
-        } else {
-            console.log('⚠️  ВНИМАНИЕ: Не Захар Веребрюсов!');
-        }
-        
-        if (subscription.classes.total === 8 && subscription.classes.remaining === 7) {
-            console.log('✅ Абонемент: 8 занятий, осталось 7 (ПРАВИЛЬНО!)');
-        } else if (subscription.classes.total === 24) {
-            console.log('❌ ОШИБКА: Показывает 24 занятия (НЕПРАВИЛЬНО!)');
-            
-            this.autoFixZaharData();
-        } else {
-            console.log(`⚠️  Абонемент: ${subscription.classes.total} занятий`);
-        }
-        
-        console.log('='.repeat(60));
-    },
-
-    // АВТОМАТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДАННЫХ ДЛЯ ЗАХАРА
-    autoFixZaharData: function() {
-        if (!this.config.currentProfile || 
-            !this.config.currentProfile.student_name.toLowerCase().includes('захар')) {
-            return;
-        }
-        
-        console.log('🔧 АВТОМАТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ ЗАХАРА...');
-        
-        this.config.subscriptionData = {
-            student: {
-                name: "Захар Веребрюсов",
-                branch: "Чертаново",
-                teacher_name: "Света К",
-                age_group: "4-6 лет"
-            },
-            subscription: {
-                type: "Повторный",
-                status: "Активный (осталось 7 занятий)",
-                active: true,
-                badge: "success",
-                classes: {
-                    total: 8,
-                    used: 1,
-                    remaining: 7,
-                    progress: 12
-                },
-                dates: {
-                    activation: "2026-01-23",
-                    expiration: "2026-04-17",
-                    last_visit: "2026-01-23"
-                }
-            },
-            metadata: {
-                source: "AUTO_FIXED",
-                reason: "Система показывала 24 занятия вместо 8",
-                timestamp: new Date().toISOString()
-            }
-        };
-        
-        this.showNotification('⚠️  Данные автоматически исправлены (24→8 занятий)', 'warning');
-        
-        if (document.getElementById('home-page').classList.contains('active')) {
-            this.loadHomePage();
-        }
-    },
-
-    // КНОПКА ЭКСТРЕННОГО ИСПРАВЛЕНИЯ
-    addEmergencyFixButton: function() {
-        const heroSection = document.getElementById('heroSection');
-        
-        if (heroSection && !document.getElementById('emergencyFixBtn')) {
-            const fixBtn = document.createElement('button');
-            fixBtn.id = 'emergencyFixBtn';
-            fixBtn.className = 'btn btn-secondary mt-20';
-            fixBtn.innerHTML = '<i class="fas fa-bolt"></i> ЭКСТРЕННОЕ ИСПРАВЛЕНИЕ (24→8)';
-            fixBtn.onclick = () => this.emergencyFix();
-            
-            heroSection.appendChild(fixBtn);
-        }
-    },
-
-    emergencyFix: function() {
-        if (confirm('ЭКСТРЕННОЕ ИСПРАВЛЕНИЕ:\n\nИзменить данные с 24 занятий на 8 занятий для Захара Веребрюсова?\n\nЭто перезапишет все данные.')) {
-            this.autoFixZaharData();
-            this.showNotification('✅ ДАННЫЕ ЭКСТРЕННО ИСПРАВЛЕНЫ!', 'success');
-            
-            setTimeout(() => {
-                location.reload();
-            }, 2000);
-        }
-    },
-
+ 
+    // ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ
     // ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ
     loadHomePage: function() {
-        console.log('🏠 ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ С ГАРАНТИЕЙ');
+        console.log('🏠 ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ');
         
         if (!this.config.token) {
             this.showNotification('Требуется авторизация', 'error');
@@ -1916,12 +1871,26 @@ const ArtApp = {
         }
         
         this.updateUserInfo();
-        this.addEmergencyFixButton();
         
         if (this.config.subscriptionData) {
             console.log('✅ Используем существующие данные');
             this.renderRemainingClasses(this.config.subscriptionData);
-            this.validateData();
+        } else if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
+            console.log('✅ Используем сохраненные данные для всех учеников');
+            
+            // Находим данные для текущего ученика
+            const currentSubscription = this.config.allSubscriptions.find(sub => 
+                sub.student.name === this.config.currentProfile?.student_name
+            );
+            
+            if (currentSubscription) {
+                this.config.subscriptionData = currentSubscription;
+                this.renderRemainingClasses(currentSubscription);
+            } else if (this.config.allSubscriptions.length > 0) {
+                // Берем первый доступный
+                this.config.subscriptionData = this.config.allSubscriptions[0];
+                this.renderRemainingClasses(this.config.allSubscriptions[0]);
+            }
         } else {
             console.log('🔄 Загружаем новые данные');
             this.loadSubscriptionData();
@@ -1929,8 +1898,54 @@ const ArtApp = {
         
         this.loadStudentsList();
         this.addDiagnosticInfo();
+        
+        // Показываем информацию о всех учениках
+        this.showAllStudentsInfo();
     },
-
+    // ПОКАЗАТЬ ИНФОРМАЦИЮ О ВСЕХ УЧЕНИКАХ
+    showAllStudentsInfo: function() {
+        if (!this.config.allSubscriptions || this.config.allSubscriptions.length <= 1) {
+            return;
+        }
+        
+        console.log('📋 ИНФОРМАЦИЯ О ВСЕХ УЧЕНИКАХ:');
+        console.log('='.repeat(60));
+        
+        this.config.allSubscriptions.forEach((sub, index) => {
+            console.log(`${index + 1}. ${sub.student.name}`);
+            console.log(`   🎫 ${sub.subscription.type || 'Без абонемента'}`);
+            console.log(`   📊 ${sub.subscription.classes.remaining}/${sub.subscription.classes.total} занятий`);
+            console.log(`   ✅ Активен: ${sub.subscription.active ? 'Да' : 'Нет'}`);
+            console.log(`   🏢 Филиал: ${sub.student.branch || 'Не указан'}`);
+            console.log(`   📱 Источник: ${sub.metadata?.source || 'Неизвестно'}`);
+            console.log('─'.repeat(40));
+        });
+        
+        console.log('='.repeat(60));
+        
+        // Можно также добавить визуальное отображение на странице
+        const heroSection = document.getElementById('heroSection');
+        if (heroSection && this.config.allSubscriptions.length > 1) {
+            const infoDiv = document.createElement('div');
+            infoDiv.style.marginTop = '20px';
+            infoDiv.style.padding = '15px';
+            infoDiv.style.background = 'var(--gray-light)';
+            infoDiv.style.borderRadius = '12px';
+            infoDiv.style.fontSize = '0.9rem';
+            
+            infoDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <i class="fas fa-users" style="color: var(--blue-dark);"></i>
+                    <strong style="color: var(--blue-dark);">Всего учеников в семье: ${this.config.allSubscriptions.length}</strong>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--gray-dark);">
+                    Переключайтесь между учениками в блоке "Выберите ученика" выше
+                </div>
+            `;
+            
+            heroSection.appendChild(infoDiv);
+        }
+    },
     // ОБНОВЛЕНИЕ ИНФОРМАЦИИ ПОЛЬЗОВАТЕЛЯ
     updateUserInfo: function() {
         if (!this.config.currentProfile) return;
@@ -2027,31 +2042,23 @@ const ArtApp = {
         `;
     },
 
-    // ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
-    loadSubscriptionPage: function() {
-        const container = document.getElementById('subscriptionContainer');
-        
-        if (!this.config.token) {
-            this.showNotification('Требуется авторизация', 'error');
-            this.navigateToPage('home');
-            return;
-        }
-        
-        container.innerHTML = `
-            <div class="subscription-card">
-                <div class="text-center">
-                    <div class="spinner"></div>
-                    <p class="mt-30">Загрузка данных абонемента...</p>
-                </div>
-            </div>
-        `;
-        
-        this.showLoading('Загрузка данных абонемента...');
-        
+            // Проверяем, есть ли данные для текущего ученика
         if (this.config.subscriptionData) {
             this.renderFullSubscription(this.config.subscriptionData);
             this.hideLoading();
             return;
+        } else if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
+            // Ищем данные для текущего ученика среди сохраненных
+            const currentSubscription = this.config.allSubscriptions.find(sub => 
+                sub.student.name === this.config.currentProfile?.student_name
+            );
+            
+            if (currentSubscription) {
+                this.config.subscriptionData = currentSubscription;
+                this.renderFullSubscription(currentSubscription);
+                this.hideLoading();
+                return;
+            }
         }
         
         fetch('/api/v2/subscription', {
@@ -2320,15 +2327,48 @@ const ArtApp = {
         });
     },
 
-    // ВЫБОР УЧЕНИКА
+       // ВЫБОР УЧЕНИКА
     selectStudent: function(profile) {
         this.config.currentProfile = profile;
         this.saveSession();
         
         this.updateUserInfo();
-        this.loadSubscriptionData();
-        this.loadStudentsList();
         
+        // Ищем сохраненные данные для этого ученика
+        if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
+            const studentSubscription = this.config.allSubscriptions.find(sub => 
+                sub.student.name === profile.student_name
+            );
+            
+            if (studentSubscription) {
+                this.config.subscriptionData = studentSubscription;
+                this.renderRemainingClasses(studentSubscription);
+            } else {
+                // Если нет сохраненных данных, загружаем заново
+                this.loadSubscriptionForProfile(profile)
+                    .then(subscriptionData => {
+                        this.config.subscriptionData = subscriptionData;
+                        this.renderRemainingClasses(subscriptionData);
+                    })
+                    .catch(error => {
+                        console.error('❌ Ошибка загрузки данных:', error);
+                        this.showNotification('Ошибка загрузки данных абонемента', 'error');
+                    });
+            }
+        } else {
+            // Если нет сохраненных данных, загружаем заново
+            this.loadSubscriptionForProfile(profile)
+                .then(subscriptionData => {
+                    this.config.subscriptionData = subscriptionData;
+                    this.renderRemainingClasses(subscriptionData);
+                })
+                .catch(error => {
+                    console.error('❌ Ошибка загрузки данных:', error);
+                    this.showNotification('Ошибка загрузки данных абонемента', 'error');
+                });
+        }
+        
+        this.loadStudentsList();
         this.showNotification(`Выбран ученик: ${profile.student_name}`, 'success');
     },
 
