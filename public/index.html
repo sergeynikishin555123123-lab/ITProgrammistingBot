@@ -1478,21 +1478,70 @@ const ArtApp = {
         currentUser: null,
         currentProfile: null,
         profiles: [],
-        token: null
+        token: null,
+        subscriptionData: null
     },
 
+    // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
     init: function() {
         console.log('🎨 Инициализация приложения V2...');
         this.loadSession();
         this.setupEventListeners();
+        this.checkAuthState();
     },
 
-    // ОБНОВЛЕННЫЙ МЕТОД АВТОРИЗАЦИИ
+    // ПРОВЕРКА СОСТОЯНИЯ АВТОРИЗАЦИИ
+    checkAuthState: function() {
+        if (this.config.token && this.config.currentUser) {
+            this.showMainInterface();
+            this.navigateToPage('home');
+            this.loadHomePage();
+        } else {
+            this.showAuthPage();
+        }
+    },
+
+    // ПОКАЗАТЬ СТРАНИЦУ АВТОРИЗАЦИИ
+    showAuthPage: function() {
+        document.getElementById('auth-page').classList.add('active');
+        document.getElementById('auth-page').style.display = 'block';
+        
+        // Скрыть основные страницы
+        document.querySelectorAll('.page').forEach(page => {
+            if (page.id !== 'auth-page') {
+                page.classList.remove('active');
+                page.style.display = 'none';
+            }
+        });
+        
+        // Скрыть навигацию
+        document.querySelector('.top-nav').style.display = 'none';
+        document.querySelector('.bottom-nav').style.display = 'none';
+    },
+
+    // ПОКАЗАТЬ ОСНОВНОЙ ИНТЕРФЕЙС
+    showMainInterface: function() {
+        document.getElementById('auth-page').classList.remove('active');
+        document.getElementById('auth-page').style.display = 'none';
+        
+        // Показать навигацию
+        document.querySelector('.top-nav').style.display = 'flex';
+        document.querySelector('.bottom-nav').style.display = 'flex';
+        
+        // Обновить аватар пользователя
+        if (this.config.currentUser) {
+            document.getElementById('userAvatar').innerHTML = 
+                this.getInitials(this.config.currentUser.name || this.config.currentUser.phone);
+        }
+    },
+
+    // АВТОРИЗАЦИЯ ПО ТЕЛЕФОНУ
     handlePhoneLogin: function() {
         const phoneInput = document.getElementById('phoneNumber');
         const loginBtn = document.getElementById('loginBtn');
         let phone = phoneInput.value.trim();
         
+        // Очистка номера
         phone = phone.replace(/\D/g, '');
         
         if (phone.length < 10) {
@@ -1501,16 +1550,17 @@ const ArtApp = {
             return;
         }
         
-        let formattedPhone = '+7' + phone.slice(-10);
+        const formattedPhone = '+7' + phone.slice(-10);
         
         console.log(`📱 V2: Авторизация по телефону: ${formattedPhone}`);
         
+        // Блокировка кнопки
         loginBtn.disabled = true;
         loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
         
         this.showLoading('Поиск данных...');
         
-        // Используем новый V2 API
+        // Запрос к API V2
         fetch('/api/v2/auth/phone', {
             method: 'POST',
             headers: {
@@ -1518,18 +1568,23 @@ const ArtApp = {
             },
             body: JSON.stringify({ phone: formattedPhone })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             console.log('✅ Ответ от V2 API:', data);
             
             if (data.success && data.data) {
                 // Сохраняем данные
                 this.config.token = data.data.token;
-                this.config.currentUser = data.data.user;
-                this.config.profiles = data.data.profiles;
-                this.config.currentProfile = data.data.profiles[0];
+                this.config.currentUser = data.data.user || { phone: formattedPhone };
+                this.config.profiles = data.data.profiles || [];
+                this.config.currentProfile = this.config.profiles[0] || null;
                 
-                // Сохраняем в localStorage
+                // Сохраняем сессию
                 this.saveSession();
                 
                 // Показываем интерфейс
@@ -1539,12 +1594,22 @@ const ArtApp = {
                 this.loadHomePage();
                 
             } else {
-                throw new Error(data.error || 'Ошибка сервера');
+                throw new Error(data.error || 'Неизвестная ошибка сервера');
             }
         })
         .catch(error => {
             console.error('❌ Ошибка:', error);
-            this.showNotification(error.message || 'Ошибка подключения', 'error');
+            
+            let errorMessage = 'Ошибка подключения к серверу';
+            if (error.message.includes('404')) {
+                errorMessage = 'Аккаунт не найден. Проверьте номер телефона';
+            } else if (error.message.includes('401')) {
+                errorMessage = 'Неверный номер телефона';
+            } else if (error.message.includes('500')) {
+                errorMessage = 'Ошибка сервера. Попробуйте позже';
+            }
+            
+            this.showNotification(errorMessage, 'error');
             document.getElementById('newClientInfo').style.display = 'block';
         })
         .finally(() => {
@@ -1554,10 +1619,68 @@ const ArtApp = {
         });
     },
 
-    // ОБНОВЛЕННЫЙ МЕТОД ЗАГРУЗКИ АБОНЕМЕНТА
+    // ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ
+    loadHomePage: function() {
+        if (!this.config.token) {
+            this.showNotification('Требуется авторизация', 'error');
+            this.navigateToPage('home');
+            return;
+        }
+        
+        // Обновить информацию о пользователе
+        this.updateUserInfo();
+        
+        // Загрузить данные абонемента
+        this.loadSubscriptionData();
+        
+        // Загрузить список учеников, если есть несколько профилей
+        this.loadStudentsList();
+    },
+
+    // ОБНОВЛЕНИЕ ИНФОРМАЦИИ О ПОЛЬЗОВАТЕЛЕ
+    updateUserInfo: function() {
+        const heroSection = document.getElementById('heroSection');
+        const greeting = document.getElementById('greeting');
+        const studentName = document.getElementById('studentName');
+        const studentInfo = document.getElementById('studentInfo');
+        
+        if (!this.config.currentProfile) {
+            greeting.textContent = 'Добро пожаловать';
+            studentName.textContent = 'Нет активного профиля';
+            studentInfo.textContent = 'Выберите ученика из списка ниже';
+            return;
+        }
+        
+        // Установить приветствие в зависимости от времени суток
+        const hour = new Date().getHours();
+        if (hour < 6) greeting.textContent = 'Доброй ночи';
+        else if (hour < 12) greeting.textContent = 'Доброе утро';
+        else if (hour < 18) greeting.textContent = 'Добрый день';
+        else greeting.textContent = 'Добрый вечер';
+        
+        // Информация об ученике
+        studentName.textContent = this.config.currentProfile.student_name || 'Не указано';
+        
+        let infoText = '';
+        if (this.config.currentProfile.branch) {
+            infoText += `Филиал: ${this.config.currentProfile.branch}`;
+        }
+        if (this.config.currentProfile.age_group) {
+            infoText += infoText ? ` • Возраст: ${this.config.currentProfile.age_group}` : 
+                                 `Возрастная группа: ${this.config.currentProfile.age_group}`;
+        }
+        if (this.config.currentProfile.teacher_name) {
+            infoText += infoText ? ` • Преподаватель: ${this.config.currentProfile.teacher_name}` : 
+                                 `Преподаватель: ${this.config.currentProfile.teacher_name}`;
+        }
+        
+        studentInfo.textContent = infoText || 'Информация об ученике не указана';
+    },
+
+    // ЗАГРУЗКА ДАННЫХ АБОНЕМЕНТА ДЛЯ ГЛАВНОЙ СТРАНИЦЫ
     loadSubscriptionData: function() {
         if (!this.config.currentProfile || !this.config.token) {
-            console.log('❌ Нет токена или профиля');
+            console.log('❌ Нет токена или профиля для загрузки абонемента');
             return;
         }
         
@@ -1571,7 +1694,7 @@ const ArtApp = {
         
         console.log('🔄 V2: Загрузка данных абонемента...');
         
-        // Используем новый V2 API
+        // Запрос к API V2
         fetch('/api/v2/subscription', {
             method: 'POST',
             headers: {
@@ -1582,36 +1705,41 @@ const ArtApp = {
                 phone: this.config.currentUser?.phone
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             console.log('📊 Данные абонемента V2:', data);
             
             if (data.success) {
+                this.config.subscriptionData = data.data;
                 this.renderRemainingClasses(data.data);
             } else {
-                throw new Error(data.error || 'Ошибка загрузки');
+                throw new Error(data.error || 'Ошибка загрузки данных');
             }
         })
         .catch(error => {
-            console.error('Ошибка загрузки:', error);
+            console.error('Ошибка загрузки абонемента:', error);
             container.innerHTML = `
                 <div class="error-message">
                     <i class="fas fa-exclamation-circle"></i>
-                    <p>Не удалось загрузить данные</p>
+                    <p>Не удалось загрузить данные абонемента</p>
                     <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscriptionData()">
-                        Попробовать снова
+                        <i class="fas fa-redo"></i> Попробовать снова
                     </button>
                 </div>
             `;
         });
     },
 
-    // ОБНОВЛЕННЫЙ РЕНДЕРИНГ
+    // РЕНДЕРИНГ ИНФОРМАЦИИ ОБ АБОНЕМЕНТЕ НА ГЛАВНОЙ СТРАНИЦЕ
     renderRemainingClasses: function(subscriptionData) {
         const container = document.getElementById('remainingClassesCard');
-        const subscription = subscriptionData.subscription;
         
-        if (!subscription) {
+        if (!subscriptionData || !subscriptionData.subscription) {
             container.innerHTML = `
                 <div class="text-center">
                     <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--gray-medium);"></i>
@@ -1621,9 +1749,10 @@ const ArtApp = {
             return;
         }
         
-        const total = subscription.classes.total || 0;
-        const remaining = subscription.classes.remaining || 0;
-        const used = subscription.classes.used || 0;
+        const subscription = subscriptionData.subscription;
+        const total = subscription.classes?.total || 0;
+        const remaining = subscription.classes?.remaining || 0;
+        const used = subscription.classes?.used || 0;
         const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
         
         container.innerHTML = `
@@ -1661,11 +1790,11 @@ const ArtApp = {
             <div class="subscription-dates">
                 <div class="date-item">
                     <div class="date-label">Дата активации</div>
-                    <div class="date-value">${subscription.dates.activation_display || 'Не указана'}</div>
+                    <div class="date-value">${this.formatDate(subscription.dates?.activation) || 'Не указана'}</div>
                 </div>
                 <div class="date-item">
                     <div class="date-label">Срок действия</div>
-                    <div class="date-value">${subscription.dates.expiration_display || 'Не указан'}</div>
+                    <div class="date-value">${this.formatDate(subscription.dates?.expiration) || 'Не указан'}</div>
                 </div>
             </div>
             
@@ -1677,8 +1806,8 @@ const ArtApp = {
         `;
     },
 
-    // ОБНОВЛЕННАЯ ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
-    loadSubscription: function() {
+    // ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
+    loadSubscriptionPage: function() {
         const container = document.getElementById('subscriptionContainer');
         
         if (!this.config.token) {
@@ -1698,6 +1827,14 @@ const ArtApp = {
         
         this.showLoading('Загрузка данных абонемента...');
         
+        // Если данные уже загружены, используем их
+        if (this.config.subscriptionData) {
+            this.renderFullSubscription(this.config.subscriptionData);
+            this.hideLoading();
+            return;
+        }
+        
+        // Иначе загружаем с сервера
         fetch('/api/v2/subscription', {
             method: 'POST',
             headers: {
@@ -1708,25 +1845,31 @@ const ArtApp = {
                 phone: this.config.currentUser?.phone
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             console.log('📊 Данные абонемента V2:', data);
             
             if (data.success) {
+                this.config.subscriptionData = data.data;
                 this.renderFullSubscription(data.data);
             } else {
-                throw new Error(data.error || 'Ошибка загрузки');
+                throw new Error(data.error || 'Ошибка загрузки данных');
             }
         })
         .catch(error => {
-            console.error('Ошибка загрузки:', error);
+            console.error('Ошибка загрузки абонемента:', error);
             container.innerHTML = `
                 <div class="subscription-card">
                     <div class="error-message">
                         <i class="fas fa-exclamation-circle"></i>
                         <p>Не удалось загрузить данные об абонементе</p>
-                        <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscription()">
-                            Попробовать снова
+                        <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscriptionPage()">
+                            <i class="fas fa-redo"></i> Попробовать снова
                         </button>
                     </div>
                 </div>
@@ -1737,13 +1880,11 @@ const ArtApp = {
         });
     },
 
-    // ОБНОВЛЕННЫЙ РЕНДЕРИНГ ПОЛНОЙ СТРАНИЦЫ
+    // РЕНДЕРИНГ ПОЛНОЙ СТРАНИЦЫ АБОНЕМЕНТА
     renderFullSubscription: function(subscriptionData) {
         const container = document.getElementById('subscriptionContainer');
-        const student = subscriptionData.student;
-        const subscription = subscriptionData.subscription;
         
-        if (!subscription) {
+        if (!subscriptionData || !subscriptionData.subscription) {
             container.innerHTML = `
                 <div class="subscription-card">
                     <div class="text-center">
@@ -1755,14 +1896,31 @@ const ArtApp = {
             return;
         }
         
-        const total = subscription.classes.total || 0;
-        const remaining = subscription.classes.remaining || 0;
-        const used = subscription.classes.used || 0;
+        const student = subscriptionData.student || this.config.currentProfile || {};
+        const subscription = subscriptionData.subscription;
+        
+        const total = subscription.classes?.total || 0;
+        const remaining = subscription.classes?.remaining || 0;
+        const used = subscription.classes?.used || 0;
         const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
         
-        const badgeClass = subscription.active ? 'success' : 
-                          subscription.status?.includes('истек') ? 'danger' : 
-                          subscription.status?.includes('заморожен') ? 'warning' : 'secondary';
+        // Определяем класс для бейджа статуса
+        let badgeClass = 'secondary';
+        let badgeText = 'Не определен';
+        
+        if (subscription.active) {
+            badgeClass = 'active';
+            badgeText = 'Активен';
+        } else if (subscription.status?.toLowerCase().includes('истек')) {
+            badgeClass = 'expired';
+            badgeText = 'Истек';
+        } else if (subscription.status?.toLowerCase().includes('заморожен')) {
+            badgeClass = 'frozen';
+            badgeText = 'Заморожен';
+        } else if (subscription.status) {
+            badgeClass = 'inactive';
+            badgeText = subscription.status;
+        }
         
         container.innerHTML = `
             <div class="subscription-card">
@@ -1776,7 +1934,7 @@ const ArtApp = {
                             ${student.branch || 'Филиал не указан'}
                         </div>
                     </div>
-                    <div class="badge ${badgeClass}">${subscription.active ? 'Активен' : 'Не активен'}</div>
+                    <div class="badge ${badgeClass}">${badgeText}</div>
                 </div>
                 
                 <div class="subscription-stats">
@@ -1813,34 +1971,90 @@ const ArtApp = {
                 <div class="subscription-dates">
                     <div class="date-item">
                         <div class="date-label">Дата активации</div>
-                        <div class="date-value">${subscription.dates.activation_display || 'Не указана'}</div>
+                        <div class="date-value">${this.formatDate(subscription.dates?.activation) || 'Не указана'}</div>
                     </div>
                     <div class="date-item">
                         <div class="date-label">Срок действия</div>
-                        <div class="date-value">${subscription.dates.expiration_display || 'Не указан'}</div>
+                        <div class="date-value">${this.formatDate(subscription.dates?.expiration) || 'Не указан'}</div>
                     </div>
                 </div>
                 
+                ${subscription.comment ? `
+                <div style="margin-top: 20px; padding: 15px; background: var(--gray-light); border-radius: 12px;">
+                    <div style="font-weight: 500; margin-bottom: 5px;">Примечание:</div>
+                    <div style="color: var(--gray-dark);">${subscription.comment}</div>
+                </div>
+                ` : ''}
+                
                 <div class="data-source ${subscription.active ? 'real' : ''}">
                     <i class="fas fa-database"></i>
-                    Данные из CRM | Статус: ${subscription.status || 'Не указан'}
+                    Данные из CRM | Последнее обновление: ${new Date().toLocaleTimeString('ru-RU')}
                 </div>
             </div>
         `;
-    }
-};
-    refreshSubscription: function() {
-        this.showNotification('Обновление данных...', 'info');
-        this.config.subscriptionData = null;
-        this.config.lastSubscriptionResponse = null;
-        this.loadSubscription();
     },
 
-    loadProfile: function() {
+    // ЗАГРУЗКА СПИСКА УЧЕНИКОВ
+    loadStudentsList: function() {
+        const container = document.getElementById('studentsList');
+        const selector = document.getElementById('studentSelector');
+        
+        if (!this.config.profiles || this.config.profiles.length === 0) {
+            selector.style.display = 'none';
+            return;
+        }
+        
+        if (this.config.profiles.length === 1) {
+            selector.style.display = 'none';
+            return;
+        }
+        
+        selector.style.display = 'block';
+        container.innerHTML = '';
+        
+        this.config.profiles.forEach((profile, index) => {
+            const isActive = this.config.currentProfile && 
+                           this.config.currentProfile.student_id === profile.student_id;
+            
+            const studentItem = document.createElement('div');
+            studentItem.className = `student-item ${isActive ? 'active' : ''}`;
+            studentItem.onclick = () => this.selectStudent(profile);
+            
+            studentItem.innerHTML = `
+                <div class="student-info">
+                    <div class="student-avatar">${this.getInitials(profile.student_name)}</div>
+                    <div>
+                        <div class="student-name-small">${profile.student_name || 'Не указано'}</div>
+                        <div class="student-branch">${profile.branch || 'Филиал не указан'}</div>
+                    </div>
+                </div>
+                <div class="student-status">${profile.subscription_status || 'Нет абонемента'}</div>
+            `;
+            
+            container.appendChild(studentItem);
+        });
+    },
+
+    // ВЫБОР УЧЕНИКА
+    selectStudent: function(profile) {
+        this.config.currentProfile = profile;
+        this.saveSession();
+        
+        // Обновить отображение
+        this.updateUserInfo();
+        this.loadSubscriptionData();
+        this.loadStudentsList();
+        
+        // Показать уведомление
+        this.showNotification(`Выбран ученик: ${profile.student_name}`, 'success');
+    },
+
+    // ЗАГРУЗКА СТРАНИЦЫ ПРОФИЛЯ
+    loadProfilePage: function() {
         const container = document.getElementById('profileContainer');
         
         if (!this.config.currentProfile) {
-            this.showNotification('Выберите ученика', 'error');
+            this.showNotification('Нет активного профиля', 'error');
             this.navigateToPage('home');
             return;
         }
@@ -1848,17 +2062,17 @@ const ArtApp = {
         const profile = this.config.currentProfile;
         const subscription = this.config.subscriptionData?.subscription;
         
-        const totalVisits = subscription?.classes.used || profile.used_classes || 0;
-        const remainingClasses = subscription?.classes.remaining || profile.remaining_classes || 0;
-        const totalClasses = subscription?.classes.total || profile.total_classes || 0;
+        const totalVisits = subscription?.classes?.used || profile.used_classes || 0;
+        const remainingClasses = subscription?.classes?.remaining || profile.remaining_classes || 0;
+        const totalClasses = subscription?.classes?.total || profile.total_classes || 0;
         
         container.innerHTML = `
             <div class="profile-header">
                 <div class="profile-avatar">
                     ${this.getInitials(profile.student_name)}
                 </div>
-                <div class="profile-name">${profile.student_name}</div>
-                <div class="profile-email">${profile.phone_number || ''}</div>
+                <div class="profile-name">${profile.student_name || 'Не указано'}</div>
+                <div class="profile-email">${this.config.currentUser?.phone || 'Телефон не указан'}</div>
                 
                 <div class="profile-stats">
                     <div class="profile-stat">
@@ -1942,6 +2156,54 @@ const ArtApp = {
         `;
     },
 
+    // НАВИГАЦИЯ ПО СТРАНИЦАМ
+    navigateToPage: function(pageName) {
+        // Скрыть все страницы
+        document.querySelectorAll('.page').forEach(page => {
+            page.classList.remove('active');
+            page.style.display = 'none';
+        });
+        
+        // Обновить активную кнопку в навигации
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.getAttribute('data-page') === pageName) {
+                item.classList.add('active');
+            }
+        });
+        
+        // Показать выбранную страницу
+        const pageElement = document.getElementById(`${pageName}-page`);
+        if (pageElement) {
+            pageElement.classList.add('active');
+            pageElement.style.display = 'block';
+            
+            // Загрузить данные для страницы
+            switch(pageName) {
+                case 'home':
+                    this.loadHomePage();
+                    break;
+                case 'subscription':
+                    this.loadSubscriptionPage();
+                    break;
+                case 'profile':
+                    this.loadProfilePage();
+                    break;
+                case 'schedule':
+                    // Страница расписания пока не реализована
+                    break;
+            }
+        }
+    },
+
+    // ОБНОВЛЕНИЕ ДАННЫХ АБОНЕМЕНТА
+    refreshSubscription: function() {
+        this.showNotification('Обновление данных...', 'info');
+        this.config.subscriptionData = null;
+        this.loadSubscriptionPage();
+    },
+
+    // ВЫХОД ИЗ СИСТЕМЫ
     logout: function() {
         if (confirm('Вы уверены, что хотите выйти?')) {
             this.clearSession();
@@ -1950,14 +2212,17 @@ const ArtApp = {
         }
     },
 
+    // СВЯЗЬ С АДМИНИСТРАТОРОМ
     contactAdmin: function() {
         this.showNotification('📞 Для связи с администратором: +7 (999) 123-45-67', 'info', 5000);
     },
 
+    // СВЯЗЬ С ПОДДЕРЖКОЙ
     contactSupport: function() {
         this.showNotification('📧 Напишите нам: support@art-school.ru', 'info', 5000);
     },
 
+    // УВЕДОМЛЕНИЯ
     showNotification: function(message, type = 'info', duration = 3000) {
         const container = document.getElementById('notificationContainer');
         const notification = document.createElement('div');
@@ -1981,6 +2246,7 @@ const ArtApp = {
         }, duration);
     },
 
+    // ИНДИКАТОР ЗАГРУЗКИ
     showLoading: function(message) {
         const loading = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
@@ -1994,8 +2260,61 @@ const ArtApp = {
         if (loading) loading.classList.remove('active');
     },
 
+    // РАБОТА С СЕССИЕЙ
+    saveSession: function() {
+        try {
+            const sessionData = {
+                token: this.config.token,
+                currentUser: this.config.currentUser,
+                currentProfile: this.config.currentProfile,
+                profiles: this.config.profiles,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('artSchoolSession', JSON.stringify(sessionData));
+            console.log('💾 Сессия сохранена');
+        } catch (error) {
+            console.error('Ошибка сохранения сессии:', error);
+        }
+    },
+
+    loadSession: function() {
+        try {
+            const saved = localStorage.getItem('artSchoolSession');
+            if (saved) {
+                const sessionData = JSON.parse(saved);
+                
+                // Проверяем, не устарела ли сессия (24 часа)
+                const maxAge = 24 * 60 * 60 * 1000; // 24 часа в миллисекундах
+                if (Date.now() - (sessionData.timestamp || 0) < maxAge) {
+                    this.config.token = sessionData.token;
+                    this.config.currentUser = sessionData.currentUser;
+                    this.config.currentProfile = sessionData.currentProfile;
+                    this.config.profiles = sessionData.profiles || [];
+                    console.log('📂 Сессия загружена');
+                } else {
+                    console.log('⌛ Сессия устарела, требуется повторная авторизация');
+                    this.clearSession();
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки сессии:', error);
+            this.clearSession();
+        }
+    },
+
+    clearSession: function() {
+        localStorage.removeItem('artSchoolSession');
+        this.config.token = null;
+        this.config.currentUser = null;
+        this.config.currentProfile = null;
+        this.config.profiles = [];
+        this.config.subscriptionData = null;
+        console.log('🗑️ Сессия очищена');
+    },
+
+    // УТИЛИТЫ
     getInitials: function(name) {
-        if (!name) return 'У';
+        if (!name || typeof name !== 'string') return 'У';
         return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'У';
     },
 
@@ -2003,6 +2322,7 @@ const ArtApp = {
         if (!dateString) return 'Не указано';
         
         try {
+            // Если это timestamp
             if (/^\d+$/.test(dateString)) {
                 const timestamp = parseInt(dateString);
                 const date = timestamp < 10000000000 
@@ -2011,6 +2331,7 @@ const ArtApp = {
                 return date.toLocaleDateString('ru-RU');
             }
             
+            // Если это строка даты
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return dateString;
             
@@ -2020,6 +2341,7 @@ const ArtApp = {
                 year: 'numeric'
             });
         } catch (error) {
+            console.error('Ошибка форматирования даты:', error);
             return dateString;
         }
     },
@@ -2039,50 +2361,74 @@ const ArtApp = {
                 minute: '2-digit'
             });
         } catch (error) {
+            console.error('Ошибка форматирования даты:', error);
             return dateTimeString;
         }
     },
 
+    // НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
     setupEventListeners: function() {
         const phoneInput = document.getElementById('phoneNumber');
         if (phoneInput) {
+            // Форматирование номера телефона
             phoneInput.addEventListener('input', function(e) {
                 let value = e.target.value.replace(/\D/g, '');
                 
                 if (value.length > 0) {
-                    value = value.match(new RegExp('.{1,3}', 'g')).join(' ');
+                    value = value.match(/.{1,3}/g).join(' ');
                 }
                 
                 e.target.value = value;
             });
             
+            // Автофокус при загрузке
             setTimeout(() => {
-                phoneInput.focus();
-                phoneInput.select();
+                if (phoneInput) {
+                    phoneInput.focus();
+                    phoneInput.select();
+                }
             }, 300);
             
+            // Вход по Enter
             phoneInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     ArtApp.handlePhoneLogin();
                 }
             });
         }
+        
+        // Обработка нажатия на логотип
+        const logoContainer = document.querySelector('.logo-container');
+        if (logoContainer) {
+            logoContainer.addEventListener('click', () => this.navigateToPage('home'));
+        }
+        
+        // Обработка нажатия на аватар
+        const userAvatar = document.getElementById('userAvatar');
+        if (userAvatar) {
+            userAvatar.addEventListener('click', () => this.navigateToPage('profile'));
+        }
     },
 
+    // ОТЛАДКА
     debug: function() {
-        console.log('=== ОТЛАДКА ===');
+        console.log('=== ОТЛАДКА ПРИЛОЖЕНИЯ ===');
+        console.log('Текущий пользователь:', this.config.currentUser);
         console.log('Текущий профиль:', this.config.currentProfile);
         console.log('Данные абонемента:', this.config.subscriptionData);
-        console.log('Последний ответ сервера:', this.config.lastSubscriptionResponse);
         console.log('Все профили:', this.config.profiles);
         console.log('Токен:', this.config.token ? 'Присутствует' : 'Отсутствует');
+        console.log('Время сессии:', new Date().toLocaleString());
     }
 };
 
+// ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DOM загружен, запуск приложения...');
     ArtApp.init();
 });
 
+// ДОСТУП К ГЛОБАЛЬНОМУ ОБЪЕКТУ
 window.ArtApp = ArtApp;
 </script>
 </body>
