@@ -318,23 +318,33 @@ class AmoCrmService {
         }
     }
 
-    extractSubscriptionInfo(lead) {
+   extractSubscriptionInfo(lead) {
     try {
-        // ⚡ ПРЯМАЯ ЛОГИКА: ЕСЛИ СДЕЛКА В ВОРОНКЕ АБОНЕМЕНТОВ И СТАТУС 142/143 - ЭТО АКТИВНЫЙ АБОНЕМЕНТ
-        
+        // ⚡ ПРЯМАЯ ЛОГИКА: ЕСЛИ СДЕЛКА В ВОРОНКЕ АБОНЕМЕНТОВ - ПРОВЕРЯЕМ ДАННЫЕ
         const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
-        const isActiveStatus = [142, 143].includes(lead.status_id);
         
-        if (!isInSubscriptionPipeline || !isActiveStatus) {
-            // Если не в воронке абонементов или не активный статус - возвращаем пустой абонемент
-            console.log(`❌ Сделка ${lead.id} не подходит: воронка=${isInSubscriptionPipeline}, статус=${isActiveStatus}`);
+        // ⚡ ВСЕ статусы в воронке абонементов считаем потенциально активными
+        const ALL_SUBSCRIPTION_STATUSES = [
+            142, 143,          // Основные активные статусы
+            65473306,          // "Активный абонемент" - ВАЖНО!
+            65455980,          // "Пробный"
+            60025747,          // "Активирован"  
+            60025749,          // "Истек"
+            60025751           // "Заморозка"
+        ];
+        
+        const isSubscriptionStatus = ALL_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+        
+        if (!isInSubscriptionPipeline) {
+            // Если не в воронке абонементов - сразу возвращаем пустой
+            console.log(`❌ Сделка ${lead.id} не в воронке абонементов`);
             return this.getDefaultSubscriptionInfo();
         }
         
         console.log(`\n🔍 extractSubscriptionInfo для сделки ${lead.id}: "${lead.name}"`);
         console.log('='.repeat(60));
         console.log(`📍 Воронка абонементов: ${isInSubscriptionPipeline ? '✅ Да' : '❌ Нет'}`);
-        console.log(`📍 Активный статус: ${isActiveStatus ? '✅ Да' : '❌ Нет'}`);
+        console.log(`📍 Статус в воронке: ${isSubscriptionStatus ? '✅ Да' : '❌ Нет'} (ID: ${lead.status_id})`);
         
         if (!lead) {
             console.log('❌ Лид не найден');
@@ -346,7 +356,7 @@ class AmoCrmService {
         const statusId = lead.status_id;
         const pipelineId = lead.pipeline_id;
         
-        // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ДОЛЖНЫ БЫТЬ ЗАПОЛНЕНЫ ЭТИ ПОЛЯ
+        // ⚡ ПАРСИМ ВСЕ КЛЮЧЕВЫЕ ПОЛЯ
         let totalClasses = 0;
         let usedClasses = 0;
         let remainingClasses = 0;
@@ -359,17 +369,32 @@ class AmoCrmService {
         // 🔍 ОТЛАДОЧНЫЙ ВЫВОД - ПОИСК ПОЛЕЙ
         console.log('\n🔍 ПОИСК КЛЮЧЕВЫХ ПОЛЕЙ:');
         
-        // ... остальной код остается без изменений ...
-        
-        // 1. Поле "Абонемент занятий:" (850241)
+        // 1. Поле "Абонемент занятий:" (850241) - СЕЛЕКТ С ENUM_ID
         const totalClassesField = customFields.find(f => 
             (f.field_id || f.id) === this.FIELD_IDS.LEAD.TOTAL_CLASSES
         );
         
         if (totalClassesField) {
             const fieldValue = this.getFieldValue(totalClassesField);
-            console.log(`• TOTAL_CLASSES: "${fieldValue}"`);
+            const enumId = totalClassesField.values?.[0]?.enum_id;
+            console.log(`• TOTAL_CLASSES: "${fieldValue}" (enum_id: ${enumId})`);
             totalClasses = this.parseNumberFromField(fieldValue);
+            
+            // ⚡ Альтернативный парсинг через техническое поле
+            if (totalClasses === 0 && totalClassesField.field_type === 'select') {
+                console.log(`   ⚡ Альтернативный парсинг через enum_id: ${enumId}`);
+                // Маппинг enum_id → количество занятий
+                const enumMapping = {
+                    504035: 8,    // "8 занятий"
+                    504037: 16,   // "16 занятий"
+                    504033: 4,    // "4 занятия"
+                    504041: 1,    // "Разовый"
+                    504237: 5,    // "База Блок № 1 - 5 занятий"
+                    504241: 5,    // "База Блок № 3 - 5 занятий"
+                    504243: 16    // "База - 16 занятий"
+                };
+                totalClasses = enumMapping[enumId] || totalClasses;
+            }
         }
         
         // 2. Поле "Счетчик занятий:" (850257)
@@ -379,8 +404,20 @@ class AmoCrmService {
         
         if (usedClassesField) {
             const fieldValue = this.getFieldValue(usedClassesField);
-            console.log(`• USED_CLASSES: "${fieldValue}"`);
+            const enumId = usedClassesField.values?.[0]?.enum_id;
+            console.log(`• USED_CLASSES: "${fieldValue}" (enum_id: ${enumId})`);
             usedClasses = this.parseNumberFromField(fieldValue);
+            
+            // Альтернативный парсинг для select полей
+            if (usedClasses === 0 && usedClassesField.field_type === 'select') {
+                const enumMapping = {
+                    504105: 1, 504107: 2, 504109: 3, 504111: 4,
+                    504113: 5, 504115: 6, 504117: 7, 504119: 8,
+                    504121: 9, 504123: 10, 504125: 11, 504127: 12,
+                    504129: 13, 504131: 14, 504133: 15, 504135: 16
+                };
+                usedClasses = enumMapping[enumId] || usedClasses;
+            }
         }
         
         // 3. Поле "Остаток занятий" (890163)
@@ -394,30 +431,17 @@ class AmoCrmService {
             remainingClasses = this.parseNumberFromField(fieldValue);
         }
         
-        // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ВСЕГДА ВЫЧИСЛЯЕМ ОСТАТОК!
-        if (totalClasses > 0 && usedClasses >= 0) {
-            const calculatedRemaining = Math.max(0, totalClasses - usedClasses);
-            console.log(`⚡ Вычисляем остаток: ${totalClasses} - ${usedClasses} = ${calculatedRemaining}`);
-            
-            // Если поле "Остаток занятий" не заполнено или неверное
-            if (remainingClasses !== calculatedRemaining) {
-                console.log(`⚡ Исправляем остаток: ${remainingClasses} → ${calculatedRemaining}`);
-                remainingClasses = calculatedRemaining;
-            }
+        // ⚡ КРИТИЧЕСКОЕ: ВСЕГДА ВЫЧИСЛЯЕМ ОСТАТОК!
+        const calculatedRemaining = Math.max(0, totalClasses - usedClasses);
+        console.log(`⚡ Вычисляем остаток: ${totalClasses} - ${usedClasses} = ${calculatedRemaining}`);
+        
+        // Используем вычисленный остаток, если поле пустое или неверное
+        if (remainingClasses !== calculatedRemaining) {
+            console.log(`⚡ Исправляем остаток: ${remainingClasses} → ${calculatedRemaining}`);
+            remainingClasses = calculatedRemaining;
         }
         
-        // 4. Поле "Заморозка абонемента:" (867693)
-        const freezeField = customFields.find(f => 
-            (f.field_id || f.id) === this.FIELD_IDS.LEAD.FREEZE
-        );
-        
-        if (freezeField) {
-            const fieldValue = this.getFieldValue(freezeField);
-            isFrozen = fieldValue === 'ДА' || fieldValue === 'Да' || fieldValue === 'true' || fieldValue === '1';
-            console.log(`• FREEZE: "${fieldValue}" → ${isFrozen ? 'Заморожен' : 'Не заморожен'}`);
-        }
-        
-        // 5. Поле "Тип абонемента" (891007)
+        // 4. Поле "Тип абонемента" (891007)
         const typeField = customFields.find(f => 
             (f.field_id || f.id) === this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE
         );
@@ -427,7 +451,7 @@ class AmoCrmService {
             console.log(`• SUBSCRIPTION_TYPE: "${subscriptionType}"`);
         }
         
-        // 6. Поле "Окончание абонемента:" (850255)
+        // 5. Поле "Окончание абонемента:" (850255)
         const expirationField = customFields.find(f => 
             (f.field_id || f.id) === this.FIELD_IDS.LEAD.EXPIRATION_DATE
         );
@@ -438,7 +462,7 @@ class AmoCrmService {
             console.log(`• EXPIRATION_DATE: "${fieldValue}" → ${expirationDate}`);
         }
         
-        // 7. Поле "Дата активации абонемента:" (851565)
+        // 6. Поле "Дата активации абонемента:" (851565)
         const activationField = customFields.find(f => 
             (f.field_id || f.id) === this.FIELD_IDS.LEAD.ACTIVATION_DATE
         );
@@ -449,7 +473,7 @@ class AmoCrmService {
             console.log(`• ACTIVATION_DATE: "${fieldValue}" → ${activationDate}`);
         }
         
-        // 8. Поле "Дата последнего визита:" (850259)
+        // 7. Поле "Дата последнего визита:" (850259)
         const lastVisitField = customFields.find(f => 
             (f.field_id || f.id) === this.FIELD_IDS.LEAD.LAST_VISIT_DATE
         );
@@ -460,8 +484,19 @@ class AmoCrmService {
             console.log(`• LAST_VISIT_DATE: "${fieldValue}" → ${lastVisitDate}`);
         }
         
+        // 8. Поле "Заморозка абонемента:" (867693)
+        const freezeField = customFields.find(f => 
+            (f.field_id || f.id) === this.FIELD_IDS.LEAD.FREEZE
+        );
+        
+        if (freezeField) {
+            const fieldValue = this.getFieldValue(freezeField);
+            isFrozen = fieldValue === 'ДА' || fieldValue === 'Да' || fieldValue === 'true' || fieldValue === '1';
+            console.log(`• FREEZE: "${fieldValue}" → ${isFrozen ? 'Заморожен' : 'Не заморожен'}`);
+        }
+        
         // Определяем, есть ли абонемент
-        const hasSubscription = totalClasses > 0 || usedClasses > 0;
+        const hasSubscription = totalClasses > 0;
         
         console.log(`\n📊 ИТОГО ДАННЫХ:`);
         console.log(`   • totalClasses: ${totalClasses}`);
@@ -471,60 +506,45 @@ class AmoCrmService {
         console.log(`   • isFrozen: ${isFrozen ? '✅ Да' : '❌ Нет'}`);
         
         if (!hasSubscription) {
-            console.log(`\n❌ Нет данных об абонементе`);
+            console.log(`\n❌ Нет данных об абонементе (totalClasses = 0)`);
             return this.getDefaultSubscriptionInfo();
         }
         
-        // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ АКТИВНОСТИ
-        
-        // УДАЛИТЬ ЭТУ СТРОКУ (строка 480 в оригинале) - переменная уже объявлена выше!
-        // const isInSubscriptionPipeline = pipelineId === this.SUBSCRIPTION_PIPELINE_ID;
-        
-        // ИСПОЛЬЗУЕМ переменную, которая уже объявлена в начале метода
-        // const isActiveStatus = this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(statusId);
+        // ⚡ УПРОЩЕННАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ АКТИВНОСТИ:
+        // 1. Если в воронке абонементов
+        // 2. И есть остаток занятий
+        // 3. И не заморожен
+        // → Тогда активен!
         
         console.log(`\n🎯 ОПРЕДЕЛЕНИЕ АКТИВНОСТИ:`);
         console.log(`   • Воронка абонементов: ${isInSubscriptionPipeline ? '✅ Да' : '❌ Нет'}`);
-        console.log(`   • Активный статус (${statusId}): ${isActiveStatus ? '✅ Да' : '❌ Нет'}`);
+        console.log(`   • Статус в воронке: ${isSubscriptionStatus ? '✅ Да' : '❌ Нет'}`);
         console.log(`   • Заморожен: ${isFrozen ? '✅ Да' : '❌ Нет'}`);
         console.log(`   • Остаток занятий: ${remainingClasses}`);
-        console.log(`   • Дата окончания: ${expirationDate || 'нет'}`);
         
-        // Определяем активность абонемента
         let subscriptionActive = false;
         let subscriptionStatus = 'Не определен';
         let subscriptionBadge = 'secondary';
         
-        // ⚡ ИСПРАВЛЕННАЯ ЛОГИКА:
-        // 1. Если заморожен → статус "Заморожен"
+        // ⚡ ПРОСТАЯ ЛОГИКА:
         if (isFrozen) {
             subscriptionStatus = `Заморожен (осталось ${remainingClasses} занятий)`;
             subscriptionBadge = 'warning';
-            subscriptionActive = false; // ⚡ Замороженные НЕ активны для посещений!
+            subscriptionActive = false;
             console.log(`   • Результат: ${subscriptionStatus} (НЕ активен)`);
         }
-        // 2. Если есть остаток занятий И в правильной воронке И не заморожен → активен
         else if (remainingClasses > 0 && isInSubscriptionPipeline && !isFrozen) {
             subscriptionStatus = `Активный (осталось ${remainingClasses} занятий)`;
             subscriptionBadge = 'success';
             subscriptionActive = true;
             console.log(`   • Результат: ${subscriptionStatus} (активен)`);
         }
-        // 3. Если нет остатка занятий → использован
         else if (remainingClasses === 0 && totalClasses > 0) {
             subscriptionStatus = `Использован (${usedClasses}/${totalClasses} занятий)`;
             subscriptionBadge = 'secondary';
             subscriptionActive = false;
             console.log(`   • Результат: ${subscriptionStatus} (не активен)`);
         }
-        // 4. Если нет данных о количестве занятий, но есть счетчик
-        else if (usedClasses > 0 && totalClasses === 0) {
-            subscriptionStatus = `Есть занятия (использовано ${usedClasses})`;
-            subscriptionBadge = 'info';
-            subscriptionActive = false;
-            console.log(`   • Результат: ${subscriptionStatus} (не активен)`);
-        }
-        // 5. Остальные случаи
         else {
             subscriptionStatus = `Неактивный (осталось ${remainingClasses} занятий)`;
             subscriptionBadge = 'secondary';
@@ -555,7 +575,7 @@ class AmoCrmService {
             usedClasses: usedClasses,
             remainingClasses: remainingClasses,
             subscriptionType: subscriptionType,
-            subscriptionActive: subscriptionActive, // ⚡ Исправлено!
+            subscriptionActive: subscriptionActive,
             activationDate: activationDate,
             expirationDate: expirationDate,
             lastVisitDate: lastVisitDate,
@@ -763,38 +783,17 @@ parseNumberFromField(value) {
             return 0;
         }
         
-        // ⚡ УЛУЧШЕННЫЙ ПАРСИНГ ДЛЯ AMOCRM
-        // 1. Пробуем найти число напрямую
-        const numberMatch = str.match(/(\d+)/);
-        if (numberMatch) {
-            return parseInt(numberMatch[1]);
+        // ⚡ ПРОСТОЙ ПАРСИНГ: ищем любые цифры
+        const match = str.match(/(\d+)/);
+        if (match && match[1]) {
+            const num = parseInt(match[1]);
+            return isNaN(num) ? 0 : num;
         }
         
-        // 2. Парсим текст "N занятий", "N занятия"
-        if (str.toLowerCase().includes('занят')) {
-            if (str.toLowerCase().includes('разовый')) return 1;
-            if (str.toLowerCase().includes('4 занятия')) return 4;
-            if (str.toLowerCase().includes('8 занятий')) return 8;
-            if (str.toLowerCase().includes('16 занятий')) return 16;
-            if (str.toLowerCase().includes('5 занятий')) return 5;
-            if (str.toLowerCase().includes('12 занятий')) return 12;
-            if (str.toLowerCase().includes('24 занятия')) return 24;
-        }
-        
-        // 3. Парсим "База - N занятий"
-        if (str.toLowerCase().includes('база')) {
-            if (str.includes('16')) return 16;
-            if (str.includes('5')) return 5;
-        }
-        
-        // 4. Булевы значения
-        if (str.toLowerCase() === 'да' || str.toLowerCase() === 'true') {
-            return 1;
-        }
-        
-        if (str.toLowerCase() === 'нет' || str.toLowerCase() === 'false') {
-            return 0;
-        }
+        // Для текстовых значений
+        if (str.toLowerCase() === 'разовый') return 1;
+        if (str.toLowerCase() === 'да' || str.toLowerCase() === 'true') return 1;
+        if (str.toLowerCase() === 'нет' || str.toLowerCase() === 'false') return 0;
         
         return 0;
         
@@ -4242,6 +4241,86 @@ app.get('/api/debug/active-subscriptions', async (req, res) => {
             success: false,
             error: error.message
         });
+    }
+});
+// ==================== ТЕСТ КОНКРЕТНОЙ СДЕЛКИ ====================
+app.get('/api/test-deal/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🧪 ТЕСТ СДЕЛКИ ${leadId}`);
+        console.log('='.repeat(80));
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest(
+            'GET',
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.status(404).json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        console.log(`📋 Сделка: "${lead.name}"`);
+        console.log(`📍 Pipeline: ${lead.pipeline_id}, Status: ${lead.status_id}`);
+        
+        // Тестируем extractSubscriptionInfo
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        // Проверяем поля вручную
+        const customFields = lead.custom_fields_values || [];
+        
+        const manualCheck = {
+            total_classes_field: customFields.find(f => f.field_id === 850241),
+            used_classes_field: customFields.find(f => f.field_id === 850257),
+            remaining_classes_field: customFields.find(f => f.field_id === 890163),
+            activation_field: customFields.find(f => f.field_id === 851565),
+            expiration_field: customFields.find(f => f.field_id === 850255),
+            subscription_type_field: customFields.find(f => f.field_id === 891007)
+        };
+        
+        // Парсим вручную
+        const manualTotal = manualCheck.total_classes_field 
+            ? amoCrmService.parseNumberFromField(amoCrmService.getFieldValue(manualCheck.total_classes_field))
+            : 0;
+            
+        const manualUsed = manualCheck.used_classes_field
+            ? amoCrmService.parseNumberFromField(amoCrmService.getFieldValue(manualCheck.used_classes_field))
+            : 0;
+            
+        const manualRemaining = Math.max(0, manualTotal - manualUsed);
+        
+        res.json({
+            success: true,
+            data: {
+                lead_info: {
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id,
+                    is_in_subscription_pipeline: lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID
+                },
+                subscription_info: subscriptionInfo,
+                manual_calculation: {
+                    total: manualTotal,
+                    used: manualUsed,
+                    remaining: manualRemaining,
+                    calculated: manualTotal - manualUsed
+                },
+                fields_present: {
+                    total: !!manualCheck.total_classes_field,
+                    used: !!manualCheck.used_classes_field,
+                    remaining: !!manualCheck.remaining_classes_field,
+                    activation: !!manualCheck.activation_field,
+                    expiration: !!manualCheck.expiration_field,
+                    subscription_type: !!manualCheck.subscription_type_field
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 // ==================== ТЕСТ ПАРСИНГА КОНКРЕТНОЙ СДЕЛКИ ====================
