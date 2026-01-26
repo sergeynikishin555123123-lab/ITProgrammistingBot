@@ -1474,157 +1474,20 @@
 <script>
 const ArtApp = {
     config: {
-        API_URL: window.location.origin,
+        API_BASE_URL: window.location.origin,
         currentUser: null,
         currentProfile: null,
         profiles: [],
-        token: null,
-        subscriptionData: null,
-        lastSubscriptionResponse: null
+        token: null
     },
 
     init: function() {
-        console.log('🎨 Инициализация приложения...');
+        console.log('🎨 Инициализация приложения V2...');
         this.loadSession();
         this.setupEventListeners();
-        
-        setTimeout(() => {
-            const phoneInput = document.getElementById('phoneNumber');
-            if (phoneInput) {
-                phoneInput.focus();
-                phoneInput.select();
-            }
-        }, 300);
     },
 
-    loadSession: function() {
-        try {
-            const savedToken = localStorage.getItem('art_token');
-            const savedUser = localStorage.getItem('art_user');
-            const savedProfile = localStorage.getItem('art_profile');
-            const savedProfiles = localStorage.getItem('art_profiles');
-            
-            console.log('📂 Загрузка сессии:', {
-                hasToken: !!savedToken,
-                hasUser: !!savedUser,
-                hasProfile: !!savedProfile,
-                hasProfiles: !!savedProfiles
-            });
-            
-            if (savedToken && savedUser) {
-                this.config.token = savedToken;
-                this.config.currentUser = JSON.parse(savedUser);
-                
-                if (savedProfile) {
-                    this.config.currentProfile = JSON.parse(savedProfile);
-                }
-                
-                if (savedProfiles) {
-                    this.config.profiles = JSON.parse(savedProfiles);
-                }
-                
-                this.showMainInterface();
-                this.navigateToPage('home');
-                this.loadHomePage();
-            }
-        } catch (error) {
-            console.error('❌ Ошибка загрузки сессии:', error);
-            this.clearSession();
-        }
-    },
-
-    saveSession: function() {
-        console.log('💾 Сохранение сессии...');
-        
-        if (this.config.token) {
-            localStorage.setItem('art_token', this.config.token);
-            console.log('🔑 Токен сохранен');
-        }
-        
-        if (this.config.currentUser) {
-            localStorage.setItem('art_user', JSON.stringify(this.config.currentUser));
-            console.log('👤 Пользователь сохранен');
-        }
-        
-        if (this.config.currentProfile) {
-            localStorage.setItem('art_profile', JSON.stringify(this.config.currentProfile));
-            console.log('📋 Профиль сохранен');
-        }
-        
-        if (this.config.profiles && this.config.profiles.length > 0) {
-            localStorage.setItem('art_profiles', JSON.stringify(this.config.profiles));
-            console.log(`📊 ${this.config.profiles.length} профилей сохранены`);
-        }
-    },
-
-    clearSession: function() {
-        console.log('🗑️  Очистка сессии');
-        localStorage.removeItem('art_token');
-        localStorage.removeItem('art_user');
-        localStorage.removeItem('art_profile');
-        localStorage.removeItem('art_profiles');
-        this.config.token = null;
-        this.config.currentUser = null;
-        this.config.currentProfile = null;
-        this.config.profiles = [];
-        this.config.subscriptionData = null;
-        this.config.lastSubscriptionResponse = null;
-    },
-
-    showMainInterface: function() {
-        console.log('🖥️  Показ основного интерфейса');
-        document.querySelector('.top-nav').style.display = 'flex';
-        document.getElementById('bottomNav').style.display = 'flex';
-        document.getElementById('auth-page').style.display = 'none';
-        document.getElementById('auth-page').classList.remove('active');
-    },
-
-    showAuthPage: function() {
-        console.log('🔐 Показ страницы авторизации');
-        document.querySelector('.top-nav').style.display = 'none';
-        document.getElementById('bottomNav').style.display = 'none';
-        document.getElementById('auth-page').style.display = 'flex';
-        document.getElementById('auth-page').classList.add('active');
-        this.navigateToPage('auth');
-    },
-
-    navigateToPage: function(pageId) {
-        console.log(`📄 Навигация на страницу: ${pageId}`);
-        
-        document.querySelectorAll('.page').forEach(page => {
-            page.classList.remove('active');
-            page.style.display = 'none';
-        });
-        
-        const targetPage = document.getElementById(pageId + '-page');
-        if (targetPage) {
-            targetPage.classList.add('active');
-            targetPage.style.display = 'block';
-            
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-                if (item.getAttribute('data-page') === pageId) {
-                    item.classList.add('active');
-                }
-            });
-            
-            switch(pageId) {
-                case 'home':
-                    this.loadHomePage();
-                    break;
-                case 'schedule':
-                    this.loadSchedule();
-                    break;
-                case 'subscription':
-                    this.loadSubscription();
-                    break;
-                case 'profile':
-                    this.loadProfile();
-                    break;
-            }
-        }
-    },
-
+    // ОБНОВЛЕННЫЙ МЕТОД АВТОРИЗАЦИИ
     handlePhoneLogin: function() {
         const phoneInput = document.getElementById('phoneNumber');
         const loginBtn = document.getElementById('loginBtn');
@@ -1640,109 +1503,48 @@ const ArtApp = {
         
         let formattedPhone = '+7' + phone.slice(-10);
         
-        console.log(`📱 Отправка запроса для телефона: ${formattedPhone}`);
+        console.log(`📱 V2: Авторизация по телефону: ${formattedPhone}`);
         
         loginBtn.disabled = true;
         loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
         
         this.showLoading('Поиск данных...');
         
-        fetch('/api/auth/phone', {
+        // Используем новый V2 API
+        fetch('/api/v2/auth/phone', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ phone: formattedPhone })
         })
-        .then(response => {
-            console.log('📊 Статус ответа:', response.status);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('✅ Ответ от сервера:', data);
+            console.log('✅ Ответ от V2 API:', data);
             
             if (data.success && data.data) {
-                console.log('✅ Успешный ответ от сервера');
+                // Сохраняем данные
+                this.config.token = data.data.token;
+                this.config.currentUser = data.data.user;
+                this.config.profiles = data.data.profiles;
+                this.config.currentProfile = data.data.profiles[0];
                 
-                // ⚡ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем токен
-                if (data.data.token) {
-                    this.config.token = data.data.token;
-                    console.log('🔑 Токен получен и сохранен');
-                }
+                // Сохраняем в localStorage
+                this.saveSession();
                 
-                // Сохраняем пользователя
-                if (data.data.user) {
-                    this.config.currentUser = data.data.user;
-                } else {
-                    this.config.currentUser = {
-                        phone: formattedPhone,
-                        profiles_count: data.data.profiles?.length || 0
-                    };
-                }
+                // Показываем интерфейс
+                this.showMainInterface();
+                this.showNotification('Вход выполнен успешно!', 'success');
+                this.navigateToPage('home');
+                this.loadHomePage();
                 
-                // Сохраняем профили
-                if (data.data.profiles && data.data.profiles.length > 0) {
-                    this.config.profiles = data.data.profiles.map(p => {
-                        // Нормализуем данные профиля
-                        const profileData = p.data || p;
-                        
-                        return {
-                            id: profileData.id || Date.now() + Math.random(),
-                            student_name: profileData.student_name || p.student_name || 'Ученик',
-                            phone_number: profileData.phone_number || p.phone_number || formattedPhone,
-                            email: profileData.email || p.email || '',
-                            branch: profileData.branch || p.branch || '',
-                            teacher_name: profileData.teacher_name || p.teacher_name || '',
-                            subscription_type: profileData.subscription_type || p.subscription_type || '',
-                            subscription_active: profileData.subscription_active === true || 
-                                               profileData.subscription_active === 1 ||
-                                               p.subscription_active === true || 
-                                               p.subscription_active === 1,
-                            subscription_status: profileData.subscription_status || p.subscription_status || '',
-                            subscription_badge: profileData.subscription_badge || p.subscription_badge || 'inactive',
-                            total_classes: profileData.total_classes || p.total_classes || 0,
-                            used_classes: profileData.used_classes || p.used_classes || 0,
-                            remaining_classes: profileData.remaining_classes || p.remaining_classes || 0,
-                            expiration_date: profileData.expiration_date || p.expiration_date || null,
-                            activation_date: profileData.activation_date || p.activation_date || null,
-                            last_visit_date: profileData.last_visit_date || p.last_visit_date || null,
-                            day_of_week: profileData.day_of_week || p.day_of_week || '',
-                            age_group: profileData.age_group || p.age_group || '',
-                            parent_name: profileData.parent_name || p.parent_name || '',
-                            last_sync: profileData.last_sync || p.last_sync || new Date().toISOString(),
-                            amocrm_lead_id: profileData.amocrm_lead_id || p.amocrm_lead_id,
-                            amocrm_contact_id: profileData.amocrm_contact_id || p.amocrm_contact_id,
-                            lead_data: profileData.lead_data || p.lead_data
-                        };
-                    });
-                    
-                    this.config.currentProfile = this.config.profiles[0];
-                    
-                    console.log(`📊 Сохранено профилей: ${this.config.profiles.length}`);
-                    console.log('📋 Текущий профиль:', this.config.currentProfile);
-                    
-                    this.saveSession();
-                    this.showMainInterface();
-                    
-                    this.showNotification('Вход выполнен успешно!', 'success');
-                    this.navigateToPage('home');
-                    
-                } else {
-                    this.showNotification('Профили не найдены. Проверьте номер телефона.', 'error');
-                    document.getElementById('newClientInfo').style.display = 'block';
-                }
             } else {
-                this.showNotification(data.error || 'Ошибка сервера', 'error');
-                document.getElementById('newClientInfo').style.display = 'block';
+                throw new Error(data.error || 'Ошибка сервера');
             }
         })
         .catch(error => {
-            console.error('❌ Ошибка сети:', error);
-            this.showNotification('Ошибка подключения к серверу', 'error');
+            console.error('❌ Ошибка:', error);
+            this.showNotification(error.message || 'Ошибка подключения', 'error');
             document.getElementById('newClientInfo').style.display = 'block';
         })
         .finally(() => {
@@ -1752,308 +1554,10 @@ const ArtApp = {
         });
     },
 
-    loadHomePage: function() {
-        console.log('🏠 Загрузка главной страницы...');
-        
-        if (!this.config.currentProfile) {
-            this.showNotification('Выберите ученика', 'info');
-            return;
-        }
-        
-        this.updateStudentSelector();
-        this.updateUserInterface();
-        this.checkDataFreshness();
-        this.loadSubscriptionData();
-    },
-
-    checkDataFreshness: function() {
-        if (!this.config.currentProfile?.last_sync) {
-            return;
-        }
-        
-        const lastSync = new Date(this.config.currentProfile.last_sync);
-        const now = new Date();
-        const hoursSinceSync = Math.floor((now - lastSync) / (1000 * 60 * 60));
-        
-        console.log(`⏰ Данные обновлялись ${hoursSinceSync} часов назад`);
-        
-        if (hoursSinceSync > 1) {
-            setTimeout(() => {
-                if (confirm(`Данные обновлялись ${hoursSinceSync} часов назад.\n\nХотите обновить данные из CRM?`)) {
-                    this.forceRefreshCurrentProfile();
-                }
-            }, 1000);
-        }
-    },
-
-    forceRefreshCurrentProfile: function() {
-        if (!this.config.currentProfile?.phone_number) {
-            return;
-        }
-        
-        this.showLoading('Обновление данных...');
-        
-        const phone = this.config.currentProfile.phone_number.replace(/\D/g, '').slice(-10);
-        
-        fetch(`/api/force-refresh/${phone}`, {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.data?.profiles?.length > 0) {
-                const updatedProfile = data.data.profiles.find(p => 
-                    p.student_name === this.config.currentProfile.student_name
-                );
-                
-                if (updatedProfile) {
-                    this.config.currentProfile = {
-                        ...this.config.currentProfile,
-                        ...updatedProfile,
-                        last_sync: new Date().toISOString()
-                    };
-                    
-                    const profileIndex = this.config.profiles.findIndex(p => 
-                        p.student_name === this.config.currentProfile.student_name
-                    );
-                    if (profileIndex !== -1) {
-                        this.config.profiles[profileIndex] = this.config.currentProfile;
-                    }
-                    
-                    this.saveSession();
-                    this.showNotification('Данные успешно обновлены!', 'success');
-                    
-                    this.updateUserInterface();
-                    this.loadSubscriptionData();
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка обновления:', error);
-            this.showNotification('Ошибка обновления данных', 'error');
-        })
-        .finally(() => {
-            this.hideLoading();
-        });
-    },
-
-    updateStudentSelector: function() {
-        const selector = document.getElementById('studentSelector');
-        const list = document.getElementById('studentsList');
-        
-        if (!selector || !list) {
-            return;
-        }
-        
-        if (this.config.profiles && this.config.profiles.length > 1) {
-            selector.style.display = 'block';
-            
-            const sortedProfiles = [...this.config.profiles].sort((a, b) => {
-                if (a.subscription_active !== b.subscription_active) {
-                    return b.subscription_active - a.subscription_active;
-                }
-                return a.student_name.localeCompare(b.student_name);
-            });
-            
-            let html = '';
-            sortedProfiles.forEach((profile, index) => {
-                const isActive = this.config.currentProfile && 
-                                this.config.currentProfile.id === profile.id;
-                
-                const badgeType = profile.subscription_active ? 'active' : 
-                                 profile.subscription_badge || 'inactive';
-                
-                let badgeText = 'Неактивен';
-                if (profile.subscription_active) {
-                    badgeText = `Активен (${profile.remaining_classes} из ${profile.total_classes})`;
-                } else if (profile.subscription_status?.includes('заморожен')) {
-                    badgeText = 'Заморожен';
-                } else if (profile.subscription_status?.includes('истек')) {
-                    badgeText = 'Истек';
-                }
-                
-                let badgeClass = 'inactive';
-                if (profile.subscription_active) badgeClass = 'active';
-                if (profile.subscription_status?.includes('заморожен')) badgeClass = 'frozen';
-                if (profile.subscription_status?.includes('истек')) badgeClass = 'expired';
-                
-                const lastSync = profile.last_sync ? 
-                    `Обновлено: ${this.formatDateTime(profile.last_sync)}` : '';
-                
-                html += `
-                    <div class="student-item ${isActive ? 'active' : ''}" 
-                         onclick="ArtApp.selectStudent(${index})"
-                         title="${lastSync}">
-                        <div class="student-info">
-                            <div class="student-avatar">${this.getInitials(profile.student_name)}</div>
-                            <div>
-                                <div class="student-name-small">${profile.student_name}</div>
-                                <div class="student-branch">${profile.branch || 'Филиал не указан'}</div>
-                                ${profile.teacher_name ? 
-                                    `<div class="student-teacher" style="font-size: 0.8rem; color: var(--gray-dark);">
-                                        <i class="fas fa-chalkboard-teacher"></i> ${profile.teacher_name}
-                                    </div>` : ''}
-                            </div>
-                        </div>
-                        <div class="badge ${badgeClass}">
-                            ${badgeText}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            list.innerHTML = html;
-            
-            if (!document.getElementById('refreshAllBtn')) {
-                const refreshBtn = document.createElement('button');
-                refreshBtn.id = 'refreshAllBtn';
-                refreshBtn.className = 'btn btn-secondary mt-20 w-100';
-                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Обновить все данные из CRM';
-                refreshBtn.onclick = () => this.forceRefreshAllProfiles();
-                selector.appendChild(refreshBtn);
-            }
-            
-        } else {
-            selector.style.display = 'none';
-        }
-    },
-
-    forceRefreshAllProfiles: function() {
-        if (!this.config.currentUser?.phone) {
-            return;
-        }
-        
-        if (confirm('Обновить все данные из CRM?\n\nЭто может занять несколько секунд.')) {
-            this.showLoading('Обновление всех данных...');
-            
-            const phone = this.config.currentUser.phone.replace(/\D/g, '').slice(-10);
-            
-            fetch(`/api/force-refresh/${phone}`, {
-                method: 'POST'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data?.profiles?.length > 0) {
-                    this.config.profiles = data.data.profiles.map(p => ({
-                        id: p.id || Date.now() + Math.random(),
-                        student_name: p.student_name,
-                        phone_number: p.phone_number,
-                        email: p.email || '',
-                        branch: p.branch || '',
-                        teacher_name: p.teacher_name || '',
-                        subscription_type: p.subscription_type || '',
-                        subscription_active: p.subscription_active === true || p.subscription_active === 1,
-                        subscription_status: p.subscription_status || '',
-                        subscription_badge: p.subscription_badge || 'inactive',
-                        total_classes: p.total_classes || 0,
-                        used_classes: p.used_classes || 0,
-                        remaining_classes: p.remaining_classes || 0,
-                        expiration_date: p.expiration_date || null,
-                        activation_date: p.activation_date || null,
-                        last_visit_date: p.last_visit_date || null,
-                        day_of_week: p.day_of_week || '',
-                        age_group: p.age_group || '',
-                        parent_name: p.parent_name || '',
-                        last_sync: new Date().toISOString(),
-                        amocrm_lead_id: p.amocrm_lead_id,
-                        amocrm_contact_id: p.amocrm_contact_id
-                    }));
-                    
-                    const currentStudentName = this.config.currentProfile?.student_name;
-                    if (currentStudentName) {
-                        const updatedProfile = this.config.profiles.find(p => 
-                            p.student_name === currentStudentName
-                        );
-                        if (updatedProfile) {
-                            this.config.currentProfile = updatedProfile;
-                        } else {
-                            this.config.currentProfile = this.config.profiles[0];
-                        }
-                    }
-                    
-                    this.saveSession();
-                    this.showNotification('Все данные успешно обновлены!', 'success');
-                    
-                    this.updateStudentSelector();
-                    this.updateUserInterface();
-                    this.loadSubscriptionData();
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка обновления:', error);
-                this.showNotification('Ошибка обновления данных', 'error');
-            })
-            .finally(() => {
-                this.hideLoading();
-            });
-        }
-    },
-
-    selectStudent: function(index) {
-        if (this.config.profiles && this.config.profiles[index]) {
-            this.config.currentProfile = this.config.profiles[index];
-            this.saveSession();
-            this.updateUserInterface();
-            this.updateStudentSelector();
-            this.showNotification(`Выбран ученик: ${this.config.currentProfile.student_name}`, 'success');
-            
-            this.config.subscriptionData = null;
-            this.config.lastSubscriptionResponse = null;
-            
-            const currentPage = document.querySelector('.page.active').id.replace('-page', '');
-            switch(currentPage) {
-                case 'home':
-                    this.loadSubscriptionData();
-                    break;
-                case 'subscription':
-                    this.loadSubscription();
-                    break;
-                case 'profile':
-                    this.loadProfile();
-                    break;
-            }
-        }
-    },
-
-    updateUserInterface: function() {
-        const userAvatar = document.getElementById('userAvatar');
-        const profileName = document.getElementById('studentName');
-        const greeting = document.getElementById('greeting');
-        const studentInfo = document.getElementById('studentInfo');
-        
-        if (this.config.currentProfile) {
-            const name = this.config.currentProfile.student_name || 'Ученик';
-            const branch = this.config.currentProfile.branch || '';
-            
-            if (profileName) profileName.textContent = name;
-            
-            if (studentInfo) {
-                let infoText = 'Личный кабинет ученика художественной школы';
-                if (branch) infoText += ` | Филиал: ${branch}`;
-                if (this.config.currentProfile.teacher_name) {
-                    infoText += ` | Преподаватель: ${this.config.currentProfile.teacher_name}`;
-                }
-                studentInfo.textContent = infoText;
-            }
-            
-            if (userAvatar) {
-                userAvatar.innerHTML = this.getInitials(name);
-            }
-            
-            if (greeting) {
-                const hours = new Date().getHours();
-                let timeGreeting = 'Добро пожаловать';
-                if (hours < 12) timeGreeting = 'Доброе утро';
-                else if (hours < 18) timeGreeting = 'Добрый день';
-                else timeGreeting = 'Добрый вечер';
-                
-                greeting.textContent = timeGreeting;
-            }
-        }
-    },
-
+    // ОБНОВЛЕННЫЙ МЕТОД ЗАГРУЗКИ АБОНЕМЕНТА
     loadSubscriptionData: function() {
         if (!this.config.currentProfile || !this.config.token) {
-            console.log('❌ Нет токена или профиля для загрузки абонемента');
+            console.log('❌ Нет токена или профиля');
             return;
         }
         
@@ -2065,52 +1569,35 @@ const ArtApp = {
             </div>
         `;
         
-        console.log('🔄 Загрузка данных абонемента для профиля:', this.config.currentProfile);
+        console.log('🔄 V2: Загрузка данных абонемента...');
         
-        fetch('/api/subscription', {
+        // Используем новый V2 API
+        fetch('/api/v2/subscription', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.config.token}` // ⚡ ПРАВИЛЬНАЯ ПЕРЕДАЧА ТОКЕНА
+                'Authorization': `Bearer ${this.config.token}`
             },
             body: JSON.stringify({ 
-                profile_id: this.config.currentProfile.id,
-                phone: this.config.currentProfile.phone_number
+                phone: this.config.currentUser?.phone
             })
         })
-        .then(response => {
-            console.log('📊 Ответ от /api/subscription:', response.status);
-            
-            if (!response.ok) {
-                if (response.status === 401) {
-                    // Токен устарел, пробуем обновить
-                    console.log('⚠️  Токен невалиден, пробуем обновить...');
-                    return this.refreshTokenAndRetry();
-                }
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('📊 Данные абонемента:', data);
-            this.config.lastSubscriptionResponse = data;
+            console.log('📊 Данные абонемента V2:', data);
             
             if (data.success) {
-                this.config.subscriptionData = data.data;
-                this.updateProfileWithSubscriptionData(data.data);
-                this.renderRemainingClasses();
-                this.updateSubscriptionBadge();
+                this.renderRemainingClasses(data.data);
             } else {
-                throw new Error(data.error || 'Ошибка загрузки данных');
+                throw new Error(data.error || 'Ошибка загрузки');
             }
         })
         .catch(error => {
-            console.error('Ошибка загрузки абонемента:', error);
+            console.error('Ошибка загрузки:', error);
             container.innerHTML = `
                 <div class="error-message">
                     <i class="fas fa-exclamation-circle"></i>
-                    <p>Не удалось загрузить данные об абонементе</p>
-                    <p style="font-size: 0.8rem; margin-top: 10px;">${error.message}</p>
+                    <p>Не удалось загрузить данные</p>
                     <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscriptionData()">
                         Попробовать снова
                     </button>
@@ -2119,88 +1606,10 @@ const ArtApp = {
         });
     },
 
-    refreshTokenAndRetry: function() {
-        console.log('🔄 Обновление токена...');
-        
-        // Пробуем повторно авторизоваться
-        if (!this.config.currentProfile?.phone_number) {
-            throw new Error('Нет телефона для обновления токена');
-        }
-        
-        return fetch('/api/auth/phone', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ phone: this.config.currentProfile.phone_number })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Не удалось обновить токен');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success && data.data?.token) {
-                this.config.token = data.data.token;
-                this.saveSession();
-                console.log('✅ Токен обновлен');
-                
-                // Повторяем запрос абонемента
-                return fetch('/api/subscription', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.config.token}`
-                    },
-                    body: JSON.stringify({ 
-                        profile_id: this.config.currentProfile.id,
-                        phone: this.config.currentProfile.phone_number
-                    })
-                });
-            } else {
-                throw new Error('Не удалось получить новый токен');
-            }
-        });
-    },
-
-    updateProfileWithSubscriptionData: function(subscriptionData) {
-        if (!subscriptionData || !subscriptionData.subscription || !this.config.currentProfile) {
-            return;
-        }
-        
-        const subscription = subscriptionData.subscription;
-        const student = subscriptionData.student || {};
-        
-        this.config.currentProfile = {
-            ...this.config.currentProfile,
-            total_classes: subscription.classes.total || 0,
-            used_classes: subscription.classes.used || 0,
-            remaining_classes: subscription.classes.remaining || 0,
-            subscription_type: subscription.type || '',
-            subscription_active: subscription.is_active || false,
-            subscription_status: subscription.status || '',
-            subscription_badge: subscription.is_active ? 'active' : 'inactive',
-            expiration_date: subscription.dates.expiration || null,
-            activation_date: subscription.dates.activation || null,
-            last_visit_date: subscription.dates.last_visit || null,
-            teacher_name: student.teacher_name || this.config.currentProfile.teacher_name || '',
-            age_group: student.age_group || this.config.currentProfile.age_group || '',
-            branch: student.branch || this.config.currentProfile.branch || ''
-        };
-        
-        const profileIndex = this.config.profiles.findIndex(p => p.id === this.config.currentProfile.id);
-        if (profileIndex !== -1) {
-            this.config.profiles[profileIndex] = { ...this.config.currentProfile };
-        }
-        
-        this.saveSession();
-        console.log('✅ Профиль обновлен данными из сервера:', this.config.currentProfile);
-    },
-
-    renderRemainingClasses: function() {
+    // ОБНОВЛЕННЫЙ РЕНДЕРИНГ
+    renderRemainingClasses: function(subscriptionData) {
         const container = document.getElementById('remainingClassesCard');
-        const subscription = this.config.subscriptionData?.subscription;
+        const subscription = subscriptionData.subscription;
         
         if (!subscription) {
             container.innerHTML = `
@@ -2252,45 +1661,27 @@ const ArtApp = {
             <div class="subscription-dates">
                 <div class="date-item">
                     <div class="date-label">Дата активации</div>
-                    <div class="date-value">${subscription.dates.activation ? this.formatDate(subscription.dates.activation) : 'Не указана'}</div>
+                    <div class="date-value">${subscription.dates.activation_display || 'Не указана'}</div>
                 </div>
                 <div class="date-item">
                     <div class="date-label">Срок действия</div>
-                    <div class="date-value">${subscription.dates.expiration ? this.formatDate(subscription.dates.expiration) : 'Не указан'}</div>
+                    <div class="date-value">${subscription.dates.expiration_display || 'Не указан'}</div>
                 </div>
             </div>
             
-            <div class="data-source ${subscription.is_active ? 'real' : ''}">
+            <div class="data-source ${subscription.active ? 'real' : ''}">
                 <i class="fas fa-database"></i>
-                ${subscription.is_active ? 'Активный абонемент' : 'Абонемент не активен'}
-                ${this.config.currentProfile?.subscription_type ? ` | ${this.config.currentProfile.subscription_type}` : ''}
+                ${subscription.active ? 'Активный абонемент' : 'Абонемент не активен'}
+                ${subscription.type ? ` | ${subscription.type}` : ''}
             </div>
         `;
     },
 
-    updateSubscriptionBadge: function() {
-        const badge = document.getElementById('subscriptionStatusBadge');
-        const subscription = this.config.subscriptionData?.subscription;
-        
-        if (badge && subscription) {
-            if (subscription.is_active) {
-                badge.innerHTML = `<i class="fas fa-check-circle"></i> Активен (${subscription.classes.remaining}/${subscription.classes.total} занятий)`;
-                badge.className = 'data-source real';
-            } else {
-                badge.innerHTML = '<i class="fas fa-times-circle"></i> Не активен';
-                badge.className = 'data-source';
-            }
-        }
-    },
-
-    loadSchedule: function() {
-        console.log('Загрузка расписания...');
-    },
-
+    // ОБНОВЛЕННАЯ ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
     loadSubscription: function() {
         const container = document.getElementById('subscriptionContainer');
         
-        if (!this.config.currentProfile || !this.config.token) {
+        if (!this.config.token) {
             this.showNotification('Требуется авторизация', 'error');
             this.navigateToPage('home');
             return;
@@ -2307,54 +1698,33 @@ const ArtApp = {
         
         this.showLoading('Загрузка данных абонемента...');
         
-        console.log('🔄 Загрузка полных данных абонемента для:', this.config.currentProfile.student_name);
-        console.log('🔑 Токен:', this.config.token ? 'Присутствует' : 'Отсутствует');
-        
-        fetch('/api/subscription', {
+        fetch('/api/v2/subscription', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.config.token}` // ⚡ ПРАВИЛЬНАЯ ПЕРЕДАЧА ТОКЕНА
+                'Authorization': `Bearer ${this.config.token}`
             },
             body: JSON.stringify({ 
-                profile_id: this.config.currentProfile.id,
-                phone: this.config.currentProfile.phone_number
+                phone: this.config.currentUser?.phone
             })
         })
-        .then(response => {
-            console.log('📊 Статус ответа:', response.status);
-            
-            if (!response.ok) {
-                if (response.status === 401) {
-                    console.log('⚠️  Ошибка 401: токен невалиден');
-                    this.showNotification('Сессия истекла. Пожалуйста, войдите снова.', 'error');
-                    setTimeout(() => this.logout(), 2000);
-                    throw new Error('Токен невалиден');
-                }
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('📊 Полный ответ абонемента:', data);
-            this.config.lastSubscriptionResponse = data;
+            console.log('📊 Данные абонемента V2:', data);
             
             if (data.success) {
-                this.config.subscriptionData = data.data;
-                this.updateProfileWithSubscriptionData(data.data);
-                this.renderFullSubscription();
+                this.renderFullSubscription(data.data);
             } else {
-                throw new Error(data.error || 'Ошибка загрузки данных');
+                throw new Error(data.error || 'Ошибка загрузки');
             }
         })
         .catch(error => {
-            console.error('Ошибка загрузки абонемента:', error);
+            console.error('Ошибка загрузки:', error);
             container.innerHTML = `
                 <div class="subscription-card">
                     <div class="error-message">
                         <i class="fas fa-exclamation-circle"></i>
                         <p>Не удалось загрузить данные об абонементе</p>
-                        <p style="font-size: 0.8rem; margin-top: 10px;">${error.message}</p>
                         <button class="btn btn-secondary mt-20" onclick="ArtApp.loadSubscription()">
                             Попробовать снова
                         </button>
@@ -2367,11 +1737,13 @@ const ArtApp = {
         });
     },
 
-    renderFullSubscription: function() {
+    // ОБНОВЛЕННЫЙ РЕНДЕРИНГ ПОЛНОЙ СТРАНИЦЫ
+    renderFullSubscription: function(subscriptionData) {
         const container = document.getElementById('subscriptionContainer');
-        const data = this.config.subscriptionData;
+        const student = subscriptionData.student;
+        const subscription = subscriptionData.subscription;
         
-        if (!data) {
+        if (!subscription) {
             container.innerHTML = `
                 <div class="subscription-card">
                     <div class="text-center">
@@ -2383,22 +1755,14 @@ const ArtApp = {
             return;
         }
         
-        const student = data.student || {};
-        const subscription = data.subscription;
-        const parent = data.parent;
-        
         const total = subscription.classes.total || 0;
         const remaining = subscription.classes.remaining || 0;
         const used = subscription.classes.used || 0;
         const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
         
-        const badgeClass = subscription.is_active ? 'active' : 
-                          subscription.status?.includes('истек') ? 'expired' : 
-                          subscription.status?.includes('заморожен') ? 'frozen' : 'inactive';
-        
-        const badgeText = subscription.is_active ? 'Активен' : 
-                         subscription.status?.includes('истек') ? 'Истек' : 
-                         subscription.status?.includes('заморожен') ? 'Заморожен' : 'Не активен';
+        const badgeClass = subscription.active ? 'success' : 
+                          subscription.status?.includes('истек') ? 'danger' : 
+                          subscription.status?.includes('заморожен') ? 'warning' : 'secondary';
         
         container.innerHTML = `
             <div class="subscription-card">
@@ -2409,10 +1773,10 @@ const ArtApp = {
                         </h3>
                         <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-map-marker-alt"></i>
-                            ${student.branch || this.config.currentProfile?.branch || 'Филиал не указан'}
+                            ${student.branch || 'Филиал не указан'}
                         </div>
                     </div>
-                    <div class="badge ${badgeClass}">${badgeText}</div>
+                    <div class="badge ${badgeClass}">${subscription.active ? 'Активен' : 'Не активен'}</div>
                 </div>
                 
                 <div class="subscription-stats">
@@ -2432,13 +1796,6 @@ const ArtApp = {
                         <div class="stat-value">${used}</div>
                         <div class="stat-label">Использовано</div>
                     </div>
-                    
-                    <div class="stat-item">
-                        <div class="stat-value" style="font-size: 1.5rem;">
-                            ${subscription.dates.expiration ? this.formatDate(subscription.dates.expiration) : '—'}
-                        </div>
-                        <div class="stat-label">Срок действия</div>
-                    </div>
                 </div>
                 
                 ${total > 0 ? `
@@ -2456,65 +1813,22 @@ const ArtApp = {
                 <div class="subscription-dates">
                     <div class="date-item">
                         <div class="date-label">Дата активации</div>
-                        <div class="date-value">${subscription.dates.activation ? this.formatDate(subscription.dates.activation) : 'Не указана'}</div>
+                        <div class="date-value">${subscription.dates.activation_display || 'Не указана'}</div>
                     </div>
                     <div class="date-item">
-                        <div class="date-label">Последнее посещение</div>
-                        <div class="date-value">${subscription.dates.last_visit ? this.formatDate(subscription.dates.last_visit) : 'Нет данных'}</div>
+                        <div class="date-label">Срок действия</div>
+                        <div class="date-value">${subscription.dates.expiration_display || 'Не указан'}</div>
                     </div>
                 </div>
                 
-                ${student.teacher_name || this.config.currentProfile?.teacher_name ? `
-                <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-                    <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-chalkboard-teacher"></i>
-                        Преподаватель
-                    </h4>
-                    <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                        ${student.teacher_name || this.config.currentProfile?.teacher_name || 'Не указан'}
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${student.age_group || this.config.currentProfile?.age_group ? `
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-                    <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-users"></i>
-                        Возрастная группа
-                    </h4>
-                    <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                        ${student.age_group || this.config.currentProfile?.age_group || 'Не указана'}
-                    </div>
-                </div>
-                ` : ''}
-                
-                ${parent?.name || this.config.currentProfile?.parent_name ? `
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--gray-medium);">
-                    <h4 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-user-friends"></i>
-                        Родитель
-                    </h4>
-                    <div style="color: var(--blue-dark); font-size: 1rem; font-weight: 500;">
-                        ${parent?.name || this.config.currentProfile?.parent_name || 'Не указан'}
-                    </div>
-                </div>
-                ` : ''}
-                
-                <div class="data-source ${subscription.is_active ? 'real' : ''}">
+                <div class="data-source ${subscription.active ? 'real' : ''}">
                     <i class="fas fa-database"></i>
-                    Данные из CRM | Тип: ${subscription.type || 'Не указан'}
-                </div>
-                
-                <div style="margin-top: 20px; padding: 15px; background: var(--gray-light); border-radius: 12px; border: 2px solid var(--gray-medium);">
-                    <div style="color: var(--gray-dark); font-size: 0.8rem; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-info-circle"></i>
-                        <span>Статус: ${subscription.status || 'Не указан'}</span>
-                    </div>
+                    Данные из CRM | Статус: ${subscription.status || 'Не указан'}
                 </div>
             </div>
         `;
-    },
-
+    }
+};
     refreshSubscription: function() {
         this.showNotification('Обновление данных...', 'info');
         this.config.subscriptionData = null;
