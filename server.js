@@ -1154,6 +1154,7 @@ async function saveProfilesToDatabase(profiles) {
     }
 }
 
+// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 function formatPhoneNumber(phone) {
     const cleanPhone = phone.replace(/\D/g, '');
     
@@ -1167,9 +1168,9 @@ function formatPhoneNumber(phone) {
         }
     }
     
+    // Возвращаем номер как есть, если не удалось распознать
     return '+7' + cleanPhone.slice(-10);
 }
-
 // ==================== ОСНОВНЫЕ API МАРШРУТЫ ====================
 // Статус сервера
 app.get('/api/status', (req, res) => {
@@ -1186,84 +1187,132 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// Авторизация по телефону
+// ==================== АВТОРИЗАЦИЯ ПО ТЕЛЕФОНУ ====================
 app.post('/api/auth/phone', async (req, res) => {
     try {
+        console.log('\n' + '='.repeat(80));
+        console.log('📱 ЗАПРОС АВТОРИЗАЦИИ ПО ТЕЛЕФОНУ');
+        console.log('='.repeat(80));
+        
         const { phone } = req.body;
         
         if (!phone) {
+            console.log('❌ Ошибка: телефон не указан');
             return res.status(400).json({
                 success: false,
                 error: 'Укажите номер телефона'
             });
         }
         
-        console.log(`\n🔐 АВТОРИЗАЦИЯ ПО ТЕЛЕФОНУ: ${phone}`);
-        
         const formattedPhone = formatPhoneNumber(phone);
-        console.log(`📱 Форматированный номер: ${formattedPhone}`);
-        console.log(`🔧 Статус amoCRM: ${amoCrmService.isInitialized ? '✅ Подключен' : '❌ Не подключен'}`);
+        console.log(`📱 Входящий телефон: ${phone}`);
+        console.log(`📱 Форматированный: ${formattedPhone}`);
         
-        let profiles = [];
-        
-        if (amoCrmService.isInitialized) {
-            console.log('🔍 Получение данных из amoCRM...');
-            profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
-            console.log(`📊 Найдено профилей в amoCRM: ${profiles.length}`);
-            
-            if (profiles.length > 0) {
-                const savedCount = await saveProfilesToDatabase(profiles);
-                console.log(`💾 Сохранено в БД: ${savedCount} профилей`);
-            }
-        } else {
+        // Проверяем статус amoCRM
+        if (!amoCrmService.isInitialized) {
+            console.log('❌ Ошибка: amoCRM не инициализирован');
             return res.status(503).json({
                 success: false,
-                error: 'amoCRM не подключен. Невозможно получить данные.'
+                error: 'Система временно недоступна. Попробуйте позже.',
+                details: 'amoCRM не подключен'
             });
         }
         
+        // Получаем данные из amoCRM
+        console.log('🔍 Поиск учеников в amoCRM...');
+        const profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        console.log(`📊 Найдено профилей: ${profiles.length}`);
+        
         if (profiles.length === 0) {
-            console.log('🔍 Поиск в локальной базе данных...');
+            console.log('❌ Ученики не найдены');
+            
+            // Проверяем в локальной базе
             const cleanPhone = phone.replace(/\D/g, '');
-            profiles = await db.all(
+            const localProfiles = await db.all(
                 `SELECT * FROM student_profiles 
                  WHERE phone_number LIKE ? AND is_active = 1
                  ORDER BY subscription_active DESC, updated_at DESC`,
                 [`%${cleanPhone.slice(-10)}%`]
             );
-            console.log(`📊 Найдено профилей в локальной БД: ${profiles.length}`);
+            
+            console.log(`📊 Найдено в локальной БД: ${localProfiles.length}`);
+            
+            if (localProfiles.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Ученики не найдены',
+                    message: 'По указанному телефону не найдено учеников. Проверьте правильность номера или обратитесь в студию.',
+                    phone: formattedPhone,
+                    profiles: []
+                });
+            }
+            
+            // Конвертируем локальные профили в формат для ответа
+            const formattedProfiles = localProfiles.map(p => ({
+                id: p.id,
+                student_name: p.student_name,
+                phone_number: p.phone_number,
+                email: p.email,
+                branch: p.branch || 'Филиал не указан',
+                teacher_name: p.teacher_name,
+                age_group: p.age_group,
+                course: p.course,
+                subscription_type: p.subscription_type,
+                subscription_active: p.subscription_active === 1,
+                subscription_status: p.subscription_status,
+                subscription_badge: p.subscription_badge,
+                total_classes: p.total_classes,
+                remaining_classes: p.remaining_classes,
+                used_classes: p.used_classes,
+                expiration_date: p.expiration_date,
+                last_visit_date: p.last_visit_date,
+                parent_name: p.parent_name,
+                day_of_week: p.day_of_week,
+                is_demo: p.is_demo === 1,
+                source: p.source,
+                last_sync: p.last_sync
+            }));
+            
+            profiles = formattedProfiles;
         }
         
-        if (profiles.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'Ученики не найдены',
-                message: 'По указанному телефону не найдено учеников. Проверьте правильность номера или обратитесь в студию.'
-            });
-        }
+        // Сохраняем профили в базу данных
+        const savedCount = await saveProfilesToDatabase(profiles);
+        console.log(`💾 Сохранено в БД: ${savedCount} профилей`);
         
-        const tempUser = {
-            id: Date.now(),
-            phone_number: formattedPhone,
-            first_name: profiles.length > 0 ? profiles[0].student_name?.split(' ')[0] || 'Ученик' : 'Гость',
-            is_temp: true,
-            profiles_count: profiles.length
-        };
-        
+        // Создаем токен
+        const sessionId = crypto.randomBytes(32).toString('hex');
         const token = jwt.sign(
             {
-                session_id: crypto.randomBytes(32).toString('hex'),
+                session_id: sessionId,
                 phone: formattedPhone,
                 is_temp: true,
                 profiles_count: profiles.length,
-                amocrm_connected: amoCrmService.isInitialized
+                amocrm_connected: amoCrmService.isInitialized,
+                timestamp: Date.now()
             },
             JWT_SECRET,
             { expiresIn: '30d' }
         );
         
+        // Сохраняем сессию в базу
+        await db.run(
+            `INSERT INTO user_sessions (session_id, session_data, phone_number, expires_at) 
+             VALUES (?, ?, ?, ?)`,
+            [
+                sessionId,
+                JSON.stringify({ 
+                    phone: formattedPhone,
+                    profiles_count: profiles.length 
+                }),
+                formattedPhone,
+                new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 дней
+            ]
+        );
+        
+        // Формируем ответ
         const responseProfiles = profiles.map(p => ({
-            id: p.id,
+            id: p.id || null,
             student_name: p.student_name,
             phone_number: p.phone_number,
             email: p.email,
@@ -1274,53 +1323,67 @@ app.post('/api/auth/phone', async (req, res) => {
             age_group: p.age_group,
             course: p.course,
             subscription_type: p.subscription_type,
-            subscription_active: p.subscription_active === 1,
+            subscription_active: p.subscription_active === true || p.subscription_active === 1,
             subscription_status: p.subscription_status,
             subscription_badge: p.subscription_badge,
-            total_classes: p.total_classes,
-            remaining_classes: p.remaining_classes,
-            used_classes: p.used_classes,
+            total_classes: p.total_classes || 0,
+            remaining_classes: p.remaining_classes || 0,
+            used_classes: p.used_classes || 0,
             expiration_date: p.expiration_date,
             last_visit_date: p.last_visit_date,
             parent_name: p.parent_name,
-            is_demo: p.is_demo === 1,
+            is_demo: p.is_demo === true || p.is_demo === 1,
             source: p.source,
-            last_sync: p.last_sync
+            last_sync: p.last_sync || new Date().toISOString()
         }));
         
-        const hasMultipleStudents = profiles.length > 1;
+        const hasMultipleStudents = responseProfiles.length > 1;
         
-        const responseData = {
+        const tempUser = {
+            id: Date.now(),
+            phone_number: formattedPhone,
+            name: responseProfiles.length > 0 
+                ? responseProfiles[0].parent_name || responseProfiles[0].student_name?.split(' ')[0] || 'Ученик'
+                : 'Гость',
+            is_temp: true,
+            profiles_count: responseProfiles.length
+        };
+        
+        console.log('✅ Авторизация успешна');
+        console.log(`📊 Профилей: ${responseProfiles.length}`);
+        console.log(`👥 Несколько учеников: ${hasMultipleStudents ? '✅ Да' : '❌ Нет'}`);
+        console.log('='.repeat(80));
+        
+        res.json({
             success: true,
             message: 'Найдены профили учеников',
             data: {
                 user: tempUser,
                 profiles: responseProfiles,
-                total_profiles: profiles.length,
+                total_profiles: responseProfiles.length,
                 amocrm_connected: amoCrmService.isInitialized,
                 has_real_data: true,
                 has_multiple_students: hasMultipleStudents,
                 token: token,
-                last_sync: profiles.length > 0 ? profiles[0].last_sync : null
+                last_sync: responseProfiles.length > 0 
+                    ? (responseProfiles[0].last_sync || new Date().toISOString())
+                    : null
             }
-        };
-        
-        console.log(`✅ Авторизация завершена успешно`);
-        console.log(`📊 Профилей: ${profiles.length}`);
-        console.log(`👥 Несколько учеников: ${hasMultipleStudents ? '✅ Да' : '❌ Нет'}`);
-        
-        res.json(responseData);
+        });
         
     } catch (error) {
-        console.error('❌ Ошибка авторизации:', error.message);
+        console.error('❌ ОШИБКА АВТОРИЗАЦИИ:', error.message);
+        console.error(error.stack);
         
         res.status(500).json({
             success: false,
             error: 'Ошибка проверки телефона',
-            details: error.message
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });
+
 
 // Получение профилей
 app.get('/api/profiles', async (req, res) => {
