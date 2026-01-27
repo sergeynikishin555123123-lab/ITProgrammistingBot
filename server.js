@@ -306,30 +306,31 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
         }
     }
 
-    async searchContactsByPhone(phone) {
+   // В классе AmoCrmService замените метод searchContactsByPhone:
+async searchContactsByPhone(phone) {
     try {
+        // Очищаем телефон от всего кроме цифр
         const cleanPhone = phone.replace(/\D/g, '');
         const last10Digits = cleanPhone.slice(-10);
         
-        console.log(`🔍 Поиск контактов по телефону: ${last10Digits}`);
+        console.log(`🔍 ПРЯМОЙ ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ: ${last10Digits}`);
         
-        // Метод 1: Используем query с правильным форматом
-        console.log('🔍 Метод 1: Поиск через query');
+        // Метод 1: Простой поиск по query (самый надежный)
         try {
-            const queryResponse = await this.makeRequest('GET', 
-                `/api/v4/contacts?query=${last10Digits}&with=custom_fields_values&limit=100`
+            const response = await this.makeRequest('GET', 
+                `/api/v4/contacts?query=${last10Digits}&with=custom_fields_values&limit=50`
             );
             
-            if (queryResponse && queryResponse._embedded && queryResponse._embedded.contacts) {
-                const found = queryResponse._embedded.contacts.length;
-                console.log(`✅ Метод 1: Найдено ${found} контактов по query`);
+            if (response && response._embedded && response._embedded.contacts) {
+                const foundContacts = response._embedded.contacts;
+                console.log(`✅ Найдено контактов по query: ${foundContacts.length}`);
                 
-                // Фильтруем только те контакты, у которых действительно есть этот телефон
-                const filteredContacts = queryResponse._embedded.contacts.filter(contact => {
-                    return this.contactHasPhone(contact, last10Digits);
-                });
+                // Фильтруем по телефону для надежности
+                const filteredContacts = foundContacts.filter(contact => 
+                    this.contactHasPhone(contact, last10Digits)
+                );
                 
-                console.log(`✅ После фильтрации по телефону: ${filteredContacts.length} контактов`);
+                console.log(`✅ После проверки телефона: ${filteredContacts.length} контактов`);
                 
                 return {
                     _embedded: {
@@ -337,56 +338,42 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
                     }
                 };
             }
-        } catch (queryError) {
-            console.log(`⚠️  Метод 1 не сработал: ${queryError.message}`);
+        } catch (error) {
+            console.log(`⚠️  Query поиск не сработал: ${error.message}`);
         }
         
-        // Метод 3: Получаем все контакты и фильтруем локально (самый надежный)
-        console.log('🔍 Метод 3: Полный перебор контактов');
+        // Метод 2: Поиск через фильтр (если query не работает)
         try {
+            // Получаем все контакты и фильтруем локально
             let allContacts = [];
             let page = 1;
-            const limit = 250; // Максимально допустимый лимит
-            const maxPages = 4; // Ограничим количество страниц
             
-            while (page <= maxPages) {
-                console.log(`📄 Получение страницы ${page}...`);
+            while (page <= 3) { // Ограничим 3 страницами
+                const response = await this.makeRequest('GET', 
+                    `/api/v4/contacts?page=${page}&limit=100&with=custom_fields_values`
+                );
                 
-                try {
-                    const pageResponse = await this.makeRequest('GET', 
-                        `/api/v4/contacts?page=${page}&limit=${limit}&with=custom_fields_values`
-                    );
-                    
-                    if (!pageResponse || !pageResponse._embedded || !pageResponse._embedded.contacts) {
-                        console.log(`⚠️  Нет данных на странице ${page}`);
-                        break;
-                    }
-                    
-                    const pageContacts = pageResponse._embedded.contacts;
-                    console.log(`📊 Получено контактов: ${pageContacts.length}`);
-                    allContacts = allContacts.concat(pageContacts);
-                    
-                    if (pageContacts.length < limit) {
-                        console.log(`✅ Последняя страница: ${page}`);
-                        break;
-                    }
-                    
-                    page++;
-                    
-                } catch (pageError) {
-                    console.error(`❌ Ошибка получения страницы ${page}:`, pageError.message);
+                if (!response || !response._embedded || !response._embedded.contacts) {
                     break;
                 }
+                
+                allContacts = [...allContacts, ...response._embedded.contacts];
+                
+                if (response._embedded.contacts.length < 100) {
+                    break;
+                }
+                
+                page++;
             }
             
-            console.log(`📊 Всего получено контактов: ${allContacts.length}`);
+            console.log(`📊 Получено контактов для фильтрации: ${allContacts.length}`);
             
             // Фильтруем по телефону
-            const filtered = allContacts.filter(contact => {
-                return this.contactHasPhone(contact, last10Digits);
-            });
+            const filtered = allContacts.filter(contact => 
+                this.contactHasPhone(contact, last10Digits)
+            );
             
-            console.log(`✅ Метод 3: Найдено ${filtered.length} контактов`);
+            console.log(`✅ Найдено контактов: ${filtered.length}`);
             
             return {
                 _embedded: {
@@ -394,15 +381,15 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
                 }
             };
             
-        } catch (allError) {
-            console.error(`❌ Метод 3 не сработал:`, allError.message);
+        } catch (error) {
+            console.log(`⚠️  Фильтрация не сработала: ${error.message}`);
         }
         
-        console.log('❌ Все методы поиска не сработали');
+        console.log('❌ Контакты не найдены');
         return { _embedded: { contacts: [] } };
         
     } catch (error) {
-        console.error('❌ Критическая ошибка поиска контактов:', error.message);
+        console.error('❌ Критическая ошибка поиска:', error.message);
         return { _embedded: { contacts: [] } };
     }
 }
@@ -842,6 +829,41 @@ async getContactLeadsSorted(contactId) {
     console.log(`✅ Извлечено учеников: ${students.length}`);
     
     return students;
+}
+    // В классе AmoCrmService добавьте:
+async getContactByPhoneSimple(phone) {
+    try {
+        const cleanPhone = phone.replace(/\D/g, '');
+        const last10Digits = cleanPhone.slice(-10);
+        
+        console.log(`🔍 ПРОСТОЙ ПОИСК КОНТАКТА: ${last10Digits}`);
+        
+        // Ищем контакты с этим телефоном
+        const response = await this.makeRequest('GET', 
+            `/api/v4/contacts?with=custom_fields_values&limit=100`
+        );
+        
+        if (!response || !response._embedded || !response._embedded.contacts) {
+            return null;
+        }
+        
+        // Фильтруем локально
+        const contacts = response._embedded.contacts;
+        
+        for (const contact of contacts) {
+            if (this.contactHasPhone(contact, last10Digits)) {
+                console.log(`✅ Найден контакт: "${contact.name}" (ID: ${contact.id})`);
+                return contact;
+            }
+        }
+        
+        console.log('❌ Контакт не найден');
+        return null;
+        
+    } catch (error) {
+        console.error('❌ Ошибка простого поиска:', error.message);
+        return null;
+    }
 }
 // В классе AmoCrmService добавьте новый метод:
 async findSubscriptionLeadForStudentFixed(contactId, studentName) {
@@ -2155,7 +2177,167 @@ app.get('/api/find-lead-with-subscription/:phone/:studentName', async (req, res)
         });
     }
 });
-
+// Добавьте этот маршрут в server.js
+app.get('/api/find-by-known-lead/:phone/:studentName', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n🔍 ПРИНУДИТЕЛЬНЫЙ ПОИСК ПО ИЗВЕСТНОЙ СДЕЛКЕ`);
+        console.log(`📱 Телефон: ${phone}`);
+        console.log(`👤 Ученик: ${studentName}`);
+        console.log('='.repeat(60));
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        // 1. Сначала ищем контакт обычным способом
+        const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        let contact = null;
+        
+        if (contacts.length > 0) {
+            contact = contacts[0];
+            console.log(`✅ Контакт найден: "${contact.name}" (ID: ${contact.id})`);
+        } else {
+            console.log('❌ Контакт не найден по телефону, пробуем найти через сделку...');
+            
+            // 2. Если контакт не найден, ищем его через известную сделку
+            const leadResult = await amoCrmService.findLeadById(28674865); // Известный ID
+            if (leadResult && leadResult.lead) {
+                console.log(`📋 Найдена сделка: "${leadResult.lead.name}"`);
+                
+                // Ищем контакты этой сделки
+                const leadContacts = await amoCrmService.makeRequest('GET', 
+                    `/api/v4/leads/28674865/contacts`
+                );
+                
+                if (leadContacts && leadContacts._embedded && leadContacts._embedded.contacts) {
+                    const leadContactId = leadContacts._embedded.contacts[0].id;
+                    contact = await amoCrmService.getFullContactInfo(leadContactId);
+                    console.log(`✅ Контакт найден через сделку: "${contact.name}"`);
+                }
+            }
+        }
+        
+        if (!contact) {
+            return res.json({
+                success: false,
+                error: 'Не удалось найти контакт',
+                message: 'Проверьте номер телефона в amoCRM'
+            });
+        }
+        
+        // 3. Ищем сделки для ученика
+        console.log(`\n🔍 Поиск сделок для ученика "${studentName}"...`);
+        
+        const allLeads = await amoCrmService.getContactLeadsFixed(contact.id);
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        
+        if (allLeads.length === 0) {
+            return res.json({
+                success: false,
+                error: 'У контакта нет сделок',
+                contact: {
+                    id: contact.id,
+                    name: contact.name
+                }
+            });
+        }
+        
+        // 4. Ищем известную сделку
+        let targetLead = null;
+        
+        // Сначала ищем по известному ID
+        targetLead = allLeads.find(lead => lead.id === 28674865);
+        
+        if (targetLead) {
+            console.log(`✅ Найдена известная сделка по ID: ${targetLead.id}`);
+        } else {
+            // Если не нашли, ищем по имени
+            const normalizedStudentName = amoCrmService.normalizeName(studentName);
+            const studentFirstName = normalizedStudentName.split(' ')[0];
+            const studentLastName = normalizedStudentName.split(' ')[1];
+            
+            for (const lead of allLeads) {
+                const leadName = amoCrmService.normalizeName(lead.name);
+                
+                if (leadName.includes(studentFirstName) || 
+                    leadName.includes(studentLastName) ||
+                    leadName.includes('алиса') || // Имя ученика из сделки
+                    leadName.includes('никифорова')) { // Фамилия из сделки
+                    
+                    targetLead = lead;
+                    console.log(`✅ Найдена сделка по имени: "${lead.name}"`);
+                    break;
+                }
+            }
+        }
+        
+        if (!targetLead) {
+            // Берем первую сделку с абонементом
+            for (const lead of allLeads) {
+                const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                if (subscriptionInfo.hasSubscription) {
+                    targetLead = lead;
+                    console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
+                    break;
+                }
+            }
+        }
+        
+        if (!targetLead) {
+            // Берем последнюю сделку
+            targetLead = allLeads[0];
+            console.log(`⚠️  Берем последнюю сделку: "${targetLead.name}"`);
+        }
+        
+        // 5. Создаем профиль
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(targetLead);
+        
+        const studentInfo = {
+            studentName: studentName,
+            branch: '',
+            teacherName: '',
+            ageGroup: '',
+            parentName: contact.name,
+            email: ''
+        };
+        
+        const profile = amoCrmService.createStudentProfile(
+            contact,
+            formattedPhone,
+            studentInfo,
+            subscriptionInfo,
+            targetLead
+        );
+        
+        // Сохраняем в БД
+        const savedCount = await saveProfilesToDatabase([profile]);
+        
+        res.json({
+            success: true,
+            message: 'Профиль создан принудительно',
+            data: {
+                profile: profile,
+                contact: {
+                    id: contact.id,
+                    name: contact.name
+                },
+                lead: {
+                    id: targetLead.id,
+                    name: targetLead.name
+                },
+                subscription_info: subscriptionInfo,
+                saved_to_db: savedCount > 0
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка принудительного поиска:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Маршрут для просмотра конкретной сделки
 app.get('/api/lead-details/:leadId', async (req, res) => {
     try {
@@ -3941,6 +4123,117 @@ app.post('/api/sync-phone/:phone', async (req, res) => {
             success: false, 
             error: error.message,
             timestamp: new Date().toISOString()
+        });
+    }
+});
+app.get('/api/test-phone-search/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        console.log(`\n🧪 ТЕСТ ПОИСКА ПО ТЕЛЕФОНУ: ${formattedPhone}`);
+        console.log('='.repeat(60));
+        
+        // Тест 1: Поиск контактов
+        console.log('🔍 Тест 1: Поиск контактов...');
+        const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        console.log(`📊 Контактов найдено: ${contacts.length}`);
+        
+        if (contacts.length === 0) {
+            return res.json({
+                success: false,
+                error: 'Контакты не найдены',
+                phone: formattedPhone,
+                search_method: 'Поиск по телефону',
+                recommendation: 'Проверьте номер в amoCRM'
+            });
+        }
+        
+        const contact = contacts[0];
+        console.log(`✅ Контакт: "${contact.name}" (ID: ${contact.id})`);
+        
+        // Тест 2: Получение полной информации
+        console.log('🔍 Тест 2: Полная информация о контакте...');
+        const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+        
+        if (!fullContact) {
+            return res.json({
+                success: false,
+                error: 'Не удалось получить контакт',
+                contact_id: contact.id
+            });
+        }
+        
+        // Тест 3: Поиск учеников
+        console.log('🔍 Тест 3: Поиск учеников в контакте...');
+        const students = amoCrmService.extractStudentsFromContact(fullContact);
+        console.log(`👥 Учеников найдено: ${students.length}`);
+        
+        // Тест 4: Поиск сделок
+        console.log('🔍 Тест 4: Поиск сделок контакта...');
+        const leads = await amoCrmService.getContactLeadsSorted(contact.id);
+        console.log(`📊 Сделок найдено: ${leads.length}`);
+        
+        // Тест 5: Поиск сделок с абонементами
+        console.log('🔍 Тест 5: Поиск сделок с абонементами...');
+        const subscriptionLeads = [];
+        
+        for (const lead of leads.slice(0, 10)) { // Проверяем первые 10 сделок
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            if (subscriptionInfo.hasSubscription) {
+                subscriptionLeads.push({
+                    id: lead.id,
+                    name: lead.name,
+                    subscription: subscriptionInfo
+                });
+            }
+        }
+        
+        console.log(`🎫 Сделок с абонементом: ${subscriptionLeads.length}`);
+        
+        // Формируем ответ
+        const response = {
+            success: true,
+            data: {
+                phone: formattedPhone,
+                contact: {
+                    id: contact.id,
+                    name: contact.name
+                },
+                students: students.map(s => s.studentName),
+                leads_count: leads.length,
+                subscription_leads_count: subscriptionLeads.length,
+                subscription_leads: subscriptionLeads,
+                
+                // Диагностика
+                diagnostics: {
+                    amocrm_connected: amoCrmService.isInitialized,
+                    contact_has_phone: true,
+                    contact_has_students: students.length > 0,
+                    contact_has_leads: leads.length > 0,
+                    has_subscription_leads: subscriptionLeads.length > 0
+                },
+                
+                // Действия
+                next_steps: [
+                    subscriptionLeads.length > 0 ? 
+                        '✅ Найдены сделки с абонементом. Запустите синхронизацию.' :
+                        '⚠️  Сделок с абонементом не найдено. Проверьте воронку абонементов.',
+                    
+                    `GET /api/sync-phone/${phone} - Для принудительной синхронизации`
+                ]
+            }
+        };
+        
+        res.json(response);
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            stack: error.stack 
         });
     }
 });
