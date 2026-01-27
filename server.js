@@ -140,7 +140,89 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
         
         return false;
     }
-
+// ==================== ИСПРАВЛЕННЫЙ МЕТОД ПОИСКА СДЕЛОК КОНТАКТА ====================
+    async getContactLeadsFixed(contactId) {
+        try {
+            console.log(`🔍 ПОИСК СДЕЛОК КОНТАКТА ID: ${contactId} (ИСПРАВЛЕННЫЙ МЕТОД)`);
+            
+            // Метод 1: Через фильтр по contact_id
+            console.log('🔍 Метод 1: Фильтр по contact_id');
+            try {
+                const response = await this.makeRequest('GET', 
+                    `/api/v4/leads?filter[contact_id][]=${contactId}&with=custom_fields_values&limit=250`
+                );
+                
+                if (response && response._embedded && response._embedded.leads) {
+                    console.log(`✅ Метод 1: Найдено ${response._embedded.leads.length} сделок`);
+                    return response._embedded.leads;
+                }
+            } catch (error1) {
+                console.log(`⚠️  Метод 1 не сработал: ${error1.message}`);
+            }
+            
+            // Метод 2: Через связанные сущности
+            console.log('🔍 Метод 2: Через связанные сущности');
+            try {
+                const response = await this.makeRequest('GET', 
+                    `/api/v4/leads?with=contacts&limit=100`
+                );
+                
+                if (response && response._embedded && response._embedded.leads) {
+                    // Фильтруем сделки, которые связаны с нашим контактом
+                    const filteredLeads = response._embedded.leads.filter(lead => {
+                        return lead._embedded && 
+                               lead._embedded.contacts &&
+                               lead._embedded.contacts.some(contact => contact.id === contactId);
+                    });
+                    
+                    console.log(`✅ Метод 2: Найдено ${filteredLeads.length} сделок`);
+                    
+                    // Получаем полные данные для каждой сделки
+                    const fullLeads = [];
+                    for (const lead of filteredLeads) {
+                        const fullLead = await this.makeRequest('GET', 
+                            `/api/v4/leads/${lead.id}?with=custom_fields_values`
+                        );
+                        if (fullLead) fullLeads.push(fullLead);
+                    }
+                    
+                    return fullLeads;
+                }
+            } catch (error2) {
+                console.log(`⚠️  Метод 2 не сработал: ${error2.message}`);
+            }
+            
+            // Метод 3: Ищем по имени контакта в сделках
+            console.log('🔍 Метод 3: Поиск по имени контакта');
+            try {
+                // Получаем информацию о контакте
+                const contact = await this.makeRequest('GET', 
+                    `/api/v4/contacts/${contactId}`
+                );
+                
+                if (contact && contact.name) {
+                    // Ищем сделки с именем контакта
+                    const response = await this.makeRequest('GET', 
+                        `/api/v4/leads?query=${encodeURIComponent(contact.name)}&with=custom_fields_values&limit=100`
+                    );
+                    
+                    if (response && response._embedded && response._embedded.leads) {
+                        console.log(`✅ Метод 3: Найдено ${response._embedded.leads.length} сделок по имени`);
+                        return response._embedded.leads;
+                    }
+                }
+            } catch (error3) {
+                console.log(`⚠️  Метод 3 не сработал: ${error3.message}`);
+            }
+            
+            console.log('❌ Все методы не сработали');
+            return [];
+            
+        } catch (error) {
+            console.error('❌ Критическая ошибка поиска сделок:', error.message);
+            return [];
+        }
+    }
     // ==================== ИНИЦИАЛИЗАЦИЯ AMOCRM ====================
     async initialize() {
         try {
@@ -325,85 +407,23 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
     }
 }
     
- async function getContactLeadsFixed(contactId) {
+// В классе AmoCrmService
+async getContactLeadsSorted(contactId) {
     try {
-        console.log(`🔍 ПОИСК СДЕЛОК КОНТАКТА ID: ${contactId} (ИСПРАВЛЕННЫЙ МЕТОД)`);
+        console.log(`\n🔍 ПОЛУЧЕНИЕ ВСЕХ СДЕЛОК КОНТАКТА ID: ${contactId}`);
         
-        // Метод 1: Через фильтр по contact_id
-        console.log('🔍 Метод 1: Фильтр по contact_id');
-        try {
-            const response = await amoCrmService.makeRequest('GET', 
-                `/api/v4/leads?filter[contact_id][]=${contactId}&with=custom_fields_values&limit=250`
-            );
-            
-            if (response && response._embedded && response._embedded.leads) {
-                console.log(`✅ Метод 1: Найдено ${response._embedded.leads.length} сделок`);
-                return response._embedded.leads;
-            }
-        } catch (error1) {
-            console.log(`⚠️  Метод 1 не сработал: ${error1.message}`);
-        }
+        // Используем исправленный метод
+        const leads = await this.getContactLeadsFixed(contactId);
         
-        // Метод 2: Через связанные сущности
-        console.log('🔍 Метод 2: Через связанные сущности');
-        try {
-            const response = await amoCrmService.makeRequest('GET', 
-                `/api/v4/leads?with=contacts&limit=100`
-            );
-            
-            if (response && response._embedded && response._embedded.leads) {
-                // Фильтруем сделки, которые связаны с нашим контактом
-                const filteredLeads = response._embedded.leads.filter(lead => {
-                    return lead._embedded && 
-                           lead._embedded.contacts &&
-                           lead._embedded.contacts.some(contact => contact.id === contactId);
-                });
-                
-                console.log(`✅ Метод 2: Найдено ${filteredLeads.length} сделок`);
-                
-                // Получаем полные данные для каждой сделки
-                const fullLeads = [];
-                for (const lead of filteredLeads) {
-                    const fullLead = await amoCrmService.makeRequest('GET', 
-                        `/api/v4/leads/${lead.id}?with=custom_fields_values`
-                    );
-                    if (fullLead) fullLeads.push(fullLead);
-                }
-                
-                return fullLeads;
-            }
-        } catch (error2) {
-            console.log(`⚠️  Метод 2 не сработал: ${error2.message}`);
-        }
+        console.log(`📊 Всего получено сделок: ${leads.length}`);
         
-        // Метод 3: Ищем по имени контакта в сделках
-        console.log('🔍 Метод 3: Поиск по имени контакта');
-        try {
-            // Получаем информацию о контакте
-            const contact = await amoCrmService.makeRequest('GET', 
-                `/api/v4/contacts/${contactId}`
-            );
-            
-            if (contact && contact.name) {
-                // Ищем сделки с именем контакта
-                const response = await amoCrmService.makeRequest('GET', 
-                    `/api/v4/leads?query=${encodeURIComponent(contact.name)}&with=custom_fields_values&limit=100`
-                );
-                
-                if (response && response._embedded && response._embedded.leads) {
-                    console.log(`✅ Метод 3: Найдено ${response._embedded.leads.length} сделок по имени`);
-                    return response._embedded.leads;
-                }
-            }
-        } catch (error3) {
-            console.log(`⚠️  Метод 3 не сработал: ${error3.message}`);
-        }
-        
-        console.log('❌ Все методы не сработали');
-        return [];
+        // Сортируем по дате создания (самые новые первыми)
+        return leads.sort((a, b) => {
+            return new Date(b.created_at * 1000) - new Date(a.created_at * 1000);
+        });
         
     } catch (error) {
-        console.error('❌ Критическая ошибка поиска сделок:', error.message);
+        console.error('❌ Ошибка получения сделок контакта:', error.message);
         return [];
     }
 }
@@ -2365,7 +2385,7 @@ app.get('/api/direct-find-subscription/:phone/:studentName', async (req, res) =>
         
         // ШАГ 2: Используем исправленный метод поиска сделок
         console.log('\n🔍 Исправленный поиск сделок контакта...');
-        const contactLeads = await getContactLeadsFixed(contact.id);
+        const contactLeads = await amoCrmService.getContactLeadsFixed(contact.id);
         console.log(`📊 Исправленный метод: найдено ${contactLeads.length} сделок`);
         
         // ШАГ 3: Если сделок нет, ищем по всем сделкам с именем ученика
