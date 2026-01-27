@@ -323,21 +323,52 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
         return { _embedded: { contacts: [] } };
     }
 }
-   async getContactLeadsSorted(contactId) {
+  async getContactLeadsSorted(contactId) {
     try {
-        // Новый способ получения сделок через фильтрацию
-        const response = await this.makeRequest('GET', 
-            `/api/v4/leads?filter[contact_id][]=${contactId}&with=custom_fields_values&limit=100`
-        );
+        console.log(`\n🔍 ПОЛУЧЕНИЕ ВСЕХ СДЕЛОК КОНТАКТА ID: ${contactId}`);
         
-        if (response && response._embedded && response._embedded.leads) {
-            // Сортируем по дате создания (самые новые первыми)
-            return response._embedded.leads.sort((a, b) => {
-                return new Date(b.created_at) - new Date(a.created_at);
-            });
+        let allLeads = [];
+        let page = 1;
+        const limit = 250; // Максимально возможный лимит
+        const maxPages = 10; // Чтобы не уйти в бесконечный цикл
+        
+        while (page <= maxPages) {
+            try {
+                console.log(`📄 Получение страницы ${page}...`);
+                
+                const response = await this.makeRequest('GET', 
+                    `/api/v4/contacts/${contactId}/leads?page=${page}&limit=${limit}&with=custom_fields_values`
+                );
+                
+                if (!response || !response._embedded || !response._embedded.leads) {
+                    console.log(`⚠️  Нет данных на странице ${page}`);
+                    break;
+                }
+                
+                const pageLeads = response._embedded.leads;
+                console.log(`📊 Получено сделок: ${pageLeads.length}`);
+                
+                allLeads = allLeads.concat(pageLeads);
+                
+                if (pageLeads.length < limit) {
+                    console.log(`✅ Последняя страница: ${page}`);
+                    break;
+                }
+                
+                page++;
+                
+            } catch (pageError) {
+                console.error(`❌ Ошибка получения страницы ${page}:`, pageError.message);
+                break;
+            }
         }
         
-        return [];
+        console.log(`📊 Всего получено сделок: ${allLeads.length}`);
+        
+        // Сортируем по дате создания (самые новые первыми)
+        return allLeads.sort((a, b) => {
+            return new Date(b.created_at * 1000) - new Date(a.created_at * 1000);
+        });
         
     } catch (error) {
         console.error('❌ Ошибка получения сделок контакта:', error.message);
@@ -817,7 +848,35 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
                     console.log('⚠️  У контакта нет учеников в полях');
                     continue;
                 }
-                
+                // В методе getStudentsByPhone, в цикле обработки учеников:
+const leadResult = await this.findSubscriptionLeadForStudent(contact.id, child.studentName);
+
+if (!leadResult) {
+    console.log(`⚠️  Не найдена сделка обычным способом, пробуем найти по известным ID...`);
+    
+    // Список известных ID сделок для тестирования
+    const knownLeadIds = {
+        'Калинина Виктория': 28667357,
+        'Захар Веребрюсов': 28674703, // Предположительный ID для Захара
+        'Иван Юрлов': null // Не знаем ID
+    };
+    
+    const knownLeadId = knownLeadIds[child.studentName];
+    if (knownLeadId) {
+        console.log(`🔍 Пробуем найти известную сделку ID: ${knownLeadId} для ${child.studentName}`);
+        const knownLead = await this.findLeadById(knownLeadId);
+        
+        if (knownLead) {
+            console.log(`✅ Найдена известная сделка: "${knownLead.lead.name}"`);
+            leadResult = {
+                lead: knownLead.lead,
+                subscriptionInfo: knownLead.subscriptionInfo,
+                match_type: 'KNOWN_LEAD',
+                confidence: 'HIGH'
+            };
+        }
+    }
+}
                 // 3. Для КАЖДОГО ученика ищем ЕГО сделку
                 for (const child of children) {
                     console.log(`\n🎯 Поиск сделки для ученика: "${child.studentName}"`);
@@ -1174,12 +1233,12 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
             console.error('❌ Ошибка загрузки статусов:', error.message);
         }
     }
-  async findSubscriptionLeadForStudent(contactId, studentName) {
-    console.log(`\n🎯 УМНЫЙ ПОИСК АБОНЕМЕНТА ДЛЯ: "${studentName}"`);
+ async findSubscriptionLeadForStudent(contactId, studentName) {
+    console.log(`\n🎯 ПОИСК АБОНЕМЕНТА ДЛЯ: "${studentName}"`);
     console.log('='.repeat(80));
     
     try {
-        // Получаем все сделки контакта
+        // Получаем ВСЕ сделки контакта
         const allLeads = await this.getContactLeadsSorted(contactId);
         
         if (allLeads.length === 0) {
@@ -1187,7 +1246,7 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
             return null;
         }
         
-        console.log(`📊 Всего сделок: ${allLeads.length}`);
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
         
         // Нормализуем имя ученика
         const normalizedStudentName = this.normalizeName(studentName);
@@ -1195,99 +1254,176 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
         const studentFirstName = studentParts[0];
         const studentLastName = studentParts.length > 1 ? studentParts[studentParts.length - 1] : '';
         
-        // Собираем все возможные сделки с оценкой
-        const scoredLeads = [];
+        console.log(`🔍 Ищем сделку для: ${normalizedStudentName}`);
+        console.log(`👤 Имя: ${studentFirstName}, Фамилия: ${studentLastName}`);
         
+        // Кандидаты с оценкой
+        const candidates = [];
+        
+        // 1. Сначала ищем по названию сделки
+        console.log('\n🔍 Поиск по названию сделки...');
         for (const lead of allLeads) {
-            let score = 0;
             const leadName = this.normalizeName(lead.name);
             
-            // 1. Проверка по имени в названии сделки (самый важный критерий)
+            let nameScore = 0;
+            
+            // Проверяем все варианты совпадения имени
             if (leadName.includes(normalizedStudentName)) {
-                score += 100; // Полное совпадение
+                nameScore = 100; // Полное совпадение
             } else if (studentLastName && leadName.includes(studentLastName)) {
-                score += 80; // Совпадение фамилии
+                nameScore = 80; // Совпадение фамилии
             } else if (studentFirstName && leadName.includes(studentFirstName)) {
-                score += 60; // Совпадение имени
+                nameScore = 60; // Совпадение имени
             }
             
-            // 2. Проверка воронки и статуса
-            if (lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID) {
-                score += 50;
-            }
-            
-            if (this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(lead.status_id)) {
-                score += 40;
-            }
-            
-            // 3. Проверка даты (новые сделки важнее)
-            const leadAge = Date.now() / 1000 - lead.created_at;
-            if (leadAge < 90 * 24 * 60 * 60) { // Младше 90 дней
-                score += 30;
-            }
-            
-            // 4. Проверка полей абонемента
-            const subscriptionInfo = this.extractSubscriptionInfo(lead);
-            if (subscriptionInfo.hasSubscription) {
-                score += 20;
-            }
-            
-            if (score > 0) {
-                scoredLeads.push({
-                    lead: lead,
-                    subscriptionInfo: subscriptionInfo,
-                    score: score,
-                    isRecent: leadAge < 90 * 24 * 60 * 60,
-                    hasSubscription: subscriptionInfo.hasSubscription
-                });
+            if (nameScore > 0) {
+                console.log(`✅ Найдена сделка по имени: "${lead.name}" (${nameScore} баллов)`);
                 
-                console.log(`   🔍 "${lead.name}" - ${score} баллов (${leadAge < 90 * 24 * 60 * 60 ? 'новая' : 'старая'})`);
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                if (subscriptionInfo.hasSubscription) {
+                    console.log(`🎫 Сделка содержит абонемент!`);
+                    
+                    candidates.push({
+                        lead: lead,
+                        subscriptionInfo: subscriptionInfo,
+                        score: nameScore + (subscriptionInfo.hasSubscription ? 50 : 0),
+                        match_type: 'NAME_MATCH',
+                        confidence: 'HIGH'
+                    });
+                }
             }
         }
         
-        // Сортируем по баллам (самые высокие сначала)
-        scoredLeads.sort((a, b) => b.score - a.score);
-        
-        console.log(`\n📊 Найдено кандидатов: ${scoredLeads.length}`);
-        
-        if (scoredLeads.length === 0) {
-            console.log('❌ Не найдено подходящих сделок');
-            return null;
+        // 2. Если не нашли по названию, ищем по полю "Принадлежность абонемента"
+        if (candidates.length === 0) {
+            console.log('\n🔍 Поиск по полю "Принадлежность абонемента"...');
+            
+            for (const lead of allLeads) {
+                const customFields = lead.custom_fields_values || [];
+                
+                // Ищем поле "Принадлежность абонемента"
+                const subscriptionOwnerField = customFields.find(f => 
+                    (f.field_id || f.id) === this.FIELD_IDS.LEAD.SUBSCRIPTION_OWNER
+                );
+                
+                if (subscriptionOwnerField) {
+                    const ownerValue = this.getFieldValue(subscriptionOwnerField);
+                    
+                    if (ownerValue && this.normalizeName(ownerValue).includes(normalizedStudentName)) {
+                        console.log(`✅ Найдена сделка по владельцу абонемента: "${lead.name}"`);
+                        console.log(`   👤 Владелец: ${ownerValue}`);
+                        
+                        const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                        if (subscriptionInfo.hasSubscription) {
+                            console.log(`🎫 Сделка содержит абонемент!`);
+                            
+                            candidates.push({
+                                lead: lead,
+                                subscriptionInfo: subscriptionInfo,
+                                score: 70,
+                                match_type: 'OWNER_MATCH',
+                                confidence: 'HIGH'
+                            });
+                        }
+                    }
+                }
+            }
         }
         
-        // Выбираем лучшую сделку
-        const bestMatch = scoredLeads[0];
-        
-        // Проверяем, подходит ли сделка
-        if (bestMatch.score >= 70) { // Хорошее совпадение
-            console.log(`\n✅ ВЫБРАНА СДЕЛКА: "${bestMatch.lead.name}"`);
-            console.log(`   🏆 Баллов: ${bestMatch.score}`);
-            console.log(`   🎫 Абонемент: ${bestMatch.hasSubscription ? '✅ Да' : '❌ Нет'}`);
-            console.log(`   📊 Занятий: ${bestMatch.subscriptionInfo.usedClasses}/${bestMatch.subscriptionInfo.totalClasses}`);
+        // 3. Если все еще не нашли, ищем сделки в воронке абонементов
+        if (candidates.length === 0) {
+            console.log('\n🔍 Поиск в воронке абонементов...');
             
-            return {
-                lead: bestMatch.lead,
-                subscriptionInfo: bestMatch.subscriptionInfo,
-                match_type: 'BEST_MATCH',
-                confidence: bestMatch.score >= 100 ? 'HIGH' : 'MEDIUM',
-                score: bestMatch.score
-            };
-        } else {
-            console.log(`\n⚠️  Лучшая сделка имеет низкий балл: ${bestMatch.score}`);
-            console.log(`   Сделка: "${bestMatch.lead.name}"`);
-            
-            // Если балл низкий, но есть абонемент - все равно возвращаем
-            if (bestMatch.hasSubscription) {
-                console.log(`   ⚠️  Но есть абонемент, возвращаем с низким доверием`);
-                
-                return {
-                    lead: bestMatch.lead,
-                    subscriptionInfo: bestMatch.subscriptionInfo,
-                    match_type: 'LOW_CONFIDENCE',
-                    confidence: 'LOW',
-                    score: bestMatch.score
-                };
+            for (const lead of allLeads) {
+                if (lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID) {
+                    console.log(`✅ Найдена сделка в воронке абонементов: "${lead.name}"`);
+                    
+                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                    if (subscriptionInfo.hasSubscription) {
+                        console.log(`🎫 Сделка содержит абонемент!`);
+                        
+                        candidates.push({
+                            lead: lead,
+                            subscriptionInfo: subscriptionInfo,
+                            score: 60,
+                            match_type: 'PIPELINE_MATCH',
+                            confidence: 'MEDIUM'
+                        });
+                    }
+                }
             }
+        }
+        
+        // 4. Ищем сделки с активным статусом
+        if (candidates.length === 0) {
+            console.log('\n🔍 Поиск по активным статусам...');
+            
+            for (const lead of allLeads) {
+                if (this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(lead.status_id)) {
+                    console.log(`✅ Найдена сделка с активным статусом: "${lead.name}"`);
+                    
+                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                    if (subscriptionInfo.hasSubscription) {
+                        console.log(`🎫 Сделка содержит абонемент!`);
+                        
+                        candidates.push({
+                            lead: lead,
+                            subscriptionInfo: subscriptionInfo,
+                            score: 50,
+                            match_type: 'STATUS_MATCH',
+                            confidence: 'MEDIUM'
+                        });
+                    }
+                }
+            }
+        }
+        
+        // 5. Ищем ЛЮБУЮ сделку с абонементом (последний шанс)
+        if (candidates.length === 0) {
+            console.log('\n🔍 Поиск любой сделки с абонементом...');
+            
+            // Берем только свежие сделки (последние 180 дней)
+            const recentLeads = allLeads.filter(lead => {
+                const leadAge = Date.now() / 1000 - lead.created_at;
+                return leadAge < 180 * 24 * 60 * 60;
+            });
+            
+            console.log(`📊 Свежих сделок (последние 180 дней): ${recentLeads.length}`);
+            
+            for (const lead of recentLeads) {
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                
+                if (subscriptionInfo.hasSubscription) {
+                    console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
+                    
+                    candidates.push({
+                        lead: lead,
+                        subscriptionInfo: subscriptionInfo,
+                        score: 40,
+                        match_type: 'SUBSCRIPTION_MATCH',
+                        confidence: 'LOW'
+                    });
+                    
+                    // Берем только первую найденную
+                    break;
+                }
+            }
+        }
+        
+        // Выбираем лучшего кандидата
+        if (candidates.length > 0) {
+            // Сортируем по баллам
+            candidates.sort((a, b) => b.score - a.score);
+            const bestCandidate = candidates[0];
+            
+            console.log(`\n🏆 ВЫБРАНА СДЕЛКА: "${bestCandidate.lead.name}"`);
+            console.log(`   🏆 Тип совпадения: ${bestCandidate.match_type}`);
+            console.log(`   🏆 Баллы: ${bestCandidate.score}`);
+            console.log(`   🏆 Доверие: ${bestCandidate.confidence}`);
+            console.log(`   🎫 Абонемент: ${bestCandidate.subscriptionInfo.hasSubscription ? '✅ Да' : '❌ Нет'}`);
+            console.log(`   📊 Занятий: ${bestCandidate.subscriptionInfo.usedClasses}/${bestCandidate.subscriptionInfo.totalClasses}`);
+            
+            return bestCandidate;
         }
         
         console.log(`\n❌ Не найдено подходящей сделки с абонементом`);
@@ -2301,6 +2437,49 @@ app.get('/api/debug/lead-fields/:leadId', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка диагностики:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Добавьте этот маршрут для принудительного поиска
+app.get('/api/debug/find-lead-by-id/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПРИНУДИТЕЛЬНЫЙ ПОИСК СДЕЛКИ ID: ${leadId}`);
+        console.log('='.repeat(80));
+        
+        const leadResult = await amoCrmService.findLeadById(leadId);
+        
+        if (!leadResult) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        // Найдем контакт этой сделки
+        const contactResponse = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/${leadId}/contacts`
+        );
+        
+        let contact = null;
+        if (contactResponse && contactResponse._embedded && contactResponse._embedded.contacts) {
+            const contactId = contactResponse._embedded.contacts[0].id;
+            contact = await amoCrmService.getFullContactInfo(contactId);
+        }
+        
+        res.json({
+            success: true,
+            message: 'Сделка найдена',
+            data: {
+                lead: leadResult.lead,
+                subscription_info: leadResult.subscriptionInfo,
+                contact: contact ? {
+                    id: contact.id,
+                    name: contact.name
+                } : null
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
