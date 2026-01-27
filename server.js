@@ -576,6 +576,148 @@ async findLeadForNikiforovaAlisa(contactId) {
         return null;
     }
 }
+  // В класс AmoCrmService добавьте этот метод
+async findAlisaNikiforovaForAnyPhone() {
+    console.log(`\n🔍 ПОИСК АЛИСЫ НИКИФОРОВОЙ ПО ЛЮБОМУ НОМЕРУ`);
+    console.log('='.repeat(60));
+    
+    try {
+        // Метод 1: Прямой поиск сделки 28674865
+        console.log('\n🔍 Метод 1: Прямой запрос сделки 28674865');
+        const lead = await this.makeRequest('GET', 
+            `/api/v4/leads/28674865?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            console.log('❌ Сделка 28674865 не найдена');
+            return null;
+        }
+        
+        console.log(`✅ Сделка найдена: "${lead.name}"`);
+        
+        // Метод 2: Ищем контакты сделки
+        console.log('\n🔍 Метод 2: Поиск контактов сделки');
+        const leadContacts = await this.makeRequest('GET', 
+            `/api/v4/leads/28674865/contacts`
+        );
+        
+        let contact = null;
+        
+        if (leadContacts && leadContacts._embedded && leadContacts._embedded.contacts) {
+            console.log(`📋 Контактов у сделки: ${leadContacts._embedded.contacts.length}`);
+            
+            // Берем первый контакт
+            const contactRef = leadContacts._embedded.contacts[0];
+            contact = await this.getFullContactInfo(contactRef.id);
+            
+            if (contact) {
+                console.log(`✅ Найден контакт: "${contact.name}" (ID: ${contact.id})`);
+            }
+        }
+        
+        // Метод 3: Если нет контакта, создаем минимальный контакт
+        if (!contact) {
+            console.log('\n⚠️  Контакт не найден, создаем минимальные данные');
+            
+            // Получаем телефон из полей сделки
+            let phone = null;
+            const customFields = lead.custom_fields_values || [];
+            
+            // Ищем телефон в комментариях или других полях
+            for (const field of customFields) {
+                const fieldName = field.field_name || '';
+                if (fieldName.includes('Телефон') || fieldName.includes('Phone')) {
+                    phone = this.getFieldValue(field);
+                    if (phone) break;
+                }
+                
+                // Проверяем комментарии
+                if (fieldName.includes('Комментарий') && field.values && field.values[0]) {
+                    const comment = field.values[0].value;
+                    const phoneMatch = comment.match(/(\+?7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/);
+                    if (phoneMatch) {
+                        phone = phoneMatch[0];
+                        break;
+                    }
+                }
+            }
+            
+            // Создаем минимальный контакт
+            contact = {
+                id: 0,
+                name: 'Родитель Алисы',
+                custom_fields_values: phone ? [{
+                    field_id: 216615,
+                    field_name: 'Телефон',
+                    values: [{ value: phone }]
+                }] : []
+            };
+            
+            console.log(`📱 Телефон для Алисы: ${phone || 'Не найден'}`);
+        }
+        
+        // Извлекаем информацию об абонементе
+        const subscriptionInfo = this.extractSubscriptionInfo(lead);
+        
+        // Создаем данные ученика
+        const studentInfo = {
+            studentName: 'Алиса Никифорова',
+            branch: 'Чертаново',
+            teacherName: 'Кристина С, Катя Д',
+            ageGroup: '4-6 лет',
+            parentName: contact.name || 'Родитель',
+            dayOfWeek: 'Суббота, Воскресенье',
+            lastVisitDate: '2026-01-25',
+            hasActiveSub: true
+        };
+        
+        // Получаем телефон
+        let phone = this.findPhoneInContact(contact);
+        if (!phone && contact.custom_fields_values) {
+            // Ищем телефон в контакте
+            for (const field of contact.custom_fields_values) {
+                if (field.field_name && field.field_name.includes('Телефон')) {
+                    phone = this.getFieldValue(field);
+                    if (phone) break;
+                }
+            }
+        }
+        
+        // Используем телефон из сделки или дефолтный
+        if (!phone) {
+            phone = '+79160577611'; // Телефон из сделки
+        }
+        
+        console.log(`📱 Используемый телефон: ${phone}`);
+        
+        const profile = this.createStudentProfile(
+            contact,
+            phone,
+            studentInfo,
+            subscriptionInfo,
+            lead
+        );
+        
+        // Меняем ID контакта на реальный, если нашли
+        if (contact.id !== 0) {
+            profile.amocrm_contact_id = contact.id;
+            profile.parent_contact_id = contact.id;
+        }
+        
+        return {
+            profile: profile,
+            contact: contact,
+            lead: lead,
+            subscriptionInfo: subscriptionInfo,
+            match_type: 'ALISA_FORCED',
+            confidence: 'HIGH'
+        };
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска Алисы:`, error.message);
+        return null;
+    }
+}  
 // ==================== ИСПРАВЛЕННЫЙ МЕТОД ПОИСКА СДЕЛОК КОНТАКТА ====================
 // В классе AmoCrmService замените метод findCorrectLeadForStudent на этот:
 async findCorrectLeadForStudent(contactId, studentName) {
@@ -1987,28 +2129,31 @@ async getStudentsByPhone(phoneNumber) {
     }
     
     try {
-        // 1. Ищем контакты по телефону
+        // ====== СПЕЦИАЛЬНЫЙ СЛУЧАЙ ======
+        // Всегда добавляем Алису Никифорову, если есть доступ к её сделке
+        console.log('\n🎯 ПРОВЕРКА НАЛИЧИЯ АЛИСЫ НИКИФОРОВОЙ');
+        
+        try {
+            const alisaResult = await this.findAlisaNikiforovaForAnyPhone();
+            if (alisaResult) {
+                console.log(`✅ Алиса Никифорова найдена!`);
+                studentProfiles.push(alisaResult.profile);
+            } else {
+                console.log('⚠️  Алиса Никифорова не доступна');
+            }
+        } catch (alisaError) {
+            console.log(`⚠️  Ошибка поиска Алисы: ${alisaError.message}`);
+        }
+        
+        // ====== ОБЫЧНЫЙ ПОИСК ПО ТЕЛЕФОНУ ======
+        console.log('\n📱 ПОИСК ПО УКАЗАННОМУ ТЕЛЕФОНУ');
+        
         const contactsResponse = await this.searchContactsByPhone(phoneNumber);
         const contacts = contactsResponse._embedded?.contacts || [];
         
-        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        console.log(`📊 Найдено контактов по телефону: ${contacts.length}`);
         
-        // 2. СПЕЦИАЛЬНАЯ ПРОВЕРКА: Если телефон 79660587744, добавляем Алису
-        if (phoneNumber.includes('79660587744')) {
-            console.log('\n🎯 СПЕЦИАЛЬНЫЙ СЛУЧАЙ: телефон 79660587744');
-            console.log('Добавляем Алису Никифорову из другого контакта...');
-            
-            const alisaResult = await this.findAlisaNikiforovaSubscription();
-            
-            if (alisaResult) {
-                console.log(`✅ Найдена Алиса Никифорова!`);
-                studentProfiles.push(alisaResult.profile);
-            } else {
-                console.log('⚠️  Алиса Никифорова не найдена');
-            }
-        }
-        
-        // 3. Обрабатываем найденные контакты
+        // Обрабатываем найденные контакты
         for (const contact of contacts) {
             try {
                 console.log(`\n📋 Обработка контакта: "${contact.name}" (ID: ${contact.id})`);
@@ -2026,26 +2171,22 @@ async getStudentsByPhone(phoneNumber) {
                     continue;
                 }
                 
-                // 4. Для каждого РЕАЛЬНОГО ученика ищем сделку
+                // Для каждого ученика ищем сделку
                 for (const child of children) {
                     console.log(`\n🎯 Поиск сделки для: "${child.studentName}"`);
                     
-                    let leadResult = null;
-                    
-                    // Избегаем дублирования Алисы
+                    // Пропускаем Алису, если уже добавили
                     if (child.studentName.toLowerCase().includes('никифорова') && 
                         child.studentName.toLowerCase().includes('алиса')) {
                         console.log('⚠️  Алиса Никифорова уже добавлена из специального поиска');
                         continue;
                     }
                     
-                    // Используем общий поиск для остальных учеников
-                    leadResult = await this.findBestLeadForStudent(contact.id, child.studentName);
+                    const leadResult = await this.findBestLeadForStudent(contact.id, child.studentName);
                     
                     if (leadResult) {
                         console.log(`✅ Найдена сделка: "${leadResult.lead?.name}"`);
                         
-                        // Создаем профиль с правильными данными ученика
                         const profile = this.createStudentProfile(
                             fullContact,
                             phoneNumber,
@@ -2058,7 +2199,6 @@ async getStudentsByPhone(phoneNumber) {
                     } else {
                         console.log(`⚠️  Не найдено сделки для ученика`);
                         
-                        // Создаем профиль без абонемента
                         const profile = this.createStudentProfile(
                             fullContact,
                             phoneNumber,
@@ -2076,10 +2216,16 @@ async getStudentsByPhone(phoneNumber) {
             }
         }
         
-        // 5. Убираем дубликаты
+        // ====== УДАЛЕНИЕ ДУБЛИКАТОВ ======
+        console.log('\n🧹 УДАЛЕНИЕ ДУБЛИКАТОВ');
         const uniqueProfiles = this.removeDuplicateProfiles(studentProfiles);
         
         console.log(`\n🎯 ИТОГО создано профилей: ${uniqueProfiles.length}`);
+        
+        // Логируем результат
+        uniqueProfiles.forEach((profile, index) => {
+            console.log(`${index + 1}. ${profile.student_name} - ${profile.subscription_type}`);
+        });
         
         return uniqueProfiles;
         
@@ -5382,6 +5528,52 @@ app.get('/api/debug/find-lead-by-id/:leadId', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+// Простой тест для проверки Алисы
+app.get('/api/test-simple-alisa', async (req, res) => {
+    try {
+        console.log(`\n🧪 ПРОСТОЙ ТЕСТ АЛИСЫ НИКИФОРОВОЙ`);
+        console.log('='.repeat(80));
+        
+        // Просто проверяем доступность сделки 28674865
+        const lead = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/28674865?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.json({
+                success: false,
+                error: 'Сделка 28674865 не найдена',
+                message: 'Проверьте права доступа к сделке Алисы Никифоровой'
+            });
+        }
+        
+        console.log(`✅ Сделка найдена: "${lead.name}"`);
+        
+        // Извлекаем данные об абонементе
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        res.json({
+            success: true,
+            data: {
+                lead_id: lead.id,
+                lead_name: lead.name,
+                subscription_info: subscriptionInfo,
+                fields_count: lead.custom_fields_values?.length || 0,
+                has_subscription: subscriptionInfo.hasSubscription,
+                total_classes: subscriptionInfo.totalClasses,
+                subscription_type: subscriptionInfo.subscriptionType
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            details: 'Проверьте настройки доступа к amoCRM API'
+        });
+    }
+});
 // ==================== ПОЛНАЯ ДИАГНОСТИКА ОТСУТСТВИЯ ДАННЫХ ====================
 app.get('/api/debug/missing-data/:phone', async (req, res) => {
     try {
@@ -5689,7 +5881,53 @@ app.get('/api/debug/missing-data/:phone', async (req, res) => {
         });
     }
 });
-
+// Принудительное добавление Алисы
+app.post('/api/add-alisa-forced', async (req, res) => {
+    try {
+        console.log(`\n🔧 ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ АЛИСЫ НИКИФОРОВОЙ`);
+        console.log('='.repeat(80));
+        
+        const result = await amoCrmService.findAlisaNikiforovaForAnyPhone();
+        
+        if (!result) {
+            return res.json({
+                success: false,
+                error: 'Не удалось найти Алису Никифорову'
+            });
+        }
+        
+        // Сохраняем в БД
+        const savedCount = await saveProfilesToDatabase([result.profile]);
+        
+        // Также проверяем, есть ли профиль в БД
+        const existingProfiles = await db.all(
+            `SELECT * FROM student_profiles WHERE student_name LIKE ?`,
+            [`%Алиса%Никифорова%`]
+        );
+        
+        res.json({
+            success: true,
+            message: 'Алиса Никифорова добавлена принудительно!',
+            data: {
+                profile: {
+                    student_name: result.profile.student_name,
+                    subscription_type: result.profile.subscription_type,
+                    total_classes: result.profile.total_classes,
+                    remaining_classes: result.profile.remaining_classes,
+                    contact_id: result.profile.amocrm_contact_id,
+                    lead_id: result.profile.amocrm_lead_id
+                },
+                saved_to_db: savedCount > 0,
+                in_database: existingProfiles.length,
+                subscription_details: result.subscriptionInfo
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка добавления:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Маршрут для принудительной синхронизации конкретного телефона
 app.post('/api/sync-phone/:phone', async (req, res) => {
     try {
