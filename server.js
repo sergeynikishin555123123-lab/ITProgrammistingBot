@@ -209,140 +209,139 @@ class AmoCrmService {
         }
     }
 
-    async searchContactsByPhone(phone) {
+   async searchContactsByPhone(phone) {
+    try {
+        const cleanPhone = phone.replace(/\D/g, '');
+        const last10Digits = cleanPhone.slice(-10);
+        
+        console.log(`🔍 Поиск контактов по телефону: ${last10Digits}`);
+        
+        // Сначала пробуем использовать query параметр (рекомендуемый способ)
+        console.log('🔍 Метод 1: Поиск через query');
         try {
-            const cleanPhone = phone.replace(/\D/g, '');
-            const last10Digits = cleanPhone.slice(-10);
+            const queryResponse = await this.makeRequest('GET', 
+                `/api/v4/contacts?query=${encodeURIComponent(last10Digits)}&with=custom_fields_values&limit=50`
+            );
             
-            console.log(`🔍 Поиск контактов по телефону: ${last10Digits}`);
-            
-            // МЕТОД 1: Поиск через query (по умолчанию ищет по всем полям)
-            console.log('🔍 Метод 1: Поиск через query (быстрый)');
-            try {
-                const queryResponse = await this.makeRequest('GET', 
-                    `/api/v4/contacts?query=${last10Digits}&with=custom_fields_values&limit=50`
-                );
+            if (queryResponse && queryResponse._embedded && queryResponse._embedded.contacts) {
+                const found = queryResponse._embedded.contacts.length;
+                console.log(`✅ Метод 1: Найдено ${found} контактов по query`);
                 
-                if (queryResponse && queryResponse._embedded && queryResponse._embedded.contacts) {
-                    const found = queryResponse._embedded.contacts.length;
-                    console.log(`✅ Метод 1: Найдено ${found} контактов по query`);
-                    
-                    // Фильтруем только те контакты, у которых действительно есть этот телефон
-                    const filteredContacts = queryResponse._embedded.contacts.filter(contact => {
-                        return this.contactHasPhone(contact, last10Digits);
-                    });
-                    
-                    console.log(`✅ После фильтрации: ${filteredContacts.length} контактов`);
-                    
-                    return {
-                        _embedded: {
-                            contacts: filteredContacts
-                        }
-                    };
-                }
-            } catch (queryError) {
-                console.log(`⚠️  Метод 1 не сработал: ${queryError.message}`);
-            }
-            
-            // МЕТОД 2: Поиск через filter (для новых версий API)
-            console.log('🔍 Метод 2: Поиск через filter');
-            try {
-                const filterResponse = await this.makeRequest('POST', '/api/v4/contacts/filter', {
-                    filter: {
-                        "custom_fields_values": [
-                            {
-                                "field_id": this.FIELD_IDS.CONTACT.PHONE,
-                                "values": [
-                                    {
-                                        "value": last10Digits
-                                    },
-                                    {
-                                        "value": `+7${last10Digits}`
-                                    },
-                                    {
-                                        "value": `8${last10Digits}`
-                                    },
-                                    {
-                                        "value": `7${last10Digits}`
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    with: "custom_fields_values",
-                    limit: 50
-                });
-                
-                if (filterResponse && filterResponse._embedded && filterResponse._embedded.contacts) {
-                    console.log(`✅ Метод 2: Найдено ${filterResponse._embedded.contacts.length} контактов через filter`);
-                    return filterResponse;
-                }
-            } catch (filterError) {
-                console.log(`⚠️  Метод 2 не сработал: ${filterError.message}`);
-            }
-            
-            // МЕТОД 3: Получаем все контакты и фильтруем локально (последний вариант)
-            console.log('🔍 Метод 3: Полный перебор контактов');
-            try {
-                // Получаем все контакты (постранично)
-                let allContacts = [];
-                let page = 1;
-                const limit = 100;
-                
-                while (true) {
-                    console.log(`📄 Получение страницы ${page}...`);
-                    
-                    const pageResponse = await this.makeRequest('GET', 
-                        `/api/v4/contacts?page=${page}&limit=${limit}&with=custom_fields_values`
-                    );
-                    
-                    if (!pageResponse || !pageResponse._embedded || !pageResponse._embedded.contacts) {
-                        break;
-                    }
-                    
-                    const pageContacts = pageResponse._embedded.contacts;
-                    allContacts = allContacts.concat(pageContacts);
-                    
-                    if (pageContacts.length < limit) {
-                        break;
-                    }
-                    
-                    page++;
-                    
-                    // Ограничим для безопасности
-                    if (page > 10) {
-                        console.log('⚠️  Достигнут лимит страниц (10)');
-                        break;
-                    }
-                }
-                
-                console.log(`📊 Всего получено контактов: ${allContacts.length}`);
-                
-                // Фильтруем по телефону
-                const filtered = allContacts.filter(contact => {
+                // Фильтруем только те контакты, у которых действительно есть этот телефон
+                const filteredContacts = queryResponse._embedded.contacts.filter(contact => {
                     return this.contactHasPhone(contact, last10Digits);
                 });
                 
-                console.log(`✅ Метод 3: Найдено ${filtered.length} контактов`);
+                console.log(`✅ После фильтрации по телефону: ${filteredContacts.length} контактов`);
                 
                 return {
                     _embedded: {
-                        contacts: filtered
+                        contacts: filteredContacts
                     }
                 };
+            }
+        } catch (queryError) {
+            console.log(`⚠️  Метод 1 не сработал: ${queryError.message}`);
+        }
+        
+        // Метод 2: Используем правильный синтаксис фильтрации для нового API
+        console.log('🔍 Метод 2: Поиск через filter с правильным синтаксисом');
+        try {
+            const filterResponse = await this.makeRequest('POST', '/api/v4/contacts/filter', {
+                filter: {
+                    custom_fields_values: [
+                        {
+                            field_id: this.FIELD_IDS.CONTACT.PHONE,
+                            values: [
+                                {
+                                    value: last10Digits
+                                },
+                                {
+                                    value: `+7${last10Digits}`
+                                },
+                                {
+                                    value: `8${last10Digits}`
+                                },
+                                {
+                                    value: `7${last10Digits}`
+                                }
+                            ]
+                        }
+                    ]
+                },
+                with: "custom_fields_values",
+                limit: 50
+            });
+            
+            if (filterResponse && filterResponse._embedded && filterResponse._embedded.contacts) {
+                console.log(`✅ Метод 2: Найдено ${filterResponse._embedded.contacts.length} контактов через filter`);
+                return filterResponse;
+            }
+        } catch (filterError) {
+            console.log(`⚠️  Метод 2 не сработал: ${filterError.message}`);
+        }
+        
+        // Метод 3: Получаем все контакты и фильтруем локально
+        console.log('🔍 Метод 3: Полный перебор контактов');
+        try {
+            let allContacts = [];
+            let page = 1;
+            const limit = 100;
+            
+            while (true) {
+                console.log(`📄 Получение страницы ${page}...`);
                 
-            } catch (allError) {
-                console.error(`❌ Метод 3 не сработал:`, allError.message);
+                const pageResponse = await this.makeRequest('GET', 
+                    `/api/v4/contacts?page=${page}&limit=${limit}&with=custom_fields_values`
+                );
+                
+                if (!pageResponse || !pageResponse._embedded || !pageResponse._embedded.contacts) {
+                    break;
+                }
+                
+                const pageContacts = pageResponse._embedded.contacts;
+                allContacts = allContacts.concat(pageContacts);
+                
+                if (pageContacts.length < limit) {
+                    break;
+                }
+                
+                page++;
+                
+                // Ограничим для безопасности
+                if (page > 10) {
+                    console.log('⚠️  Достигнут лимит страниц (10)');
+                    break;
+                }
             }
             
-            console.log('❌ Все методы поиска не сработали');
-            return { _embedded: { contacts: [] } };
+            console.log(`📊 Всего получено контактов: ${allContacts.length}`);
             
-        } catch (error) {
-            console.error('❌ Критическая ошибка поиска контактов:', error.message);
-            return { _embedded: { contacts: [] } };
+            // Фильтруем по телефону
+            const filtered = allContacts.filter(contact => {
+                return this.contactHasPhone(contact, last10Digits);
+            });
+            
+            console.log(`✅ Метод 3: Найдено ${filtered.length} контактов`);
+            
+            return {
+                _embedded: {
+                    contacts: filtered
+                }
+            };
+            
+        } catch (allError) {
+            console.error(`❌ Метод 3 не сработал:`, allError.message);
         }
+        
+        console.log('❌ Все методы поиска не сработали');
+        return { _embedded: { contacts: [] } };
+        
+    } catch (error) {
+        console.error('❌ Критическая ошибка поиска контактов:', error.message);
+        return { _embedded: { contacts: [] } };
     }
+}
     async getContactLeadsSorted(contactId) {
         try {
             const response = await this.makeRequest('GET', `/api/v4/contacts/${contactId}/leads?with=custom_fields_values`);
@@ -682,36 +681,32 @@ class AmoCrmService {
         return students;
     }
 
-    async getStudentsByPhone(phoneNumber) {
-        console.log(`\n📱 ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
-        console.log('='.repeat(60));
+  async getStudentsByPhone(phoneNumber) {
+    console.log(`\n📱 ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
+    console.log('='.repeat(60));
+    
+    const studentProfiles = [];
+    
+    if (!this.isInitialized) {
+        console.log('❌ amoCRM не инициализирован');
+        return studentProfiles;
+    }
+    
+    try {
+        // Используем исправленный поиск контактов
+        console.log(`🔍 Поиск контактов для телефона: ${phoneNumber}`);
         
-        const studentProfiles = [];
+        const contactsResponse = await this.searchContactsByPhone(phoneNumber);
+        const contacts = contactsResponse._embedded?.contacts || [];
         
-        if (!this.isInitialized) {
-            console.log('❌ amoCRM не инициализирован');
+        console.log(`📊 Найдено контактов в amoCRM: ${contacts.length}`);
+        
+        if (contacts.length === 0) {
+            console.log('⚠️  Контакты не найдены');
             return studentProfiles;
         }
         
-        try {
-            // 1. Ищем контакты по телефону
-            const cleanPhone = phoneNumber.replace(/\D/g, '');
-            const last10Digits = cleanPhone.slice(-10);
-            
-            console.log(`🔍 Поиск контакта с телефоном: ${last10Digits}`);
-            
-            const contactsResponse = await this.makeRequest('GET', 
-                `/api/v4/contacts?filter[custom_fields_values][phone][]=${last10Digits}&with=custom_fields_values`
-            );
-            
-            const contacts = contactsResponse._embedded?.contacts || [];
-            
-            console.log(`📊 Найдено контактов в amoCRM: ${contacts.length}`);
-            
-            if (contacts.length === 0) {
-                console.log('⚠️  Контакты не найдены, пробуем другой метод поиска...');
-                return studentProfiles;
-            }
+        // ... остальной код метода остается без изменений ...
             
             // 2. Обрабатываем каждый контакт
             for (const contact of contacts) {
@@ -1797,7 +1792,30 @@ app.post('/api/subscription', async (req, res) => {
     }
 });
 
-// ==================== ДИАГНОСТИЧЕСКИЕ МАРШРУТЫ ====================
+// Тестовый маршрут для проверки поиска
+app.get('/api/test-phone-search/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        console.log(`\n🧪 ТЕСТ ПОИСКА ПО ТЕЛЕФОНУ: ${phone}`);
+        
+        const result = await amoCrmService.searchContactsByPhone(phone);
+        
+        res.json({
+            success: true,
+            phone: phone,
+            contacts_found: result._embedded?.contacts?.length || 0,
+            contacts: result._embedded?.contacts?.map(c => ({
+                id: c.id,
+                name: c.name,
+                phones: c.custom_fields_values?.find(f => 
+                    f.field_id === amoCrmService.FIELD_IDS.CONTACT.PHONE
+                )?.values?.map(v => v.value) || []
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ИСПРАВЛЕННЫЙ API ДЛЯ ДИАГНОСТИКИ ====================
 app.get('/api/debug/for-app/:phone/:studentName', async (req, res) => {
     try {
