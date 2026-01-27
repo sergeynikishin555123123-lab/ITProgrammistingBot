@@ -108,7 +108,7 @@ this.SUBSCRIPTION_STATUSES = {
 // Обновите ID воронки (правильная воронка = 7977402)
 this.SUBSCRIPTION_PIPELINE_ID = 7977402;
 };
-    }
+    
         // Проверяет, есть ли у контакта указанный телефон
     contactHasPhone(contact, phoneDigits) {
         if (!contact || !contact.custom_fields_values) {
