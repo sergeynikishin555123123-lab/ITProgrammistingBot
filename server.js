@@ -63,6 +63,7 @@ class AmoCrmService {
         
        // Замените весь блок FIELD_IDS на этот:
 // В классе AmoCrmService обновите FIELD_IDS:
+// В классе AmoCrmService обновите FIELD_IDS:
 this.FIELD_IDS = {
     LEAD: {
         // Реальные ID из диагностики выше
@@ -610,69 +611,60 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
     }
 
     // ==================== ИЗВЛЕЧЕНИЕ ИНФОРМАЦИИ О СДЕЛКЕ ====================
-  extractSubscriptionInfo(lead) {
-    console.log(`\n🔍 ИЗВЛЕЧЕНИЕ ИНФОРМАЦИИ ИЗ СДЕЛКИ: "${lead.name}"`);
-    console.log(`📅 Создана: ${new Date(lead.created_at * 1000).toLocaleDateString()}`);
+ extractSubscriptionInfo(lead) {
+    console.log(`\n🔍 ИЗВЛЕЧЕНИЕ ИНФОРМАЦИИ ОБ АБОНЕМЕНТЕ`);
+    console.log(`📋 Сделка: "${lead.name}"`);
     console.log(`🎯 Воронка: ${lead.pipeline_id} (нужно: ${this.SUBSCRIPTION_PIPELINE_ID})`);
     console.log(`📊 Статус: ${lead.status_id} (активные: ${JSON.stringify(this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE)})`);
     
     const customFields = lead.custom_fields_values || [];
-    console.log(`📦 Поля: ${customFields.length}`);
-    
-    // Логируем все поля для отладки
-    if (customFields.length > 0) {
-        console.log(`📋 Все поля сделки:`);
-        customFields.forEach(field => {
-            const fieldId = field.field_id || field.id;
-            const fieldName = field.field_name || `Поле ${fieldId}`;
-            const value = field.values && field.values[0] ? field.values[0].value : 'Пусто';
-            console.log(`   ${fieldId}: "${fieldName}" = ${value}`);
-        });
-    }
     
     const getFieldValue = (fieldId, fieldName = 'Поле') => {
         const field = customFields.find(f => (f.field_id || f.id) === fieldId);
         if (!field) {
+            // console.log(`   ⚠️  ${fieldName} (ID: ${fieldId}) не найдено`);
             return null;
         }
         
+        let value = null;
         if (field.values && field.values.length > 0) {
+            // Обработка разных типов полей
             const rawValue = field.values[0].value;
             
-            // Если это timestamp
+            // Если это timestamp (дата в секундах)
             if (typeof rawValue === 'number' && rawValue > 1000000000) {
-                // Проверяем, это секунды или миллисекунды
-                const date = rawValue < 100000000000 ? new Date(rawValue * 1000) : new Date(rawValue);
-                return date.toISOString().split('T')[0];
-            }
-            
-            // Извлекаем число из строки типа "8 занятий"
-            if (typeof rawValue === 'string' && rawValue.includes('занят')) {
+                const date = new Date(rawValue * 1000);
+                value = date.toISOString().split('T')[0]; // Формат YYYY-MM-DD
+                console.log(`   📅 ${fieldName}: ${value} (${rawValue})`);
+            } else if (typeof rawValue === 'boolean') {
+                value = rawValue;
+                console.log(`   ✅ ${fieldName}: ${value}`);
+            } else if (rawValue && typeof rawValue === 'string') {
+                // Извлекаем число из строки типа "8 занятий"
                 const match = rawValue.match(/(\d+)/);
-                return match ? parseInt(match[1]) : 0;
+                value = match ? parseInt(match[1]) : rawValue;
+                console.log(`   📊 ${fieldName}: "${rawValue}" -> ${value}`);
+            } else {
+                value = rawValue;
+                console.log(`   📋 ${fieldName}: ${value}`);
             }
-            
-            return rawValue;
         }
         
-        return null;
+        return value;
     };
     
-    // Проверяем, есть ли поля абонемента
-    const hasAnySubscriptionField = customFields.some(field => {
-        const fieldName = field.field_name || '';
-        return fieldName.includes('абонемент') || 
-               fieldName.includes('занят') || 
-               fieldName.includes('счетчик') ||
-               fieldName.includes('остаток');
-    });
-    
-    // Получаем данные
+    // Получаем значения полей
     const totalClasses = parseInt(getFieldValue(this.FIELD_IDS.LEAD.TOTAL_CLASSES, 'Всего занятий') || 0);
     const usedClasses = parseInt(getFieldValue(this.FIELD_IDS.LEAD.USED_CLASSES, 'Использовано занятий') || 0);
     const remainingClasses = parseInt(getFieldValue(this.FIELD_IDS.LEAD.REMAINING_CLASSES, 'Остаток занятий') || 0);
+    const technicalCount = parseInt(getFieldValue(this.FIELD_IDS.LEAD.TECHNICAL_COUNT, 'Техническое количество') || 0);
     
-    // Проверяем активность
+    // Используем техническое количество, если основное поле пустое
+    const finalTotalClasses = totalClasses > 0 ? totalClasses : technicalCount;
+    
+    const hasSubscription = finalTotalClasses > 0 || remainingClasses > 0;
+    
+    // Проверяем активность сделки
     const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
     const hasActiveStatus = this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(lead.status_id);
     
@@ -682,24 +674,24 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
     if (hasActiveStatus) {
         subscriptionStatus = 'Активен';
         subscriptionBadge = 'active';
+        console.log(`   ✅ Статус сделки активен (${lead.status_id})`);
     } else if (isInSubscriptionPipeline) {
-        subscriptionStatus = 'В воронке';
+        subscriptionStatus = 'В воронке абонементов';
         subscriptionBadge = 'warning';
+        console.log(`   ⚠️  Сделка в воронке абонементов`);
     } else {
         subscriptionStatus = 'Не активен';
+        console.log(`   ❌ Сделка не активна`);
     }
-    
-    const hasSubscription = (totalClasses > 0 || remainingClasses > 0 || hasAnySubscriptionField) && 
-                          (isInSubscriptionPipeline || hasActiveStatus);
     
     const result = {
         hasSubscription: hasSubscription,
         subscriptionActive: subscriptionBadge === 'active',
         subscriptionStatus: subscriptionStatus,
         subscriptionBadge: subscriptionBadge,
-        totalClasses: totalClasses,
+        totalClasses: finalTotalClasses,
         usedClasses: usedClasses,
-        remainingClasses: remainingClasses > 0 ? remainingClasses : (totalClasses - usedClasses),
+        remainingClasses: remainingClasses > 0 ? remainingClasses : (finalTotalClasses - usedClasses),
         subscriptionType: getFieldValue(this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE, 'Тип абонемента') || 'Без абонемента',
         expirationDate: getFieldValue(this.FIELD_IDS.LEAD.EXPIRATION_DATE, 'Дата окончания'),
         activationDate: getFieldValue(this.FIELD_IDS.LEAD.ACTIVATION_DATE, 'Дата активации'),
@@ -712,21 +704,20 @@ this.SUBSCRIPTION_PIPELINE_ID = 7977402;
         isInSubscriptionPipeline: isInSubscriptionPipeline,
         hasActiveStatus: hasActiveStatus,
         pipelineId: lead.pipeline_id,
-        statusId: lead.status_id,
-        createdAt: lead.created_at,
-        updatedAt: lead.updated_at
+        statusId: lead.status_id
     };
     
-    console.log(`📊 РЕЗУЛЬТАТ ИЗВЛЕЧЕНИЯ:`);
+    console.log(`\n📊 РЕЗУЛЬТАТ:`);
     console.log(`   ✅ Абонемент: ${hasSubscription ? 'Да' : 'Нет'}`);
-    console.log(`   📊 Занятий: ${result.usedClasses}/${result.totalClasses} (осталось: ${result.remainingClasses})`);
+    console.log(`   📊 Занятий: ${usedClasses}/${finalTotalClasses} (осталось: ${result.remainingClasses})`);
     console.log(`   🎯 Статус: ${subscriptionStatus}`);
     console.log(`   🏷️  Тип: ${result.subscriptionType}`);
+    console.log(`   📅 Активен с: ${result.activationDate || 'Нет данных'}`);
+    console.log(`   📅 Действует до: ${result.expirationDate || 'Нет данных'}`);
     console.log('='.repeat(60));
     
     return result;
 }
-
     // ==================== ИЗВЛЕЧЕНИЕ УЧЕНИКОВ ИЗ КОНТАКТА ====================
        extractStudentsFromContact(contact) {
     console.log(`\n👨‍👩‍👧‍👦 ИЗВЛЕЧЕНИЕ УЧЕНИКОВ ИЗ КОНТАКТА: "${contact.name}"`);
@@ -1008,7 +999,7 @@ if (!leadResult) {
         };
     }
 
-   createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
+ createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
     const email = this.findEmail(contact);
     
     // Функция для конвертации timestamp в читаемую дату
@@ -1233,12 +1224,12 @@ if (!leadResult) {
             console.error('❌ Ошибка загрузки статусов:', error.message);
         }
     }
- async findSubscriptionLeadForStudent(contactId, studentName) {
-    console.log(`\n🎯 ПОИСК АБОНЕМЕНТА ДЛЯ: "${studentName}"`);
-    console.log('='.repeat(80));
+async findSubscriptionLeadForStudent(contactId, studentName) {
+    console.log(`\n🎯 ПОИСК АБОНЕМЕНТА ДЛЯ УЧЕНИКА: "${studentName}"`);
+    console.log('='.repeat(60));
     
     try {
-        // Получаем ВСЕ сделки контакта
+        // Получаем все сделки контакта
         const allLeads = await this.getContactLeadsSorted(contactId);
         
         if (allLeads.length === 0) {
@@ -1246,187 +1237,97 @@ if (!leadResult) {
             return null;
         }
         
-        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        console.log(`📊 Всего сделок: ${allLeads.length}`);
         
         // Нормализуем имя ученика
         const normalizedStudentName = this.normalizeName(studentName);
-        const studentParts = normalizedStudentName.split(' ');
-        const studentFirstName = studentParts[0];
-        const studentLastName = studentParts.length > 1 ? studentParts[studentParts.length - 1] : '';
+        const studentLastName = normalizedStudentName.split(' ').pop();
         
-        console.log(`🔍 Ищем сделку для: ${normalizedStudentName}`);
-        console.log(`👤 Имя: ${studentFirstName}, Фамилия: ${studentLastName}`);
-        
-        // Кандидаты с оценкой
-        const candidates = [];
-        
-        // 1. Сначала ищем по названию сделки
-        console.log('\n🔍 Поиск по названию сделки...');
+        // Приоритет 1: Ищем сделку по точному совпадению имени
+        console.log(`\n🔍 Приоритет 1: Поиск по точному совпадению имени...`);
         for (const lead of allLeads) {
             const leadName = this.normalizeName(lead.name);
             
-            let nameScore = 0;
-            
-            // Проверяем все варианты совпадения имени
-            if (leadName.includes(normalizedStudentName)) {
-                nameScore = 100; // Полное совпадение
-            } else if (studentLastName && leadName.includes(studentLastName)) {
-                nameScore = 80; // Совпадение фамилии
-            } else if (studentFirstName && leadName.includes(studentFirstName)) {
-                nameScore = 60; // Совпадение имени
-            }
-            
-            if (nameScore > 0) {
-                console.log(`✅ Найдена сделка по имени: "${lead.name}" (${nameScore} баллов)`);
+            // Проверяем разные варианты совпадения
+            if (leadName.includes(normalizedStudentName) || 
+                leadName.includes(studentLastName) ||
+                normalizedStudentName.includes(leadName.split(' ')[0])) {
+                
+                console.log(`✅ Найдена сделка по имени: "${lead.name}"`);
                 
                 const subscriptionInfo = this.extractSubscriptionInfo(lead);
                 if (subscriptionInfo.hasSubscription) {
-                    console.log(`🎫 Сделка содержит абонемент!`);
+                    console.log(`🎫 УРА! Нашли абонемент в сделке`);
+                    console.log(`📊 ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses} занятий`);
                     
-                    candidates.push({
+                    return {
                         lead: lead,
                         subscriptionInfo: subscriptionInfo,
-                        score: nameScore + (subscriptionInfo.hasSubscription ? 50 : 0),
-                        match_type: 'NAME_MATCH',
+                        match_type: 'EXACT_NAME_MATCH',
                         confidence: 'HIGH'
-                    });
+                    };
+                } else {
+                    console.log(`⚠️  Сделка найдена, но без абонемента`);
                 }
             }
         }
         
-        // 2. Если не нашли по названию, ищем по полю "Принадлежность абонемента"
-        if (candidates.length === 0) {
-            console.log('\n🔍 Поиск по полю "Принадлежность абонемента"...');
-            
-            for (const lead of allLeads) {
-                const customFields = lead.custom_fields_values || [];
+        // Приоритет 2: Ищем сделки в воронке абонементов
+        console.log(`\n🔍 Приоритет 2: Поиск в воронке абонементов (ID: ${this.SUBSCRIPTION_PIPELINE_ID})...`);
+        for (const lead of allLeads) {
+            if (lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID) {
+                console.log(`✅ Найдена сделка в воронке абонементов: "${lead.name}"`);
                 
-                // Ищем поле "Принадлежность абонемента"
-                const subscriptionOwnerField = customFields.find(f => 
-                    (f.field_id || f.id) === this.FIELD_IDS.LEAD.SUBSCRIPTION_OWNER
-                );
-                
-                if (subscriptionOwnerField) {
-                    const ownerValue = this.getFieldValue(subscriptionOwnerField);
-                    
-                    if (ownerValue && this.normalizeName(ownerValue).includes(normalizedStudentName)) {
-                        console.log(`✅ Найдена сделка по владельцу абонемента: "${lead.name}"`);
-                        console.log(`   👤 Владелец: ${ownerValue}`);
-                        
-                        const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                        if (subscriptionInfo.hasSubscription) {
-                            console.log(`🎫 Сделка содержит абонемент!`);
-                            
-                            candidates.push({
-                                lead: lead,
-                                subscriptionInfo: subscriptionInfo,
-                                score: 70,
-                                match_type: 'OWNER_MATCH',
-                                confidence: 'HIGH'
-                            });
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 3. Если все еще не нашли, ищем сделки в воронке абонементов
-        if (candidates.length === 0) {
-            console.log('\n🔍 Поиск в воронке абонементов...');
-            
-            for (const lead of allLeads) {
-                if (lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID) {
-                    console.log(`✅ Найдена сделка в воронке абонементов: "${lead.name}"`);
-                    
-                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                    if (subscriptionInfo.hasSubscription) {
-                        console.log(`🎫 Сделка содержит абонемент!`);
-                        
-                        candidates.push({
-                            lead: lead,
-                            subscriptionInfo: subscriptionInfo,
-                            score: 60,
-                            match_type: 'PIPELINE_MATCH',
-                            confidence: 'MEDIUM'
-                        });
-                    }
-                }
-            }
-        }
-        
-        // 4. Ищем сделки с активным статусом
-        if (candidates.length === 0) {
-            console.log('\n🔍 Поиск по активным статусам...');
-            
-            for (const lead of allLeads) {
-                if (this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(lead.status_id)) {
-                    console.log(`✅ Найдена сделка с активным статусом: "${lead.name}"`);
-                    
-                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                    if (subscriptionInfo.hasSubscription) {
-                        console.log(`🎫 Сделка содержит абонемент!`);
-                        
-                        candidates.push({
-                            lead: lead,
-                            subscriptionInfo: subscriptionInfo,
-                            score: 50,
-                            match_type: 'STATUS_MATCH',
-                            confidence: 'MEDIUM'
-                        });
-                    }
-                }
-            }
-        }
-        
-        // 5. Ищем ЛЮБУЮ сделку с абонементом (последний шанс)
-        if (candidates.length === 0) {
-            console.log('\n🔍 Поиск любой сделки с абонементом...');
-            
-            // Берем только свежие сделки (последние 180 дней)
-            const recentLeads = allLeads.filter(lead => {
-                const leadAge = Date.now() / 1000 - lead.created_at;
-                return leadAge < 180 * 24 * 60 * 60;
-            });
-            
-            console.log(`📊 Свежих сделок (последние 180 дней): ${recentLeads.length}`);
-            
-            for (const lead of recentLeads) {
                 const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                
                 if (subscriptionInfo.hasSubscription) {
-                    console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
-                    
-                    candidates.push({
+                    console.log(`🎫 Нашли абонемент!`);
+                    return {
                         lead: lead,
                         subscriptionInfo: subscriptionInfo,
-                        score: 40,
-                        match_type: 'SUBSCRIPTION_MATCH',
-                        confidence: 'LOW'
-                    });
-                    
-                    // Берем только первую найденную
-                    break;
+                        match_type: 'PIPELINE_MATCH',
+                        confidence: 'HIGH'
+                    };
                 }
             }
         }
         
-        // Выбираем лучшего кандидата
-        if (candidates.length > 0) {
-            // Сортируем по баллам
-            candidates.sort((a, b) => b.score - a.score);
-            const bestCandidate = candidates[0];
-            
-            console.log(`\n🏆 ВЫБРАНА СДЕЛКА: "${bestCandidate.lead.name}"`);
-            console.log(`   🏆 Тип совпадения: ${bestCandidate.match_type}`);
-            console.log(`   🏆 Баллы: ${bestCandidate.score}`);
-            console.log(`   🏆 Доверие: ${bestCandidate.confidence}`);
-            console.log(`   🎫 Абонемент: ${bestCandidate.subscriptionInfo.hasSubscription ? '✅ Да' : '❌ Нет'}`);
-            console.log(`   📊 Занятий: ${bestCandidate.subscriptionInfo.usedClasses}/${bestCandidate.subscriptionInfo.totalClasses}`);
-            
-            return bestCandidate;
+        // Приоритет 3: Ищем сделки с активным статусом
+        console.log(`\n🔍 Приоритет 3: Поиск по активным статусам...`);
+        for (const lead of allLeads) {
+            if (this.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE.includes(lead.status_id)) {
+                console.log(`✅ Найдена сделка с активным статусом ${lead.status_id}: "${lead.name}"`);
+                
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                if (subscriptionInfo.hasSubscription) {
+                    console.log(`🎫 Нашли абонемент!`);
+                    return {
+                        lead: lead,
+                        subscriptionInfo: subscriptionInfo,
+                        match_type: 'STATUS_MATCH',
+                        confidence: 'HIGH'
+                    };
+                }
+            }
         }
         
-        console.log(`\n❌ Не найдено подходящей сделки с абонементом`);
+        // Приоритет 4: Ищем любую сделку с абонементом
+        console.log(`\n🔍 Приоритет 4: Поиск любой сделки с абонементом...`);
+        for (const lead of allLeads) {
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            
+            if (subscriptionInfo.hasSubscription) {
+                console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
+                
+                return {
+                    lead: lead,
+                    subscriptionInfo: subscriptionInfo,
+                    match_type: 'SUBSCRIPTION_MATCH',
+                    confidence: 'MEDIUM'
+                };
+            }
+        }
+        
+        console.log(`\n❌ Не найдено подходящей сделки с абонементом для "${studentName}"`);
         return null;
         
     } catch (error) {
