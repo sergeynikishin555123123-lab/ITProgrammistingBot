@@ -2735,6 +2735,614 @@ app.get('/api/direct-find-subscription/:phone/:studentName', async (req, res) =>
     }
 });
 
+// ==================== ПРЯМАЯ АВТОРИЗАЦИЯ ПО КОНТАКТ ID ====================
+app.get('/api/debug/by-contact/:contactId', async (req, res) => {
+    try {
+        const contactId = parseInt(req.params.contactId);
+        
+        console.log(`\n🔑 ПРЯМАЯ АВТОРИЗАЦИЯ ПО КОНТАКТ ID: ${contactId}`);
+        console.log('='.repeat(60));
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({ 
+                success: false, 
+                error: 'amoCRM не инициализирован' 
+            });
+        }
+        
+        // Получаем контакт
+        const fullContact = await amoCrmService.getFullContactInfo(contactId);
+        if (!fullContact) {
+            return res.json({ 
+                success: false, 
+                error: 'Контакт не найден' 
+            });
+        }
+        
+        console.log(`📋 Контакт: "${fullContact.name}"`);
+        
+        // Извлекаем учеников
+        const students = amoCrmService.extractStudentsFromContact(fullContact);
+        console.log(`👥 Ученики: ${students.length}`);
+        
+        if (students.length === 0) {
+            return res.json({ 
+                success: false, 
+                error: 'У контакта нет учеников' 
+            });
+        }
+        
+        // Получаем телефон контакта
+        const phoneField = fullContact.custom_fields_values?.find(f => 
+            (f.field_id || f.id) === 216615 || // ID поля телефон
+            (f.field_name && f.field_name.includes('Телефон'))
+        );
+        
+        const phone = phoneField ? amoCrmService.getFieldValue(phoneField) : null;
+        
+        // Для КАЖДОГО ученика ищем сделку
+        const profiles = [];
+        
+        for (const student of students) {
+            console.log(`\n🎯 Поиск для ученика: "${student.studentName}"`);
+            
+            // Используем исправленный метод поиска
+            const leadResult = await amoCrmService.findSubscriptionLeadForStudentFixed(
+                contactId, 
+                student.studentName
+            );
+            
+            if (leadResult) {
+                console.log(`✅ Найдена сделка: "${leadResult.lead.name}"`);
+                
+                // Создаем профиль
+                const profile = amoCrmService.createStudentProfile(
+                    fullContact,
+                    phone || 'ID:' + contactId,
+                    student,
+                    leadResult.subscriptionInfo,
+                    leadResult.lead
+                );
+                
+                profiles.push(profile);
+            } else {
+                console.log(`⚠️  Сделка не найдена, создаем базовый профиль`);
+                
+                // Создаем профиль без абонемента
+                const profile = amoCrmService.createStudentProfile(
+                    fullContact,
+                    phone || 'ID:' + contactId,
+                    student,
+                    amoCrmService.getDefaultSubscriptionInfo(),
+                    null
+                );
+                
+                profiles.push(profile);
+            }
+        }
+        
+        // Сохраняем в БД
+        const savedCount = await saveProfilesToDatabase(profiles);
+        console.log(`💾 Сохранено в БД: ${savedCount} профилей`);
+        
+        // Создаем токен
+        const sessionId = crypto.randomBytes(32).toString('hex');
+        const token = jwt.sign(
+            {
+                session_id: sessionId,
+                contact_id: contactId,
+                phone: phone,
+                profiles_count: profiles.length,
+                timestamp: Date.now()
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        // Сохраняем сессию
+        await db.run(
+            `INSERT INTO user_sessions (session_id, session_data, phone_number, expires_at) 
+             VALUES (?, ?, ?, ?)`,
+            [
+                sessionId,
+                JSON.stringify({ 
+                    contact_id: contactId,
+                    profiles_count: profiles.length 
+                }),
+                phone || 'ID:' + contactId,
+                new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            ]
+        );
+        
+        // Форматируем ответ
+        const formattedProfiles = profiles.map(p => ({
+            id: p.id || null,
+            student_name: p.student_name,
+            phone_number: p.phone_number,
+            email: p.email,
+            branch: p.branch || 'Филиал не указан',
+            day_of_week: p.day_of_week,
+            time_slot: p.time_slot,
+            teacher_name: p.teacher_name,
+            age_group: p.age_group,
+            course: p.course,
+            subscription_type: p.subscription_type,
+            subscription_active: p.subscription_active === 1,
+            subscription_status: p.subscription_status,
+            subscription_badge: p.subscription_badge,
+            total_classes: p.total_classes || 0,
+            remaining_classes: p.remaining_classes || 0,
+            used_classes: p.used_classes || 0,
+            expiration_date: p.expiration_date,
+            last_visit_date: p.last_visit_date,
+            parent_name: p.parent_name,
+            amocrm_contact_id: p.amocrm_contact_id,
+            amocrm_lead_id: p.amocrm_lead_id,
+            is_demo: p.is_demo === 1,
+            source: p.source,
+            last_sync: p.last_sync || new Date().toISOString()
+        }));
+        
+        console.log(`\n✅ Авторизация успешна!`);
+        console.log(`📊 Профилей: ${profiles.length}`);
+        
+        res.json({
+            success: true,
+            message: 'Авторизация по ID контакта успешна',
+            data: {
+                user: {
+                    id: contactId,
+                    phone_number: phone || 'ID:' + contactId,
+                    name: fullContact.name,
+                    contact_id: contactId,
+                    is_temp: true,
+                    profiles_count: profiles.length
+                },
+                profiles: formattedProfiles,
+                contact_name: fullContact.name,
+                contact_id: contactId,
+                phone: phone,
+                total_profiles: profiles.length,
+                token: token,
+                last_sync: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка авторизации по ID:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ==================== ПРЯМОЙ ПОИСК ПО LEAD ID ====================
+app.get('/api/debug/by-lead/:leadId', async (req, res) => {
+    try {
+        const leadId = parseInt(req.params.leadId);
+        
+        console.log(`\n🎯 ПРЯМОЙ ПОИСК ПО LEAD ID: ${leadId}`);
+        console.log('='.repeat(60));
+        
+        // Находим сделку
+        const leadResult = await amoCrmService.findLeadById(leadId);
+        if (!leadResult) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        const lead = leadResult.lead;
+        console.log(`📋 Сделка: "${lead.name}"`);
+        
+        // Находим контакт этой сделки
+        const contactResponse = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/${leadId}/contacts`
+        );
+        
+        if (!contactResponse._embedded?.contacts?.length) {
+            return res.json({ 
+                success: false, 
+                error: 'У сделки нет привязанных контактов' 
+            });
+        }
+        
+        const contactId = contactResponse._embedded.contacts[0].id;
+        const fullContact = await amoCrmService.getFullContactInfo(contactId);
+        
+        if (!fullContact) {
+            return res.json({ 
+                success: false, 
+                error: 'Контакт не найден' 
+            });
+        }
+        
+        console.log(`📋 Контакт: "${fullContact.name}" (ID: ${contactId})`);
+        
+        // Извлекаем всех учеников
+        const students = amoCrmService.extractStudentsFromContact(fullContact);
+        
+        // Определяем, для какого ученика эта сделка
+        let targetStudent = null;
+        const normalizedLeadName = amoCrmService.normalizeName(lead.name);
+        
+        for (const student of students) {
+            if (normalizedLeadName.includes(amoCrmService.normalizeName(student.studentName))) {
+                targetStudent = student;
+                break;
+            }
+        }
+        
+        // Если не нашли по имени, берем первого ученика
+        if (!targetStudent && students.length > 0) {
+            targetStudent = students[0];
+        }
+        
+        if (!targetStudent) {
+            // Создаем ученика из названия сделки
+            targetStudent = {
+                studentName: lead.name.split('-')[0]?.trim() || 'Ученик',
+                branch: '',
+                teacherName: '',
+                ageGroup: '',
+                parentName: fullContact.name
+            };
+        }
+        
+        // Создаем профиль
+        const phoneField = fullContact.custom_fields_values?.find(f => 
+            (f.field_id || f.id) === 216615
+        );
+        const phone = phoneField ? amoCrmService.getFieldValue(phoneField) : null;
+        
+        const profile = amoCrmService.createStudentProfile(
+            fullContact,
+            phone || 'ID:' + contactId,
+            targetStudent,
+            leadResult.subscriptionInfo,
+            lead
+        );
+        
+        // Сохраняем в БД
+        const savedCount = await saveProfilesToDatabase([profile]);
+        
+        // Создаем токен
+        const sessionId = crypto.randomBytes(32).toString('hex');
+        const token = jwt.sign(
+            {
+                session_id: sessionId,
+                lead_id: leadId,
+                contact_id: contactId,
+                student_name: targetStudent.studentName,
+                timestamp: Date.now()
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.json({
+            success: true,
+            message: 'Данные найдены по ID сделки',
+            data: {
+                lead: {
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id
+                },
+                contact: {
+                    id: contactId,
+                    name: fullContact.name
+                },
+                student: targetStudent.studentName,
+                profile: profile,
+                token: token,
+                saved_to_db: savedCount > 0
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска по lead ID:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==================== ТЕСТОВАЯ АВТОРИЗАЦИЯ ====================
+app.get('/api/test-direct-auth/:contactOrLeadId', async (req, res) => {
+    try {
+        const id = req.params.contactOrLeadId;
+        const isLead = id.startsWith('lead_');
+        const cleanId = isLead ? id.replace('lead_', '') : id;
+        
+        console.log(`\n🧪 ТЕСТОВАЯ АВТОРИЗАЦИЯ ДЛЯ: ${id}`);
+        
+        let profiles = [];
+        let contactName = '';
+        
+        if (isLead) {
+            // Если это lead ID
+            const leadId = parseInt(cleanId);
+            const leadResult = await amoCrmService.findLeadById(leadId);
+            
+            if (!leadResult) {
+                return res.json({ success: false, error: 'Сделка не найдена' });
+            }
+            
+            const lead = leadResult.lead;
+            
+            // Находим контакт
+            const contactResponse = await amoCrmService.makeRequest('GET', 
+                `/api/v4/leads/${leadId}/contacts`
+            );
+            
+            if (contactResponse._embedded?.contacts?.length) {
+                const contactId = contactResponse._embedded.contacts[0].id;
+                const fullContact = await amoCrmService.getFullContactInfo(contactId);
+                contactName = fullContact?.name || 'Клиент';
+                
+                // Создаем тестовый профиль
+                const profile = {
+                    id: 9999,
+                    student_name: lead.name.split('-')[0]?.trim() || 'Ученик',
+                    phone_number: '+79160577611', // Тестовый номер
+                    email: '',
+                    branch: 'Тестовый филиал',
+                    day_of_week: '',
+                    time_slot: '',
+                    teacher_name: '',
+                    age_group: '',
+                    course: '',
+                    subscription_type: leadResult.subscriptionInfo.subscriptionType,
+                    subscription_active: leadResult.subscriptionInfo.subscriptionActive,
+                    subscription_status: leadResult.subscriptionInfo.subscriptionStatus,
+                    subscription_badge: 'active',
+                    total_classes: leadResult.subscriptionInfo.totalClasses,
+                    remaining_classes: leadResult.subscriptionInfo.remainingClasses,
+                    used_classes: leadResult.subscriptionInfo.usedClasses,
+                    expiration_date: leadResult.subscriptionInfo.expirationDate,
+                    last_visit_date: leadResult.subscriptionInfo.lastVisitDate,
+                    parent_name: contactName,
+                    is_demo: 1,
+                    source: 'test',
+                    last_sync: new Date().toISOString()
+                };
+                
+                profiles.push(profile);
+            }
+        } else {
+            // Если это contact ID
+            const contactId = parseInt(cleanId);
+            const fullContact = await amoCrmService.getFullContactInfo(contactId);
+            
+            if (!fullContact) {
+                return res.json({ success: false, error: 'Контакт не найден' });
+            }
+            
+            contactName = fullContact.name;
+            
+            // Извлекаем учеников
+            const students = amoCrmService.extractStudentsFromContact(fullContact);
+            
+            // Создаем тестовые профили
+            for (const student of students) {
+                const profile = {
+                    id: 1000 + Math.floor(Math.random() * 1000),
+                    student_name: student.studentName,
+                    phone_number: '+79160577611',
+                    email: '',
+                    branch: student.branch || 'Тестовый филиал',
+                    day_of_week: student.dayOfWeek,
+                    time_slot: '',
+                    teacher_name: student.teacherName,
+                    age_group: student.ageGroup,
+                    course: '',
+                    subscription_type: 'Тестовый абонемент',
+                    subscription_active: 1,
+                    subscription_status: 'Активен',
+                    subscription_badge: 'active',
+                    total_classes: 8,
+                    remaining_classes: 6,
+                    used_classes: 2,
+                    expiration_date: '2026-06-30',
+                    last_visit_date: '2026-01-28',
+                    parent_name: contactName,
+                    is_demo: 1,
+                    source: 'test',
+                    last_sync: new Date().toISOString()
+                };
+                
+                profiles.push(profile);
+            }
+        }
+        
+        // Если нет профилей, создаем тестовый
+        if (profiles.length === 0) {
+            profiles.push({
+                id: 9999,
+                student_name: 'Тестовый ученик',
+                phone_number: '+79160577611',
+                email: 'test@example.com',
+                branch: 'Тестовый филиал',
+                teacher_name: 'Тестовый преподаватель',
+                subscription_type: 'Тестовый абонемент',
+                subscription_active: 1,
+                subscription_status: 'Активен',
+                total_classes: 8,
+                remaining_classes: 6,
+                used_classes: 2,
+                parent_name: contactName || 'Тестовый родитель',
+                is_demo: 1,
+                source: 'test'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Тестовые данные созданы',
+            data: {
+                profiles: profiles,
+                user: {
+                    phone: '+79160577611',
+                    name: contactName || 'Тестовый пользователь',
+                    is_demo: true
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестовой авторизации:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==================== БЫСТРЫЙ ПОИСК КОНТАКТА ПО ТЕЛЕФОНУ ====================
+app.get('/api/quick-find-contact/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        const cleanPhone = phone.replace(/\D/g, '');
+        const last10Digits = cleanPhone.slice(-10);
+        
+        console.log(`\n🔍 БЫСТРЫЙ ПОИСК КОНТАКТА: ${formattedPhone}`);
+        console.log('='.repeat(60));
+        
+        // 1. Пробуем все методы поиска
+        let contacts = [];
+        
+        // Метод 1: Стандартный поиск
+        console.log('🔍 Метод 1: Стандартный поиск');
+        try {
+            const response = await amoCrmService.searchContactsByPhone(formattedPhone);
+            contacts = response._embedded?.contacts || [];
+            console.log(`✅ Найдено: ${contacts.length}`);
+        } catch (error) {
+            console.log(`❌ Ошибка: ${error.message}`);
+        }
+        
+        // Метод 2: Прямой поиск по телефону в полях
+        if (contacts.length === 0) {
+            console.log('\n🔍 Метод 2: Прямой поиск в полях');
+            try {
+                // Получаем все контакты и фильтруем
+                const allContacts = await amoCrmService.makeRequest('GET', 
+                    '/api/v4/contacts?limit=100&with=custom_fields_values'
+                );
+                
+                if (allContacts._embedded?.contacts) {
+                    const filtered = allContacts._embedded.contacts.filter(contact => 
+                        amoCrmService.contactHasPhone(contact, last10Digits)
+                    );
+                    
+                    console.log(`✅ Найдено: ${filtered.length}`);
+                    contacts = contacts.concat(filtered);
+                }
+            } catch (error) {
+                console.log(`❌ Ошибка: ${error.message}`);
+            }
+        }
+        
+        // Метод 3: Поиск через сделки
+        if (contacts.length === 0) {
+            console.log('\n🔍 Метод 3: Поиск через сделки');
+            try {
+                // Ищем сделки с телефоном в названии или полях
+                const leads = await amoCrmService.makeRequest('GET', 
+                    `/api/v4/leads?query=${last10Digits}&limit=50`
+                );
+                
+                if (leads._embedded?.leads) {
+                    console.log(`✅ Найдено сделок: ${leads._embedded.leads.length}`);
+                    
+                    // Для каждой сделки находим контакты
+                    for (const lead of leads._embedded.leads.slice(0, 10)) {
+                        try {
+                            const leadContacts = await amoCrmService.makeRequest('GET', 
+                                `/api/v4/leads/${lead.id}/contacts`
+                            );
+                            
+                            if (leadContacts._embedded?.contacts) {
+                                contacts = contacts.concat(leadContacts._embedded.contacts);
+                            }
+                        } catch (leadError) {
+                            continue;
+                        }
+                    }
+                    
+                    console.log(`✅ Контактов через сделки: ${contacts.length}`);
+                }
+            } catch (error) {
+                console.log(`❌ Ошибка: ${error.message}`);
+            }
+        }
+        
+        // Убираем дубликаты
+        const uniqueContacts = [];
+        const seenIds = new Set();
+        
+        for (const contact of contacts) {
+            if (!seenIds.has(contact.id)) {
+                seenIds.add(contact.id);
+                uniqueContacts.push(contact);
+            }
+        }
+        
+        console.log(`\n📊 Уникальных контактов: ${uniqueContacts.length}`);
+        
+        // Если нашли контакты, показываем подробности
+        const contactDetails = [];
+        
+        for (const contact of uniqueContacts.slice(0, 5)) { // Ограничим 5 контактами
+            try {
+                const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+                
+                if (fullContact) {
+                    const students = amoCrmService.extractStudentsFromContact(fullContact);
+                    
+                    // Находим телефон
+                    const phoneField = fullContact.custom_fields_values?.find(f => 
+                        (f.field_id || f.id) === 216615
+                    );
+                    const contactPhone = phoneField ? amoCrmService.getFieldValue(phoneField) : 'Не указан';
+                    
+                    contactDetails.push({
+                        id: contact.id,
+                        name: fullContact.name,
+                        phone: contactPhone,
+                        students: students.map(s => s.studentName),
+                        students_count: students.length
+                    });
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                phone: formattedPhone,
+                search_term: last10Digits,
+                contacts_found: uniqueContacts.length,
+                contacts: contactDetails,
+                recommendations: uniqueContacts.length === 0 ? [
+                    '1. Проверьте правильность номера телефона',
+                    '2. Убедитесь, что контакт существует в amoCRM',
+                    '3. Используйте альтернативный вход по ID контакта',
+                    '4. Свяжитесь с администратором для получения ID'
+                ] : [
+                    '✅ Контакты найдены!',
+                    `🔑 ID для входа: ${contactDetails.map(c => c.id).join(', ')}`,
+                    '👤 Имена контактов: ' + contactDetails.map(c => c.name).join(', ')
+                ]
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка быстрого поиска:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Получение профилей
 app.get('/api/profiles', async (req, res) => {
     try {
