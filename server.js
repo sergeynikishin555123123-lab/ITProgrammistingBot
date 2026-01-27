@@ -1237,8 +1237,8 @@ async getStudentsByPhone(phoneNumber) {
             }
         }
     }
-                        }
-                    }
+                        
+                    
                     
                     if (leadResult) {
                         console.log(`✅ Найдена сделка: "${leadResult.lead?.name}"`);
