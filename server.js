@@ -184,29 +184,51 @@ class AmoCrmService {
             const cleanPhone = phone.replace(/\D/g, '');
             const last10Digits = cleanPhone.slice(-10);
             
-            const response = await this.makeRequest('POST', '/api/v4/contacts', {
-                filter: {
-                    "custom_fields_values": [
-                        {
-                            "field_id": this.FIELD_IDS.CONTACT.PHONE,
-                            "values": [
-                                {
-                                    "value": last10Digits
-                                }
-                            ]
-                        }
-                    ]
-                }
-            });
+            console.log(`🔍 Поиск контактов по телефону: ${last10Digits}`);
             
-            return response;
+            // Метод 1: Прямой поиск через фильтр
+            const response = await this.makeRequest('GET', 
+                `/api/v4/contacts?filter[custom_fields_values][phone][]=${last10Digits}&with=custom_fields_values&limit=10`
+            );
+            
+            if (response && response._embedded && response._embedded.contacts) {
+                console.log(`✅ Найдено контактов: ${response._embedded.contacts.length}`);
+                return response;
+            }
+            
+            // Метод 2: Поиск через кастомные поля (резервный)
+            console.log('⚠️  Прямой поиск не дал результатов, пробуем резервный метод...');
+            
+            try {
+                const backupResponse = await this.makeRequest('POST', '/api/v4/contacts/filter', {
+                    filter: {
+                        "custom_fields_values": [
+                            {
+                                "field_id": this.FIELD_IDS.CONTACT.PHONE,
+                                "values": [
+                                    {
+                                        "value": last10Digits
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    with: "custom_fields_values",
+                    limit: 10
+                });
+                
+                return backupResponse || { _embedded: { contacts: [] } };
+                
+            } catch (backupError) {
+                console.error('❌ Резервный поиск не сработал:', backupError.message);
+                return { _embedded: { contacts: [] } };
+            }
             
         } catch (error) {
             console.error('❌ Ошибка поиска контактов:', error.message);
             return { _embedded: { contacts: [] } };
         }
     }
-
     async getContactLeadsSorted(contactId) {
         try {
             const response = await this.makeRequest('GET', `/api/v4/contacts/${contactId}/leads?with=custom_fields_values`);
@@ -226,19 +248,28 @@ class AmoCrmService {
         }
     }
 
-    async getFullContactInfo(contactId) {
+     async getFullContactInfo(contactId) {
         try {
+            console.log(`🔍 Получение полной информации о контакте ID: ${contactId}`);
+            
             const response = await this.makeRequest(
                 'GET',
-                `/api/v4/contacts/${contactId}?with=custom_fields_values`
+                `/api/v4/contacts/${contactId}?with=custom_fields_values,leads`
             );
+            
+            if (!response) {
+                console.error(`❌ Контакт ${contactId} не найден`);
+                return null;
+            }
+            
+            console.log(`✅ Контакт получен: "${response.name || 'Без имени'}"`);
             return response;
+            
         } catch (error) {
-            console.error(`❌ Ошибка получения контакта:`, error.message);
+            console.error(`❌ Ошибка получения контакта ${contactId}:`, error.message);
             return null;
         }
     }
-
     // ==================== ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА ====================
     async findLeadForStudent(contactId, studentName) {
         console.log(`\n🔍 ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА: "${studentName}"`);
@@ -462,9 +493,13 @@ class AmoCrmService {
     }
 
     // ==================== ИЗВЛЕЧЕНИЕ УЧЕНИКОВ ИЗ КОНТАКТА ====================
-    extractStudentsFromContact(contact) {
+        extractStudentsFromContact(contact) {
+        console.log(`🔍 Извлечение учеников из контакта: "${contact.name || 'Без имени'}"`);
+        
         const students = [];
         const customFields = contact.custom_fields_values || [];
+        
+        console.log(`📊 Пользовательских полей: ${customFields.length}`);
         
         const getFieldValue = (fieldId) => {
             const field = customFields.find(f => (f.field_id || f.id) === fieldId);
@@ -477,10 +512,24 @@ class AmoCrmService {
             return null;
         };
         
+        // Логируем все кастомные поля для отладки
+        console.log('📋 Все кастомные поля:');
+        customFields.forEach(field => {
+            const fieldId = field.field_id || field.id;
+            const fieldName = this.getFieldNameById(fieldId);
+            const fieldValue = this.getFieldValue(field);
+            
+            console.log(`   ${fieldName || fieldId}: ${fieldValue || 'Пусто'}`);
+        });
+        
         // Извлекаем учеников из полей контакта
         const student1 = getFieldValue(this.FIELD_IDS.CONTACT.CHILD_1_NAME);
         const student2 = getFieldValue(this.FIELD_IDS.CONTACT.CHILD_2_NAME);
         const student3 = getFieldValue(this.FIELD_IDS.CONTACT.CHILD_3_NAME);
+        
+        console.log(`👦 Ученик 1: ${student1 || 'Не указан'}`);
+        console.log(`👧 Ученик 2: ${student2 || 'Не указан'}`);
+        console.log(`👶 Ученик 3: ${student3 || 'Не указан'}`);
         
         if (student1) {
             students.push({
@@ -515,12 +564,13 @@ class AmoCrmService {
             });
         }
         
+        console.log(`✅ Извлечено учеников: ${students.length}`);
         return students;
     }
 
-    // ==================== ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ ====================
     async getStudentsByPhone(phoneNumber) {
         console.log(`\n📱 ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
+        console.log('='.repeat(60));
         
         const studentProfiles = [];
         
@@ -530,48 +580,50 @@ class AmoCrmService {
         }
         
         try {
-            const contactsResponse = await this.searchContactsByPhone(phoneNumber);
+            // 1. Ищем контакты по телефону
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            const last10Digits = cleanPhone.slice(-10);
+            
+            console.log(`🔍 Поиск контакта с телефоном: ${last10Digits}`);
+            
+            const contactsResponse = await this.makeRequest('GET', 
+                `/api/v4/contacts?filter[custom_fields_values][phone][]=${last10Digits}&with=custom_fields_values`
+            );
+            
             const contacts = contactsResponse._embedded?.contacts || [];
             
-            console.log(`📊 Найдено контактов: ${contacts.length}`);
+            console.log(`📊 Найдено контактов в amoCRM: ${contacts.length}`);
             
             if (contacts.length === 0) {
+                console.log('⚠️  Контакты не найдены, пробуем другой метод поиска...');
                 return studentProfiles;
             }
             
-            // Фильтруем контакты (убираем админов)
-            const filteredContacts = contacts.filter(contact => {
-                const contactName = contact.name || '';
-                const isAdminContact = 
-                    contactName.toLowerCase().includes('админ') ||
-                    contactName.toLowerCase().includes('admin') ||
-                    contactName.toLowerCase().includes('менеджер') ||
-                    contactName.toLowerCase().includes('manager') ||
-                    contactName.toLowerCase().includes('yurlova') ||
-                    contactName.toLowerCase().includes('александрова') ||
-                    contact.id === 31966847;
-                
-                return !isAdminContact;
-            });
-            
-            const contactsToProcess = filteredContacts.length > 0 ? filteredContacts : contacts;
-            
-            // Обрабатываем каждого контакта
-            for (const contact of contactsToProcess) {
+            // 2. Обрабатываем каждый контакт
+            for (const contact of contacts) {
                 try {
+                    console.log(`\n📋 Обработка контакта ID: ${contact.id}`);
+                    
+                    // Получаем полную информацию о контакте
                     const fullContact = await this.getFullContactInfo(contact.id);
-                    if (!fullContact) continue;
-                    
-                    // Извлекаем учеников из контакта
-                    const children = this.extractStudentsFromContact(fullContact);
-                    
-                    console.log(`📋 Контакт "${contact.name}": найдено ${children.length} учеников`);
-                    
-                    if (children.length === 0) {
+                    if (!fullContact) {
+                        console.log(`⚠️  Не удалось получить контакт ${contact.id}`);
                         continue;
                     }
                     
-                    // Для КАЖДОГО ученика ищем ЕГО сделку
+                    const contactName = fullContact.name || 'Без имени';
+                    console.log(`👤 Контакт: "${contactName}"`);
+                    
+                    // Извлекаем учеников из контакта
+                    const children = this.extractStudentsFromContact(fullContact);
+                    console.log(`👨‍👩‍👧‍👦 Найдено учеников: ${children.length}`);
+                    
+                    if (children.length === 0) {
+                        console.log('⚠️  У контакта нет учеников в полях');
+                        continue;
+                    }
+                    
+                    // 3. Для КАЖДОГО ученика ищем ЕГО сделку
                     for (const child of children) {
                         console.log(`\n🎯 Поиск сделки для ученика: "${child.studentName}"`);
                         
@@ -609,7 +661,7 @@ class AmoCrmService {
                 }
             }
             
-            // Убираем дубликаты
+            // 4. Убираем дубликаты
             const uniqueProfiles = [];
             const seenStudents = new Set();
             
@@ -623,22 +675,63 @@ class AmoCrmService {
             
             console.log(`\n🎯 ИТОГО создано профилей: ${uniqueProfiles.length}`);
             
-            // Логируем детали по каждому профилю
-            console.log('\n📋 ДЕТАЛИ ПРОФИЛЕЙ:');
-            console.log('='.repeat(60));
-            uniqueProfiles.forEach((profile, index) => {
-                console.log(`${index + 1}. ${profile.student_name}`);
-                console.log(`   🎫 Абонемент: ${profile.subscription_type}`);
-                console.log(`   📊 Занятий: ${profile.used_classes}/${profile.total_classes} (осталось: ${profile.remaining_classes})`);
-                console.log(`   ✅ Активен: ${profile.subscription_active === 1 ? 'Да' : 'Нет'}`);
-                console.log(`   🏢 Филиал: ${profile.branch || 'Не указан'}`);
-                console.log('─'.repeat(40));
-            });
+            // 5. Логируем детали
+            if (uniqueProfiles.length > 0) {
+                console.log('\n📋 ДЕТАЛИ ПРОФИЛЕЙ:');
+                console.log('='.repeat(60));
+                uniqueProfiles.forEach((profile, index) => {
+                    console.log(`${index + 1}. ${profile.student_name}`);
+                    console.log(`   🎫 Абонемент: ${profile.subscription_type}`);
+                    console.log(`   📊 Занятий: ${profile.used_classes}/${profile.total_classes} (осталось: ${profile.remaining_classes})`);
+                    console.log(`   ✅ Активен: ${profile.subscription_active === 1 ? 'Да' : 'Нет'}`);
+                    console.log(`   🏢 Филиал: ${profile.branch || 'Не указан'}`);
+                    console.log(`   📱 Контакт: ${profile.parent_name || 'Не указан'}`);
+                    console.log('─'.repeat(40));
+                });
+                console.log('='.repeat(60));
+            } else {
+                console.log('❌ Не удалось найти ни одного ученика');
+                
+                // Пробуем найти любого активного ученика
+                console.log('🔍 Пробуем найти любого активного ученика в amoCRM...');
+                
+                if (contacts.length > 0) {
+                    const contact = contacts[0];
+                    const fullContact = await this.getFullContactInfo(contact.id);
+                    
+                    if (fullContact) {
+                        // Создаем тестового ученика
+                        const testChild = {
+                            studentName: 'Ученик',
+                            branch: '',
+                            teacherName: '',
+                            ageGroup: '',
+                            dayOfWeek: '',
+                            lastVisitDate: ''
+                        };
+                        
+                        const testProfile = this.createStudentProfile(
+                            fullContact,
+                            phoneNumber,
+                            testChild,
+                            this.getDefaultSubscriptionInfo(),
+                            null
+                        );
+                        
+                        testProfile.student_name = fullContact.name || 'Ученик';
+                        testProfile.parent_name = fullContact.name || 'Родитель';
+                        
+                        uniqueProfiles.push(testProfile);
+                        console.log(`✅ Создан тестовый профиль: ${testProfile.student_name}`);
+                    }
+                }
+            }
             
             return uniqueProfiles;
             
         } catch (error) {
-            console.error('❌ Ошибка поиска учеников:', error.message);
+            console.error('❌ КРИТИЧЕСКАЯ ОШИБКА поиска учеников:', error.message);
+            console.error(error.stack);
             return studentProfiles;
         }
     }
@@ -739,7 +832,33 @@ class AmoCrmService {
         
         return profile;
     }
-
+    // Вспомогательный метод для отладки
+    getFieldNameById(fieldId) {
+        // Определите имена полей для вашей CRM
+        const fieldNames = {
+            867233: 'Имя ребенка 1',
+            867235: 'Имя ребенка 2', 
+            867733: 'Имя ребенка 3',
+            871273: 'Филиал',
+            888881: 'Преподаватель',
+            892225: 'День недели',
+            890179: 'Активный абонемент',
+            885380: 'Последнее посещение',
+            888903: 'Возрастная группа',
+            216615: 'Телефон',
+            850241: 'Всего занятий',
+            850257: 'Использовано занятий',
+            890163: 'Осталось занятий',
+            850255: 'Дата окончания',
+            851565: 'Дата активации',
+            850259: 'Последнее посещение',
+            891007: 'Тип абонемента',
+            867693: 'Заморозка',
+            805465: 'Владелец абонемента'
+        };
+        
+        return fieldNames[fieldId] || `Поле ${fieldId}`;
+    }
     findEmail(contact) {
         try {
             const customFields = contact.custom_fields_values || [];
