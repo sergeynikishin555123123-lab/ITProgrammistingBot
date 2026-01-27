@@ -563,7 +563,7 @@ async searchContactsByPhone(phone) {
     }
 }
     
-// В классе AmoCrmService
+// В классе AmoCrmService исправьте метод getContactLeadsSorted:
 async getContactLeadsSorted(contactId) {
     try {
         console.log(`\n🔍 ПОЛУЧЕНИЕ ВСЕХ СДЕЛОК КОНТАКТА ID: ${contactId}`);
@@ -1147,7 +1147,6 @@ async findSubscriptionLeadForStudentFixed(contactId, studentName) {
         return null;
     }
 }
- // В классе AmoCrmService обновите метод getStudentsByPhone:
 async getStudentsByPhone(phoneNumber) {
     console.log(`\n📱 ПОЛУЧЕНИЕ УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phoneNumber}`);
     console.log('='.repeat(60));
@@ -1213,32 +1212,31 @@ async getStudentsByPhone(phoneNumber) {
                     continue;
                 }
                 
-// ЗАМЕНИТЕ НА ЭТО:
-    console.log(`\n🎯 ГАРАНТИРОВАННЫЙ ПОИСК ДЛЯ УЧЕНИКА: "${child.studentName}"`);
-    let leadResult = await this.findCorrectLeadForStudent(contact.id, child.studentName);
-    
-    if (!leadResult) {
-        console.log(`⚠️  Не найдена сделка гарантированным методом`);
-        
-        // Пробуем найти любую сделку с абонементом
-        const allLeads = await this.getContactLeadsFixed(contact.id);
-        
-        for (const lead of allLeads) {
-            const subscriptionInfo = this.extractSubscriptionInfo(lead);
-            if (subscriptionInfo.hasSubscription) {
-                console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
-                leadResult = {
-                    lead: lead,
-                    subscriptionInfo: subscriptionInfo,
-                    match_type: 'FALLBACK_SUBSCRIPTION',
-                    confidence: 'MEDIUM'
-                };
-                break;
-            }
-        }
-    }
+                // 3. Обрабатываем каждого ученика
+                for (const child of children) {
+                    console.log(`\n🎯 ГАРАНТИРОВАННЫЙ ПОИСК ДЛЯ УЧЕНИКА: "${child.studentName}"`);
+                    let leadResult = await this.findCorrectLeadForStudent(contact.id, child.studentName);
+                    
+                    if (!leadResult) {
+                        console.log(`⚠️  Не найдена сделка гарантированным методом`);
                         
-             
+                        // Пробуем найти любую сделку с абонементом
+                        const allLeads = await this.getContactLeadsFixed(contact.id);
+                        
+                        for (const lead of allLeads) {
+                            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                            if (subscriptionInfo.hasSubscription) {
+                                console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
+                                leadResult = {
+                                    lead: lead,
+                                    subscriptionInfo: subscriptionInfo,
+                                    match_type: 'FALLBACK_SUBSCRIPTION',
+                                    confidence: 'MEDIUM'
+                                };
+                                break;
+                            }
+                        }
+                    }
                     
                     if (leadResult) {
                         console.log(`✅ Найдена сделка: "${leadResult.lead?.name}"`);
