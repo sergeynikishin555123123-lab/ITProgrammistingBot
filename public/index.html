@@ -1296,7 +1296,29 @@
                     <i class="fas fa-sign-in-alt"></i>
                     Войти
                 </button>
-                
+                <!-- Добавьте этот блок в auth-container после основного входа -->
+<div class="mt-30" style="border-top: 2px solid var(--gray-medium); padding-top: 25px;">
+    <h3 class="auth-title" style="font-size: 1.1rem; color: var(--blue-dark);">
+        <i class="fas fa-key"></i> Альтернативный вход
+    </h3>
+    
+    <div class="mt-20" id="advancedAuthOptions">
+        <div class="phone-form">
+            <div class="phone-label">Или введите ID контакта</div>
+            <input type="text" id="contactIdInput" class="phone-input" placeholder="Например: 123456" style="padding-left: 15px;">
+        </div>
+        
+        <button class="btn btn-secondary mt-10" onclick="ArtApp.handleContactIdLogin()" id="contactLoginBtn">
+            <i class="fas fa-id-card"></i>
+            Войти по ID
+        </button>
+        
+        <div class="mt-20" style="font-size: 0.8rem; color: var(--gray-dark); text-align: center;">
+            <i class="fas fa-info-circle"></i> 
+            ID контакта можно получить у администратора
+        </div>
+    </div>
+</div>
                 <div class="new-client-info" id="newClientInfo" style="display: none;">
                     <div class="info-title">
                         <i class="fas fa-info-circle"></i>
@@ -1531,7 +1553,97 @@ const ArtApp = {
                 this.getInitials(this.config.currentUser.name || this.config.currentUser.phone);
         }
     },
+// ДОБАВЬТЕ В ArtApp ОБЪЕКТ
+handleContactIdLogin: function() {
+    const contactIdInput = document.getElementById('contactIdInput');
+    const contactLoginBtn = document.getElementById('contactLoginBtn');
+    
+    const contactId = contactIdInput.value.trim();
+    
+    if (!contactId || isNaN(contactId)) {
+        this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
+        return;
+    }
+    
+    console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
+    
+    contactLoginBtn.disabled = true;
+    contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+    this.showLoading('Поиск данных по ID контакта...');
+    
+    // Прямой запрос к серверу с контакт ID
+    fetch(`/api/debug/by-contact/${contactId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data && data.data.profiles) {
+                console.log('✅ Данные найдены по ID контакта');
+                
+                this.config.token = data.data.token;
+                this.config.currentUser = data.data.user || { 
+                    phone: data.data.phone || 'ID:' + contactId,
+                    name: data.data.contact_name || 'Клиент'
+                };
+                this.config.profiles = data.data.profiles || [];
+                this.config.currentProfile = this.config.profiles[0] || null;
+                
+                // Загружаем индивидуальные данные
+                return this.loadIndividualSubscriptions();
+                
+            } else {
+                throw new Error(data.error || 'Не удалось получить данные');
+            }
+        })
+        .then(subscriptionData => {
+            this.saveSession();
+            this.showMainInterface();
+            this.showNotification('✅ Данные загружены успешно!', 'success');
+            this.navigateToPage('home');
+            this.loadHomePage();
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            this.showNotification('Не удалось найти данные по этому ID', 'error');
+        })
+        .finally(() => {
+            this.hideLoading();
+            contactLoginBtn.disabled = false;
+            contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
+        });
+},
 
+// И добавьте тестовую функцию в конец:
+testDirectAuth: function() {
+    // Прямой тест для отладки
+    this.showLoading('Прямая загрузка данных...');
+    
+    fetch('/api/test-direct-auth/28674865')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.showNotification('✅ Тестовая авторизация успешна!', 'success');
+                
+                // Используем тестовые данные
+                this.config.token = 'test-token-' + Date.now();
+                this.config.currentUser = {
+                    phone: '+79160577611',
+                    name: 'Никифорова Алиса'
+                };
+                this.config.profiles = data.data.profiles || [];
+                this.config.currentProfile = this.config.profiles[0];
+                
+                // Загружаем данные
+                this.loadHomePage();
+                this.showMainInterface();
+                this.navigateToPage('home');
+            }
+        })
+        .catch(error => {
+            this.showNotification('❌ Тест не удался', 'error');
+        })
+        .finally(() => {
+            this.hideLoading();
+        });
+}
     // АВТОРИЗАЦИЯ ПО ТЕЛЕФОНУ
     handlePhoneLogin: function() {
         const phoneInput = document.getElementById('phoneNumber');
