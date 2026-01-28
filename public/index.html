@@ -1769,469 +1769,380 @@
     <!-- УВЕДОМЛЕНИЯ -->
     <div id="notificationContainer"></div>
 
-    <script>
-        const ArtApp = {
-            config: {
-                API_BASE_URL: window.location.origin,
-                currentUser: null,
-                currentProfile: null,
-                profiles: [],
-                token: null,
-                subscriptionData: null,
-                allSubscriptions: []
-            },
-
-            // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
-            init: function() {
-                console.log('🎨 Инициализация приложения...');
-                this.loadSession();
-                this.setupEventListeners();
-                this.checkAuthState();
-            },
-
-            // ПРОВЕРКА СОСТОЯНИЯ АВТОРИЗАЦИИ
-            checkAuthState: function() {
-                if (this.config.token && this.config.currentUser) {
-                    this.showMainInterface();
-                    this.navigateToPage('home');
-                    this.loadHomePage();
-                } else {
-                    this.showAuthPage();
-                }
-            },
-
-            // ПОКАЗАТЬ СТРАНИЦУ АВТОРИЗАЦИИ
-            showAuthPage: function() {
-                document.getElementById('auth-page').classList.add('active');
-                document.getElementById('auth-page').style.display = 'block';
-                
-                document.querySelectorAll('.page').forEach(page => {
-                    if (page.id !== 'auth-page') {
-                        page.classList.remove('active');
-                        page.style.display = 'none';
-                    }
-                });
-                
-                document.querySelector('.top-nav').style.display = 'none';
-                document.querySelector('.bottom-nav').style.display = 'none';
-            },
-
-            // ПОКАЗАТЬ ОСНОВНОЙ ИНТЕРФЕЙС
-            showMainInterface: function() {
-                document.getElementById('auth-page').classList.remove('active');
-                document.getElementById('auth-page').style.display = 'none';
-                
-                document.querySelector('.top-nav').style.display = 'flex';
-                document.querySelector('.bottom-nav').style.display = 'flex';
-                
-                if (this.config.currentUser) {
-                    document.getElementById('userAvatar').innerHTML = 
-                        this.getInitials(this.config.currentUser.name || this.config.currentUser.phone);
-                }
-            },
-
-          // ИСПРАВЛЕННЫЙ КОД:
-handleContactIdLogin: function() {
-    const contactIdInput = document.getElementById('contactIdInput');
-    const contactLoginBtn = document.getElementById('contactLoginBtn');
-    
-    const contactId = contactIdInput.value.trim();
-    
-    if (!contactId || isNaN(contactId)) {
-        this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
-        return;
-    }
-    
-    console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
-    
-    contactLoginBtn.disabled = true;
-    contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
-    this.showLoading('Поиск данных по ID контакта...');
-    
-    // ИСПРАВЛЕННЫЙ МАРШРУТ - используем by-contact
-    fetch(`/api/debug/by-contact/${contactId}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success && data.data && data.data.profiles) {
-                console.log('✅ Данные найдены по ID контакта');
-                
-                this.config.token = data.data.token;
-                this.config.currentUser = data.data.user || { 
-                    phone: data.data.phone || 'ID:' + contactId,
-                    name: data.data.contact_name || 'Клиент'
-                };
-                this.config.profiles = data.data.profiles || [];
-                this.config.currentProfile = this.config.profiles[0] || null;
-                
-                // Загружаем индивидуальные данные
-                return this.loadIndividualSubscriptions();
-                
-            } else {
-                throw new Error(data.error || 'Не удалось получить данные');
-            }
-        })
-        .then(subscriptionData => {
-            this.saveSession();
-            this.showMainInterface();
-            this.showNotification('✅ Данные загружены успешно!', 'success');
-            this.navigateToPage('home');
-            this.loadHomePage();
-        })
-        .catch(error => {
-            console.error('❌ Ошибка:', error);
-            
-            // Пробуем альтернативный метод - прямую авторизацию по ID сделки
-            this.showNotification('Пробуем другой метод...', 'warning');
-            
-            // Ищем известные сделки для этого контакта
-            return this.tryLeadIdForContact(contactId);
-        })
-        .finally(() => {
-            this.hideLoading();
-            contactLoginBtn.disabled = false;
-            contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
-        });
-},
-
-// Добавьте эту функцию для поиска сделок по контакту
-tryLeadIdForContact: function(contactId) {
-    console.log(`🔍 Ищем сделки для контакта ${contactId}...`);
-    
-    // Список известных ID сделок для тестирования
-    const knownLeadIds = [28674745, 28674541, 28677839];
-    
-    // Пробуем каждую сделку
-    for (const leadId of knownLeadIds) {
-        fetch(`/api/by-lead-id/${leadId}`)
-            .then(response => {
-                if (response.ok) return response.json();
-                throw new Error(`Lead ${leadId} не найден`);
-            })
-            .then(data => {
-                if (data.success) {
-                    console.log(`✅ Найдена сделка ${leadId}: ${data.data.lead.name}`);
-                    
-                    // Создаем тестовый профиль
-                    const testProfile = {
-                        id: leadId,
-                        student_name: data.data.student || data.data.profile?.student_name || 'Ученик',
-                        phone_number: data.data.phone || data.data.profile?.phone_number || 'Без телефона',
-                        branch: data.data.profile?.branch || 'Филиал не указан',
-                        subscription_type: data.data.profile?.subscription_type || 'Тестовый',
-                        subscription_active: 1,
-                        total_classes: data.data.profile?.total_classes || 0,
-                        remaining_classes: data.data.profile?.remaining_classes || 0,
-                        parent_name: data.data.contact?.name || 'Родитель',
-                        is_demo: 1
-                    };
-                    
-                    this.config.token = data.data.token;
-                    this.config.currentUser = {
-                        phone: data.data.phone || 'ID:' + contactId,
-                        name: data.data.contact?.name || 'Клиент'
-                    };
-                    this.config.profiles = [testProfile];
-                    this.config.currentProfile = testProfile;
-                    
-                    this.saveSession();
-                    this.showMainInterface();
-                    this.showNotification('✅ Вход выполнен через ID сделки!', 'success');
-                    this.navigateToPage('home');
-                    this.loadHomePage();
-                    
-                    return true; // Успех
-                }
-                return false;
-            })
-            .catch(error => {
-                console.log(`❌ Сделка ${leadId} не подошла:`, error.message);
-                return false;
-            });
-    }
-    
-    this.showNotification('Не удалось найти данные. Попробуйте другой ID или телефон.', 'error');
-},
-
-            // Вспомогательная функция для прямого входа по телефону
-            handlePhoneLoginDirect: function(phone) {
-                console.log(`📱 Прямая авторизация по телефону: ${phone}`);
-                
-                this.showLoading('Загрузка данных...');
-                
-fetch('/api/auth/phone-final', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ 
-        phone: phone
-        // student_name можно добавить если нужно
-    })
-})
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.config.token = data.data.token;
-                        this.config.currentUser = data.data.user;
-                        this.config.profiles = data.data.profiles || [];
-                        this.config.currentProfile = this.config.profiles[0] || null;
-                        
-                        this.saveSession();
-                        this.showMainInterface();
-                        this.showNotification('✅ Авторизация успешна через телефон!', 'success');
-                        this.navigateToPage('home');
-                        this.loadHomePage();
-                    } else {
-                        throw new Error(data.error || 'Ошибка авторизации');
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ Ошибка:', error);
-                    this.showNotification('Ошибка авторизации: ' + error.message, 'error');
-                })
-                .finally(() => {
-                    this.hideLoading();
-                });
-            },
-
-            // ВАШ СТАРЫЙ КОД - ЗАМЕНИТЕ ЕГО НА ЭТОТ:
-handlePhoneLogin: function() {
-    const phoneInput = document.getElementById('phoneNumber');
-    const loginBtn = document.getElementById('loginBtn');
-    
-    let phone = phoneInput.value.replace(/\D/g, '');
-    
-    if (!phone || phone.length !== 11) {
-        this.showNotification('Введите корректный номер телефона (11 цифр)', 'error');
-        return;
-    }
-    
-    console.log(`📱 Авторизация по телефону: ${phone}`);
-    
-    loginBtn.disabled = true;
-    loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
-    this.showLoading('Выполняется вход...');
-    
-    // ИСПРАВЛЕННЫЙ МАРШРУТ с правильной обработкой ответа
-    fetch('/api/auth/phone-final', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
+   <script>
+    const ArtApp = {
+        config: {
+            API_BASE_URL: window.location.origin,
+            currentUser: null,
+            currentProfile: null,
+            profiles: [],
+            token: null,
+            subscriptionData: null,
+            allSubscriptions: []
         },
-        body: JSON.stringify({ 
-            phone: phone
-        })
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(err => {
-                throw new Error(err.error || `HTTP ${response.status}`);
+
+        // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
+        init: function() {
+            console.log('🎨 Инициализация приложения...');
+            this.setupEventListeners();
+            this.loadSession();
+            this.checkAuthState();
+        },
+
+        // ПРОВЕРКА СОСТОЯНИЯ АВТОРИЗАЦИИ
+        checkAuthState: function() {
+            if (this.config.token && this.config.currentUser) {
+                this.showMainInterface();
+                this.navigateToPage('home');
+                this.loadHomePage();
+            } else {
+                this.showAuthPage();
+            }
+        },
+
+        // ПОКАЗАТЬ СТРАНИЦУ АВТОРИЗАЦИИ
+        showAuthPage: function() {
+            document.getElementById('auth-page').classList.add('active');
+            document.getElementById('auth-page').style.display = 'block';
+            
+            document.querySelectorAll('.page').forEach(page => {
+                if (page.id !== 'auth-page') {
+                    page.classList.remove('active');
+                    page.style.display = 'none';
+                }
             });
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('📦 Получены данные от сервера:', data);
-        
-        if (data.success && data.data && data.data.user) {
-            console.log('✅ Авторизация успешна на сервере');
             
-            // Сохраняем токен
-            this.config.token = data.data.token;
+            document.querySelector('.top-nav').style.display = 'none';
+            document.querySelector('.bottom-nav').style.display = 'none';
             
-            // Сохраняем пользователя
-            this.config.currentUser = data.data.user;
+            // Фокус на поле ввода телефона
+            setTimeout(() => {
+                const phoneInput = document.getElementById('phoneNumber');
+                if (phoneInput) {
+                    phoneInput.focus();
+                    phoneInput.select();
+                }
+            }, 300);
+        },
+
+        // ПОКАЗАТЬ ОСНОВНОЙ ИНТЕРФЕЙС
+        showMainInterface: function() {
+            document.getElementById('auth-page').classList.remove('active');
+            document.getElementById('auth-page').style.display = 'none';
             
-            // Сохраняем профили
-            this.config.profiles = data.data.profiles || [];
+            document.querySelector('.top-nav').style.display = 'flex';
+            document.querySelector('.bottom-nav').style.display = 'flex';
             
-            // Выбираем текущий профиль (первый из списка)
-            if (this.config.profiles.length > 0) {
-                this.config.currentProfile = this.config.profiles[0];
-                console.log(`📊 Загружено профилей: ${this.config.profiles.length}`);
+            if (this.config.currentUser) {
+                const initials = this.getInitials(this.config.currentUser.name || this.config.currentUser.phone);
+                document.getElementById('userAvatar').innerHTML = initials;
+            }
+        },
+
+        // ВХОД ПО ТЕЛЕФОНУ (ОСНОВНОЙ МЕТОД)
+        handlePhoneLogin: function() {
+            const phoneInput = document.getElementById('phoneNumber');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            let phone = phoneInput.value.replace(/\D/g, '');
+            
+            // Проверка формата телефона
+            if (!phone || phone.length < 10) {
+                this.showNotification('Введите корректный номер телефона (минимум 10 цифр)', 'error');
+                return;
             }
             
-            // Проверяем, есть ли данные
-            if (this.config.profiles.length === 0) {
-                console.warn('⚠️  Сервер не вернул профилей учеников');
-                
-                // Создаем тестовый профиль для демонстрации
-                this.config.profiles = [{
-                    id: Date.now(),
-                    student_name: 'Демо ученик',
-                    phone_number: phone,
-                    branch: 'Тестовый филиал',
-                    subscription_type: 'Демо-абонемент',
-                    subscription_active: 1,
-                    total_classes: 8,
-                    remaining_classes: 6,
-                    used_classes: 2,
-                    parent_name: data.data.user?.name || 'Родитель',
-                    is_demo: 1
-                }];
-                
-                this.config.currentProfile = this.config.profiles[0];
-                this.showNotification('Используются демо-данные. Обратитесь к администратору.', 'warning');
-            }
+            console.log(`📱 Авторизация по телефону: ${phone}`);
             
-            // Сохраняем сессию
-            this.saveSession();
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
+            this.showLoading('Поиск данных по телефону...');
             
-            // Показываем основной интерфейс
-            this.showMainInterface();
-            
-            // Показываем уведомление
-            this.showNotification('✅ Вход выполнен успешно!', 'success');
-            
-            // Переходим на главную страницу
-            this.navigateToPage('home');
-            
-            // Загружаем главную страницу
-            this.loadHomePage();
-            
-        } else {
-            // Показываем ошибку от сервера
-            const errorMsg = data.error || data.message || 'Ошибка авторизации';
-            throw new Error(errorMsg);
-        }
-    })
-    .catch(error => {
-        console.error('❌ Ошибка входа:', error);
-        
-        // Более подробное уведомление об ошибке
-        let errorMessage = error.message || 'Ошибка входа';
-        
-        if (error.message.includes('404') || error.message.includes('Не найдено')) {
-            errorMessage = 'Телефон не найден в системе. Проверьте номер или обратитесь к администратору.';
-            document.getElementById('newClientInfo').style.display = 'block';
-        }
-        
-        this.showNotification(errorMessage, 'error');
-        
-        // Для отладки: показываем дополнительную информацию
-        console.log('🔍 Подробности ошибки:', error);
-    })
-    .finally(() => {
-        this.hideLoading();
-        loginBtn.disabled = false;
-        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
-    });
-},
-
-            // ИНДИВИДУАЛЬНАЯ ЗАГРУЗКА АБОНЕМЕНТОВ ДЛЯ ВСЕХ УЧЕНИКОВ
-            loadIndividualSubscriptions: function() {
-                return new Promise((resolve, reject) => {
-                    if (!this.config.profiles || this.config.profiles.length === 0) {
-                        reject('Нет профилей учеников');
-                        return;
-                    }
-                    
-                    console.log(`🔐 ИНДИВИДУАЛЬНАЯ ЗАГРУЗКА для ${this.config.profiles.length} учеников`);
-                    
-                    this.showLoading(`Загрузка данных для ${this.config.profiles.length} учеников...`);
-                    
-                    // Массив для хранения данных всех учеников
-                    this.config.allSubscriptions = [];
-                    
-                    // Для каждого профиля загружаем отдельно
-                    const subscriptionPromises = this.config.profiles.map(profile => {
-                        return this.loadSubscriptionForProfile(profile);
-                    });
-                    
-                    // Ждем загрузки всех абонементов
-                    Promise.all(subscriptionPromises)
-                        .then(results => {
-                            console.log(`✅ Загружены данные для ${results.length} учеников`);
-                            
-                            // Сохраняем все абонементы
-                            this.config.allSubscriptions = results;
-                            
-                            // Для текущего профиля используем первый результат
-                            if (results.length > 0) {
-                                this.config.subscriptionData = results[0];
-                            }
-                            
-                            resolve(results);
-                        })
-                        .catch(error => {
-                            console.error('❌ Ошибка загрузки абонементов:', error);
-                            reject(error);
-                        })
-                        .finally(() => {
-                            this.hideLoading();
-                        });
-                });
-            },
-
-           loadSubscriptionForProfile: function(profile) {
-    return new Promise((resolve, reject) => {
-        console.log(`   🔍 Загрузка для: ${profile.student_name}`);
-        
-        // 1. Пробуем получить индивидуальные данные через новый API
-        // Сначала пробуем универсальный поиск
-        fetch(`/api/find-student-working/${encodeURIComponent(profile.student_name)}/${this.config.currentUser.phone}`)
+            // Используем новый исправленный маршрут
+            fetch('/api/auth/phone-final-fixed', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    phone: phone,
+                    student_name: '' // Можно указать имя ученика, если известно
+                })
+            })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 return response.json();
             })
             .then(data => {
-                if (data.success && data.data && data.data.profile) {
-                    console.log(`   ✅ Данные получены для ${profile.student_name}`);
+                console.log('📊 Ответ сервера:', data);
+                
+                if (data.success && data.data && data.data.profiles) {
+                    console.log('✅ Авторизация успешна!');
                     
-                    const subscriptionData = {
-                        student: {
-                            name: profile.student_name,
-                            branch: data.data.profile.branch || profile.branch,
-                            teacher_name: profile.teacher_name || data.data.profile.teacher_name,
-                            age_group: profile.age_group || data.data.profile.age_group
-                        },
-                        subscription: {
-                            type: data.data.profile.subscription_type || profile.subscription_type,
-                            status: data.data.profile.subscription_status || profile.subscription_status,
-                            active: data.data.profile.subscription_active === 1 || profile.subscription_active === 1,
-                            badge: data.data.profile.subscription_badge || profile.subscription_badge,
-                            classes: {
-                                total: data.data.profile.total_classes || profile.total_classes || 0,
-                                used: data.data.profile.used_classes || profile.used_classes || 0,
-                                remaining: data.data.profile.remaining_classes || profile.remaining_classes || 0,
-                                progress: (data.data.profile.total_classes > 0 
-                                    ? Math.round(((data.data.profile.used_classes || 0) / data.data.profile.total_classes) * 100)
-                                    : 0)
-                            },
-                            dates: {
-                                activation: data.data.profile.activation_date || profile.activation_date,
-                                expiration: data.data.profile.expiration_date || profile.expiration_date,
-                                last_visit: data.data.profile.last_visit_date || profile.last_visit_date
-                            }
-                        },
-                        metadata: {
-                            source: "INDIVIDUAL_API",
-                            student_name: profile.student_name
-                        }
-                    };
+                    this.config.token = data.data.token;
+                    this.config.currentUser = data.data.user;
+                    this.config.profiles = data.data.profiles || [];
+                    this.config.currentProfile = this.config.profiles[0] || null;
                     
-                    resolve(subscriptionData);
+                    // Загружаем данные абонементов
+                    return this.loadAllSubscriptions();
+                    
                 } else {
-                    throw new Error(data.error || 'Нет данных в ответе');
+                    throw new Error(data.error || 'Не удалось получить данные');
                 }
             })
+            .then(() => {
+                this.saveSession();
+                this.showMainInterface();
+                this.showNotification('✅ Вход выполнен успешно!', 'success');
+                this.navigateToPage('home');
+                this.loadHomePage();
+            })
             .catch(error => {
-                console.log(`   ⚠️  Для ${profile.student_name} используем данные из профиля`);
+                console.error('❌ Ошибка входа:', error);
                 
-                // Резервные данные из профиля
+                // Пробуем альтернативный метод
+                this.showNotification('Пробуем альтернативный метод...', 'warning');
+                return this.tryAlternativeLogin(phone);
+            })
+            .finally(() => {
+                this.hideLoading();
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
+            });
+        },
+
+        // АЛЬТЕРНАТИВНЫЙ МЕТОД ВХОДА
+        tryAlternativeLogin: function(phone) {
+            console.log('🔄 Пробуем альтернативные методы входа...');
+            
+            // Метод 1: Быстрая проверка
+            return fetch(`/api/quick-check/${phone}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Быстрая проверка не сработала');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        console.log('✅ Альтернативный метод сработал!');
+                        
+                        if (data.status === 'FOUND_IN_DB' && data.profiles) {
+                            // Используем данные из БД
+                            this.config.profiles = data.profiles.map(p => ({
+                                id: p.profile_id,
+                                student_name: p.student,
+                                phone_number: data.phone,
+                                branch: p.branch,
+                                subscription_type: p.subscription.type,
+                                subscription_active: p.subscription.active,
+                                total_classes: p.subscription.total,
+                                remaining_classes: p.subscription.remaining,
+                                used_classes: p.subscription.used,
+                                parent_name: p.parent
+                            }));
+                            
+                            this.config.currentProfile = this.config.profiles[0] || null;
+                            this.config.currentUser = {
+                                phone: data.phone,
+                                name: this.config.profiles[0]?.parent_name || 'Родитель'
+                            };
+                            
+                            // Создаем токен для сессии
+                            this.config.token = this.generateTempToken();
+                            
+                            return this.loadAllSubscriptions();
+                        }
+                    }
+                    throw new Error('Нет подходящих данных');
+                })
+                .catch(error => {
+                    console.log('❌ Альтернативные методы не помогли:', error.message);
+                    this.showNotification('Не удалось найти данные. Обратитесь к администратору.', 'error');
+                    document.getElementById('newClientInfo').style.display = 'block';
+                });
+        },
+
+        // ВХОД ПО ID КОНТАКТА
+        handleContactIdLogin: function() {
+            const contactIdInput = document.getElementById('contactIdInput');
+            const contactLoginBtn = document.getElementById('contactLoginBtn');
+            
+            const contactId = contactIdInput.value.trim();
+            
+            if (!contactId || isNaN(contactId)) {
+                this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
+                return;
+            }
+            
+            console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
+            
+            contactLoginBtn.disabled = true;
+            contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+            this.showLoading('Поиск данных по ID контакта...');
+            
+            // Используем специальный маршрут для поиска по ID контакта
+            fetch(`/api/debug/by-contact/${contactId}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('📊 Ответ сервера:', data);
+                    
+                    if (data.success && data.data && data.data.profiles) {
+                        console.log('✅ Данные найдены по ID контакта');
+                        
+                        this.config.token = data.data.token;
+                        this.config.currentUser = data.data.user;
+                        this.config.profiles = data.data.profiles;
+                        this.config.currentProfile = this.config.profiles[0];
+                        
+                        return this.loadAllSubscriptions();
+                    } else {
+                        throw new Error(data.error || 'Не удалось получить данные');
+                    }
+                })
+                .then(() => {
+                    this.saveSession();
+                    this.showMainInterface();
+                    this.showNotification('✅ Вход выполнен успешно!', 'success');
+                    this.navigateToPage('home');
+                    this.loadHomePage();
+                })
+                .catch(error => {
+                    console.error('❌ Ошибка:', error);
+                    this.showNotification('Не удалось найти данные по этому ID', 'error');
+                })
+                .finally(() => {
+                    this.hideLoading();
+                    contactLoginBtn.disabled = false;
+                    contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
+                });
+        },
+
+        // ЗАГРУЗКА ВСЕХ АБОНЕМЕНТОВ
+        loadAllSubscriptions: function() {
+            return new Promise((resolve, reject) => {
+                if (!this.config.profiles || this.config.profiles.length === 0) {
+                    console.log('📊 Нет профилей для загрузки данных');
+                    resolve([]);
+                    return;
+                }
+                
+                console.log(`🔐 Загрузка данных для ${this.config.profiles.length} учеников`);
+                this.showLoading(`Загрузка данных для ${this.config.profiles.length} учеников...`);
+                
+                // Для каждого профиля загружаем данные
+                const subscriptionPromises = this.config.profiles.map(profile => {
+                    return this.loadSubscriptionForProfile(profile);
+                });
+                
+                Promise.all(subscriptionPromises)
+                    .then(results => {
+                        console.log(`✅ Загружены данные для ${results.length} учеников`);
+                        this.config.allSubscriptions = results.filter(r => r !== null);
+                        
+                        // Назначаем данные для текущего профиля
+                        if (this.config.currentProfile) {
+                            const currentData = this.config.allSubscriptions.find(
+                                sub => sub.student.name === this.config.currentProfile.student_name
+                            );
+                            this.config.subscriptionData = currentData || this.config.allSubscriptions[0];
+                        } else if (this.config.allSubscriptions.length > 0) {
+                            this.config.subscriptionData = this.config.allSubscriptions[0];
+                        }
+                        
+                        resolve(this.config.allSubscriptions);
+                    })
+                    .catch(error => {
+                        console.error('❌ Ошибка загрузки абонементов:', error);
+                        reject(error);
+                    })
+                    .finally(() => {
+                        this.hideLoading();
+                    });
+            });
+        },
+
+        // ЗАГРУЗКА АБОНЕМЕНТА ДЛЯ КОНКРЕТНОГО ПРОФИЛЯ
+        loadSubscriptionForProfile: function(profile) {
+            return new Promise((resolve, reject) => {
+                console.log(`   🔍 Загрузка данных для: ${profile.student_name}`);
+                
+                // Пробуем разные методы загрузки данных
+                
+                // Метод 1: Прямой поиск по имени ученика
+                if (profile.student_name && this.config.currentUser?.phone) {
+                    fetch(`/api/find-student-working/${encodeURIComponent(profile.student_name)}/${this.config.currentUser.phone}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Метод 1 не сработал');
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success && data.data?.profile) {
+                                console.log(`   ✅ Найден абонемент для ${profile.student_name}`);
+                                
+                                const subscriptionData = {
+                                    student: {
+                                        name: profile.student_name,
+                                        branch: data.data.profile.branch || profile.branch,
+                                        teacher_name: profile.teacher_name || '',
+                                        age_group: profile.age_group || '',
+                                        parent_name: profile.parent_name || this.config.currentUser.name
+                                    },
+                                    subscription: {
+                                        type: data.data.profile.subscription_type || profile.subscription_type || 'Без абонемента',
+                                        status: data.data.profile.subscription_status || profile.subscription_status || 'Нет данных',
+                                        active: data.data.profile.subscription_active === 1 || profile.subscription_active === 1,
+                                        badge: data.data.profile.subscription_badge || profile.subscription_badge || 'inactive',
+                                        classes: {
+                                            total: data.data.profile.total_classes || profile.total_classes || 0,
+                                            used: data.data.profile.used_classes || profile.used_classes || 0,
+                                            remaining: data.data.profile.remaining_classes || profile.remaining_classes || 0,
+                                            progress: 0
+                                        },
+                                        dates: {
+                                            activation: data.data.profile.activation_date || profile.activation_date,
+                                            expiration: data.data.profile.expiration_date || profile.expiration_date,
+                                            last_visit: data.data.profile.last_visit_date || profile.last_visit_date
+                                        }
+                                    },
+                                    metadata: {
+                                        source: "DIRECT_SEARCH",
+                                        timestamp: new Date().toISOString()
+                                    }
+                                };
+                                
+                                // Рассчитываем прогресс
+                                if (subscriptionData.subscription.classes.total > 0) {
+                                    subscriptionData.subscription.classes.progress = Math.round(
+                                        (subscriptionData.subscription.classes.used / subscriptionData.subscription.classes.total) * 100
+                                    );
+                                }
+                                
+                                resolve(subscriptionData);
+                                return;
+                            }
+                            throw new Error('Нет данных в ответе');
+                        })
+                        .catch(error => {
+                            console.log(`   ⚠️  Метод 1 не сработал для ${profile.student_name}:`, error.message);
+                            throw error;
+                        });
+                }
+                
+                // Метод 2: Используем данные из профиля
+                console.log(`   ℹ️  Используем данные из профиля для ${profile.student_name}`);
+                
                 const subscriptionData = {
                     student: {
                         name: profile.student_name,
-                        branch: profile.branch,
-                        teacher_name: profile.teacher_name,
-                        age_group: profile.age_group
+                        branch: profile.branch || 'Филиал не указан',
+                        teacher_name: profile.teacher_name || '',
+                        age_group: profile.age_group || '',
+                        parent_name: profile.parent_name || 'Родитель'
                     },
                     subscription: {
                         type: profile.subscription_type || 'Без абонемента',
@@ -2251,150 +2162,387 @@ handlePhoneLogin: function() {
                         }
                     },
                     metadata: {
-                        source: "FALLBACK_PROFILE_DATA",
-                        warning: "Используются данные из профиля"
+                        source: "PROFILE_DATA",
+                        timestamp: new Date().toISOString()
                     }
                 };
                 
+                // Рассчитываем прогресс
+                if (subscriptionData.subscription.classes.total > 0) {
+                    subscriptionData.subscription.classes.progress = Math.round(
+                        (subscriptionData.subscription.classes.used / subscriptionData.subscription.classes.total) * 100
+                    );
+                }
+                
                 resolve(subscriptionData);
             });
-    });
-},
+        },
 
-            // ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ
-            loadHomePage: function() {
-                console.log('🏠 ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ');
+        // ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ
+        loadHomePage: function() {
+            console.log('🏠 ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ');
+            
+            if (!this.config.token) {
+                this.showNotification('Требуется авторизация', 'error');
+                this.showAuthPage();
+                return;
+            }
+            
+            this.updateUserInfo();
+            this.loadStudentsList();
+            
+            if (this.config.subscriptionData) {
+                console.log('✅ Используем существующие данные абонемента');
+                this.renderRemainingClasses(this.config.subscriptionData);
+            } else if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
+                console.log('✅ Используем данные из кэша');
+                const currentSubscription = this.config.allSubscriptions.find(
+                    sub => sub.student.name === this.config.currentProfile?.student_name
+                ) || this.config.allSubscriptions[0];
                 
-                if (!this.config.token) {
-                    this.showNotification('Требуется авторизация', 'error');
-                    this.showAuthPage();
-                    return;
-                }
-                
-                this.updateUserInfo();
-                
-                if (this.config.subscriptionData) {
-                    console.log('✅ Используем существующие данные');
-                    this.renderRemainingClasses(this.config.subscriptionData);
-                } else if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
-                    console.log('✅ Используем сохраненные данные для всех учеников');
-                    
-                    // Находим данные для текущего ученика
-                    const currentSubscription = this.config.allSubscriptions.find(sub => 
-                        sub.student.name === this.config.currentProfile?.student_name
-                    );
-                    
-                    if (currentSubscription) {
-                        this.config.subscriptionData = currentSubscription;
-                        this.renderRemainingClasses(currentSubscription);
-                    } else if (this.config.allSubscriptions.length > 0) {
-                        // Берем первый доступный
-                        this.config.subscriptionData = this.config.allSubscriptions[0];
-                        this.renderRemainingClasses(this.config.allSubscriptions[0]);
-                    }
-                } else {
-                    console.log('🔄 Загружаем новые данные');
-                    this.loadSubscriptionData();
-                }
-                
-                this.loadStudentsList();
-                this.addDiagnosticInfo();
-                
-                // Показываем информацию о всех учениках
-                this.showAllStudentsInfo();
-            },
+                this.config.subscriptionData = currentSubscription;
+                this.renderRemainingClasses(currentSubscription);
+            } else {
+                console.log('🔄 Загружаем данные заново');
+                this.loadAllSubscriptions()
+                    .then(() => {
+                        if (this.config.allSubscriptions.length > 0) {
+                            this.renderRemainingClasses(this.config.allSubscriptions[0]);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('❌ Ошибка загрузки данных:', error);
+                        this.showNotification('Ошибка загрузки данных', 'error');
+                    });
+            }
+        },
 
-            // ПОКАЗАТЬ ИНФОРМАЦИЮ О ВСЕХ УЧЕНИКАХ
-            showAllStudentsInfo: function() {
-                if (!this.config.allSubscriptions || this.config.allSubscriptions.length <= 1) {
-                    return;
-                }
-                
-                console.log('📋 ИНФОРМАЦИЯ О ВСЕХ УЧЕНИКАХ:');
-                console.log('='.repeat(60));
-                
-                this.config.allSubscriptions.forEach((sub, index) => {
-                    console.log(`${index + 1}. ${sub.student.name}`);
-                    console.log(`   🎫 ${sub.subscription.type || 'Без абонемента'}`);
-                    console.log(`   📊 ${sub.subscription.classes.remaining}/${sub.subscription.classes.total} занятий`);
-                    console.log(`   ✅ Активен: ${sub.subscription.active ? 'Да' : 'Нет'}`);
-                    console.log(`   🏢 Филиал: ${sub.student.branch || 'Не указан'}`);
-                    console.log(`   📱 Источник: ${sub.metadata?.source || 'Неизвестно'}`);
-                    console.log('─'.repeat(40));
-                });
-                
-                console.log('='.repeat(60));
-                
-                // Можно также добавить визуальное отображение на странице
-                const heroSection = document.getElementById('heroSection');
-                if (heroSection && this.config.allSubscriptions.length > 1) {
-                    const infoDiv = document.createElement('div');
-                    infoDiv.style.marginTop = '20px';
-                    infoDiv.style.padding = '15px';
-                    infoDiv.style.background = 'var(--gray-light)';
-                    infoDiv.style.borderRadius = '12px';
-                    infoDiv.style.fontSize = '0.9rem';
-                    
-                    infoDiv.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                            <i class="fas fa-users" style="color: var(--blue-dark);"></i>
-                            <strong style="color: var(--blue-dark);">Всего учеников в семье: ${this.config.allSubscriptions.length}</strong>
-                        </div>
-                        <div style="font-size: 0.85rem; color: var(--gray-dark);">
-                            Переключайтесь между учениками в блоке "Выберите ученика" выше
-                        </div>
-                    `;
-                    
-                    heroSection.appendChild(infoDiv);
-                }
-            },
+        // ОБНОВЛЕНИЕ ИНФОРМАЦИИ ПОЛЬЗОВАТЕЛЯ
+        updateUserInfo: function() {
+            if (!this.config.currentProfile) {
+                console.log('⚠️  Нет текущего профиля для отображения');
+                return;
+            }
+            
+            const profile = this.config.currentProfile;
+            const currentHour = new Date().getHours();
+            let greeting = 'Добро пожаловать';
+            
+            if (currentHour < 12) greeting = 'Доброе утро';
+            else if (currentHour < 18) greeting = 'Добрый день';
+            else greeting = 'Добрый вечер';
+            
+            document.getElementById('greeting').textContent = greeting;
+            document.getElementById('studentName').textContent = profile.student_name || 'Ученик';
+            
+            let studentInfo = '';
+            if (profile.branch) studentInfo += `Филиал: ${profile.branch}<br>`;
+            if (profile.age_group) studentInfo += `Возрастная группа: ${profile.age_group}<br>`;
+            if (profile.teacher_name) studentInfo += `Преподаватель: ${profile.teacher_name}`;
+            
+            if (!studentInfo) studentInfo = 'Информация загружается...';
+            
+            document.getElementById('studentInfo').innerHTML = studentInfo;
+        },
 
-            // ОБНОВЛЕНИЕ ИНФОРМАЦИИ ПОЛЬЗОВАТЕЛЯ
-            updateUserInfo: function() {
-                if (!this.config.currentProfile) return;
-                
-                const profile = this.config.currentProfile;
-                const currentHour = new Date().getHours();
-                let greeting = 'Добро пожаловать';
-                
-                if (currentHour < 12) greeting = 'Доброе утро';
-                else if (currentHour < 18) greeting = 'Добрый день';
-                else greeting = 'Добрый вечер';
-                
-                document.getElementById('greeting').textContent = greeting;
-                document.getElementById('studentName').textContent = profile.student_name || 'Ученик';
-                
-                let studentInfo = '';
-                if (profile.branch) studentInfo += `Филиал: ${profile.branch}<br>`;
-                if (profile.age_group) studentInfo += `Возрастная группа: ${profile.age_group}<br>`;
-                if (profile.teacher_name) studentInfo += `Преподаватель: ${profile.teacher_name}`;
-                
-                if (!studentInfo) studentInfo = 'Информация загружается...';
-                
-                document.getElementById('studentInfo').innerHTML = studentInfo;
-            },
-
-            // РЕНДЕРИНГ ИНФОРМАЦИИ ОБ АБОНЕМЕНТЕ НА ГЛАВНОЙ СТРАНИЦЕ
-            renderRemainingClasses: function(subscriptionData) {
-                const container = document.getElementById('remainingClassesCard');
-                
-                if (!subscriptionData || !subscriptionData.subscription) {
-                    container.innerHTML = `
-                        <div class="text-center">
-                            <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--gray-medium);"></i>
-                            <p class="mt-20">Нет данных об абонементе</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                const subscription = subscriptionData.subscription;
-                const total = subscription.classes?.total || 0;
-                const remaining = subscription.classes?.remaining || 0;
-                const used = subscription.classes?.used || 0;
-                const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-                
+        // РЕНДЕРИНГ ИНФОРМАЦИИ ОБ АБОНЕМЕНТЕ НА ГЛАВНОЙ СТРАНИЦЕ
+        renderRemainingClasses: function(subscriptionData) {
+            const container = document.getElementById('remainingClassesCard');
+            
+            if (!subscriptionData || !subscriptionData.subscription) {
                 container.innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-info-circle" style="font-size: 2rem; color: var(--gray-medium);"></i>
+                        <p class="mt-20">Нет данных об абонементе</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const subscription = subscriptionData.subscription;
+            const total = subscription.classes?.total || 0;
+            const remaining = subscription.classes?.remaining || 0;
+            const used = subscription.classes?.used || 0;
+            const progress = subscription.classes?.progress || 0;
+            
+            let statusBadge = '';
+            if (subscription.active) {
+                statusBadge = '<span class="badge active" style="margin-left: 10px;">Активен</span>';
+            } else if (subscription.status === 'Истек') {
+                statusBadge = '<span class="badge expired" style="margin-left: 10px;">Истек</span>';
+            }
+            
+            container.innerHTML = `
+                <div class="subscription-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${total}</div>
+                        <div class="stat-label">Всего занятий</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-value" style="color: ${remaining > 0 ? 'var(--green)' : 'var(--red)'}">
+                            ${remaining}
+                        </div>
+                        <div class="stat-label">Осталось</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-value">${used}</div>
+                        <div class="stat-label">Использовано</div>
+                    </div>
+                </div>
+                
+                ${total > 0 ? `
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span>Прогресс использования</span>
+                        <span>${progress}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progress}%"></div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="subscription-dates">
+                    <div class="date-item">
+                        <div class="date-label">Дата активации</div>
+                        <div class="date-value">${this.formatDate(subscription.dates?.activation) || 'Не указана'}</div>
+                    </div>
+                    <div class="date-item">
+                        <div class="date-label">Срок действия</div>
+                        <div class="date-value">${this.formatDate(subscription.dates?.expiration) || 'Не указан'}</div>
+                    </div>
+                </div>
+                
+                <div class="data-source ${subscription.active ? 'real' : ''}">
+                    <i class="fas fa-database"></i>
+                    ${subscription.type || 'Абонемент'} ${statusBadge}
+                    ${subscriptionData.metadata?.source ? ` | ${subscriptionData.metadata.source}` : ''}
+                </div>
+            `;
+        },
+
+        // ЗАГРУЗКА СПИСКА УЧЕНИКОВ
+        loadStudentsList: function() {
+            const container = document.getElementById('studentsList');
+            const selector = document.getElementById('studentSelector');
+            
+            if (!this.config.profiles || this.config.profiles.length === 0) {
+                selector.style.display = 'none';
+                return;
+            }
+            
+            if (this.config.profiles.length === 1) {
+                selector.style.display = 'none';
+                return;
+            }
+            
+            selector.style.display = 'block';
+            container.innerHTML = '';
+            
+            this.config.profiles.forEach((profile, index) => {
+                const isActive = this.config.currentProfile && 
+                               this.config.currentProfile.student_name === profile.student_name;
+                
+                // Находим данные абонемента для этого ученика
+                const subscriptionData = this.config.allSubscriptions?.find(
+                    sub => sub.student.name === profile.student_name
+                );
+                
+                const studentItem = document.createElement('div');
+                studentItem.className = `student-item ${isActive ? 'active' : ''}`;
+                studentItem.dataset.studentId = profile.id || index;
+                studentItem.dataset.studentName = profile.student_name;
+                
+                studentItem.innerHTML = `
+                    <div class="student-info">
+                        <div class="student-avatar">${this.getInitials(profile.student_name)}</div>
+                        <div>
+                            <div class="student-name-small">${profile.student_name || 'Не указано'}</div>
+                            <div class="student-branch">${profile.branch || 'Филиал не указан'}</div>
+                        </div>
+                    </div>
+                    <div class="student-status">
+                        ${subscriptionData?.subscription?.active ? '✅ Активен' : '❌ Не активен'}
+                    </div>
+                `;
+                
+                container.appendChild(studentItem);
+            });
+        },
+
+        // ВЫБОР УЧЕНИКА
+        selectStudent: function(studentName) {
+            if (!studentName) return;
+            
+            const profile = this.config.profiles.find(p => p.student_name === studentName);
+            if (!profile) {
+                this.showNotification('Профиль не найден', 'error');
+                return;
+            }
+            
+            this.config.currentProfile = profile;
+            
+            // Ищем данные абонемента для этого ученика
+            const subscriptionData = this.config.allSubscriptions?.find(
+                sub => sub.student.name === studentName
+            );
+            
+            if (subscriptionData) {
+                this.config.subscriptionData = subscriptionData;
+            } else {
+                // Загружаем данные для этого ученика
+                this.loadSubscriptionForProfile(profile)
+                    .then(data => {
+                        this.config.subscriptionData = data;
+                        
+                        // Обновляем кэш
+                        if (this.config.allSubscriptions) {
+                            const existingIndex = this.config.allSubscriptions.findIndex(
+                                sub => sub.student.name === studentName
+                            );
+                            if (existingIndex >= 0) {
+                                this.config.allSubscriptions[existingIndex] = data;
+                            } else {
+                                this.config.allSubscriptions.push(data);
+                            }
+                        }
+                        
+                        this.renderRemainingClasses(data);
+                    })
+                    .catch(error => {
+                        console.error('❌ Ошибка загрузки данных:', error);
+                    });
+            }
+            
+            this.updateUserInfo();
+            this.loadStudentsList();
+            this.renderRemainingClasses(this.config.subscriptionData);
+            
+            this.showNotification(`Выбран ученик: ${profile.student_name}`, 'success');
+            this.saveSession();
+        },
+
+        // ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
+        loadSubscriptionPage: function() {
+            const container = document.getElementById('subscriptionContainer');
+            
+            if (!this.config.currentProfile) {
+                container.innerHTML = `
+                    <div class="subscription-card">
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <p>Нет активного профиля</p>
+                            <button class="btn btn-secondary mt-20" onclick="ArtApp.navigateToPage('home')">
+                                <i class="fas fa-home"></i> Вернуться на главную
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            if (this.config.subscriptionData) {
+                this.renderFullSubscription(this.config.subscriptionData);
+                return;
+            }
+            
+            // Если данных нет, показываем загрузку
+            container.innerHTML = `
+                <div class="subscription-card">
+                    <div class="text-center">
+                        <div class="spinner"></div>
+                        <p class="mt-30">Загрузка данных абонемента...</p>
+                    </div>
+                </div>
+            `;
+            
+            // Загружаем данные
+            this.showLoading('Загрузка данных абонемента...');
+            
+            this.loadAllSubscriptions()
+                .then(() => {
+                    if (this.config.subscriptionData) {
+                        this.renderFullSubscription(this.config.subscriptionData);
+                    } else if (this.config.allSubscriptions.length > 0) {
+                        this.config.subscriptionData = this.config.allSubscriptions[0];
+                        this.renderFullSubscription(this.config.subscriptionData);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Ошибка загрузки:', error);
+                    container.innerHTML = `
+                        <div class="subscription-card">
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <p>Не удалось загрузить данные об абонементе</p>
+                                <button class="btn btn-secondary mt-20" onclick="ArtApp.refreshSubscription()">
+                                    <i class="fas fa-redo"></i> Попробовать снова
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                })
+                .finally(() => {
+                    this.hideLoading();
+                });
+        },
+
+        // РЕНДЕРИНГ ПОЛНОЙ СТРАНИЦЫ АБОНЕМЕНТА
+        renderFullSubscription: function(subscriptionData) {
+            const container = document.getElementById('subscriptionContainer');
+            
+            if (!subscriptionData || !subscriptionData.subscription) {
+                container.innerHTML = `
+                    <div class="subscription-card">
+                        <div class="text-center">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--yellow);"></i>
+                            <p class="mt-20">Нет данных для отображения</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const student = subscriptionData.student || {};
+            const subscription = subscriptionData.subscription;
+            
+            const total = subscription.classes?.total || 0;
+            const remaining = subscription.classes?.remaining || 0;
+            const used = subscription.classes?.used || 0;
+            const progress = subscription.classes?.progress || 0;
+            
+            let badgeClass = 'inactive';
+            let badgeText = subscription.status || 'Не активен';
+            
+            if (subscription.active) {
+                badgeClass = 'active';
+                badgeText = 'Активен';
+            } else if (subscription.status?.toLowerCase().includes('истек')) {
+                badgeClass = 'expired';
+                badgeText = 'Истек';
+            } else if (subscription.status?.toLowerCase().includes('заморожен')) {
+                badgeClass = 'frozen';
+                badgeText = 'Заморожен';
+            }
+            
+            container.innerHTML = `
+                <div class="subscription-card">
+                    <div class="subscription-header">
+                        <div>
+                            <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">
+                                ${subscription.type || 'Абонемент'} - ${student.name || 'Ученик'}
+                            </h3>
+                            <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-map-marker-alt"></i>
+                                ${student.branch || 'Филиал не указан'}
+                                ${student.teacher_name ? `<i class="fas fa-chalkboard-teacher"></i> ${student.teacher_name}` : ''}
+                            </div>
+                        </div>
+                        <div class="badge ${badgeClass}">${badgeText}</div>
+                    </div>
+                    
                     <div class="subscription-stats">
                         <div class="stat-item">
                             <div class="stat-value">${total}</div>
@@ -2418,7 +2566,7 @@ handlePhoneLogin: function() {
                     <div class="progress-container">
                         <div class="progress-header">
                             <span>Прогресс использования</span>
-                            <span>${progress.toFixed(0)}%</span>
+                            <span>${progress}%</span>
                         </div>
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: ${progress}%"></div>
@@ -2435,855 +2583,501 @@ handlePhoneLogin: function() {
                             <div class="date-label">Срок действия</div>
                             <div class="date-value">${this.formatDate(subscription.dates?.expiration) || 'Не указан'}</div>
                         </div>
+                        ${subscription.dates?.last_visit ? `
+                        <div class="date-item">
+                            <div class="date-label">Последний визит</div>
+                            <div class="date-value">${this.formatDate(subscription.dates.last_visit)}</div>
+                        </div>
+                        ` : ''}
                     </div>
                     
                     <div class="data-source ${subscription.active ? 'real' : ''}">
                         <i class="fas fa-database"></i>
-                        ${subscription.active ? 'Активный абонемент' : 'Абонемент не активен'}
-                        ${subscription.type ? ` | ${subscription.type}` : ''}
+                        Данные обновлены: ${new Date().toLocaleTimeString('ru-RU')}
+                        ${subscriptionData.metadata?.source ? ` | Источник: ${subscriptionData.metadata.source}` : ''}
                     </div>
-                `;
-            },
+                </div>
+            `;
+        },
 
-            // ЗАГРУЗКА ДАННЫХ АБОНЕМЕНТА
-            loadSubscriptionData: function() {
-                if (!this.config.currentProfile || !this.config.token) {
-                    console.error('Нет активного профиля или токена');
-                    return;
-                }
-                
-                this.showLoading('Загрузка данных...');
-                
-                fetch('/api/subscription', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.config.token}`
-                    },
-                    body: JSON.stringify({ 
-                        profile_id: this.config.currentProfile.id,
-                        phone: this.config.currentUser.phone
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        this.config.subscriptionData = data.data;
-                        this.renderRemainingClasses(data.data);
-                    } else {
-                        throw new Error(data.error || 'Ошибка загрузки абонемента');
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка загрузки абонемента:', error);
-                    this.showNotification('Ошибка загрузки данных абонемента', 'error');
-                })
-                .finally(() => {
-                    this.hideLoading();
-                });
-            },
-
-            // ДОБАВЛЕНИЕ ДИАГНОСТИЧЕСКОЙ ИНФОРМАЦИИ
-            addDiagnosticInfo: function() {
-                // Добавляем диагностическую информацию в нижнюю часть страницы
-                const heroSection = document.getElementById('heroSection');
-                
-                if (heroSection && this.config.subscriptionData?.metadata) {
-                    const metadata = this.config.subscriptionData.metadata;
-                    const diagnosticDiv = document.createElement('div');
-                    diagnosticDiv.style.marginTop = '20px';
-                    diagnosticDiv.style.padding = '10px';
-                    diagnosticDiv.style.background = 'var(--gray-light)';
-                    diagnosticDiv.style.borderRadius = '8px';
-                    diagnosticDiv.style.fontSize = '0.8rem';
-                    diagnosticDiv.style.color = 'var(--gray-dark)';
-                    diagnosticDiv.innerHTML = `
-                        <div><strong>Источник данных:</strong> ${metadata.source || 'Неизвестно'}</div>
-                        ${metadata.warning ? `<div><strong>Внимание:</strong> ${metadata.warning}</div>` : ''}
-                        ${metadata.reason ? `<div><strong>Причина:</strong> ${metadata.reason}</div>` : ''}
-                    `;
-                    
-                    heroSection.appendChild(diagnosticDiv);
-                }
-            },
-
-            // ЗАГРУЗКА СПИСКА УЧЕНИКОВ
-            loadStudentsList: function() {
-                const container = document.getElementById('studentsList');
-                const selector = document.getElementById('studentSelector');
-                
-                if (!this.config.profiles || this.config.profiles.length === 0) {
-                    selector.style.display = 'none';
-                    return;
-                }
-                
-                if (this.config.profiles.length === 1) {
-                    selector.style.display = 'none';
-                    return;
-                }
-                
-                selector.style.display = 'block';
-                container.innerHTML = '';
-                
-                this.config.profiles.forEach((profile, index) => {
-                    const isActive = this.config.currentProfile && 
-                                   this.config.currentProfile.student_id === profile.student_id;
-                    
-                    const studentItem = document.createElement('div');
-                    studentItem.className = `student-item ${isActive ? 'active' : ''}`;
-                    studentItem.dataset.studentId = profile.student_id;
-                    
-                    studentItem.innerHTML = `
-                        <div class="student-info">
-                            <div class="student-avatar">${this.getInitials(profile.student_name)}</div>
-                            <div>
-                                <div class="student-name-small">${profile.student_name || 'Не указано'}</div>
-                                <div class="student-branch">${profile.branch || 'Филиал не указан'}</div>
-                            </div>
-                        </div>
-                        <div class="student-status">${profile.subscription_status || 'Нет абонемента'}</div>
-                    `;
-                    
-                    container.appendChild(studentItem);
-                });
-            },
-
-            // ВЫБОР УЧЕНИКА
-            selectStudent: function(profile) {
-                this.config.currentProfile = profile;
-                this.saveSession();
-                
-                this.updateUserInfo();
-                
-                // Ищем сохраненные данные для этого ученика
-                if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
-                    const studentSubscription = this.config.allSubscriptions.find(sub => 
-                        sub.student.name === profile.student_name
-                    );
-                    
-                    if (studentSubscription) {
-                        this.config.subscriptionData = studentSubscription;
-                        this.renderRemainingClasses(studentSubscription);
-                    } else {
-                        // Если нет сохраненных данных, загружаем заново
-                        this.loadSubscriptionForProfile(profile)
-                            .then(subscriptionData => {
-                                this.config.subscriptionData = subscriptionData;
-                                this.renderRemainingClasses(subscriptionData);
-                            })
-                            .catch(error => {
-                                console.error('❌ Ошибка загрузки данных:', error);
-                                this.showNotification('Ошибка загрузки данных абонемента', 'error');
-                            });
-                    }
-                } else {
-                    // Если нет сохраненных данных, загружаем заново
-                    this.loadSubscriptionForProfile(profile)
-                        .then(subscriptionData => {
-                            this.config.subscriptionData = subscriptionData;
-                            this.renderRemainingClasses(subscriptionData);
-                        })
-                        .catch(error => {
-                            console.error('❌ Ошибка загрузки данных:', error);
-                            this.showNotification('Ошибка загрузки данных абонемента', 'error');
-                        });
-                }
-                
-                this.loadStudentsList();
-                this.showNotification(`Выбран ученик: ${profile.student_name}`, 'success');
-            },
-
-            // ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
-            loadSubscriptionPage: function() {
-                const container = document.getElementById('subscriptionContainer');
-                
-                this.showLoading('Загрузка данных абонемента...');
-                
-                // Проверяем, есть ли данные для текущего ученика
-                if (this.config.subscriptionData) {
-                    this.renderFullSubscription(this.config.subscriptionData);
-                    this.hideLoading();
-                    return;
-                } else if (this.config.allSubscriptions && this.config.allSubscriptions.length > 0) {
-                    // Ищем данные для текущего ученика среди сохраненных
-                    const currentSubscription = this.config.allSubscriptions.find(sub => 
-                        sub.student.name === this.config.currentProfile?.student_name
-                    );
-                    
-                    if (currentSubscription) {
-                        this.config.subscriptionData = currentSubscription;
-                        this.renderFullSubscription(currentSubscription);
-                        this.hideLoading();
-                        return;
-                    }
-                }
-                
-                // Если данных нет, загружаем через API
-                fetch('/api/subscription', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.config.token}`
-                    },
-                    body: JSON.stringify({ 
-                        phone: this.config.currentUser?.phone
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        this.config.subscriptionData = data.data;
-                        this.renderFullSubscription(data.data);
-                    } else {
-                        throw new Error(data.error || 'Ошибка загрузки данных');
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка загрузки абонемента:', error);
-                    container.innerHTML = `
-                        <div class="subscription-card">
-                            <div class="error-message">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <p>Не удалось загрузить данные об абонементе</p>
-                                <button class="btn btn-secondary mt-20" id="retrySubscriptionBtn">
-                                    <i class="fas fa-redo"></i> Попробовать снова
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                })
-                .finally(() => {
-                    this.hideLoading();
-                });
-            },
-
-            // РЕНДЕРИНГ ПОЛНОЙ СТРАНИЦЫ АБОНЕМЕНТА
-            renderFullSubscription: function(subscriptionData) {
-                const container = document.getElementById('subscriptionContainer');
-                
-                if (!subscriptionData || !subscriptionData.subscription) {
-                    container.innerHTML = `
-                        <div class="subscription-card">
-                            <div class="text-center">
-                                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--yellow);"></i>
-                                <p class="mt-20">Нет данных для отображения</p>
-                            </div>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                const student = subscriptionData.student || this.config.currentProfile || {};
-                const subscription = subscriptionData.subscription;
-                
-                const total = subscription.classes?.total || 0;
-                const remaining = subscription.classes?.remaining || 0;
-                const used = subscription.classes?.used || 0;
-                const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-                
-                let badgeClass = 'secondary';
-                let badgeText = 'Не определен';
-                
-                if (subscription.active) {
-                    badgeClass = 'active';
-                    badgeText = 'Активен';
-                } else if (subscription.status?.toLowerCase().includes('истек')) {
-                    badgeClass = 'expired';
-                    badgeText = 'Истек';
-                } else if (subscription.status?.toLowerCase().includes('заморожен')) {
-                    badgeClass = 'frozen';
-                    badgeText = 'Заморожен';
-                } else if (subscription.status) {
-                    badgeClass = 'inactive';
-                    badgeText = subscription.status;
-                }
-                
+        // ЗАГРУЗКА СТРАНИЦЫ ПРОФИЛЯ
+        loadProfilePage: function() {
+            const container = document.getElementById('profileContainer');
+            
+            if (!this.config.currentProfile) {
                 container.innerHTML = `
-                    <div class="subscription-card">
-                        <div class="subscription-header">
-                            <div>
-                                <h3 style="color: var(--blue-dark); margin-bottom: 10px; font-size: 1.4rem;">
-                                    ${subscription.type || 'Абонемент'}
-                                </h3>
-                                <div style="color: var(--gray-dark); font-size: 0.9rem; display: flex; align-items: center; gap: 10px;">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    ${student.branch || 'Филиал не указан'}
-                                </div>
-                            </div>
-                            <div class="badge ${badgeClass}">${badgeText}</div>
-                        </div>
-                        
-                        <div class="subscription-stats">
-                            <div class="stat-item">
-                                <div class="stat-value">${total}</div>
-                                <div class="stat-label">Всего занятий</div>
-                            </div>
-                            
-                            <div class="stat-item">
-                                <div class="stat-value" style="color: ${remaining > 0 ? 'var(--green)' : 'var(--red)'}">
-                                    ${remaining}
-                                </div>
-                                <div class="stat-label">Осталось</div>
-                            </div>
-                            
-                            <div class="stat-item">
-                                <div class="stat-value">${used}</div>
-                                <div class="stat-label">Использовано</div>
-                            </div>
-                        </div>
-                        
-                        ${total > 0 ? `
-                        <div class="progress-container">
-                            <div class="progress-header">
-                                <span>Прогресс использования</span>
-                                <span>${progress.toFixed(0)}%</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${progress}%"></div>
-                            </div>
-                        </div>
-                        ` : ''}
-                        
-                        <div class="subscription-dates">
-                            <div class="date-item">
-                                <div class="date-label">Дата активации</div>
-                                <div class="date-value">${this.formatDate(subscription.dates?.activation) || 'Не указана'}</div>
-                            </div>
-                            <div class="date-item">
-                                <div class="date-label">Срок действия</div>
-                                <div class="date-value">${this.formatDate(subscription.dates?.expiration) || 'Не указан'}</div>
-                            </div>
-                        </div>
-                        
-                        ${subscription.comment ? `
-                        <div style="margin-top: 20px; padding: 15px; background: var(--gray-light); border-radius: 12px;">
-                            <div style="font-weight: 500; margin-bottom: 5px;">Примечание:</div>
-                            <div style="color: var(--gray-dark);">${subscription.comment}</div>
-                        </div>
-                        ` : ''}
-                        
-                        <div class="data-source ${subscription.active ? 'real' : ''}">
-                            <i class="fas fa-database"></i>
-                            Данные из CRM | Последнее обновление: ${new Date().toLocaleTimeString('ru-RU')}
-                        </div>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Нет активного профиля</p>
                     </div>
                 `;
-            },
-
-            // ЗАГРУЗКА СТРАНИЦЫ ПРОФИЛЯ
-            loadProfilePage: function() {
-                const container = document.getElementById('profileContainer');
-                
-                if (!this.config.currentProfile) {
-                    this.showNotification('Нет активного профиля', 'error');
-                    this.navigateToPage('home');
-                    return;
-                }
-                
-                const profile = this.config.currentProfile;
-                const subscription = this.config.subscriptionData?.subscription;
-                
-                const totalVisits = subscription?.classes?.used || profile.used_classes || 0;
-                const remainingClasses = subscription?.classes?.remaining || profile.remaining_classes || 0;
-                const totalClasses = subscription?.classes?.total || profile.total_classes || 0;
-                
-                container.innerHTML = `
-                    <div class="profile-header">
-                        <div class="profile-avatar">
-                            ${this.getInitials(profile.student_name)}
+                return;
+            }
+            
+            const profile = this.config.currentProfile;
+            const subscription = this.config.subscriptionData?.subscription;
+            
+            const totalVisits = subscription?.classes?.used || profile.used_classes || 0;
+            const remainingClasses = subscription?.classes?.remaining || profile.remaining_classes || 0;
+            const totalClasses = subscription?.classes?.total || profile.total_classes || 0;
+            
+            container.innerHTML = `
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        ${this.getInitials(profile.student_name)}
+                    </div>
+                    <div class="profile-name">${profile.student_name || 'Не указано'}</div>
+                    <div class="profile-email">${this.config.currentUser?.phone || 'Телефон не указан'}</div>
+                    
+                    <div class="profile-stats">
+                        <div class="profile-stat">
+                            <div class="profile-stat-value">${totalVisits}</div>
+                            <div class="profile-stat-label">Посещений</div>
                         </div>
-                        <div class="profile-name">${profile.student_name || 'Не указано'}</div>
-                        <div class="profile-email">${this.config.currentUser?.phone || 'Телефон не указан'}</div>
-                        
-                        <div class="profile-stats">
-                            <div class="profile-stat">
-                                <div class="profile-stat-value">${totalVisits}</div>
-                                <div class="profile-stat-label">Посещений</div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value" style="color: ${remainingClasses > 0 ? 'var(--green)' : 'var(--red)'}">
+                                ${remainingClasses}
                             </div>
-                            <div class="profile-stat">
-                                <div class="profile-stat-value" style="color: ${remainingClasses > 0 ? 'var(--green)' : 'var(--red)'}">
-                                    ${remainingClasses}
-                                </div>
-                                <div class="profile-stat-label">Осталось</div>
-                            </div>
-                            <div class="profile-stat">
-                                <div class="profile-stat-value">${totalClasses}</div>
-                                <div class="profile-stat-label">Всего занятий</div>
-                            </div>
+                            <div class="profile-stat-label">Осталось</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="profile-stat-value">${totalClasses}</div>
+                            <div class="profile-stat-label">Всего занятий</div>
                         </div>
                     </div>
+                </div>
+                
+                <div class="settings-card" style="margin-top: 30px;">
+                    <h3 class="settings-title">
+                        <i class="fas fa-info-circle"></i>Информация об ученике
+                    </h3>
                     
-                    <div class="settings-card" style="margin-top: 30px;">
-                        <h3 class="settings-title">
-                            <i class="fas fa-info-circle"></i>Информация об ученике
-                        </h3>
-                        
-                        ${profile.branch ? `
-                        <div class="settings-item">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <span>Филиал: ${profile.branch}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.teacher_name ? `
-                        <div class="settings-item">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <span>Преподаватель: ${profile.teacher_name}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.age_group ? `
-                        <div class="settings-item">
-                            <i class="fas fa-users"></i>
-                            <span>Возрастная группа: ${profile.age_group}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.subscription_type ? `
-                        <div class="settings-item">
-                            <i class="fas fa-ticket-alt"></i>
-                            <span>Тип абонемента: ${profile.subscription_type}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.subscription_status ? `
-                        <div class="settings-item">
-                            <i class="fas fa-info-circle"></i>
-                            <span>Статус: ${profile.subscription_status}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.day_of_week ? `
-                        <div class="settings-item">
-                            <i class="fas fa-calendar-day"></i>
-                            <span>День занятий: ${profile.day_of_week}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.parent_name ? `
-                        <div class="settings-item">
-                            <i class="fas fa-user-friends"></i>
-                            <span>Родитель: ${profile.parent_name}</span>
-                        </div>
-                        ` : ''}
-                        
-                        ${profile.allergies ? `
-                        <div class="settings-item">
-                            <i class="fas fa-allergies"></i>
-                            <span>Особенности: ${profile.allergies}</span>
-                        </div>
-                        ` : ''}
+                    ${profile.branch ? `
+                    <div class="settings-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Филиал: ${profile.branch}</span>
                     </div>
-                `;
-            },
-
-            // НАВИГАЦИЯ ПО СТРАНИЦАМ
-            navigateToPage: function(pageName) {
-                document.querySelectorAll('.page').forEach(page => {
-                    page.classList.remove('active');
-                    page.style.display = 'none';
-                });
-                
-                document.querySelectorAll('.nav-item').forEach(item => {
-                    item.classList.remove('active');
-                    if (item.getAttribute('data-page') === pageName) {
-                        item.classList.add('active');
-                    }
-                });
-                
-                const pageElement = document.getElementById(`${pageName}-page`);
-                if (pageElement) {
-                    pageElement.classList.add('active');
-                    pageElement.style.display = 'block';
+                    ` : ''}
                     
-                    switch(pageName) {
-                        case 'home':
-                            this.loadHomePage();
-                            break;
-                        case 'subscription':
-                            this.loadSubscriptionPage();
-                            break;
-                        case 'profile':
-                            this.loadProfilePage();
-                            break;
-                        case 'schedule':
-                            // Расписание пока не реализовано
-                            break;
-                    }
-                }
-            },
-
-            // ОБНОВЛЕНИЕ ДАННЫХ АБОНЕМЕНТА
-            refreshSubscription: function() {
-                this.showNotification('Обновление данных...', 'info');
-                this.config.subscriptionData = null;
-                this.loadSubscriptionPage();
-            },
-
-            // ВЫХОД ИЗ СИСТЕМЫ
-            logout: function() {
-                if (confirm('Вы уверены, что хотите выйти?')) {
-                    this.clearSession();
-                    this.showAuthPage();
-                    this.showNotification('Вы успешно вышли', 'success');
-                }
-            },
-
-            // СВЯЗЬ С АДМИНИСТРАТОРОМ
-            contactAdmin: function() {
-                this.showNotification('📞 Для связи с администратором: +7 (999) 123-45-67', 'info', 5000);
-            },
-
-            // СВЯЗЬ С ПОДДЕРЖКОЙ
-            contactSupport: function() {
-                this.showNotification('📧 Напишите нам: support@art-school.ru', 'info', 5000);
-            },
-
-            // УВЕДОМЛЕНИЯ
-            showNotification: function(message, type = 'info', duration = 3000) {
-                const container = document.getElementById('notificationContainer');
-                const notification = document.createElement('div');
-                notification.className = `notification ${type}`;
-                
-                let icon = 'fas fa-info-circle';
-                if (type === 'error') icon = 'fas fa-exclamation-circle';
-                if (type === 'success') icon = 'fas fa-check-circle';
-                if (type === 'warning') icon = 'fas fa-exclamation-triangle';
-                
-                notification.innerHTML = `<i class="${icon}"></i><span>${message}</span>`;
-                container.appendChild(notification);
-                
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.classList.add('hiding');
-                        setTimeout(() => {
-                            if (notification.parentNode) notification.remove();
-                        }, 400);
-                    }
-                }, duration);
-            },
-
-            // ИНДИКАТОР ЗАГРУЗКИ
-            showLoading: function(message) {
-                const loading = document.getElementById('loading');
-                const loadingText = document.getElementById('loadingText');
-                
-                if (loadingText) loadingText.textContent = message || 'Загрузка...';
-                if (loading) loading.classList.add('active');
-            },
-
-            hideLoading: function() {
-                const loading = document.getElementById('loading');
-                if (loading) loading.classList.remove('active');
-            },
-
-            // РАБОТА С СЕССИЕЙ
-            saveSession: function() {
-                try {
-                    const sessionData = {
-                        token: this.config.token,
-                        currentUser: this.config.currentUser,
-                        currentProfile: this.config.currentProfile,
-                        profiles: this.config.profiles,
-                        timestamp: Date.now()
-                    };
-                    localStorage.setItem('artSchoolSession', JSON.stringify(sessionData));
-                    console.log('💾 Сессия сохранена');
-                } catch (error) {
-                    console.error('Ошибка сохранения сессии:', error);
-                }
-            },
-
-            loadSession: function() {
-                try {
-                    const saved = localStorage.getItem('artSchoolSession');
-                    if (saved) {
-                        const sessionData = JSON.parse(saved);
-                        
-                        const maxAge = 24 * 60 * 60 * 1000;
-                        if (Date.now() - (sessionData.timestamp || 0) < maxAge) {
-                            this.config.token = sessionData.token;
-                            this.config.currentUser = sessionData.currentUser;
-                            this.config.currentProfile = sessionData.currentProfile;
-                            this.config.profiles = sessionData.profiles || [];
-                            console.log('📂 Сессия загружена');
-                        } else {
-                            console.log('⌛ Сессия устарела, требуется повторная авторизация');
-                            this.clearSession();
-                        }
-                    }
-                } catch (error) {
-                    console.error('Ошибка загрузки сессии:', error);
-                    this.clearSession();
-                }
-            },
-
-            clearSession: function() {
-                localStorage.removeItem('artSchoolSession');
-                this.config.token = null;
-                this.config.currentUser = null;
-                this.config.currentProfile = null;
-                this.config.profiles = [];
-                this.config.subscriptionData = null;
-                this.config.allSubscriptions = [];
-                console.log('🗑️ Сессия очищена');
-            },
-
-            // УТИЛИТЫ
-            getInitials: function(name) {
-                if (!name || typeof name !== 'string') return 'У';
-                return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'У';
-            },
-
-            formatDate: function(dateString) {
-                if (!dateString) return 'Не указано';
-                
-                try {
-                    if (/^\d+$/.test(dateString)) {
-                        const timestamp = parseInt(dateString);
-                        const date = timestamp < 10000000000 
-                            ? new Date(timestamp * 1000)
-                            : new Date(timestamp);
-                        return date.toLocaleDateString('ru-RU');
-                    }
+                    ${profile.teacher_name ? `
+                    <div class="settings-item">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                        <span>Преподаватель: ${profile.teacher_name}</span>
+                    </div>
+                    ` : ''}
                     
-                    const date = new Date(dateString);
-                    if (isNaN(date.getTime())) return dateString;
+                    ${profile.age_group ? `
+                    <div class="settings-item">
+                        <i class="fas fa-users"></i>
+                        <span>Возрастная группа: ${profile.age_group}</span>
+                    </div>
+                    ` : ''}
                     
-                    return date.toLocaleDateString('ru-RU', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
-                    });
-                } catch (error) {
-                    console.error('Ошибка форматирования даты:', error);
-                    return dateString;
-                }
-            },
+                    ${profile.subscription_type ? `
+                    <div class="settings-item">
+                        <i class="fas fa-ticket-alt"></i>
+                        <span>Тип абонемента: ${profile.subscription_type}</span>
+                    </div>
+                    ` : ''}
+                    
+                    ${profile.subscription_status ? `
+                    <div class="settings-item">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Статус: ${profile.subscription_status}</span>
+                    </div>
+                    ` : ''}
+                    
+                    ${profile.day_of_week ? `
+                    <div class="settings-item">
+                        <i class="fas fa-calendar-day"></i>
+                        <span>День занятий: ${profile.day_of_week}</span>
+                    </div>
+                    ` : ''}
+                    
+                    ${profile.parent_name ? `
+                    <div class="settings-item">
+                        <i class="fas fa-user-friends"></i>
+                        <span>Родитель: ${profile.parent_name}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        },
 
-            formatDateTime: function(dateTimeString) {
-                if (!dateTimeString) return 'Не указано';
-                
-                try {
-                    const date = new Date(dateTimeString);
-                    if (isNaN(date.getTime())) return dateTimeString;
-                    
-                    return date.toLocaleString('ru-RU', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                } catch (error) {
-                    console.error('Ошибка форматирования даты:', error);
-                    return dateTimeString;
+        // НАВИГАЦИЯ ПО СТРАНИЦАМ
+        navigateToPage: function(pageName) {
+            console.log(`📍 Навигация на страницу: ${pageName}`);
+            
+            // Скрываем все страницы
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+                page.style.display = 'none';
+            });
+            
+            // Обновляем навигацию
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('data-page') === pageName) {
+                    item.classList.add('active');
                 }
-            },
-
-            // НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
-            setupEventListeners: function() {
-                const self = this;
+            });
+            
+            // Показываем нужную страницу
+            const pageElement = document.getElementById(`${pageName}-page`);
+            if (pageElement) {
+                pageElement.classList.add('active');
+                pageElement.style.display = 'block';
                 
-                // Форматирование номера телефона
-                const phoneInput = document.getElementById('phoneNumber');
-                if (phoneInput) {
-                    phoneInput.addEventListener('input', function(e) {
-                        let value = e.target.value.replace(/\D/g, '');
-                        
-                        if (value.length > 0) {
-                            value = value.match(/.{1,3}/g).join(' ');
-                        }
-                        
-                        e.target.value = value;
-                    });
-                    
+                // Загружаем данные для страницы
+                switch(pageName) {
+                    case 'home':
+                        this.loadHomePage();
+                        break;
+                    case 'subscription':
+                        this.loadSubscriptionPage();
+                        break;
+                    case 'profile':
+                        this.loadProfilePage();
+                        break;
+                    case 'schedule':
+                        // Расписание пока не реализовано
+                        break;
+                }
+            }
+        },
+
+        // ОБНОВЛЕНИЕ ДАННЫХ АБОНЕМЕНТА
+        refreshSubscription: function() {
+            this.showNotification('Обновление данных...', 'info');
+            this.config.subscriptionData = null;
+            this.config.allSubscriptions = [];
+            this.loadSubscriptionPage();
+        },
+
+        // ВЫХОД ИЗ СИСТЕМЫ
+        logout: function() {
+            if (confirm('Вы уверены, что хотите выйти?')) {
+                this.clearSession();
+                this.showAuthPage();
+                this.showNotification('Вы успешно вышли', 'success');
+            }
+        },
+
+        // СВЯЗЬ С АДМИНИСТРАТОРОМ
+        contactAdmin: function() {
+            this.showNotification('📞 Для связи с администратором: +7 (999) 123-45-67', 'info', 5000);
+        },
+
+        // СВЯЗЬ С ПОДДЕРЖКОЙ
+        contactSupport: function() {
+            this.showNotification('📧 Напишите нам: support@art-school.ru', 'info', 5000);
+        },
+
+        // УВЕДОМЛЕНИЯ
+        showNotification: function(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            let icon = 'fas fa-info-circle';
+            if (type === 'error') icon = 'fas fa-exclamation-circle';
+            if (type === 'success') icon = 'fas fa-check-circle';
+            if (type === 'warning') icon = 'fas fa-exclamation-triangle';
+            
+            notification.innerHTML = `<i class="${icon}"></i><span>${message}</span>`;
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.classList.add('hiding');
                     setTimeout(() => {
-                        if (phoneInput) {
-                            phoneInput.focus();
-                            phoneInput.select();
-                        }
-                    }, 300);
+                        if (notification.parentNode) notification.remove();
+                    }, 400);
+                }
+            }, duration);
+        },
+
+        // ИНДИКАТОР ЗАГРУЗКИ
+        showLoading: function(message) {
+            const loading = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+            
+            if (loadingText) loadingText.textContent = message || 'Загрузка...';
+            if (loading) loading.classList.add('active');
+        },
+
+        hideLoading: function() {
+            const loading = document.getElementById('loading');
+            if (loading) loading.classList.remove('active');
+        },
+
+        // РАБОТА С СЕССИЕЙ
+        saveSession: function() {
+            try {
+                const sessionData = {
+                    token: this.config.token,
+                    currentUser: this.config.currentUser,
+                    currentProfile: this.config.currentProfile,
+                    profiles: this.config.profiles,
+                    subscriptionData: this.config.subscriptionData,
+                    allSubscriptions: this.config.allSubscriptions,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('artSchoolSession', JSON.stringify(sessionData));
+                console.log('💾 Сессия сохранена');
+            } catch (error) {
+                console.error('Ошибка сохранения сессии:', error);
+            }
+        },
+
+        loadSession: function() {
+            try {
+                const saved = localStorage.getItem('artSchoolSession');
+                if (saved) {
+                    const sessionData = JSON.parse(saved);
                     
-                    phoneInput.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') {
-                            self.handlePhoneLogin();
-                        }
-                    });
+                    const maxAge = 24 * 60 * 60 * 1000;
+                    if (Date.now() - (sessionData.timestamp || 0) < maxAge) {
+                        this.config.token = sessionData.token;
+                        this.config.currentUser = sessionData.currentUser;
+                        this.config.currentProfile = sessionData.currentProfile;
+                        this.config.profiles = sessionData.profiles || [];
+                        this.config.subscriptionData = sessionData.subscriptionData;
+                        this.config.allSubscriptions = sessionData.allSubscriptions || [];
+                        console.log('📂 Сессия загружена');
+                        return true;
+                    } else {
+                        console.log('⌛ Сессия устарела, требуется повторная авторизация');
+                        this.clearSession();
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки сессии:', error);
+                this.clearSession();
+            }
+            return false;
+        },
+
+        clearSession: function() {
+            localStorage.removeItem('artSchoolSession');
+            this.config.token = null;
+            this.config.currentUser = null;
+            this.config.currentProfile = null;
+            this.config.profiles = [];
+            this.config.subscriptionData = null;
+            this.config.allSubscriptions = [];
+            console.log('🗑️ Сессия очищена');
+        },
+
+        // ГЕНЕРАЦИЯ ВРЕМЕННОГО ТОКЕНА
+        generateTempToken: function() {
+            return 'temp_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        },
+
+        // УТИЛИТЫ
+        getInitials: function(name) {
+            if (!name || typeof name !== 'string') return 'У';
+            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'У';
+        },
+
+        formatDate: function(dateString) {
+            if (!dateString) return 'Не указано';
+            
+            try {
+                if (/^\d+$/.test(dateString)) {
+                    const timestamp = parseInt(dateString);
+                    const date = timestamp < 10000000000 
+                        ? new Date(timestamp * 1000)
+                        : new Date(timestamp);
+                    return date.toLocaleDateString('ru-RU');
                 }
                 
-                // Кнопки авторизации
-                const loginBtn = document.getElementById('loginBtn');
-                if (loginBtn) {
-                    loginBtn.addEventListener('click', (e) => {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return dateString;
+                
+                return date.toLocaleDateString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            } catch (error) {
+                console.error('Ошибка форматирования даты:', error);
+                return dateString;
+            }
+        },
+
+        // НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
+        setupEventListeners: function() {
+            const self = this;
+            
+            // Форматирование номера телефона
+            const phoneInput = document.getElementById('phoneNumber');
+            if (phoneInput) {
+                phoneInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    
+                    if (value.length > 0) {
+                        value = value.match(/.{1,3}/g).join(' ');
+                    }
+                    
+                    e.target.value = value;
+                });
+                
+                phoneInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
                         e.preventDefault();
                         self.handlePhoneLogin();
-                    });
+                    }
+                });
+            }
+            
+            // Кнопка входа по телефону
+            const loginBtn = document.getElementById('loginBtn');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    self.handlePhoneLogin();
+                });
+            }
+            
+            // Кнопка входа по ID контакта
+            const contactLoginBtn = document.getElementById('contactLoginBtn');
+            if (contactLoginBtn) {
+                contactLoginBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    self.handleContactIdLogin();
+                });
+            }
+            
+            // Навигация по страницам
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const page = item.getAttribute('data-page');
+                    if (page) {
+                        self.navigateToPage(page);
+                    }
+                });
+            });
+            
+            // Выбор ученика
+            document.addEventListener('click', (e) => {
+                const studentItem = e.target.closest('.student-item');
+                if (studentItem) {
+                    e.preventDefault();
+                    const studentName = studentItem.dataset.studentName;
+                    if (studentName) {
+                        self.selectStudent(studentName);
+                    }
                 }
-                
-                const contactLoginBtn = document.getElementById('contactLoginBtn');
-                if (contactLoginBtn) {
-                    contactLoginBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        self.handleContactIdLogin();
-                    });
-                }
-                
-                // Навигация
-                document.querySelectorAll('.nav-item').forEach(item => {
-                    item.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const page = item.getAttribute('data-page');
-                        if (page) {
-                            self.navigateToPage(page);
-                        }
-                    });
-                });
-                
-                // Кнопки на главной странице
-                document.addEventListener('click', (e) => {
-                    // Кнопка "Мой абонемент" на главной
-                    if (e.target.id === 'goToSubscriptionBtn' || e.target.closest('#goToSubscriptionBtn')) {
-                        e.preventDefault();
-                        self.navigateToPage('subscription');
-                    }
-                    
-                    // Кнопка "Расписание" на главной
-                    if (e.target.id === 'goToScheduleBtn' || e.target.closest('#goToScheduleBtn')) {
-                        e.preventDefault();
-                        self.navigateToPage('schedule');
-                    }
-                    
-                    // Карточка абонемента
-                    if (e.target.id === 'subscriptionCard' || e.target.closest('#subscriptionCard')) {
-                        e.preventDefault();
-                        self.navigateToPage('subscription');
-                    }
-                    
-                    // Карточка расписания
-                    if (e.target.id === 'scheduleCard' || e.target.closest('#scheduleCard')) {
-                        e.preventDefault();
-                        self.navigateToPage('schedule');
-                    }
-                });
-                
-                // Выбор ученика
-                document.addEventListener('click', (e) => {
-                    const studentItem = e.target.closest('.student-item');
-                    if (studentItem) {
-                        e.preventDefault();
-                        const studentId = studentItem.dataset.studentId;
-                        const profile = self.config.profiles.find(p => p.student_id == studentId);
-                        if (profile) {
-                            self.selectStudent(profile);
-                        }
-                    }
-                });
-                
-                // Кнопки "Назад"
-                document.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('back-btn') || e.target.closest('.back-btn')) {
+            });
+            
+            // Кнопки "Назад"
+            const backButtons = [
+                'scheduleBackBtn', 'subscriptionBackBtn', 'profileBackBtn'
+            ];
+            
+            backButtons.forEach(btnId => {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
                         e.preventDefault();
                         self.navigateToPage('home');
-                    }
-                });
-                
-                // Кнопка обновления абонемента
-                const refreshSubscriptionBtn = document.getElementById('refreshSubscriptionBtn');
-                if (refreshSubscriptionBtn) {
-                    refreshSubscriptionBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        self.refreshSubscription();
                     });
                 }
-                
-                // Кнопка повторной загрузки абонемента
-                document.addEventListener('click', (e) => {
-                    if (e.target.id === 'retrySubscriptionBtn' || e.target.closest('#retrySubscriptionBtn')) {
-                        e.preventDefault();
-                        self.loadSubscriptionPage();
-                    }
+            });
+            
+            // Обновление данных абонемента
+            const refreshBtn = document.getElementById('refreshSubscriptionBtn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    self.refreshSubscription();
                 });
-                
-                // Кнопка выхода
-                const logoutBtn = document.getElementById('logoutBtn');
-                if (logoutBtn) {
-                    logoutBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        self.logout();
-                    });
-                }
-                
-                // Контакты администратора
-                document.addEventListener('click', (e) => {
-                    if (e.target.id === 'contactAdminBtn' || 
-                        e.target.id === 'contactAdminScheduleBtn' || 
-                        e.target.id === 'contactAdminSubscriptionBtn' || 
-                        e.target.id === 'contactAdminProfileBtn' ||
-                        e.target.closest('#contactAdminBtn') ||
-                        e.target.closest('#contactAdminScheduleBtn') ||
-                        e.target.closest('#contactAdminSubscriptionBtn') ||
-                        e.target.closest('#contactAdminProfileBtn')) {
-                        e.preventDefault();
-                        self.contactAdmin();
-                    }
-                });
-                
-                // Контакты поддержки
-                document.addEventListener('click', (e) => {
-                    if (e.target.id === 'contactSupportBtn' || 
-                        e.target.id === 'contactSupportProfileBtn' ||
-                        e.target.closest('#contactSupportBtn') ||
-                        e.target.closest('#contactSupportProfileBtn')) {
-                        e.preventDefault();
-                        self.contactSupport();
-                    }
-                });
-                
-                // Логотип
-                const logoContainer = document.getElementById('logoContainer');
-                if (logoContainer) {
-                    logoContainer.addEventListener('click', () => self.navigateToPage('home'));
-                }
-                
-                // Аватар пользователя
-                const userAvatar = document.getElementById('userAvatar');
-                if (userAvatar) {
-                    userAvatar.addEventListener('click', () => self.navigateToPage('profile'));
-                }
-            },
-
-            // ОТЛАДКА
-            debug: function() {
-                console.log('=== ОТЛАДКА ПРИЛОЖЕНИЯ ===');
-                console.log('Текущий пользователь:', this.config.currentUser);
-                console.log('Текущий профиль:', this.config.currentProfile);
-                console.log('Данные абонемента:', this.config.subscriptionData);
-                console.log('Все профили:', this.config.profiles);
-                console.log('Все абонементы:', this.config.allSubscriptions);
-                console.log('Токен:', this.config.token ? 'Присутствует' : 'Отсутствует');
-                console.log('Время сессии:', new Date().toLocaleString());
             }
-        };
+            
+            // Выход
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    self.logout();
+                });
+            }
+            
+            // Кнопки контактов
+            const contactButtons = [
+                'contactSupportBtn',
+                'contactAdminScheduleBtn',
+                'contactAdminSubscriptionBtn',
+                'contactAdminProfileBtn',
+                'contactSupportProfileBtn'
+            ];
+            
+            contactButtons.forEach(btnId => {
+                const btn = document.getElementById(btnId);
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (btnId.includes('Support')) {
+                            self.contactSupport();
+                        } else {
+                            self.contactAdmin();
+                        }
+                    });
+                }
+            });
+            
+            // Карточки на главной
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('#subscriptionCard')) {
+                    e.preventDefault();
+                    self.navigateToPage('subscription');
+                }
+                
+                if (e.target.closest('#scheduleCard')) {
+                    e.preventDefault();
+                    self.navigateToPage('schedule');
+                }
+            });
+            
+            // Логотип и аватар
+            document.getElementById('logoContainer')?.addEventListener('click', () => self.navigateToPage('home'));
+            document.getElementById('userAvatar')?.addEventListener('click', () => self.navigateToPage('profile'));
+            
+            // Обработка Enter в поле ID контакта
+            const contactIdInput = document.getElementById('contactIdInput');
+            if (contactIdInput) {
+                contactIdInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        self.handleContactIdLogin();
+                    }
+                });
+            }
+        },
 
-        // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 DOM загружен, запуск приложения...');
-            ArtApp.init();
-        });
+        // ОТЛАДКА
+        debug: function() {
+            console.log('=== ОТЛАДКА ПРИЛОЖЕНИЯ ===');
+            console.log('Текущий пользователь:', this.config.currentUser);
+            console.log('Текущий профиль:', this.config.currentProfile);
+            console.log('Все профили:', this.config.profiles);
+            console.log('Данные абонемента:', this.config.subscriptionData);
+            console.log('Все абонементы:', this.config.allSubscriptions);
+            console.log('Токен:', this.config.token ? 'Присутствует' : 'Отсутствует');
+            console.log('=========================');
+        }
+    };
 
-        // ДОСТУП К ГЛОБАЛЬНОМУ ОБЪЕКТУ
-        window.ArtApp = ArtApp;
-    </script>
+    // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 DOM загружен, запуск приложения...');
+        ArtApp.init();
+    });
+
+    // ДОСТУП К ГЛОБАЛЬНОМУ ОБЪЕКТУ
+    window.ArtApp = ArtApp;
+</script>
 </body>
 </html>
