@@ -6103,7 +6103,6 @@ app.get('/api/find-student-working/:studentName/:phone?', async (req, res) => {
 });
 
 
-// ==================== ИСПРАВЛЕННЫЙ ОСНОВНОЙ МАРШРУТ АВТОРИЗАЦИИ ====================
 app.post('/api/auth/phone-final-fixed', async (req, res) => {
     try {
         console.log('\n' + '='.repeat(80));
@@ -6173,6 +6172,8 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                                 // Получаем информацию об абонементе
                                 const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
                                 
+                                console.log(`   📊 Данные абонемента:`, subscriptionInfo);
+                                
                                 if (subscriptionInfo.hasSubscription) {
                                     console.log(`   🎫 Абонемент найден: ${subscriptionInfo.totalClasses} занятий`);
                                     
@@ -6217,6 +6218,8 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                                         email: ''
                                     };
                                     
+                                    console.log(`   👤 Создана информация об ученике:`, studentInfo);
+                                    
                                     // Создаем профиль
                                     const profile = amoCrmService.createStudentProfile(
                                         contact,
@@ -6226,6 +6229,13 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                                         lead
                                     );
                                     
+                                    console.log(`   📋 Создан профиль:`, {
+                                        student_name: profile.student_name,
+                                        total_classes: profile.total_classes,
+                                        remaining_classes: profile.remaining_classes,
+                                        subscription_type: profile.subscription_type
+                                    });
+                                    
                                     // Меняем телефон в профиле на телефон из приложения
                                     profile.phone_number = formattedPhone;
                                     
@@ -6234,6 +6244,8 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                                     
                                     // Берем только первую найденную сделку
                                     break;
+                                } else {
+                                    console.log(`   ⚠️  В сделке нет абонемента`);
                                 }
                             }
                         }
@@ -6275,6 +6287,7 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                         
                         if (lead) {
                             const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                            console.log(`   📊 Данные абонемента:`, subscriptionInfo);
                             
                             const simplifiedProfile = {
                                 student_name: amoCrmService.extractStudentNameFromLead(lead.name) || student_name,
@@ -6297,7 +6310,7 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                             };
                             
                             profiles.push(simplifiedProfile);
-                            console.log(`   ✅ Создан профиль из известной сделки`);
+                            console.log(`   ✅ Создан профиль из известной сделки:`, simplifiedProfile);
                         }
                     } catch (leadError) {
                         console.log(`   ❌ Ошибка создания профиля: ${leadError.message}`);
@@ -6315,12 +6328,15 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
             const contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
             const contacts = contactsResponse._embedded?.contacts || [];
             
+            console.log(`   📊 Контактов найдено: ${contacts.length}`);
+            
             if (contacts.length > 0) {
                 const contact = contacts[0];
                 const fullContact = await amoCrmService.getFullContactInfo(contact.id);
                 
                 if (fullContact) {
                     const children = amoCrmService.extractStudentsFromContact(fullContact);
+                    console.log(`   👥 Учеников в контакте: ${children.length}`);
                     
                     for (const child of children) {
                         const leadResult = await amoCrmService.findSubscriptionLeadForStudentFixed(
@@ -6338,6 +6354,7 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                             );
                             
                             profiles.push(profile);
+                            console.log(`   ✅ Создан профиль для ${child.studentName}`);
                         } else {
                             const profile = amoCrmService.createStudentProfile(
                                 fullContact,
@@ -6348,6 +6365,7 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
                             );
                             
                             profiles.push(profile);
+                            console.log(`   ⚠️  Создан профиль без абонемента для ${child.studentName}`);
                         }
                     }
                     
@@ -6359,8 +6377,11 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
         // ШАГ 4: СОХРАНЕНИЕ В БАЗУ ДАННЫХ
         let savedCount = 0;
         if (profiles.length > 0) {
+            console.log(`\n💾 Сохранение ${profiles.length} профилей в БД...`);
             savedCount = await saveProfilesToDatabase(profiles);
             console.log(`💾 Сохранено в БД: ${savedCount} профилей`);
+        } else {
+            console.log(`\n❌ Профили не найдены для сохранения в БД`);
         }
         
         // ШАГ 5: СОЗДАНИЕ ТОКЕНА
@@ -6422,15 +6443,53 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
         console.log('✅ ФИНАЛЬНЫЙ РЕЗУЛЬТАТ:');
         console.log(`📱 Телефон: ${formattedPhone}`);
         console.log(`👤 Ученик: ${student_name || 'Не указан'}`);
-        console.log(`📊 Профилей: ${responseProfiles.length}`);
+        console.log(`📊 Профилей создано: ${responseProfiles.length}`);
         
         if (responseProfiles.length > 0) {
             responseProfiles.forEach((p, i) => {
                 console.log(`${i + 1}. ${p.student_name}: ${p.total_classes} занятий (осталось: ${p.remaining_classes})`);
             });
+        } else {
+            console.log(`❌ Профили не созданы! Проверьте логи выше.`);
         }
         
         console.log('='.repeat(80));
+        
+        // ВАЖНО: Добавляем логирование ответа
+        console.log('\n📤 ОТПРАВЛЯЕМ ОТВЕТ ФРОНТЕНДУ:');
+        console.log(JSON.stringify({
+            success: true,
+            message: responseProfiles.length > 0 ? 'Профили найдены' : 'Профили не найдены',
+            data: {
+                user: {
+                    phone_number: formattedPhone,
+                    name: responseProfiles.length > 0 ? 
+                        responseProfiles[0].parent_name || responseProfiles[0].student_name : 'Гость',
+                    is_temp: true,
+                    profiles_count: responseProfiles.length
+                },
+                profiles: responseProfiles,
+                total_profiles: responseProfiles.length,
+                amocrm_connected: amoCrmService.isInitialized,
+                has_real_data: responseProfiles.length > 0,
+                has_multiple_students: responseProfiles.length > 1,
+                token: token,
+                last_sync: new Date().toISOString(),
+                
+                // Диагностика
+                diagnostic: {
+                    phone: formattedPhone,
+                    student_requested: student_name || 'Не указан',
+                    profiles_found: responseProfiles.length,
+                    search_method: profiles.length > 0 ? profiles[0].source : 'not_found',
+                    recommendations: responseProfiles.length === 0 ? [
+                        'Проверьте правильность имени ученика',
+                        'Убедитесь, что сделка существует в amoCRM',
+                        'Используйте прямой поиск: /api/find-lead-by-student/[ИМЯ]'
+                    ] : ['✅ Все данные найдены']
+                }
+            }
+        }, null, 2));
         
         res.json({
             success: true,
@@ -6468,6 +6527,7 @@ app.post('/api/auth/phone-final-fixed', async (req, res) => {
         
     } catch (error) {
         console.error('❌ ОШИБКА АВТОРИЗАЦИИ:', error.message);
+        console.error(error.stack);
         
         res.status(500).json({
             success: false,
@@ -7806,7 +7866,65 @@ app.get('/api/test-guarantee/:phone/:studentName', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
+// Тестовый маршрут для быстрой проверки
+app.post('/api/test-simple-auth', async (req, res) => {
+    try {
+        const { phone, student_name } = req.body;
+        
+        console.log('\n🧪 ТЕСТОВАЯ АВТОРИЗАЦИЯ:', { phone, student_name });
+        
+        if (!phone) {
+            return res.json({ success: false, error: 'Укажите телефон' });
+        }
+        
+        // Простая тестовая структура
+        const testProfile = {
+            student_name: student_name || 'Тестовый ученик',
+            phone_number: phone,
+            email: '',
+            branch: 'Тестовый филиал',
+            teacher_name: 'Тестовый преподаватель',
+            age_group: '14+',
+            subscription_type: 'Тестовый абонемент',
+            subscription_active: true,
+            subscription_status: 'Активен',
+            subscription_badge: 'active',
+            total_classes: 8,
+            remaining_classes: 6,
+            used_classes: 2,
+            expiration_date: '2026-06-30',
+            last_visit_date: '2026-01-28',
+            parent_name: 'Родитель',
+            is_demo: false,
+            source: 'test',
+            last_sync: new Date().toISOString()
+        };
+        
+        res.json({
+            success: true,
+            message: 'Тестовые данные',
+            data: {
+                user: {
+                    phone_number: phone,
+                    name: 'Родитель',
+                    is_temp: true,
+                    profiles_count: 1
+                },
+                profiles: [testProfile],
+                total_profiles: 1,
+                amocrm_connected: true,
+                has_real_data: true,
+                has_multiple_students: false,
+                token: 'test_token_' + Date.now(),
+                last_sync: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Проверка всех сделок контакта
 app.get('/api/debug/contact-leads/:phone/:studentName', async (req, res) => {
     try {
