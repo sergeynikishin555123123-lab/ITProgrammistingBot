@@ -1561,158 +1561,135 @@
                         this.getInitials(this.config.currentUser.name || this.config.currentUser.phone);
                 }
             },
-
-            // АВТОРИЗАЦИЯ ПО ID КОНТАКТА
-            handleContactIdLogin: function() {
-                const contactIdInput = document.getElementById('contactIdInput');
-                const contactLoginBtn = document.getElementById('contactLoginBtn');
+// АВТОРИЗАЦИЯ ПО ID КОНТАКТА
+handleContactIdLogin: function() {
+    const contactIdInput = document.getElementById('contactIdInput');
+    const contactLoginBtn = document.getElementById('contactLoginBtn');
+    
+    const contactId = contactIdInput.value.trim();
+    
+    if (!contactId || isNaN(contactId)) {
+        this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
+        return;
+    }
+    
+    console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
+    
+    contactLoginBtn.disabled = true;
+    contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+    this.showLoading('Поиск данных по ID контакта...');
+    
+    // Используем исправленный API маршрут
+    fetch(`/api/debug/by-contact/${contactId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.data && data.data.profiles) {
+                console.log('✅ Данные найдены по ID контакта');
                 
-                const contactId = contactIdInput.value.trim();
+                this.config.token = data.data.token;
+                this.config.currentUser = data.data.user || { 
+                    phone: data.data.phone || 'ID:' + contactId,
+                    name: data.data.contact_name || 'Клиент'
+                };
+                this.config.profiles = data.data.profiles || [];
+                this.config.currentProfile = this.config.profiles[0] || null;
                 
-                if (!contactId || isNaN(contactId)) {
-                    this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
-                    return;
-                }
+                // Загружаем индивидуальные данные
+                return this.loadIndividualSubscriptions();
                 
-                console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
-                
-                contactLoginBtn.disabled = true;
-                contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
-                this.showLoading('Поиск данных по ID контакта...');
-                
-                // Прямой запрос к серверу с контакт ID
-                fetch(`/api/debug/by-contact/${contactId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success && data.data && data.data.profiles) {
-                            console.log('✅ Данные найдены по ID контакта');
-                            
-                            this.config.token = data.data.token;
-                            this.config.currentUser = data.data.user || { 
-                                phone: data.data.phone || 'ID:' + contactId,
-                                name: data.data.contact_name || 'Клиент'
-                            };
-                            this.config.profiles = data.data.profiles || [];
-                            this.config.currentProfile = this.config.profiles[0] || null;
-                            
-                            // Загружаем индивидуальные данные
-                            return this.loadIndividualSubscriptions();
-                            
-                        } else {
-                            throw new Error(data.error || 'Не удалось получить данные');
-                        }
-                    })
-                    .then(subscriptionData => {
-                        this.saveSession();
-                        this.showMainInterface();
-                        this.showNotification('✅ Данные загружены успешно!', 'success');
-                        this.navigateToPage('home');
-                        this.loadHomePage();
-                    })
-                    .catch(error => {
-                        console.error('❌ Ошибка:', error);
-                        this.showNotification('Не удалось найти данные по этому ID', 'error');
-                    })
-                    .finally(() => {
-                        this.hideLoading();
-                        contactLoginBtn.disabled = false;
-                        contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
-                    });
-            },
-
-            // АВТОРИЗАЦИЯ ПО ТЕЛЕФОНУ
-            handlePhoneLogin: function() {
-                const phoneInput = document.getElementById('phoneNumber');
-                const loginBtn = document.getElementById('loginBtn');
-                
-                let phone = phoneInput.value.trim();
-                phone = phone.replace(/\D/g, '');
-                
-                if (phone.length < 10) {
-                    this.showNotification('Введите корректный номер телефона (10 цифр)', 'error');
-                    phoneInput.focus();
-                    return;
-                }
-                
-                const formattedPhone = '+7' + phone.slice(-10);
-                
-                console.log(`📱 Авторизация для ${formattedPhone}`);
-                
-                loginBtn.disabled = true;
-                loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
-                this.showLoading('Загрузка данных...');
-                
-                // 1. Авторизация
-                fetch('/api/auth/phone', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        phone: formattedPhone,
-                        force_refresh: true
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(authData => {
-                    console.log('✅ Авторизация успешна:', authData);
-                    
-                    if (authData.success && authData.data && authData.data.profiles) {
-                        this.config.token = authData.data.token;
-                        this.config.currentUser = authData.data.user || { phone: formattedPhone };
-                        this.config.profiles = authData.data.profiles || [];
-                        this.config.currentProfile = this.config.profiles[0] || null;
+            } else {
+                throw new Error(data.error || 'Не удалось получить данные');
+            }
+        })
+        .then(subscriptionData => {
+            this.saveSession();
+            this.showMainInterface();
+            this.showNotification('✅ Данные загружены успешно!', 'success');
+            this.navigateToPage('home');
+            this.loadHomePage();
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            
+            // Пробуем альтернативный метод
+            this.showNotification('Пробуем альтернативный метод...', 'warning');
+            
+            // Пробуем через телефон
+            fetch(`/api/test-contact/${contactId}`)
+                .then(res => res.json())
+                .then(testData => {
+                    if (testData.success && testData.data.phone) {
+                        console.log('✅ Найден телефон у контакта:', testData.data.phone);
+                        this.config.currentUser = {
+                            phone: testData.data.phone,
+                            name: testData.data.contact.name,
+                            contact_id: contactId
+                        };
                         
-                        if (!this.config.currentProfile) {
-                            throw new Error('Профили не найдены');
-                        }
-                        
-                        console.log(`🎯 Выбран профиль: ${this.config.currentProfile.student_name}`);
-                        
-                        // 3. Загружаем индивидуальные данные для каждого ученика
-                        return this.loadIndividualSubscriptions();
-                        
+                        // Авторизуемся по телефону
+                        return this.handlePhoneLoginDirect(testData.data.phone);
                     } else {
-                        throw new Error('Некорректный ответ от сервера');
+                        throw new Error('Не удалось получить телефон контакта');
                     }
                 })
-                .then(subscriptionData => {
-                    // 4. Сохраняем сессию
-                    this.saveSession();
-                    
-                    // 5. Показываем интерфейс
-                    this.showMainInterface();
-                    this.showNotification('✅ Данные загружены для всех учеников!', 'success');
-                    
-                    // 6. Переходим на главную
-                    this.navigateToPage('home');
-                    this.loadHomePage();
-                    
-                })
-                .catch(error => {
-                    console.error('❌ Ошибка:', error);
-                    
-                    let errorMessage = 'Ошибка загрузки данных';
-                    if (error.message.includes('404')) {
-                        errorMessage = 'Аккаунт не найден. Проверьте номер телефона';
-                    } else if (error.message.includes('401')) {
-                        errorMessage = 'Неверный номер телефона';
-                    }
-                    
-                    this.showNotification(errorMessage, 'error');
-                    document.getElementById('newClientInfo').style.display = 'block';
-                })
-                .finally(() => {
-                    this.hideLoading();
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
+                .catch(fallbackError => {
+                    console.error('❌ Все методы не сработали:', fallbackError);
+                    this.showNotification('Не удалось найти данные по этому ID. Попробуйте другой ID или свяжитесь с администратором.', 'error');
                 });
-            },
+        })
+        .finally(() => {
+            this.hideLoading();
+            contactLoginBtn.disabled = false;
+            contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
+        });
+},
+
+// Вспомогательная функция для прямого входа по телефону
+handlePhoneLoginDirect: function(phone) {
+    console.log(`📱 Прямая авторизация по телефону: ${phone}`);
+    
+    this.showLoading('Загрузка данных...');
+    
+    fetch('/api/auth/phone', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            phone: phone,
+            force_refresh: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            this.config.token = data.data.token;
+            this.config.currentUser = data.data.user;
+            this.config.profiles = data.data.profiles || [];
+            this.config.currentProfile = this.config.profiles[0] || null;
+            
+            this.saveSession();
+            this.showMainInterface();
+            this.showNotification('✅ Авторизация успешна через телефон!', 'success');
+            this.navigateToPage('home');
+            this.loadHomePage();
+        } else {
+            throw new Error(data.error || 'Ошибка авторизации');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Ошибка:', error);
+        this.showNotification('Ошибка авторизации: ' + error.message, 'error');
+    })
+    .finally(() => {
+        this.hideLoading();
+    });
+}
 
             // ИНДИВИДУАЛЬНАЯ ЗАГРУЗКА АБОНЕМЕНТОВ ДЛЯ ВСЕХ УЧЕНИКОВ
             loadIndividualSubscriptions: function() {
