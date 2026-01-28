@@ -227,141 +227,178 @@ class AmoCrmService {
         
         return false;
     }
-        // ==================== ДИНАМИЧЕСКИЙ ПОИСК ПОЛЕЙ ====================
-    async initializeDynamicFields() {
-        console.log('\n🔍 ДИНАМИЧЕСКИЙ ПОИСК ПОЛЕЙ В AMOCRM');
-        console.log('='.repeat(80));
+// ==================== ДИНАМИЧЕСКИЙ ПОИСК ПОЛЕЙ ====================
+async initializeDynamicFields() {
+    console.log('\n🔍 ДИНАМИЧЕСКИЙ ПОИСК ПОЛЕЙ В AMOCRM');
+    console.log('='.repeat(80));
+    
+    try {
+        // 1. Получаем информацию об аккаунте для получения всех полей
+        console.log('📊 Получение информации об аккаунте...');
         
-        try {
-            // 1. Получаем информацию об аккаунте для получения всех полей
-            console.log('📊 Получение информации об аккаунте...');
-            const accountInfo = await this.makeRequest('GET', '/api/v4/account?with=custom_fields');
-            
-            if (!accountInfo || !accountInfo._embedded) {
-                console.log('❌ Не удалось получить информацию об аккаунте');
-                return false;
-            }
-            
-            // 2. Ищем поля сделок
-            console.log('\n🔍 Поиск полей сделок...');
-            if (accountInfo._embedded.custom_fields && accountInfo._embedded.custom_fields.leads) {
-                await this.findLeadFields(accountInfo._embedded.custom_fields.leads);
-            }
-            
-            // 3. Ищем поля контактов
-            console.log('\n🔍 Поиск полей контактов...');
-            if (accountInfo._embedded.custom_fields && accountInfo._embedded.custom_fields.contacts) {
-                await this.findContactFields(accountInfo._embedded.custom_fields.contacts);
-            }
-            
-            // 4. Ищем воронку абонементов
-            await this.findSubscriptionPipeline();
-            
-            // 5. Загружаем статусы
-            await this.loadPipelineStatuses();
-            
-            console.log('\n' + '='.repeat(80));
-            console.log('✅ ДИНАМИЧЕСКИЕ ПОЛЯ НАЙДЕНЫ:');
-            console.log('='.repeat(80));
-            
-            console.log('📋 ПОЛЯ СДЕЛКИ:');
-            Object.entries(this.FIELD_IDS.LEAD).forEach(([key, id]) => {
-                console.log(`   ${key}: ${id}`);
-            });
-            
-            console.log('\n📋 ПОЛЯ КОНТАКТА:');
-            Object.entries(this.FIELD_IDS.CONTACT).forEach(([key, id]) => {
-                console.log(`   ${key}: ${id}`);
-            });
-            
-            console.log('\n🎯 ВОРОНКА АБОНЕМЕНТОВ:', this.SUBSCRIPTION_PIPELINE_ID);
-            console.log('✅ СТАТУСЫ:', this.SUBSCRIPTION_STATUSES.ACTIVE_IN_CORRECT_PIPELINE);
-            
-            return true;
-            
-        } catch (error) {
-            console.error('❌ Ошибка динамического поиска полей:', error.message);
+        // Правильный запрос без with=custom_fields
+        const accountInfo = await this.makeRequest('GET', '/api/v4/account');
+        
+        if (!accountInfo) {
+            console.log('❌ Не удалось получить информацию об аккаунте');
             return false;
         }
-    }
-  // Метод для поиска полей сделок
-    async findLeadFields(fields) {
-        console.log(`📊 Обработка полей сделок: ${fields.length} полей`);
         
-        // Создаем карту для быстрого поиска по названию
-        const fieldMap = new Map();
-        fields.forEach(field => {
-            const fieldName = field.name.toLowerCase();
-            if (!fieldMap.has(fieldName)) {
-                fieldMap.set(fieldName, []);
-            }
-            fieldMap.get(fieldName).push(field.id);
+        console.log(`✅ Аккаунт получен: ${accountInfo.name || 'Неизвестно'}`);
+        
+        // 2. Получаем поля сделок отдельно
+        console.log('\n🔍 Получение полей сделок...');
+        const leadFields = await this.getCustomFields('leads');
+        
+        // 3. Получаем поля контактов отдельно
+        console.log('\n🔍 Получение полей контактов...');
+        const contactFields = await this.getCustomFields('contacts');
+        
+        // 4. Ищем воронку абонементов
+        await this.findSubscriptionPipeline();
+        
+        // 5. Загружаем статусы
+        await this.loadPipelineStatuses();
+        
+        console.log('\n' + '='.repeat(80));
+        console.log('✅ ДИНАМИЧЕСКИЕ ПОЛЯ НАЙДЕНЫ:');
+        console.log('='.repeat(80));
+        
+        console.log('📋 ПОЛЯ СДЕЛКИ:');
+        Object.entries(this.FIELD_IDS.LEAD).forEach(([key, id]) => {
+            console.log(`   ${key}: ${id}`);
         });
         
-        // Ищем каждое поле по паттернам
-        for (const [fieldType, patterns] of Object.entries(this.FIELD_PATTERNS.LEAD)) {
-            let foundId = null;
+        console.log('\n📋 ПОЛЯ КОНТАКТА:');
+        Object.entries(this.FIELD_IDS.CONTACT).forEach(([key, id]) => {
+            console.log(`   ${key}: ${id}`);
+        });
+        
+        console.log('\n🎯 ВОРОНКА АБОНЕМЕНТОВ:', this.SUBSCRIPTION_PIPELINE_ID);
+        console.log('✅ СТАТУСЫ:', this.SUBSCRIPTION_STATUSES.ACTIVE_IN_CORRECT_PIPELINE);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Ошибка динамического поиска полей:', error.message);
+        
+        // Используем статические ID в случае ошибки
+        console.log('⚠️  Использую статические ID полей');
+        return true; // Все равно продолжаем работу
+    }
+}
+
+// Добавьте метод для получения кастомных полей
+async getCustomFields(entityType) {
+    try {
+        console.log(`📊 Получение полей для ${entityType}...`);
+        
+        const response = await this.makeRequest('GET', 
+            `/api/v4/${entityType}/custom_fields`
+        );
+        
+        if (response && response._embedded && response._embedded.custom_fields) {
+            const fields = response._embedded.custom_fields;
+            console.log(`✅ Получено ${fields.length} полей для ${entityType}`);
             
-            for (const pattern of patterns) {
-                for (const [fieldName, fieldIds] of fieldMap.entries()) {
-                    if (pattern.test(fieldName)) {
-                        foundId = fieldIds[0]; // Берем первый ID
-                        console.log(`✅ ${fieldType}: найдено поле "${fieldName}" (ID: ${foundId})`);
-                        break;
-                    }
-                }
-                if (foundId) break;
+            // Обрабатываем поля
+            if (entityType === 'leads') {
+                await this.processLeadFields(fields);
+            } else if (entityType === 'contacts') {
+                await this.processContactFields(fields);
             }
             
-            if (foundId) {
-                this.FIELD_IDS.LEAD[fieldType] = foundId;
-            } else {
-                console.log(`⚠️  ${fieldType}: поле не найдено`);
-            }
+            return fields;
         }
         
-        // Дополнительно: логируем все поля для отладки
-        console.log('\n📋 ВСЕ ПОЛЯ СДЕЛОК:');
-        Array.from(fieldMap.entries()).slice(0, 20).forEach(([name, ids]) => {
-            console.log(`   "${name}": ${ids[0]}`);
-        });
+        console.log(`⚠️  Не удалось получить поля для ${entityType}`);
+        return [];
+        
+    } catch (error) {
+        console.error(`❌ Ошибка получения полей ${entityType}:`, error.message);
+        return [];
     }
+}
+
+// Обработка полей сделок
+async processLeadFields(fields) {
+    console.log(`📊 Обработка полей сделок: ${fields.length} полей`);
     
-    // Метод для поиска полей контактов
-    async findContactFields(fields) {
-        console.log(`📊 Обработка полей контактов: ${fields.length} полей`);
+    const fieldMap = new Map();
+    fields.forEach(field => {
+        const fieldName = field.name.toLowerCase();
+        const fieldId = field.id;
+        const fieldType = field.type;
         
-        const fieldMap = new Map();
-        fields.forEach(field => {
-            const fieldName = field.name.toLowerCase();
-            if (!fieldMap.has(fieldName)) {
-                fieldMap.set(fieldName, []);
-            }
-            fieldMap.get(fieldName).push(field.id);
+        if (!fieldMap.has(fieldName)) {
+            fieldMap.set(fieldName, []);
+        }
+        fieldMap.get(fieldName).push({
+            id: fieldId,
+            type: fieldType
         });
+    });
+    
+    // Ищем каждое поле по паттернам
+    for (const [fieldType, patterns] of Object.entries(this.FIELD_PATTERNS.LEAD)) {
+        let foundId = null;
         
-        // Ищем каждое поле
-        for (const [fieldType, patterns] of Object.entries(this.FIELD_PATTERNS.CONTACT)) {
-            let foundId = null;
-            
-            for (const pattern of patterns) {
-                for (const [fieldName, fieldIds] of fieldMap.entries()) {
-                    if (pattern.test(fieldName)) {
-                        foundId = fieldIds[0];
-                        console.log(`✅ ${fieldType}: найдено поле "${fieldName}" (ID: ${foundId})`);
-                        break;
-                    }
+        for (const pattern of patterns) {
+            for (const [fieldName, fieldInfos] of fieldMap.entries()) {
+                if (pattern.test(fieldName)) {
+                    foundId = fieldInfos[0].id; // Берем первый ID
+                    console.log(`✅ ${fieldType}: найдено поле "${fieldName}" (ID: ${foundId})`);
+                    break;
                 }
-                if (foundId) break;
             }
-            
-            if (foundId) {
-                this.FIELD_IDS.CONTACT[fieldType] = foundId;
-            } else {
-                console.log(`⚠️  ${fieldType}: поле не найдено`);
-            }
+            if (foundId) break;
+        }
+        
+        if (foundId) {
+            this.FIELD_IDS.LEAD[fieldType] = foundId;
+        } else {
+            console.log(`⚠️  ${fieldType}: поле не найдено`);
         }
     }
+}
+
+// Обработка полей контактов
+async processContactFields(fields) {
+    console.log(`📊 Обработка полей контактов: ${fields.length} полей`);
+    
+    const fieldMap = new Map();
+    fields.forEach(field => {
+        const fieldName = field.name.toLowerCase();
+        const fieldId = field.id;
+        
+        if (!fieldMap.has(fieldName)) {
+            fieldMap.set(fieldName, []);
+        }
+        fieldMap.get(fieldName).push(fieldId);
+    });
+    
+    // Ищем каждое поле
+    for (const [fieldType, patterns] of Object.entries(this.FIELD_PATTERNS.CONTACT)) {
+        let foundId = null;
+        
+        for (const pattern of patterns) {
+            for (const [fieldName, fieldIds] of fieldMap.entries()) {
+                if (pattern.test(fieldName)) {
+                    foundId = fieldIds[0];
+                    console.log(`✅ ${fieldType}: найдено поле "${fieldName}" (ID: ${foundId})`);
+                    break;
+                }
+            }
+            if (foundId) break;
+        }
+        
+        if (foundId) {
+            this.FIELD_IDS.CONTACT[fieldType] = foundId;
+        } else {
+            console.log(`⚠️  ${fieldType}: поле не найдено`);
+        }
+    }
+}
         // Найти воронку абонементов
     async findSubscriptionPipeline() {
         try {
@@ -528,55 +565,100 @@ async findContactForLead(lead) {
         return [];
     }
 }
-    // ==================== ИНИЦИАЛИЗАЦИЯ AMOCRM ====================
-    async initialize() {
+ // ==================== ИНИЦИАЛИЗАЦИЯ AMOCRM ====================
+async initialize() {
+    try {
+        console.log('🔄 Инициализация amoCRM...');
+        
+        if (!AMOCRM_ACCESS_TOKEN) {
+            console.error('❌ AMOCRM_ACCESS_TOKEN не установлен в .env');
+            this.isInitialized = false;
+            return false;
+        }
+        
+        if (!AMOCRM_SUBDOMAIN) {
+            console.error('❌ AMOCRM_DOMAIN не установлен в .env');
+            this.isInitialized = false;
+            return false;
+        }
+        
+        console.log(`🔗 Проверка соединения с ${this.baseUrl}...`);
+        
+        // Проверяем доступ к API без параметра with
         try {
-            console.log('🔄 Инициализация amoCRM...');
-            
-            if (!AMOCRM_ACCESS_TOKEN) {
-                console.error('❌ AMOCRM_ACCESS_TOKEN не установлен в .env');
-                this.isInitialized = false;
-                return false;
-            }
-            
-            if (!AMOCRM_SUBDOMAIN) {
-                console.error('❌ AMOCRM_DOMAIN не установлен в .env');
-                this.isInitialized = false;
-                return false;
-            }
-            
-            console.log(`🔗 Проверка соединения с ${this.baseUrl}...`);
-            
-            // Проверяем доступ к API
             const accountInfo = await this.makeRequest('GET', '/api/v4/account');
             
             if (accountInfo && accountInfo.name) {
                 this.accountInfo = accountInfo;
+                console.log(`✅ Подключено к аккаунту: "${accountInfo.name}"`);
                 
-                // Динамически ищем поля
-                const fieldsFound = await this.initializeDynamicFields();
+                // Устанавливаем статические ID полей на случай, если динамический поиск не сработает
+                this.setDefaultFieldIds();
                 
-                if (fieldsFound) {
-                    this.isInitialized = true;
-                    console.log('✅ amoCRM инициализирован с динамическими полями!');
-                    return true;
-                } else {
-                    console.log('⚠️  amoCRM доступен, но поля не найдены');
-                    this.isInitialized = false;
-                    return false;
+                // Пробуем динамически искать поля
+                try {
+                    await this.initializeDynamicFields();
+                    console.log('✅ Динамические поля загружены');
+                } catch (fieldError) {
+                    console.log('⚠️  Динамический поиск полей не сработал:', fieldError.message);
+                    console.log('🔄 Использую статические ID полей');
                 }
+                
+                this.isInitialized = true;
+                console.log('✅ amoCRM инициализирован!');
+                return true;
             } else {
                 console.error('❌ Не удалось получить информацию об аккаунте');
                 this.isInitialized = false;
                 return false;
             }
             
-        } catch (error) {
-            console.error('❌ Ошибка инициализации amoCRM:', error.message);
+        } catch (connectionError) {
+            console.error('❌ Ошибка подключения к amoCRM:', connectionError.message);
             this.isInitialized = false;
             return false;
         }
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации amoCRM:', error.message);
+        this.isInitialized = false;
+        return false;
     }
+}
+
+// Добавьте метод для установки статических ID полей
+setDefaultFieldIds() {
+    console.log('🔄 Установка статических ID полей...');
+    
+    // Статические ID полей (настройте под свою конфигурацию amoCRM)
+    this.FIELD_IDS = {
+        LEAD: {
+            TOTAL_CLASSES: 850241,        // "Всего занятий"
+            USED_CLASSES: 850257,         // "Использовано занятий"
+            REMAINING_CLASSES: 890163,    // "Остаток занятий"
+            SUBSCRIPTION_TYPE: 891007,    // "Тип абонемента"
+            ACTIVATION_DATE: 851565,      // "Дата активации"
+            EXPIRATION_DATE: 850255,      // "Окончание абонемента"
+            LAST_VISIT_DATE: 850259,      // "Дата последнего визита"
+            AGE_GROUP: 850243,            // "Возрастная группа"
+            BRANCH: 871273,               // "Филиал"
+            LESSON_PRICE: 891813          // "Стоимость занятия"
+        },
+        CONTACT: {
+            CHILD_1_NAME: 899979,         // "Ребенок 1"
+            CHILD_2_NAME: 899981,         // "Ребенок 2"
+            CHILD_3_NAME: 899983,         // "Ребенок 3"
+            BRANCH: 871273,               // "Филиал"
+            TEACHER: 889613,              // "Преподаватель"
+            DAY_OF_WEEK: 889615,          // "День недели"
+            PHONE: 216615,                // "Телефон"
+            EMAIL: 216613,                // "Email"
+            AGE_GROUP: 850243             // "Возрастная группа"
+        }
+    };
+    
+    console.log('✅ Статические ID полей установлены');
+}
     // ==================== ОСНОВНЫЕ МЕТОДЫ API ====================
     async makeRequest(method, endpoint, data = null) {
         try {
@@ -8392,39 +8474,40 @@ app.get('/api/debug/connection', async (req, res) => {
     }
 });
 
-// Обновляем startServer для использования динамических полей
 const startServer = async () => {
     try {
         console.log('\n' + '='.repeat(80));
         console.log('🎨 ЗАПУСК СИСТЕМЫ ХУДОЖЕСТВЕННОЙ СТУДИИ v5.0');
         console.log('='.repeat(80));
-        console.log('🔍 ДИНАМИЧЕСКИЙ ПОИСК ПОЛЕЙ');
-        console.log('✨ АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ID');
-        console.log('✨ УНИВЕРСАЛЬНАЯ РАБОТА С РАЗНЫМИ КОНФИГУРАЦИЯМИ');
+        console.log('⚡ УПРОЩЕННАЯ ВЕРСИЯ');
+        console.log('✅ СТАТИЧЕСКИЕ ПОЛЯ');
+        console.log('✅ АВТОМАТИЧЕСКИЙ РЕЖИМ');
         console.log('='.repeat(80));
         
         await initDatabase();
         console.log('✅ База данных готова');
         
-        console.log('\n🔄 Инициализация amoCRM с динамическими полями...');
-        const crmInitialized = await amoCrmService.initialize();
+        console.log('\n🔄 Инициализация amoCRM...');
         
-        if (crmInitialized) {
-            console.log('✅ amoCRM инициализирован с динамическими полями!');
+        // Упрощенная проверка amoCRM
+        try {
+            const crmInitialized = await amoCrmService.initialize();
             
-            // Запускаем синхронизацию через 5 секунд
-            setTimeout(() => {
-                syncService.startAutoSync();
-            }, 5000);
+            if (crmInitialized) {
+                console.log('✅ amoCRM инициализирован!');
+                
+                // Запускаем синхронизацию через 5 секунд
+                setTimeout(() => {
+                    syncService.startAutoSync();
+                }, 5000);
+            } else {
+                console.log('⚠️  amoCRM не подключен, работаем в автономном режиме');
+                console.log('ℹ️  Используйте тестовые данные для демонстрации');
+            }
             
-            // Добавляем тестовый маршрут
-            console.log('\n🔗 Новые маршруты для проверки:');
-            console.log('🔍 GET /api/debug/check-dynamic-fields - Проверка динамических полей');
-            console.log('🔍 GET /api/debug/lead-details/[ID] - Проверка конкретной сделки');
-            
-        } else {
-            console.log('❌ amoCRM не инициализирован');
-            console.log('❌ Проверьте настройки в .env файле');
+        } catch (crmError) {
+            console.log('⚠️  Ошибка инициализации amoCRM:', crmError.message);
+            console.log('ℹ️  Работаем без amoCRM');
         }
         
         const PORT = process.env.PORT || 3000;
@@ -8434,8 +8517,14 @@ const startServer = async () => {
             console.log('='.repeat(80));
             console.log(`🌐 Основной URL: http://localhost:${PORT}`);
             console.log(`📊 База данных: SQLite`);
-            console.log(`🔗 amoCRM: ${amoCrmService.isInitialized ? '✅ Подключен' : '❌ Не подключен'}`);
-            console.log(`🔍 Динамические поля: ${Object.keys(amoCrmService.FIELD_IDS.LEAD).length > 0 ? '✅ Найдены' : '❌ Не найдены'}`);
+            console.log(`🔗 amoCRM: ${amoCrmService.isInitialized ? '✅ Подключен' : '⚠️  Автономный режим'}`);
+            console.log(`🎫 Режим работы: ${amoCrmService.isInitialized ? 'ПРОИЗВОДСТВЕННЫЙ' : 'ДЕМОНСТРАЦИОННЫЙ'}`);
+            console.log('='.repeat(80));
+            console.log('\n🔗 ДОСТУПНЫЕ МАРШРУТЫ:');
+            console.log('🔐 /api/auth/simple - Упрощенная авторизация');
+            console.log('🔐 /api/auth/phone-final-fixed - Полная авторизация');
+            console.log('🧪 /api/test-simple-auth - Тестовая авторизация');
+            console.log('📊 /api/status - Статус сервера');
             console.log('='.repeat(80));
         });
         
@@ -8457,6 +8546,7 @@ const startServer = async () => {
         
     } catch (error) {
         console.error('❌ Не удалось запустить сервер:', error.message);
+        console.error(error.stack);
         process.exit(1);
     }
 };
