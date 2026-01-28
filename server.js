@@ -840,37 +840,29 @@ if (isInCorrectPipeline && hasActiveStatus) {
     // 7. Проверяем, есть ли вообще абонемент
     const hasSubscription = totalClasses > 0 || remainingClasses > 0 || usedClasses > 0;
     
-    const result = {
-        hasSubscription: hasSubscription,
-        subscriptionActive: subscriptionActive,
-        subscriptionStatus: subscriptionStatus,
-        subscriptionBadge: subscriptionBadge,
-        totalClasses: totalClasses || 0,
-        usedClasses: usedClasses || 0,
-        remainingClasses: remainingClasses || 0,
-        subscriptionType: subscriptionType || 'Без абонемента',
-        expirationDate: getFieldValue(this.FIELD_IDS.LEAD.EXPIRATION_DATE, 'Дата окончания'),
-        activationDate: getFieldValue(this.FIELD_IDS.LEAD.ACTIVATION_DATE, 'Дата активации'),
-        lastVisitDate: getFieldValue(this.FIELD_IDS.LEAD.LAST_VISIT_DATE, 'Дата последнего визита'),
-        purchaseDate: getFieldValue(this.FIELD_IDS.LEAD.PURCHASE_DATE, 'Дата покупки'),
-        trialDate: getFieldValue(this.FIELD_IDS.LEAD.TRIAL_DATE, 'Дата пробного'),
-        lessonPrice: getFieldValue(this.FIELD_IDS.LEAD.LESSON_PRICE, 'Стоимость занятия'),
-        ageGroup: getFieldValue(this.FIELD_IDS.LEAD.AGE_GROUP, 'Возрастная группа'),
-        firstLesson: getFieldValue(this.FIELD_IDS.LEAD.FIRST_LESSON, 'Первое занятие'),
-        isInSubscriptionPipeline: isInSubscriptionPipeline,
-        hasActiveStatus: hasActiveStatus,
-        pipelineId: lead.pipeline_id,
-        statusId: lead.status_id,
-        
-        // Диагностические данные
-        _debug: {
-            fields_found: allFieldsData.length,
-            total_classes_from_field: totalClasses,
-            used_classes_from_field: usedClasses,
-            remaining_classes_from_field: remainingClasses,
-            deal_name: lead.name
-        }
-    };
+    // В конце extractSubscriptionInfo убедитесь, что возвращается правильный объект:
+return {
+    hasSubscription: hasSubscription,
+    subscriptionActive: subscriptionActive,
+    subscriptionStatus: subscriptionStatus,  // camelCase
+    subscriptionBadge: subscriptionBadge,
+    totalClasses: totalClasses,
+    usedClasses: usedClasses,
+    remainingClasses: remainingClasses,
+    subscriptionType: subscriptionType,
+    expirationDate: expirationDate,
+    activationDate: activationDate,
+    lastVisitDate: lastVisitDate,
+    purchaseDate: purchaseDate,
+    trialDate: trialDate,
+    lessonPrice: lessonPrice,
+    ageGroup: ageGroup,
+    firstLesson: firstLesson,
+    isInSubscriptionPipeline: isInSubscriptionPipeline,
+    hasActiveStatus: hasActiveStatus,
+    pipelineId: lead.pipeline_id,
+    statusId: lead.status_id
+};
     
     console.log(`\n📊 РЕЗУЛЬТАТ ИЗВЛЕЧЕНИЯ:`);
     console.log('─'.repeat(60));
@@ -1379,7 +1371,7 @@ async getStudentsByPhone(phoneNumber) {
         };
     }
 
- createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
+createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
     const email = this.findEmail(contact);
     
     // Функция для конвертации timestamp в читаемую дату
@@ -1404,7 +1396,18 @@ async getStudentsByPhone(phoneNumber) {
         return '';
     };
     
-    // Функция для получения филиала
+    // Исправляем названия полей - используем те же, что возвращает extractSubscriptionInfo
+    console.log(`\n🔍 Данные для создания профиля:`);
+    console.log(`   subscriptionInfo keys:`, Object.keys(subscriptionInfo));
+    console.log(`   subscriptionStatus:`, subscriptionInfo.subscriptionStatus || subscriptionInfo.subscription_status);
+    
+    // Получаем статус абонемента (используем оба возможных названия)
+    const subscriptionStatus = subscriptionInfo.subscriptionStatus || subscriptionInfo.subscription_status || 'Нет данных';
+    const subscriptionType = subscriptionInfo.subscriptionType || 'Без абонемента';
+    const subscriptionBadge = subscriptionInfo.subscriptionBadge || 'inactive';
+    const subscriptionActive = subscriptionInfo.subscriptionActive || false;
+    
+    // Получаем филиал
     let branch = studentInfo.branch || '';
     
     if (!branch && lead) {
@@ -1448,10 +1451,11 @@ async getStudentsByPhone(phoneNumber) {
         course: '',
         allergies: '',
         
-        subscription_type: subscriptionInfo.subscriptionType || 'Без абонемента',
-        subscription_active: subscriptionInfo.subscriptionActive ? 1 : 0,
-        subscription_status: subscriptionInfo.subscriptionStatus || 'Нет абонемента',
-        subscription_badge: subscriptionInfo.subscriptionBadge || 'inactive',
+        // Используем правильные названия полей
+        subscription_type: subscriptionType,
+        subscription_active: subscriptionActive ? 1 : 0,
+        subscription_status: subscriptionStatus,
+        subscription_badge: subscriptionBadge,
         
         total_classes: subscriptionInfo.totalClasses || 0,
         used_classes: subscriptionInfo.usedClasses || 0,
@@ -1488,7 +1492,8 @@ async getStudentsByPhone(phoneNumber) {
             status_id: lead?.status_id,
             has_active_status: subscriptionInfo.hasActiveStatus,
             is_in_subscription_pipeline: subscriptionInfo.isInSubscriptionPipeline,
-            match_type: lead ? 'FOUND' : 'NOT_FOUND'
+            match_type: lead ? 'FOUND' : 'NOT_FOUND',
+            subscription_info_received: JSON.stringify(subscriptionInfo)
         }
     };
     
@@ -5005,6 +5010,61 @@ app.post('/api/sync-phone/:phone', async (req, res) => {
             error: error.message,
             timestamp: new Date().toISOString()
         });
+    }
+});
+app.get('/api/debug/subscription-structure/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПРОВЕРКА СТРУКТУРЫ ДАННЫХ ДЛЯ СДЕЛКИ ${leadId}`);
+        
+        const lead = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        // Вызываем extractSubscriptionInfo
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        console.log(`📊 Структура subscriptionInfo:`);
+        console.log(JSON.stringify(subscriptionInfo, null, 2));
+        
+        // Создаем тестовый профиль
+        const testContact = {
+            id: 22967827,
+            name: 'Анна (тест)',
+            custom_fields_values: []
+        };
+        
+        const testStudentInfo = {
+            studentName: 'Полина Кунахович',
+            branch: 'Чертаново'
+        };
+        
+        const testProfile = amoCrmService.createStudentProfile(
+            testContact,
+            '+79161916984',
+            testStudentInfo,
+            subscriptionInfo,
+            lead
+        );
+        
+        res.json({
+            success: true,
+            data: {
+                subscription_info: subscriptionInfo,
+                subscription_info_keys: Object.keys(subscriptionInfo),
+                profile_created: !!testProfile,
+                profile_structure: testProfile ? Object.keys(testProfile) : []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки структуры:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 // ==================== ТЕСТ КОНТАКТА С УЧЕНИКАМИ ====================
