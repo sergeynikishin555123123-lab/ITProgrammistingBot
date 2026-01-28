@@ -4897,6 +4897,496 @@ app.get('/api/debug/subscription-structure/:leadId', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+// ==================== КОМПЛЕКСНЫЙ ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ ПРИЛОЖЕНИЯ ====================
+app.get('/api/debug/app-diagnostic/:phone/:studentName', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n🔍 КОМПЛЕКСНАЯ ДИАГНОСТИКА ДЛЯ ПРИЛОЖЕНИЯ`);
+        console.log('='.repeat(100));
+        console.log(`📱 Телефон приложения: "${phone}"`);
+        console.log(`👤 Ученик приложения: "${studentName}"`);
+        console.log('='.repeat(100));
+        
+        const startTime = Date.now();
+        const diagnosticLog = [];
+        
+        const logStep = (step, message, data = null) => {
+            console.log(`\n📋 ${step}: ${message}`);
+            diagnosticLog.push({
+                step: step,
+                message: message,
+                data: data,
+                timestamp: new Date().toISOString()
+            });
+        };
+        
+        // ШАГ 1: ПРОВЕРКА ВХОДНЫХ ДАННЫХ
+        logStep('Шаг 1', 'Проверка входных данных', { phone, studentName });
+        
+        if (!phone || phone === 'undefined' || phone === 'null') {
+            return res.json({
+                success: false,
+                error: 'Телефон не указан или undefined',
+                diagnostic_log: diagnosticLog
+            });
+        }
+        
+        if (!studentName || studentName === 'undefined' || studentName === 'null') {
+            return res.json({
+                success: false,
+                error: 'Имя ученика не указано',
+                diagnostic_log: diagnosticLog
+            });
+        }
+        
+        // ШАГ 2: ФОРМАТИРОВАНИЕ ТЕЛЕФОНА
+        const formattedPhone = formatPhoneNumber(phone);
+        logStep('Шаг 2', 'Форматирование телефона', {
+            original: phone,
+            formatted: formattedPhone,
+            last_10_digits: formattedPhone.replace(/\D/g, '').slice(-10)
+        });
+        
+        // ШАГ 3: ПРОВЕРКА ПОДКЛЮЧЕНИЯ К AMOCRM
+        logStep('Шаг 3', 'Проверка подключения amoCRM', {
+            is_initialized: amoCrmService.isInitialized,
+            subdomain: AMOCRM_SUBDOMAIN,
+            domain: AMOCRM_DOMAIN
+        });
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен',
+                diagnostic_log: diagnosticLog
+            });
+        }
+        
+        // ШАГ 4: ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ
+        logStep('Шаг 4', 'Поиск контактов в amoCRM', { phone: formattedPhone });
+        
+        let contactsResponse;
+        try {
+            contactsResponse = await amoCrmService.searchContactsByPhone(formattedPhone);
+        } catch (searchError) {
+            logStep('Шаг 4', 'ОШИБКА поиска контактов', { error: searchError.message });
+            contactsResponse = { _embedded: { contacts: [] } };
+        }
+        
+        const contacts = contactsResponse._embedded?.contacts || [];
+        logStep('Шаг 4', 'Результаты поиска контактов', {
+            contacts_found: contacts.length,
+            contacts: contacts.map(c => ({ id: c.id, name: c.name }))
+        });
+        
+        if (contacts.length === 0) {
+            return res.json({
+                success: false,
+                error: 'Контакты не найдены в amoCRM',
+                diagnostic_log: diagnosticLog,
+                suggestions: [
+                    '1. Проверьте правильность телефона в amoCRM',
+                    '2. Убедитесь, что телефон указан в поле "Телефон" контакта',
+                    '3. Проверьте формат телефона: ' + formattedPhone
+                ]
+            });
+        }
+        
+        // Берем первый контакт для анализа
+        const contact = contacts[0];
+        logStep('Шаг 5', 'Основной контакт для анализа', {
+            id: contact.id,
+            name: contact.name,
+            phone_in_app: formattedPhone
+        });
+        
+        // ШАГ 5: ПОЛУЧЕНИЕ ПОЛНОЙ ИНФОРМАЦИИ О КОНТАКТЕ
+        logStep('Шаг 6', 'Получение полной информации о контакте', { contact_id: contact.id });
+        
+        const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+        if (!fullContact) {
+            logStep('Шаг 6', 'ОШИБКА: не удалось получить контакт');
+            return res.json({
+                success: false,
+                error: 'Не удалось получить информацию о контакте',
+                diagnostic_log: diagnosticLog
+            });
+        }
+        
+        // Показываем телефон контакта
+        const contactPhoneField = fullContact.custom_fields_values?.find(f => 
+            (f.field_id || f.id) === amoCrmService.FIELD_IDS.CONTACT.PHONE
+        );
+        const contactPhone = contactPhoneField ? amoCrmService.getFieldValue(contactPhoneField) : 'Не указан';
+        
+        logStep('Шаг 6', 'Телефон в контакте amoCRM', {
+            contact_phone: contactPhone,
+            normalized_contact_phone: contactPhone ? contactPhone.replace(/\D/g, '') : 'Нет',
+            app_phone_normalized: formattedPhone.replace(/\D/g, ''),
+            match: contactPhone ? contactPhone.replace(/\D/g, '').includes(formattedPhone.replace(/\D/g, '').slice(-10)) : false
+        });
+        
+        // ШАГ 6: ИЗВЛЕЧЕНИЕ УЧЕНИКОВ ИЗ КОНТАКТА
+        logStep('Шаг 7', 'Извлечение учеников из контакта', { contact_id: contact.id });
+        
+        const students = amoCrmService.extractStudentsFromContact(fullContact);
+        logStep('Шаг 7', 'Ученики в контакте', {
+            total_students: students.length,
+            students: students.map(s => s.studentName)
+        });
+        
+        // Проверяем, есть ли наш ученик в списке
+        const normalizedStudentName = amoCrmService.normalizeName(studentName);
+        const studentInContact = students.find(s => 
+            amoCrmService.normalizeName(s.studentName).includes(normalizedStudentName) ||
+            normalizedStudentName.includes(amoCrmService.normalizeName(s.studentName))
+        );
+        
+        logStep('Шаг 7', 'Поиск ученика в контакте', {
+            student_from_app: studentName,
+            normalized_app_student: normalizedStudentName,
+            found_in_contact: !!studentInContact,
+            student_data: studentInContact || null
+        });
+        
+        // ШАГ 7: ПОЛУЧЕНИЕ ВСЕХ СДЕЛОК КОНТАКТА
+        logStep('Шаг 8', 'Получение всех сделок контакта', { contact_id: contact.id });
+        
+        const allLeads = await amoCrmService.getContactLeadsFixed(contact.id);
+        logStep('Шаг 8', 'Все сделки контакта', {
+            total_leads: allLeads.length,
+            leads: allLeads.slice(0, 10).map(l => ({
+                id: l.id,
+                name: l.name,
+                pipeline_id: l.pipeline_id,
+                status_id: l.status_id,
+                created_date: new Date(l.created_at * 1000).toLocaleDateString()
+            })),
+            // Показать все ID сделок
+            all_lead_ids: allLeads.map(l => l.id)
+        });
+        
+        if (allLeads.length === 0) {
+            return res.json({
+                success: false,
+                error: 'У контакта нет сделок в amoCRM',
+                diagnostic_log: diagnosticLog,
+                contact: {
+                    id: contact.id,
+                    name: contact.name,
+                    phone: contactPhone
+                },
+                student: studentName
+            });
+        }
+        
+        // ШАГ 8: ПОИСК СДЕЛКИ ПО ИМЕНИ УЧЕНИКА (ТОЧНО ТАК ЖЕ КАК В ПРИЛОЖЕНИИ)
+        logStep('Шаг 9', 'Поиск сделки по имени ученика (алгоритм приложения)', {
+            student_name: studentName,
+            contact_id: contact.id
+        });
+        
+        let foundLead = null;
+        let searchMethod = 'NOT_FOUND';
+        
+        // Метод 1: Поиск по полному совпадению имени в сделках
+        for (const lead of allLeads) {
+            const leadName = amoCrmService.normalizeName(lead.name);
+            
+            if (leadName.includes(normalizedStudentName) || 
+                normalizedStudentName.includes(leadName.split(' ')[0])) {
+                foundLead = lead;
+                searchMethod = 'NAME_MATCH_IN_LEAD_NAME';
+                logStep('Шаг 9.1', 'Найдена сделка по имени', {
+                    lead_id: lead.id,
+                    lead_name: lead.name,
+                    student_in_lead: leadName,
+                    match_type: 'Имя ученика найдено в названии сделки'
+                });
+                break;
+            }
+        }
+        
+        // Метод 2: Если не нашли по имени, ищем в воронке абонементов
+        if (!foundLead) {
+            logStep('Шаг 9.2', 'Не найдено по имени, ищем в воронке абонементов', {
+                subscription_pipeline_id: amoCrmService.SUBSCRIPTION_PIPELINE_ID
+            });
+            
+            for (const lead of allLeads) {
+                if (lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID) {
+                    foundLead = lead;
+                    searchMethod = 'SUBSCRIPTION_PIPELINE_MATCH';
+                    logStep('Шаг 9.2', 'Найдена сделка в воронке абонементов', {
+                        lead_id: lead.id,
+                        lead_name: lead.name,
+                        pipeline_id: lead.pipeline_id
+                    });
+                    break;
+                }
+            }
+        }
+        
+        // Метод 3: Если все еще не нашли, берем самую новую сделку
+        if (!foundLead && allLeads.length > 0) {
+            foundLead = allLeads[0]; // Самая новая сделка
+            searchMethod = 'LATEST_LEAD';
+            logStep('Шаг 9.3', 'Берем самую новую сделку', {
+                lead_id: foundLead.id,
+                lead_name: foundLead.name,
+                created_date: new Date(foundLead.created_at * 1000).toLocaleDateString()
+            });
+        }
+        
+        // ШАГ 9: ЕСЛИ НАШЛИ СДЕЛКУ - АНАЛИЗИРУЕМ АБОНЕМЕНТ
+        let subscriptionInfo = null;
+        let hasSubscription = false;
+        
+        if (foundLead) {
+            logStep('Шаг 10', 'Анализ найденной сделки на наличие абонемента', {
+                lead_id: foundLead.id,
+                lead_name: foundLead.name,
+                search_method: searchMethod
+            });
+            
+            subscriptionInfo = amoCrmService.extractSubscriptionInfo(foundLead);
+            hasSubscription = subscriptionInfo.hasSubscription;
+            
+            logStep('Шаг 10', 'Результат анализа абонемента', {
+                has_subscription: subscriptionInfo.hasSubscription,
+                subscription_active: subscriptionInfo.subscriptionActive,
+                total_classes: subscriptionInfo.totalClasses,
+                used_classes: subscriptionInfo.usedClasses,
+                remaining_classes: subscriptionInfo.remainingClasses,
+                subscription_type: subscriptionInfo.subscriptionType,
+                subscription_status: subscriptionInfo.subscriptionStatus
+            });
+            
+            // Показываем все поля сделки для отладки
+            const customFields = foundLead.custom_fields_values || [];
+            logStep('Шаг 10.1', 'Все поля сделки', {
+                total_fields: customFields.length,
+                fields: customFields.map(f => ({
+                    field_id: f.field_id || f.id,
+                    field_name: amoCrmService.getFieldNameById(f.field_id || f.id),
+                    value: amoCrmService.getFieldValue(f),
+                    is_subscription_field: amoCrmService.getFieldNameById(f.field_id || f.id)?.toLowerCase().includes('абонемент') ||
+                                         amoCrmService.getFieldNameById(f.field_id || f.id)?.toLowerCase().includes('занят')
+                }))
+            });
+        } else {
+            logStep('Шаг 10', 'Сделка не найдена', {
+                error: 'Не удалось найти сделку для анализа'
+            });
+        }
+        
+        // ШАГ 10: ПРОБУЕМ ПРЯМОЙ ПОИСК ИЗВЕСТНЫХ СДЕЛОК
+        logStep('Шаг 11', 'Прямой поиск известных сделок с абонементами', {
+            test_lead_ids: [28674541, 28674745, 28677839] // Из вашего примера
+        });
+        
+        const testLeads = [];
+        for (const testLeadId of [28674541, 28674745, 28677839]) {
+            try {
+                const lead = await amoCrmService.makeRequest('GET', 
+                    `/api/v4/leads/${testLeadId}?with=custom_fields_values`
+                );
+                if (lead) {
+                    const testSubscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                    testLeads.push({
+                        id: lead.id,
+                        name: lead.name,
+                        has_subscription: testSubscriptionInfo.hasSubscription,
+                        total_classes: testSubscriptionInfo.totalClasses,
+                        remaining_classes: testSubscriptionInfo.remainingClasses,
+                        status: testSubscriptionInfo.subscriptionStatus
+                    });
+                }
+            } catch (error) {
+                // Пропускаем ошибки
+            }
+        }
+        
+        logStep('Шаг 11', 'Результаты прямого поиска', {
+            test_leads_found: testLeads.length,
+            test_leads: testLeads
+        });
+        
+        // ШАГ 11: ПРОВЕРКА, ЧТО ВОЗВРАЩАЕТ ТЕКУЩИЙ API
+        logStep('Шаг 12', 'Что сейчас возвращает API для приложения', {
+            current_api_behavior: 'Анализ'
+        });
+        
+        // Создаем тестовый профиль (как это делает приложение)
+        let testProfile = null;
+        if (foundLead && subscriptionInfo) {
+            const studentInfo = {
+                studentName: studentName,
+                branch: studentInContact?.branch || '',
+                teacherName: studentInContact?.teacherName || '',
+                ageGroup: studentInContact?.ageGroup || subscriptionInfo.ageGroup || '',
+                parentName: contact.name,
+                email: ''
+            };
+            
+            testProfile = amoCrmService.createStudentProfile(
+                contact,
+                formattedPhone,
+                studentInfo,
+                subscriptionInfo,
+                foundLead
+            );
+            
+            logStep('Шаг 12', 'Созданный профиль для приложения', {
+                profile_created: true,
+                student_name_in_profile: testProfile.student_name,
+                subscription_in_profile: testProfile.subscription_type,
+                total_classes_in_profile: testProfile.total_classes,
+                remaining_classes_in_profile: testProfile.remaining_classes,
+                profile_keys: Object.keys(testProfile)
+            });
+        }
+        
+        // ШАГ 12: АНАЛИЗ ПРОБЛЕМЫ
+        logStep('Шаг 13', 'АНАЛИЗ ПРОБЛЕМЫ', {
+            issue_detected: !hasSubscription,
+            possible_causes: [
+                !foundLead ? 'Сделка не найдена для ученика' : 'Сделка найдена',
+                foundLead && !hasSubscription ? 'В сделке нет данных об абонементе' : 'Данные абонемента есть',
+                testProfile && testProfile.total_classes === 0 ? 'В профиле 0 занятий' : 'В профиле есть занятия'
+            ]
+        });
+        
+        // ФОРМИРОВАНИЕ ОТВЕТА
+        const duration = Date.now() - startTime;
+        
+        res.json({
+            success: true,
+            diagnostic: {
+                timestamp: new Date().toISOString(),
+                duration_ms: duration,
+                total_steps: diagnosticLog.length
+            },
+            
+            // Ключевая информация
+            key_findings: {
+                // Что приложение отправляет
+                app_input: {
+                    phone: phone,
+                    student_name: studentName
+                },
+                
+                // Что нашли в amoCRM
+                amocrm_found: {
+                    contact_found: !!contact,
+                    contact_id: contact?.id,
+                    contact_name: contact?.name,
+                    contact_phone: contactPhone,
+                    students_in_contact: students.length,
+                    target_student_in_contact: !!studentInContact,
+                    leads_found: allLeads.length,
+                    subscription_lead_found: !!foundLead,
+                    subscription_data_found: hasSubscription
+                },
+                
+                // Данные абонемента
+                subscription_data: subscriptionInfo ? {
+                    has_subscription: subscriptionInfo.hasSubscription,
+                    total_classes: subscriptionInfo.totalClasses,
+                    remaining_classes: subscriptionInfo.remainingClasses,
+                    used_classes: subscriptionInfo.usedClasses,
+                    subscription_type: subscriptionInfo.subscriptionType,
+                    subscription_status: subscriptionInfo.subscriptionStatus,
+                    subscription_active: subscriptionInfo.subscriptionActive
+                } : null,
+                
+                // Что получит приложение
+                what_app_will_receive: testProfile ? {
+                    student_name: testProfile.student_name,
+                    phone_number: testProfile.phone_number,
+                    subscription_type: testProfile.subscription_type,
+                    total_classes: testProfile.total_classes,
+                    remaining_classes: testProfile.remaining_classes,
+                    used_classes: testProfile.used_classes,
+                    subscription_active: testProfile.subscription_active === 1
+                } : null
+            },
+            
+            // Детальная диагностика
+            detailed_analysis: {
+                // Воронки и статусы
+                pipeline_info: {
+                    subscription_pipeline_id: amoCrmService.SUBSCRIPTION_PIPELINE_ID,
+                    active_status_ids: amoCrmService.SUBSCRIPTION_STATUSES.ACTIVE_IN_PIPELINE
+                },
+                
+                // ID полей
+                field_ids: {
+                    contact_phone: amoCrmService.FIELD_IDS.CONTACT.PHONE,
+                    contact_child1: amoCrmService.FIELD_IDS.CONTACT.CHILD_1_NAME,
+                    lead_total_classes: amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES,
+                    lead_remaining_classes: amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES
+                },
+                
+                // Тестовые данные
+                test_leads: testLeads
+            },
+            
+            // Рекомендации по исправлению
+            recommendations: (() => {
+                const recs = [];
+                
+                if (!foundLead) {
+                    recs.push('🚨 ПРОБЛЕМА: Сделка не найдена для ученика');
+                    recs.push('   🔧 Решение: Проверьте название сделок в amoCRM - должно содержать имя ученика');
+                    recs.push('   🔧 Решение: Проверьте воронку абонементов (ID: ' + amoCrmService.SUBSCRIPTION_PIPELINE_ID + ')');
+                }
+                
+                if (foundLead && !hasSubscription) {
+                    recs.push('🚨 ПРОБЛЕМА: В сделке нет данных об абонементе');
+                    recs.push('   🔧 Решение: Проверьте поля в сделке:');
+                    recs.push('        - "Всего занятий" (ID: ' + amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES + ')');
+                    recs.push('        - "Остаток занятий" (ID: ' + amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES + ')');
+                    recs.push('        - "Тип абонемента" (ID: ' + amoCrmService.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE + ')');
+                }
+                
+                if (testProfile && testProfile.total_classes === 0) {
+                    recs.push('🚨 ПРОБЛЕМА: В профиле 0 занятий');
+                    recs.push('   🔧 Решение: Проверьте extractSubscriptionInfo - правильно ли извлекаются данные');
+                }
+                
+                if (recs.length === 0) {
+                    recs.push('✅ Все данные найдены правильно');
+                    recs.push('   🔍 Проверьте фронтенд - возможно ошибка в отображении');
+                }
+                
+                return recs;
+            })(),
+            
+            // Диагностические команды
+            diagnostic_commands: [
+                `GET /api/debug/find-lead-direct/28674541 - Проверка конкретной сделки`,
+                `GET /api/debug/contact-all-leads/${phone} - Все сделки контакта`,
+                `GET /api/debug/student-leads/${phone}/${encodeURIComponent(studentName)} - Сделки по ученику`,
+                `POST /api/sync-phone/${phone} - Принудительная синхронизация`
+            ],
+            
+            // Полный лог диагностики
+            diagnostic_log: diagnosticLog
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка комплексной диагностики:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
 // ==================== ТЕСТ КОНТАКТА С УЧЕНИКАМИ ====================
 app.get('/api/test-contact/:phone', async (req, res) => {
     try {
