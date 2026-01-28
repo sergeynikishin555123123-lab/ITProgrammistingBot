@@ -342,7 +342,22 @@ class AmoCrmService {
             }
         }
     }
+    // Добавьте этот метод в класс AmoCrmService
+hasStudentFields(contact) {
+    if (!contact || !contact.custom_fields_values) {
+        return false;
+    }
     
+    const studentFieldIds = [
+        this.FIELD_IDS.CONTACT.CHILD_1_NAME,
+        this.FIELD_IDS.CONTACT.CHILD_2_NAME,
+        this.FIELD_IDS.CONTACT.CHILD_3_NAME
+    ];
+    
+    return contact.custom_fields_values.some(field => 
+        studentFieldIds.includes(field.field_id || field.id)
+    );
+}
     // ==================== ИЗВЛЕЧЕНИЕ УЧЕНИКОВ ИЗ КОНТАКТА ====================
     extractStudentsFromContact(contact) {
         console.log(`\n👨‍👩‍👧‍👦 Извлечение учеников из контакта: "${contact.name}"`);
@@ -1588,22 +1603,7 @@ app.get('/api/debug/get-students/:phone', async (req, res) => {
     }
 });
 
-// Добавьте этот метод в класс AmoCrmService
-hasStudentFields(contact) {
-    if (!contact || !contact.custom_fields_values) {
-        return false;
-    }
-    
-    const studentFieldIds = [
-        this.FIELD_IDS.CONTACT.CHILD_1_NAME,
-        this.FIELD_IDS.CONTACT.CHILD_2_NAME,
-        this.FIELD_IDS.CONTACT.CHILD_3_NAME
-    ];
-    
-    return contact.custom_fields_values.some(field => 
-        studentFieldIds.includes(field.field_id || field.id)
-    );
-}
+
 // ==================== ТЕСТ ПОИСКА КОНТАКТА ПО ТЕЛЕФОНУ ====================
 app.get('/api/test/phone-search/:phone', async (req, res) => {
     try {
