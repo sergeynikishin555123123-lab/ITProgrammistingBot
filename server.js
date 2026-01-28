@@ -47,60 +47,68 @@ app.use((req, res, next) => {
 });
 
 class AmoCrmService {
-    constructor() {
-        console.log('\n' + '='.repeat(80));
-        console.log('🎨 ИНИЦИАЛИЗАЦИЯ ДЛЯ ХУДОЖЕСТВЕННОЙ СТУДИИ');
-        console.log('📊 ИСПОЛЬЗУЮ РЕАЛЬНЫЕ ДАННЫЕ ИЗ AMOCRM');
-        console.log('='.repeat(80));
-        
-        this.baseUrl = `https://${AMOCRM_SUBDOMAIN}.amocrm.ru`;
-        this.accessToken = AMOCRM_ACCESS_TOKEN;
-        this.isInitialized = false;
-        
-        // ВАШИ РЕАЛЬНЫЕ ID ПОЛЕЙ ИЗ ДАМПА
-        this.FIELD_IDS = {
-            LEAD: {
-                TOTAL_CLASSES: 850241,        // "Абонемент занятий:" (например: "4 занятия")
-                USED_CLASSES: 850257,         // "Счетчик занятий:" (например: "1")
-                REMAINING_CLASSES: 890163,    // "Остаток занятий" (например: 3)
-                SUBSCRIPTION_TYPE: 891007,    // "Тип абонемента" (например: "Повторный")
-                ACTIVATION_DATE: 851565,      // "Дата активации абонемента:"
-                EXPIRATION_DATE: 850255,      // "Окончание абонемента:"
-                LAST_VISIT_DATE: 850259,      // "Дата последнего визита:"
-                AGE_GROUP: 850243,            // "Группа возраст:"
-                BRANCH: 891589,               // "Филиал"
-                LESSON_PRICE: 891813,         // "Стоимость 1 занятия"
-                PURCHASE_DATE: 850253,        // "Дата покупки:"
-                SUBSCRIPTION_OWNERSHIP: 805465, // "Принадлежность абонемента:"
-                FREEZE_SUBSCRIPTION: 867693    // "Заморозка абонемента:"
-            },
-            CONTACT: {
-                CHILD_1_NAME: 867233,         // "!ФИО ребенка:" 
-                CHILD_2_NAME: 867235,         // "!!ФИО ребенка:"
-                CHILD_3_NAME: 867733,         // "!!!ФИО ребенка:"
-                BRANCH: 871273,               // "Филиал:"
-                TEACHER: 888881,              // "Преподаватель"
-                DAY_OF_WEEK: 888879,          // "День недели посещения"
-                PHONE: 216615,                // "Телефон"
-                EMAIL: 216617,                // "Email"
-                AGE_GROUP: 888903,            // "Возраст группы"
-                HAS_ACTIVE_SUB: 890179        // "Есть активный абонемент"
-            }
-        };
-        
-        // ВАШИ РЕАЛЬНЫЕ ВОРОНКИ И СТАТУСЫ
-        this.SUBSCRIPTION_PIPELINE_ID = 7977402; // Воронка "!Абонемент"
-        this.ACTIVE_SUBSCRIPTION_STATUSES = [
-            72490890, // "Купленный абонемент"
-            65473306  // "Активный абонемент"
-        ];
-        
-        this.SUCCESS_STATUSES = [142]; // "Успешно реализовано"
-        
-        console.log('✅ Использую ВАШИ реальные данные:');
-        console.log(`   🎯 Воронка абонементов: ${this.SUBSCRIPTION_PIPELINE_ID}`);
-        console.log(`   ✅ Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
-    }
+// Обновите конструктор класса AmoCrmService:
+constructor() {
+    console.log('\n' + '='.repeat(80));
+    console.log('🎨 ИНИЦИАЛИЗАЦИЯ ДЛЯ ХУДОЖЕСТВЕННОЙ СТУДИИ');
+    console.log('📊 ИСПОЛЬЗУЮ РЕАЛЬНЫЕ ДАННЫЕ ИЗ AMOCRM');
+    console.log('='.repeat(80));
+    
+    this.baseUrl = `https://${AMOCRM_SUBDOMAIN}.amocrm.ru`;
+    this.accessToken = AMOCRM_ACCESS_TOKEN;
+    this.isInitialized = false;
+    
+    // ВАШИ РЕАЛЬНЫЕ ID ПОЛЕЙ ИЗ ДАМПА
+    this.FIELD_IDS = {
+        LEAD: {
+            TOTAL_CLASSES: 850241,        // "Абонемент занятий:" (например: "4 занятия")
+            USED_CLASSES: 850257,         // "Счетчик занятий:" (например: "1")
+            REMAINING_CLASSES: 890163,    // "Остаток занятий" (например: 3)
+            SUBSCRIPTION_TYPE: 891007,    // "Тип абонемента" (например: "Повторный")
+            ACTIVATION_DATE: 851565,      // "Дата активации абонемента:"
+            EXPIRATION_DATE: 850255,      // "Окончание абонемента:"
+            LAST_VISIT_DATE: 850259,      // "Дата последнего визита:"
+            AGE_GROUP: 850243,            // "Группа возраст:"
+            BRANCH: 891589,               // "Филиал"
+            LESSON_PRICE: 891813,         // "Стоимость 1 занятия"
+            PURCHASE_DATE: 850253,        // "Дата покупки:"
+            SUBSCRIPTION_OWNERSHIP: 805465, // "Принадлежность абонемента:"
+            FREEZE_SUBSCRIPTION: 867693    // "Заморозка абонемента:"
+        },
+        CONTACT: {
+            CHILD_1_NAME: 867233,         // "!ФИО ребенка:" 
+            CHILD_2_NAME: 867235,         // "!!ФИО ребенка:"
+            CHILD_3_NAME: 867733,         // "!!!ФИО ребенка:"
+            BRANCH: 871273,               // "Филиал:"
+            TEACHER: 888881,              // "Преподаватель"
+            DAY_OF_WEEK: 888879,          // "День недели посещения"
+            PHONE: 216615,                // "Телефон"
+            EMAIL: 216617,                // "Email"
+            AGE_GROUP: 888903,            // "Возраст группы"
+            HAS_ACTIVE_SUB: 890179        // "Есть активный абонемент"
+        }
+    };
+    
+    // ВОРОНКИ, ГДЕ МОГУТ НАХОДИТЬСЯ АБОНЕМЕНТЫ
+    this.SUBSCRIPTION_PIPELINE_IDS = [
+        7977402, // Воронка "!Абонемент"
+        5663740  // Другая воронка, где найдены сделки
+    ];
+    
+    // АКТИВНЫЕ СТАТУСЫ ДЛЯ АБОНЕМЕНТОВ (могут быть разные в разных воронках)
+    this.ACTIVE_SUBSCRIPTION_STATUSES = [
+        72490890, // "Купленный абонемент"
+        65473306, // "Активный абонемент"
+        142       // "Успешно реализовано" - этот статус тоже может быть активным
+    ];
+    
+    this.SUCCESS_STATUSES = [142]; // "Успешно реализовано"
+    
+    console.log('✅ Использую ВАШИ реальные данные:');
+    console.log(`   🎯 Воронки абонементов: ${this.SUBSCRIPTION_PIPELINE_IDS.join(', ')}`);
+    console.log(`   ✅ Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
+}
+
     
     // ==================== ИНИЦИАЛИЗАЦИЯ ====================
     async initialize() {
@@ -423,10 +431,10 @@ hasStudentFields(contact) {
     }
     
     // ==================== ПОИСК САМОЙ СВЕЖЕЙ АКТИВНОЙ СДЕЛКИ ====================
-   async findMostRecentActiveLead(contactId) {
+async findMostRecentActiveLead(contactId) {
     console.log(`\n🎯 Поиск активной сделки для контакта: ${contactId}`);
     console.log(`📊 Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
-    console.log(`📊 Воронка абонементов: ${this.SUBSCRIPTION_PIPELINE_ID}`);
+    console.log(`📊 Воронки абонементов: ${this.SUBSCRIPTION_PIPELINE_IDS.join(', ')}`);
     
     try {
         // Получаем ВСЕ сделки контакта
@@ -440,13 +448,13 @@ hasStudentFields(contact) {
         console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
         
         // Фильтруем сделки по критериям:
-        // 1. В воронке абонементов
+        // 1. В одной из воронок абонементов
         // 2. С активным статусом
         // 3. С данными об абонементе
         const activeLeads = [];
         
         for (const lead of allLeads) {
-            const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
+            const isInSubscriptionPipeline = this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id);
             const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
             const subscriptionInfo = this.extractSubscriptionInfo(lead);
             
@@ -457,6 +465,7 @@ hasStudentFields(contact) {
                     created_at: lead.created_at
                 });
                 console.log(`✅ Найдена активная сделка: "${lead.name}" (ID: ${lead.id})`);
+                console.log(`   Воронка: ${lead.pipeline_id}, Статус: ${lead.status_id}`);
             }
         }
         
@@ -486,6 +495,7 @@ hasStudentFields(contact) {
                 });
                 
                 console.log(`✅ Найдена сделка с абонементом: "${mostRecent.lead.name}"`);
+                console.log(`   Воронка: ${mostRecent.lead.pipeline_id}, Статус: ${mostRecent.lead.status_id}`);
                 return {
                     lead: mostRecent.lead,
                     subscriptionInfo: mostRecent.subscriptionInfo,
@@ -504,6 +514,7 @@ hasStudentFields(contact) {
         console.log(`🎉 Самая свежая активная сделка: "${mostRecentLead.lead.name}"`);
         console.log(`   📅 Дата создания: ${new Date(mostRecentLead.created_at * 1000).toLocaleString()}`);
         console.log(`   🎯 Статус ID: ${mostRecentLead.lead.status_id}`);
+        console.log(`   📍 Воронка ID: ${mostRecentLead.lead.pipeline_id}`);
         console.log(`   📊 Занятий: ${mostRecentLead.subscriptionInfo.usedClasses}/${mostRecentLead.subscriptionInfo.totalClasses}`);
         
         return {
@@ -1579,6 +1590,70 @@ app.post('/api/auth/real-data', async (req, res) => {
 });
 
 // ==================== ПРОВЕРОЧНЫЕ МАРШРУТЫ ====================
+// Добавим маршрут для получения информации о воронках
+app.get('/api/debug/pipelines', async (req, res) => {
+    try {
+        console.log(`\n🔍 ПОЛУЧЕНИЕ ВСЕХ ВОРОНОК`);
+        
+        // Получаем все воронки
+        const pipelines = await amoCrmService.makeRequest('GET', '/api/v4/leads/pipelines');
+        
+        console.log(`📊 Найдено воронок: ${pipelines._embedded?.pipelines?.length || 0}`);
+        
+        const pipelineData = [];
+        
+        if (pipelines._embedded && pipelines._embedded.pipelines) {
+            for (const pipeline of pipelines._embedded.pipelines) {
+                console.log(`\n📁 Воронка: "${pipeline.name}" (ID: ${pipeline.id})`);
+                
+                // Получаем статусы для этой воронки
+                try {
+                    const pipelineWithStatuses = await amoCrmService.makeRequest('GET', 
+                        `/api/v4/leads/pipelines/${pipeline.id}`
+                    );
+                    
+                    if (pipelineWithStatuses && pipelineWithStatuses._embedded && pipelineWithStatuses._embedded.statuses) {
+                        console.log(`   Статусы (${pipelineWithStatuses._embedded.statuses.length}):`);
+                        pipelineWithStatuses._embedded.statuses.forEach(status => {
+                            console.log(`      ${status.id}: "${status.name}"`);
+                        });
+                        
+                        pipelineData.push({
+                            id: pipeline.id,
+                            name: pipeline.name,
+                            statuses: pipelineWithStatuses._embedded.statuses.map(s => ({
+                                id: s.id,
+                                name: s.name
+                            }))
+                        });
+                    }
+                } catch (error) {
+                    console.log(`   ⚠️  Не удалось получить статусы: ${error.message}`);
+                    pipelineData.push({
+                        id: pipeline.id,
+                        name: pipeline.name,
+                        statuses: []
+                    });
+                }
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                pipelines: pipelineData,
+                current_settings: {
+                    subscription_pipeline_id: amoCrmService.SUBSCRIPTION_PIPELINE_ID,
+                    active_statuses: amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения воронок:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ОТЛАДОЧНЫЙ МАРШРУТ ДЛЯ ПОИСКА УЧЕНИКОВ ====================
 app.get('/api/debug/get-students/:phone', async (req, res) => {
     try {
@@ -1867,6 +1942,72 @@ app.get('/api/test/phone-search/:phone', async (req, res) => {
 });
 
 // ==================== ТЕСТОВЫЙ ПОИСК КОНТАКТА ====================
+// ==================== ТЕСТ РАЗНЫХ ТЕЛЕФОНОВ ====================
+app.get('/api/debug/test-multiple-phones', async (req, res) => {
+    try {
+        const testPhones = [
+            '79778853270', // Ольга Стенина
+            '79161916984', // Анна
+            '79660587744'  // Наталья
+        ];
+        
+        const results = [];
+        
+        for (const phone of testPhones) {
+            console.log(`\n📱 ТЕСТ ТЕЛЕФОНА: ${phone}`);
+            console.log('─'.repeat(50));
+            
+            try {
+                const profiles = await amoCrmService.getStudentsByPhone(phone);
+                
+                results.push({
+                    phone: phone,
+                    profiles_count: profiles.length,
+                    profiles: profiles.map(p => ({
+                        student_name: p.student_name,
+                        subscription_type: p.subscription_type,
+                        total_classes: p.total_classes,
+                        used_classes: p.used_classes,
+                        remaining_classes: p.remaining_classes,
+                        subscription_active: p.subscription_active === 1,
+                        branch: p.branch,
+                        lead_id: p.amocrm_lead_id
+                    }))
+                });
+                
+                console.log(`✅ Профилей найдено: ${profiles.length}`);
+                if (profiles.length > 0) {
+                    profiles.forEach(p => {
+                        console.log(`   👤 ${p.student_name}: ${p.subscription_type}, ${p.used_classes}/${p.total_classes} занятий`);
+                    });
+                }
+                
+            } catch (phoneError) {
+                console.log(`❌ Ошибка для телефона ${phone}:`, phoneError.message);
+                results.push({
+                    phone: phone,
+                    error: phoneError.message,
+                    profiles_count: 0
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                test_results: results,
+                settings: {
+                    subscription_pipeline_ids: amoCrmService.SUBSCRIPTION_PIPELINE_IDS,
+                    active_statuses: amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ТЕСТ АВТОРИЗАЦИИ С РЕАЛЬНЫМИ ДАННЫМИ ====================
 app.post('/api/test/full-auth', async (req, res) => {
     try {
