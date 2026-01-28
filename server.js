@@ -614,34 +614,54 @@ extractSubscriptionInfo(lead) {
     const subscriptionTypeField = fieldMap.get(this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE) || '';
     
     // 6. Определяем статус абонемента
+   // 6. Определяем статус абонемента
     const hasSubscription = totalClasses > 0 || remainingClasses > 0 || usedClasses > 0 ||
                            (subscriptionType && subscriptionType !== 'Без абонемента');
     
-    // 7. Проверяем, активна ли сделка
+    // 7. Проверяем, активна ли сделка - ИСПРАВЛЕННАЯ ЛОГИКА
     const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
     const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+    
+    console.log(`\n🔍 ПРОВЕРКА АКТИВНОСТИ СДЕЛКИ:`);
+    console.log(`   ID сделки: ${lead.id}`);
+    console.log(`   ID воронки: ${lead.pipeline_id} (нужно: ${this.SUBSCRIPTION_PIPELINE_ID})`);
+    console.log(`   ID статуса: ${lead.status_id} (активные: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')})`);
+    console.log(`   В нужной воронке: ${isInSubscriptionPipeline ? '✅' : '❌'}`);
+    console.log(`   Активный статус: ${hasActiveStatus ? '✅' : '❌'}`);
+    console.log(`   Есть данные абонемента: ${hasSubscription ? '✅' : '❌'}`);
     
     let subscriptionStatus = 'Нет данных';
     let subscriptionBadge = 'inactive';
     let subscriptionActive = false;
     
-    console.log(`📊 Проверка активности:`);
-    console.log(`   Воронка абонементов: ${isInSubscriptionPipeline ? 'Да' : 'Нет'} (ID: ${lead.pipeline_id})`);
-    console.log(`   Активный статус: ${hasActiveStatus ? 'Да' : 'Нет'} (Статус ID: ${lead.status_id})`);
-    console.log(`   Есть абонемент: ${hasSubscription ? 'Да' : 'Нет'}`);
-    
-    if (hasActiveStatus && hasSubscription) {
+    // Условия для активного абонемента:
+    // 1. Сделка в воронке абонементов
+    // 2. Статус в списке активных
+    // 3. Есть данные об абонементе
+    if (isInSubscriptionPipeline && hasActiveStatus && hasSubscription) {
         subscriptionStatus = 'Активен';
         subscriptionBadge = 'active';
         subscriptionActive = true;
-        console.log(`✅ Абонемент активен!`);
-    } else if (hasSubscription) {
-        subscriptionStatus = 'Есть абонемент';
+        console.log(`✅✅✅ АБОНЕМЕНТ АКТИВЕН!`);
+    } 
+    // Если сделка в воронке абонементов, но статус не активный
+    else if (isInSubscriptionPipeline && hasSubscription) {
+        subscriptionStatus = 'Не активен';
         subscriptionBadge = 'warning';
-        console.log(`⚠️  Есть абонемент, но не активен`);
-    } else {
+        subscriptionActive = false;
+        console.log(`⚠️  Есть абонемент, но статус не активный`);
+    }
+    // Если есть данные об абонементе, но не в той воронке
+    else if (hasSubscription) {
+        subscriptionStatus = 'Есть абонемент';
+        subscriptionBadge = 'info';
+        subscriptionActive = false;
+        console.log(`ℹ️  Есть абонемент, но не в воронке абонементов`);
+    }
+    else {
         subscriptionStatus = 'Нет абонемента';
         subscriptionBadge = 'inactive';
+        subscriptionActive = false;
         console.log(`❌ Нет абонемента`);
     }
     
@@ -1673,7 +1693,93 @@ app.get('/api/debug/get-students/:phone', async (req, res) => {
     }
 });
 
-
+// Добавим этот маршрут для детальной проверки
+app.get('/api/debug/check-active-status/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        console.log(`\n🔍 ПРОВЕРКА СТАТУСА АКТИВНОСТИ ДЛЯ СДЕЛКИ: ${leadId}`);
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        // Получаем информацию об абонементе
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        // Проверяем статусы
+        const isInSubscriptionPipeline = lead.pipeline_id === amoCrmService.SUBSCRIPTION_PIPELINE_ID;
+        const isActiveStatus = amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+        const hasSubscription = subscriptionInfo.hasSubscription;
+        
+        console.log(`📊 Данные сделки:`);
+        console.log(`   Название: "${lead.name}"`);
+        console.log(`   ID сделки: ${lead.id}`);
+        console.log(`   ID воронки: ${lead.pipeline_id}`);
+        console.log(`   ID статуса: ${lead.status_id}`);
+        console.log(`   Воронка абонементов: ${amoCrmService.SUBSCRIPTION_PIPELINE_ID}`);
+        console.log(`   Активные статусы: ${amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
+        
+        console.log(`\n✅ Проверка условий:`);
+        console.log(`   1. В нужной воронке: ${isInSubscriptionPipeline ? '✅' : '❌'} (${lead.pipeline_id} === ${amoCrmService.SUBSCRIPTION_PIPELINE_ID})`);
+        console.log(`   2. Активный статус: ${isActiveStatus ? '✅' : '❌'} (${lead.status_id} in [${amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}])`);
+        console.log(`   3. Есть абонемент: ${hasSubscription ? '✅' : '❌'}`);
+        
+        const shouldBeActive = isInSubscriptionPipeline && isActiveStatus && hasSubscription;
+        console.log(`\n🎯 ИТОГО: Сделка должна быть активной: ${shouldBeActive ? '✅ ДА' : '❌ НЕТ'}`);
+        
+        // Получаем все статусы в воронке для проверки
+        console.log(`\n🔍 Получение всех статусов воронки...`);
+        try {
+            const pipeline = await amoCrmService.makeRequest('GET', 
+                `/api/v4/leads/pipelines/${amoCrmService.SUBSCRIPTION_PIPELINE_ID}`
+            );
+            
+            if (pipeline && pipeline._embedded && pipeline._embedded.statuses) {
+                console.log(`📊 Статусы в воронке "${pipeline.name}":`);
+                pipeline._embedded.statuses.forEach(status => {
+                    const isActive = amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.includes(status.id);
+                    console.log(`   ${status.id}: "${status.name}" ${isActive ? '✅ (активный)' : ''}`);
+                });
+            }
+        } catch (pipeError) {
+            console.log(`⚠️  Не удалось получить статусы воронки:`, pipeError.message);
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                lead: {
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id,
+                    pipeline_id_correct: isInSubscriptionPipeline,
+                    status_active: isActiveStatus
+                },
+                subscription_info: subscriptionInfo,
+                conditions: {
+                    in_subscription_pipeline: isInSubscriptionPipeline,
+                    has_active_status: isActiveStatus,
+                    has_subscription: hasSubscription,
+                    should_be_active: shouldBeActive
+                },
+                settings: {
+                    subscription_pipeline_id: amoCrmService.SUBSCRIPTION_PIPELINE_ID,
+                    active_statuses: amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ТЕСТ ПОИСКА КОНТАКТА ПО ТЕЛЕФОНУ ====================
 app.get('/api/test/phone-search/:phone', async (req, res) => {
     try {
