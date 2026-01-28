@@ -285,91 +285,7 @@ async searchContactsByPhone(phone) {
     }
 },
 
-// ==================== ГЕНЕРАЦИЯ ВАРИАНТОВ ТЕЛЕФОНА ДЛЯ ПОИСКА ====================
-generatePhoneSearchVariants(cleanPhone) {
-    const variants = new Set();
-    
-    // Сохраняем исходный вариант
-    variants.add(cleanPhone);
-    
-    // Различные форматы
-    const last10 = cleanPhone.slice(-10);
-    const last7 = cleanPhone.slice(-7);
-    
-    // Российские форматы
-    if (cleanPhone.length === 11) {
-        if (cleanPhone.startsWith('7')) {
-            variants.add('8' + cleanPhone.slice(1)); // 7XXXXXXXXXX -> 8XXXXXXXXXX
-            variants.add(cleanPhone.slice(1)); // Без 7
-            variants.add('+7' + cleanPhone.slice(1)); // +7XXXXXXXXXX
-        } else if (cleanPhone.startsWith('8')) {
-            variants.add('7' + cleanPhone.slice(1)); // 8XXXXXXXXXX -> 7XXXXXXXXXX
-            variants.add(cleanPhone.slice(1)); // Без 8
-            variants.add('+7' + cleanPhone.slice(1)); // +7XXXXXXXXXX
-        }
-    } else if (cleanPhone.length === 10) {
-        variants.add('7' + cleanPhone); // XXXXXXXXXX -> 7XXXXXXXXXX
-        variants.add('8' + cleanPhone); // XXXXXXXXXX -> 8XXXXXXXXXX
-        variants.add('+7' + cleanPhone); // XXXXXXXXXX -> +7XXXXXXXXXX
-    }
-    
-    // Варианты без кода страны
-    if (cleanPhone.length >= 10) {
-        variants.add(cleanPhone.slice(-10)); // Последние 10 цифр
-    }
-    variants.add(cleanPhone.slice(-9)); // Последние 9 цифр
-    variants.add(last7); // Последние 7 цифр
-    
-    // Удаляем слишком короткие варианты
-    const result = Array.from(variants).filter(v => v && v.length >= 7);
-    return result;
-},
 
-// ==================== ПРОВЕРКА НАЛИЧИЯ ТЕЛЕФОНА У КОНТАКТА (ТОЧНЫЙ ПОИСК) ====================
-contactHasPhoneExact(contact, targetPhone) {
-    if (!contact || !contact.custom_fields_values) {
-        return false;
-    }
-    
-    // Очищаем целевой телефон
-    const cleanTarget = targetPhone.replace(/\D/g, '');
-    
-    // Ищем поле телефона
-    const phoneFields = contact.custom_fields_values.filter(field => {
-        const fieldId = field.field_id || field.id;
-        return fieldId === this.FIELD_IDS.CONTACT.PHONE;
-    });
-    
-    if (phoneFields.length === 0) {
-        return false;
-    }
-    
-    // Проверяем все значения телефона
-    for (const phoneField of phoneFields) {
-        if (phoneField.values && Array.isArray(phoneField.values)) {
-            for (const value of phoneField.values) {
-                const contactPhone = String(value.value || '').replace(/\D/g, '');
-                
-                // Различные варианты сравнения
-                if (contactPhone === cleanTarget) {
-                    return true;
-                }
-                
-                // Сравнение последних 10 цифр
-                if (contactPhone.slice(-10) === cleanTarget.slice(-10)) {
-                    return true;
-                }
-                
-                // Сравнение последних 7 цифр
-                if (contactPhone.slice(-7) === cleanTarget.slice(-7)) {
-                    return true;
-                }
-            }
-        }
-    }
-    
-    return false;
-},
 
 // ==================== ПОЛУЧЕНИЕ ПОЛНОЙ ИНФОРМАЦИИ О КОНТАКТЕ ====================
 async getFullContactInfo(contactId) {
@@ -746,6 +662,92 @@ async getFullContactInfo(contactId) {
     }
     
     // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+    // ==================== ГЕНЕРАЦИЯ ВАРИАНТОВ ТЕЛЕФОНА ДЛЯ ПОИСКА ====================
+    // ==================== ПРОВЕРКА НАЛИЧИЯ ТЕЛЕФОНА У КОНТАКТА (ТОЧНЫЙ ПОИСК) ====================
+contactHasPhoneExact(contact, targetPhone) {
+    if (!contact || !contact.custom_fields_values) {
+        return false;
+    }
+    
+    // Очищаем целевой телефон
+    const cleanTarget = targetPhone.replace(/\D/g, '');
+    
+    // Ищем поле телефона
+    const phoneFields = contact.custom_fields_values.filter(field => {
+        const fieldId = field.field_id || field.id;
+        return fieldId === this.FIELD_IDS.CONTACT.PHONE;
+    });
+    
+    if (phoneFields.length === 0) {
+        return false;
+    }
+    
+    // Проверяем все значения телефона
+    for (const phoneField of phoneFields) {
+        if (phoneField.values && Array.isArray(phoneField.values)) {
+            for (const value of phoneField.values) {
+                const contactPhone = String(value.value || '').replace(/\D/g, '');
+                
+                // Различные варианты сравнения
+                if (contactPhone === cleanTarget) {
+                    return true;
+                }
+                
+                // Сравнение последних 10 цифр
+                if (contactPhone.slice(-10) === cleanTarget.slice(-10)) {
+                    return true;
+                }
+                
+                // Сравнение последних 7 цифр
+                if (contactPhone.slice(-7) === cleanTarget.slice(-7)) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
+},
+generatePhoneSearchVariants(cleanPhone) {
+    const variants = new Set();
+    
+    // Сохраняем исходный вариант
+    variants.add(cleanPhone);
+    
+    // Различные форматы
+    const last10 = cleanPhone.slice(-10);
+    const last7 = cleanPhone.slice(-7);
+    
+    // Российские форматы
+    if (cleanPhone.length === 11) {
+        if (cleanPhone.startsWith('7')) {
+            variants.add('8' + cleanPhone.slice(1)); // 7XXXXXXXXXX -> 8XXXXXXXXXX
+            variants.add(cleanPhone.slice(1)); // Без 7
+            variants.add('+7' + cleanPhone.slice(1)); // +7XXXXXXXXXX
+        } else if (cleanPhone.startsWith('8')) {
+            variants.add('7' + cleanPhone.slice(1)); // 8XXXXXXXXXX -> 7XXXXXXXXXX
+            variants.add(cleanPhone.slice(1)); // Без 8
+            variants.add('+7' + cleanPhone.slice(1)); // +7XXXXXXXXXX
+        }
+    } else if (cleanPhone.length === 10) {
+        variants.add('7' + cleanPhone); // XXXXXXXXXX -> 7XXXXXXXXXX
+        variants.add('8' + cleanPhone); // XXXXXXXXXX -> 8XXXXXXXXXX
+        variants.add('+7' + cleanPhone); // XXXXXXXXXX -> +7XXXXXXXXXX
+    }
+    
+    // Варианты без кода страны
+    if (cleanPhone.length >= 10) {
+        variants.add(cleanPhone.slice(-10)); // Последние 10 цифр
+    }
+    variants.add(cleanPhone.slice(-9)); // Последние 9 цифр
+    variants.add(last7); // Последние 7 цифр
+    
+    // Удаляем слишком короткие варианты
+    const result = Array.from(variants).filter(v => v && v.length >= 7);
+    return result;
+},
+
+
     getFieldValue(field) {
         if (!field || !field.values || field.values.length === 0) {
             return null;
