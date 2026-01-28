@@ -4310,123 +4310,310 @@ app.get('/api/find-student/:studentName', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-// ==================== ПРЯМОЙ ПОИСК ПО ID СДЕЛКИ ====================
+// ==================== ПРЯМОЙ ПОИСК ПО ID СДЕЛКИ - ИСПРАВЛЕННЫЙ ====================
 app.get('/api/by-lead-id/:leadId/:phone?', async (req, res) => {
     try {
         const leadId = req.params.leadId;
         const phone = req.params.phone;
         
         console.log(`\n🔍 ПРЯМОЙ ПОИСК ПО ID СДЕЛКИ: ${leadId}`);
+        console.log(`📱 Телефон: ${phone || 'Не указан'}`);
         console.log('='.repeat(80));
         
-        // 1. Получаем сделку
-        const lead = await amoCrmService.makeRequest('GET', 
-            `/api/v4/leads/${leadId}?with=custom_fields_values`
-        );
+        // 1. Проверяем, что leadId валиден
+        if (!leadId || isNaN(parseInt(leadId))) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Некорректный ID сделки',
+                leadId: leadId
+            });
+        }
+        
+        // 2. Получаем сделку
+        console.log(`📋 Получение сделки ID: ${leadId}...`);
+        let lead;
+        try {
+            lead = await amoCrmService.makeRequest('GET', 
+                `/api/v4/leads/${leadId}?with=custom_fields_values`
+            );
+        } catch (leadError) {
+            console.error(`❌ Ошибка получения сделки:`, leadError.message);
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Сделка не найдена',
+                message: `Сделка ${leadId} не существует или недоступна`,
+                leadId: leadId
+            });
+        }
         
         if (!lead) {
-            return res.json({ success: false, error: 'Сделка не найдена' });
-        }
-        
-        console.log(`📋 Сделка: "${lead.name}"`);
-        
-        // 2. Получаем контакт сделки
-        const contactsResponse = await amoCrmService.makeRequest('GET', 
-            `/api/v4/leads/${leadId}/contacts`
-        );
-        
-        if (!contactsResponse._embedded?.contacts?.length) {
-            return res.json({ 
+            return res.status(404).json({ 
                 success: false, 
-                error: 'У сделки нет привязанных контактов' 
+                error: 'Сделка не найдена',
+                leadId: leadId
             });
         }
         
-        const contactId = contactsResponse._embedded.contacts[0].id;
-        const contact = await amoCrmService.getFullContactInfo(contactId);
+        console.log(`✅ Сделка найдена: "${lead.name}"`);
+        console.log(`🎯 Воронка: ${lead.pipeline_id}`);
+        console.log(`📊 Статус: ${lead.status_id}`);
+        console.log(`💰 Цена: ${lead.price || 0}`);
+        console.log(`📅 Создана: ${new Date(lead.created_at * 1000).toLocaleDateString()}`);
         
-        if (!contact) {
-            return res.json({ 
-                success: false, 
-                error: 'Контакт не найден' 
-            });
+        // 3. Получаем контакты сделки
+        console.log('\n🔍 Поиск контактов сделки...');
+        let contacts = [];
+        try {
+            const contactsResponse = await amoCrmService.makeRequest('GET', 
+                `/api/v4/leads/${leadId}/contacts`
+            );
+            
+            if (contactsResponse && contactsResponse._embedded && contactsResponse._embedded.contacts) {
+                contacts = contactsResponse._embedded.contacts;
+                console.log(`✅ Найдено контактов: ${contacts.length}`);
+            } else {
+                console.log('⚠️  Контакты не найдены в /contacts endpoint');
+            }
+        } catch (contactsError) {
+            console.log(`⚠️  Ошибка получения контактов: ${contactsError.message}`);
         }
         
-        console.log(`📋 Контакт: "${contact.name}" (ID: ${contactId})`);
+        // 4. Если контакты не найдены стандартным способом, используем альтернативный
+        if (contacts.length === 0) {
+            console.log('🔍 Альтернативный поиск контакта...');
+            contacts = await amoCrmService.getLeadContacts(leadId);
+            console.log(`✅ Контактов через альтернативный метод: ${contacts.length}`);
+        }
         
-        // 3. Получаем телефон контакта
-        const phoneField = contact.custom_fields_values?.find(f => 
-            (f.field_id || f.id) === amoCrmService.FIELD_IDS.CONTACT.PHONE
-        );
-        const contactPhone = phoneField ? amoCrmService.getFieldValue(phoneField) : phone || 'ID:' + contactId;
+        let contact = null;
+        let contactPhone = phone || '';
         
-        // 4. Извлекаем информацию об абонементе
+        if (contacts.length > 0) {
+            contact = contacts[0];
+            console.log(`📋 Основной контакт: "${contact.name}" (ID: ${contact.id})`);
+            
+            // Получаем телефон контакта
+            if (contact.custom_fields_values) {
+                const phoneField = contact.custom_fields_values.find(f => {
+                    const fieldId = f.field_id || f.id;
+                    // Ищем поле телефона разными способами
+                    return fieldId === amoCrmService.FIELD_IDS.CONTACT.PHONE ||
+                           (f.field_name && f.field_name.toLowerCase().includes('телефон'));
+                });
+                
+                if (phoneField) {
+                    contactPhone = amoCrmService.getFieldValue(phoneField) || contactPhone;
+                    console.log(`📱 Телефон контакта: ${contactPhone}`);
+                }
+            }
+            
+            // Получаем полную информацию о контакте
+            try {
+                const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+                if (fullContact) {
+                    contact = fullContact;
+                }
+            } catch (contactError) {
+                console.log(`⚠️  Ошибка получения полной информации о контакте: ${contactError.message}`);
+            }
+        } else {
+            // Создаем минимальный контакт
+            contact = {
+                id: 0,
+                name: 'Родитель',
+                custom_fields_values: []
+            };
+            console.log('⚠️  Контакт не найден, используем минимальный');
+        }
+        
+        // 5. Извлекаем информацию об абонементе
+        console.log('\n🔍 Извлечение информации об абонементе...');
         const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
         
-        // 5. Извлекаем имя ученика из сделки
-        const studentName = amoCrmService.extractStudentNameFromLead(lead.name) || 'Ученик';
+        console.log(`🎫 Абонемент: ${subscriptionInfo.hasSubscription ? '✅ Найден' : '❌ Не найден'}`);
+        console.log(`📊 Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses}`);
+        console.log(`📅 Окончание: ${subscriptionInfo.expirationDate || 'Нет даты'}`);
+        
+        // 6. Извлекаем имя ученика из названия сделки
+        const studentName = amoCrmService.extractStudentNameFromLead(lead.name) || 
+                           (contact.name && contact.name !== 'Родитель' ? contact.name : 'Ученик');
         
         console.log(`👤 Извлечено имя ученика: "${studentName}"`);
         
-        // 6. Создаем профиль
-        const studentInfo = {
+        // 7. Создаем профиль
+        console.log('\n🔍 Создание профиля...');
+        
+        // Ищем ученика в контакте
+        let targetStudent = {
             studentName: studentName,
-            branch: amoCrmService.getLeadBranch(lead),
+            branch: subscriptionInfo.branch || '',
             teacherName: '',
             ageGroup: subscriptionInfo.ageGroup || '',
             parentName: contact.name || 'Родитель',
             email: ''
         };
         
+        // Если есть контакт с учениками, ищем там
+        if (contact.id !== 0 && contact.custom_fields_values) {
+            const students = amoCrmService.extractStudentsFromContact(contact);
+            if (students.length > 0) {
+                const normalizedStudentName = amoCrmService.normalizeName(studentName);
+                const foundStudent = students.find(s => 
+                    amoCrmService.normalizeName(s.studentName).includes(normalizedStudentName) ||
+                    normalizedStudentName.includes(amoCrmService.normalizeName(s.studentName))
+                );
+                
+                if (foundStudent) {
+                    targetStudent = {
+                        ...targetStudent,
+                        ...foundStudent
+                    };
+                    console.log(`✅ Ученик найден в контакте: "${foundStudent.studentName}"`);
+                }
+            }
+        }
+        
         const profile = amoCrmService.createStudentProfile(
             contact,
-            contactPhone,
-            studentInfo,
+            contactPhone || phone || 'ID:' + contact.id,
+            targetStudent,
             subscriptionInfo,
             lead
         );
         
-        // 7. Сохраняем в БД
-        const savedCount = await saveProfilesToDatabase([profile]);
+        // 8. Сохраняем в БД
+        console.log('💾 Сохранение профиля в базу данных...');
+        let savedCount = 0;
+        try {
+            savedCount = await saveProfilesToDatabase([profile]);
+            console.log(`✅ Сохранено профилей: ${savedCount}`);
+        } catch (saveError) {
+            console.error(`❌ Ошибка сохранения в БД: ${saveError.message}`);
+        }
         
-        // 8. Создаем токен для приложения
+        // 9. Создаем токен для приложения
+        console.log('🔐 Создание токена...');
         const sessionId = crypto.randomBytes(32).toString('hex');
         const token = jwt.sign(
             {
                 session_id: sessionId,
                 lead_id: leadId,
-                contact_id: contactId,
+                contact_id: contact.id,
                 student_name: studentName,
-                phone: contactPhone,
+                phone: contactPhone || phone,
                 timestamp: Date.now()
             },
             JWT_SECRET,
             { expiresIn: '30d' }
         );
         
+        // 10. Сохраняем сессию
+        try {
+            await db.run(
+                `INSERT INTO user_sessions (session_id, session_data, phone_number, expires_at) 
+                 VALUES (?, ?, ?, ?)`,
+                [
+                    sessionId,
+                    JSON.stringify({ 
+                        lead_id: leadId,
+                        contact_id: contact.id,
+                        student_name: studentName,
+                        phone: contactPhone || phone
+                    }),
+                    contactPhone || phone || 'lead_' + leadId,
+                    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                ]
+            );
+            console.log('✅ Сессия сохранена');
+        } catch (sessionError) {
+            console.error(`❌ Ошибка сохранения сессии: ${sessionError.message}`);
+        }
+        
+        // 11. Формируем ответ для приложения
+        const responseProfile = {
+            id: profile.id || null,
+            student_name: profile.student_name || studentName,
+            phone_number: profile.phone_number || contactPhone || phone || 'Не указан',
+            email: profile.email || '',
+            branch: profile.branch || 'Филиал не указан',
+            teacher_name: profile.teacher_name || '',
+            age_group: profile.age_group || '',
+            
+            subscription_type: profile.subscription_type || 'Без абонемента',
+            subscription_active: profile.subscription_active === 1 || profile.subscription_active === true,
+            subscription_status: profile.subscription_status || 'Не активен',
+            subscription_badge: profile.subscription_badge || 'inactive',
+            
+            total_classes: profile.total_classes || 0,
+            used_classes: profile.used_classes || 0,
+            remaining_classes: profile.remaining_classes || 0,
+            
+            expiration_date: profile.expiration_date || null,
+            activation_date: profile.activation_date || null,
+            last_visit_date: profile.last_visit_date || null,
+            
+            parent_name: profile.parent_name || contact.name || 'Родитель',
+            is_demo: profile.is_demo === 1 || profile.is_demo === true,
+            source: profile.source || 'direct_lead_id',
+            last_sync: profile.last_sync || new Date().toISOString()
+        };
+        
+        console.log('\n' + '='.repeat(80));
+        console.log('✅ ПРОФИЛЬ УСПЕШНО СОЗДАН');
+        console.log('='.repeat(80));
+        console.log(`👤 Ученик: ${responseProfile.student_name}`);
+        console.log(`📱 Телефон: ${responseProfile.phone_number}`);
+        console.log(`🎫 Абонемент: ${responseProfile.subscription_type}`);
+        console.log(`📊 Занятий: ${responseProfile.used_classes}/${responseProfile.total_classes}`);
+        console.log(`✅ Активен: ${responseProfile.subscription_active ? 'Да' : 'Нет'}`);
+        console.log(`💾 Сохранено: ${savedCount > 0 ? 'Да' : 'Нет'}`);
+        
         res.json({
             success: true,
-            message: 'Профиль создан по ID сделки',
+            message: 'Профиль создан успешно',
             data: {
-                profile: profile,
+                profile: responseProfile,
                 token: token,
-                student: studentName,
-                contact: contact.name,
-                phone: contactPhone,
-                lead: lead.name,
+                lead: {
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id
+                },
+                contact: {
+                    id: contact.id,
+                    name: contact.name,
+                    phone: contactPhone
+                },
                 subscription: {
                     type: subscriptionInfo.subscriptionType,
                     total: subscriptionInfo.totalClasses,
                     remaining: subscriptionInfo.remainingClasses,
                     active: subscriptionInfo.subscriptionActive
                 },
-                saved_to_db: savedCount > 0
+                saved_to_db: savedCount > 0,
+                diagnostic: {
+                    lead_id: leadId,
+                    phone_provided: !!phone,
+                    contacts_found: contacts.length,
+                    subscription_found: subscriptionInfo.hasSubscription,
+                    profile_created: true
+                }
             }
         });
         
     } catch (error) {
-        console.error('❌ Ошибка поиска по ID сделки:', error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ КРИТИЧЕСКАЯ ОШИБКА маршрута /api/by-lead-id/:');
+        console.error('Ошибка:', error.message);
+        console.error('Стек:', error.stack);
+        
+        res.status(500).json({ 
+            success: false, 
+            error: 'Внутренняя ошибка сервера',
+            message: error.message,
+            timestamp: new Date().toISOString(),
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 // Получение профилей
@@ -8550,6 +8737,79 @@ app.get('/api/debug/subscription-structure/:leadId', async (req, res) => {
     } catch (error) {
         console.error('❌ Ошибка проверки структуры:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+// ==================== ПРОСТОЙ РАБОЧИЙ МАРШРУТ ДЛЯ БЫСТРОЙ ПРОВЕРКИ ====================
+app.get('/api/simple-lead/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`\n🔍 ПРОСТОЙ ПОИСК СДЕЛКИ: ${leadId}`);
+        
+        // Просто получаем сделку
+        const lead = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/${leadId}`
+        );
+        
+        if (!lead) {
+            return res.json({ 
+                success: false, 
+                error: 'Сделка не найдена',
+                leadId: leadId
+            });
+        }
+        
+        // Базовая информация об абонементе
+        const customFields = lead.custom_fields_values || [];
+        let totalClasses = 0;
+        let remainingClasses = 0;
+        
+        // Ищем поля с занятиями
+        for (const field of customFields) {
+            const fieldName = field.field_name || '';
+            const fieldValue = amoCrmService.getFieldValue(field);
+            
+            if (fieldName.toLowerCase().includes('занят') && fieldName.toLowerCase().includes('всего')) {
+                totalClasses = parseInt(fieldValue) || 0;
+            }
+            
+            if (fieldName.toLowerCase().includes('остат') && fieldName.toLowerCase().includes('занят')) {
+                remainingClasses = parseInt(fieldValue) || 0;
+            }
+        }
+        
+        // Создаем простой профиль
+        const simpleProfile = {
+            student_name: amoCrmService.extractStudentNameFromLead(lead.name) || 'Ученик',
+            phone_number: '79660587744',
+            branch: 'Автоматический',
+            subscription_type: totalClasses > 0 ? 'Абонемент' : 'Без абонемента',
+            subscription_active: totalClasses > 0 && remainingClasses > 0,
+            total_classes: totalClasses,
+            remaining_classes: remainingClasses,
+            used_classes: totalClasses - remainingClasses,
+            last_sync: new Date().toISOString()
+        };
+        
+        res.json({
+            success: true,
+            message: 'Сделка найдена',
+            data: {
+                lead: {
+                    id: lead.id,
+                    name: lead.name
+                },
+                profile: simpleProfile
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка простого поиска:', error.message);
+        res.json({
+            success: false,
+            error: error.message,
+            leadId: req.params.leadId
+        });
     }
 });
 // ==================== КОМПЛЕКСНЫЙ ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ ПРИЛОЖЕНИЯ ====================
