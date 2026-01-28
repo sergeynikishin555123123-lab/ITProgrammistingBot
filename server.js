@@ -46,7 +46,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// ==================== КЛАСС AMOCRM SERVICE ====================
 class AmoCrmService {
     constructor() {
         console.log('\n' + '='.repeat(80));
@@ -57,23 +56,6 @@ class AmoCrmService {
         this.baseUrl = `https://${AMOCRM_SUBDOMAIN}.amocrm.ru`;
         this.accessToken = AMOCRM_ACCESS_TOKEN;
         this.isInitialized = false;
-        
-        // Привязываем методы к контексту
-        this.initialize = this.initialize.bind(this);
-        this.makeRequest = this.makeRequest.bind(this);
-        this.searchContactsByPhone = this.searchContactsByPhone.bind(this);
-        this.contactHasPhone = this.contactHasPhone.bind(this);
-        this.getFullContactInfo = this.getFullContactInfo.bind(this);
-        this.getContactLeads = this.getContactLeads.bind(this);
-        this.extractStudentsFromContact = this.extractStudentsFromContact.bind(this);
-        this.findMostRecentActiveLead = this.findMostRecentActiveLead.bind(this);
-        this.extractSubscriptionInfo = this.extractSubscriptionInfo.bind(this);
-        this.getFieldValue = this.getFieldValue.bind(this);
-        this.parseDate = this.parseDate.bind(this);
-        this.normalizeName = this.normalizeName.bind(this);
-        this.getStudentsByPhone = this.getStudentsByPhone.bind(this);
-        this.createStudentProfile = this.createStudentProfile.bind(this);
-        this.getDefaultSubscriptionInfo = this.getDefaultSubscriptionInfo.bind(this);
         
         // ВАШИ РЕАЛЬНЫЕ ID ПОЛЕЙ ИЗ ДАМПА
         this.FIELD_IDS = {
