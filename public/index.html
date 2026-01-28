@@ -1849,7 +1849,7 @@
                 this.showLoading('Поиск данных по ID контакта...');
                 
                 // Используем исправленный API маршрут
-                fetch(`/api/debug/by-contact/${contactId}`)
+                fetch(`/api/debug/by-contact/${contactId}`) 
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`HTTP ${response.status}`);
@@ -1924,16 +1924,16 @@
                 
                 this.showLoading('Загрузка данных...');
                 
-                fetch('/api/auth/phone', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        phone: phone,
-                        force_refresh: true
-                    })
-                })
+fetch('/api/auth/phone-final', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ 
+        phone: phone
+        // student_name можно добавить если нужно
+    })
+})
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
