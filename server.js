@@ -487,162 +487,232 @@ hasStudentFields(contact) {
         }
     }
     
-    // ==================== ИЗВЛЕЧЕНИЕ ДАННЫХ ОБ АБОНЕМЕНТЕ (ИСПРАВЛЕНО) ====================
-    extractSubscriptionInfo(lead) {
-        console.log(`\n🔍 Извлечение данных абонемента из сделки: "${lead.name}"`);
+    // ==================== ИЗВЛЕЧЕНИЕ ДАННЫХ ОБ АБОНЕМЕНТЕ (ИСПРАВЛЕННЫЙ) ====================
+extractSubscriptionInfo(lead) {
+    console.log(`\n🔍 Извлечение данных абонемента из сделки: "${lead.name}"`);
+    console.log(`📊 Статус сделки: ${lead.status_id}, Воронка: ${lead.pipeline_id}`);
+    
+    const customFields = lead.custom_fields_values || [];
+    
+    // Создаем карту полей для быстрого доступа
+    const fieldMap = new Map();
+    
+    console.log(`📋 Всего полей в сделке: ${customFields.length}`);
+    
+    for (const field of customFields) {
+        const fieldId = field.field_id || field.id;
+        const fieldValue = this.getFieldValue(field);
+        fieldMap.set(fieldId, fieldValue);
         
-        const customFields = lead.custom_fields_values || [];
+        // Логируем важные поля
+        const importantFields = [
+            this.FIELD_IDS.LEAD.TOTAL_CLASSES,
+            this.FIELD_IDS.LEAD.USED_CLASSES,
+            this.FIELD_IDS.LEAD.REMAINING_CLASSES,
+            this.FIELD_IDS.LEAD.ACTIVATION_DATE,
+            this.FIELD_IDS.LEAD.EXPIRATION_DATE,
+            this.FIELD_IDS.LEAD.LAST_VISIT_DATE,
+            this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE,
+            this.FIELD_IDS.LEAD.BRANCH
+        ];
         
-        // Создаем карту полей для быстрого доступа
-        const fieldMap = new Map();
-        
-        for (const field of customFields) {
-            const fieldId = field.field_id || field.id;
-            const fieldValue = this.getFieldValue(field);
-            fieldMap.set(fieldId, fieldValue);
-            
-            // Логируем важные поля
-            if ([
-                this.FIELD_IDS.LEAD.TOTAL_CLASSES,
-                this.FIELD_IDS.LEAD.USED_CLASSES,
-                this.FIELD_IDS.LEAD.REMAINING_CLASSES,
-                this.FIELD_IDS.LEAD.ACTIVATION_DATE,
-                this.FIELD_IDS.LEAD.EXPIRATION_DATE,
-                this.FIELD_IDS.LEAD.LAST_VISIT_DATE,
-                this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE,
-                this.FIELD_IDS.LEAD.BRANCH
-            ].includes(fieldId)) {
-                console.log(`   📝 Поле ${fieldId}: ${fieldValue}`);
-            }
+        if (importantFields.includes(fieldId)) {
+            console.log(`   📝 Поле ${fieldId}: "${fieldValue}" (тип: ${typeof fieldValue})`);
         }
-        
-        // 1. Извлекаем общее количество занятий из поля "Абонемент занятий:"
-        const subscriptionTypeRaw = fieldMap.get(this.FIELD_IDS.LEAD.TOTAL_CLASSES);
-        console.log(`📊 Сырые данные "Абонемент занятий:": ${subscriptionTypeRaw}`);
-        
-        let totalClasses = 0;
-        if (subscriptionTypeRaw) {
-            const match = String(subscriptionTypeRaw).match(/\d+/);
-            if (match) {
-                totalClasses = parseInt(match[0]);
-                console.log(`✅ Извлекли totalClasses из текста: ${subscriptionTypeRaw} -> ${totalClasses}`);
-            }
-        }
-        
-        // 2. Извлекаем использованные занятия из поля "Счетчик занятий:"
-        const usedClassesRaw = fieldMap.get(this.FIELD_IDS.LEAD.USED_CLASSES);
-        console.log(`📊 Сырые данные "Счетчик занятий:": ${usedClassesRaw}`);
-        
-        let usedClasses = 0;
-        if (usedClassesRaw) {
-            const match = String(usedClassesRaw).match(/\d+/);
-            if (match) {
-                usedClasses = parseInt(match[0]);
-                console.log(`✅ Извлекли usedClasses из текста: ${usedClassesRaw} -> ${usedClasses}`);
-            }
-        }
-        
-        // 3. Извлекаем остаток занятий из поля "Остаток занятий"
-        const remainingClassesRaw = fieldMap.get(this.FIELD_IDS.LEAD.REMAINING_CLASSES);
-        console.log(`📊 Сырые данные "Остаток занятий": ${remainingClassesRaw}`);
-        
-        let remainingClasses = 0;
-        if (remainingClassesRaw !== null && remainingClassesRaw !== undefined) {
-            if (typeof remainingClassesRaw === 'number') {
-                remainingClasses = remainingClassesRaw;
-            } else if (typeof remainingClassesRaw === 'string') {
-                const match = String(remainingClassesRaw).match(/\d+/);
-                if (match) {
-                    remainingClasses = parseInt(match[0]);
-                }
-            }
-            console.log(`✅ Извлекли remainingClasses: ${remainingClassesRaw} -> ${remainingClasses}`);
-        }
-        
-        // 4. Если остаток не указан, вычисляем его
-        if (remainingClasses === 0 && totalClasses > 0 && usedClasses > 0) {
-            remainingClasses = totalClasses - usedClasses;
-            console.log(`🔄 Вычислен остаток: ${totalClasses} - ${usedClasses} = ${remainingClasses}`);
-        }
-        
-        // 5. Получаем другие данные
-        const subscriptionType = subscriptionTypeRaw || 'Без абонемента';
-        const activationDate = this.parseDate(fieldMap.get(this.FIELD_IDS.LEAD.ACTIVATION_DATE));
-        const expirationDate = this.parseDate(fieldMap.get(this.FIELD_IDS.LEAD.EXPIRATION_DATE));
-        const lastVisitDate = this.parseDate(fieldMap.get(this.FIELD_IDS.LEAD.LAST_VISIT_DATE));
-        const ageGroup = fieldMap.get(this.FIELD_IDS.LEAD.AGE_GROUP) || '';
-        const branch = fieldMap.get(this.FIELD_IDS.LEAD.BRANCH) || '';
-        const subscriptionTypeField = fieldMap.get(this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE) || '';
-        
-        // 6. Определяем статус абонемента
-        const hasSubscription = totalClasses > 0 || remainingClasses > 0 || 
-                               (subscriptionType && subscriptionType !== 'Без абонемента');
-        
-        // 7. Проверяем, активна ли сделка
-        const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
-        const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
-        
-        let subscriptionStatus = 'Нет данных';
-        let subscriptionBadge = 'inactive';
-        let subscriptionActive = false;
-        
-        if (hasActiveStatus && hasSubscription) {
-            subscriptionStatus = 'Активен';
-            subscriptionBadge = 'active';
-            subscriptionActive = true;
-        } else if (hasSubscription) {
-            subscriptionStatus = 'Есть абонемент';
-            subscriptionBadge = 'warning';
-        } else {
-            subscriptionStatus = 'Нет абонемента';
-            subscriptionBadge = 'inactive';
-        }
-        
-        console.log(`📊 РЕЗУЛЬТАТ извлечения данных:`);
-        console.log(`   ✅ Абонемент: ${hasSubscription ? 'Да' : 'Нет'}`);
-        console.log(`   📊 Занятий: ${usedClasses}/${totalClasses} (осталось: ${remainingClasses})`);
-        console.log(`   🏷️  Тип: ${subscriptionType}`);
-        console.log(`   📅 Активация: ${activationDate || 'Нет данных'}`);
-        console.log(`   📅 Окончание: ${expirationDate || 'Нет данных'}`);
-        console.log(`   📅 Последний визит: ${lastVisitDate || 'Нет данных'}`);
-        console.log(`   🎯 Статус: ${subscriptionStatus} (активный: ${subscriptionActive})`);
-        console.log(`   📍 Филиал: ${branch}`);
-        console.log(`   👥 Возрастная группа: ${ageGroup}`);
-        
-        return {
-            hasSubscription: hasSubscription,
-            subscriptionActive: subscriptionActive,
-            subscriptionStatus: subscriptionStatus,
-            subscriptionBadge: subscriptionBadge,
-            
-            subscriptionType: subscriptionType,
-            subscriptionTypeField: subscriptionTypeField,
-            totalClasses: totalClasses,
-            usedClasses: usedClasses,
-            remainingClasses: remainingClasses,
-            
-            expirationDate: expirationDate,
-            activationDate: activationDate,
-            lastVisitDate: lastVisitDate,
-            
-            ageGroup: ageGroup,
-            branch: branch,
-            
-            isInSubscriptionPipeline: isInSubscriptionPipeline,
-            hasActiveStatus: hasActiveStatus,
-            pipelineId: lead.pipeline_id,
-            statusId: lead.status_id,
-            
-            // Для отладки
-            rawData: {
-                totalClassesRaw: subscriptionTypeRaw,
-                usedClassesRaw: usedClassesRaw,
-                remainingClassesRaw: remainingClassesRaw
-            }
-        };
     }
     
+    // 1. Извлекаем общее количество занятий
+    const subscriptionTypeRaw = fieldMap.get(this.FIELD_IDS.LEAD.TOTAL_CLASSES);
+    console.log(`📊 "Абонемент занятий:" (ID: ${this.FIELD_IDS.LEAD.TOTAL_CLASSES}): "${subscriptionTypeRaw}"`);
+    
+    let totalClasses = 0;
+    if (subscriptionTypeRaw) {
+        // Пробуем разные способы извлечения числа
+        if (typeof subscriptionTypeRaw === 'number') {
+            totalClasses = subscriptionTypeRaw;
+            console.log(`✅ Числовое значение totalClasses: ${totalClasses}`);
+        } else if (typeof subscriptionTypeRaw === 'string') {
+            // Ищем число в строке
+            const match = subscriptionTypeRaw.match(/\d+/);
+            if (match) {
+                totalClasses = parseInt(match[0]);
+                console.log(`✅ Извлекли число из текста "${subscriptionTypeRaw}": ${totalClasses}`);
+            } else {
+                // Пробуем преобразовать строку в число
+                const num = Number(subscriptionTypeRaw);
+                if (!isNaN(num)) {
+                    totalClasses = num;
+                    console.log(`✅ Преобразовали строку в число: ${totalClasses}`);
+                }
+            }
+        } else if (typeof subscriptionTypeRaw === 'boolean') {
+            console.log(`⚠️  Boolean значение: ${subscriptionTypeRaw}`);
+        }
+    }
+    
+    // 2. Извлекаем использованные занятия
+    const usedClassesRaw = fieldMap.get(this.FIELD_IDS.LEAD.USED_CLASSES);
+    console.log(`📊 "Счетчик занятий:" (ID: ${this.FIELD_IDS.LEAD.USED_CLASSES}): "${usedClassesRaw}"`);
+    
+    let usedClasses = 0;
+    if (usedClassesRaw !== null && usedClassesRaw !== undefined) {
+        if (typeof usedClassesRaw === 'number') {
+            usedClasses = usedClassesRaw;
+            console.log(`✅ Числовое значение usedClasses: ${usedClasses}`);
+        } else if (typeof usedClassesRaw === 'string') {
+            const match = usedClassesRaw.match(/\d+/);
+            if (match) {
+                usedClasses = parseInt(match[0]);
+                console.log(`✅ Извлекли число из текста "${usedClassesRaw}": ${usedClasses}`);
+            } else {
+                const num = Number(usedClassesRaw);
+                if (!isNaN(num)) {
+                    usedClasses = num;
+                    console.log(`✅ Преобразовали строку в число: ${usedClasses}`);
+                }
+            }
+        }
+    }
+    
+    // 3. Извлекаем остаток занятий
+    const remainingClassesRaw = fieldMap.get(this.FIELD_IDS.LEAD.REMAINING_CLASSES);
+    console.log(`📊 "Остаток занятий" (ID: ${this.FIELD_IDS.LEAD.REMAINING_CLASSES}): "${remainingClassesRaw}"`);
+    
+    let remainingClasses = 0;
+    if (remainingClassesRaw !== null && remainingClassesRaw !== undefined) {
+        if (typeof remainingClassesRaw === 'number') {
+            remainingClasses = remainingClassesRaw;
+            console.log(`✅ Числовое значение remainingClasses: ${remainingClasses}`);
+        } else if (typeof remainingClassesRaw === 'string') {
+            const match = remainingClassesRaw.match(/\d+/);
+            if (match) {
+                remainingClasses = parseInt(match[0]);
+                console.log(`✅ Извлекли число из текста "${remainingClassesRaw}": ${remainingClasses}`);
+            } else {
+                const num = Number(remainingClassesRaw);
+                if (!isNaN(num)) {
+                    remainingClasses = num;
+                    console.log(`✅ Преобразовали строку в число: ${remainingClasses}`);
+                }
+            }
+        }
+    }
+    
+    // 4. Если остаток не указан, вычисляем его
+    if (remainingClasses === 0 && totalClasses > 0 && usedClasses >= 0) {
+        remainingClasses = Math.max(0, totalClasses - usedClasses);
+        console.log(`🔄 Вычислен остаок: ${totalClasses} - ${usedClasses} = ${remainingClasses}`);
+    }
+    
+    // 5. Получаем другие данные
+    const subscriptionType = subscriptionTypeRaw || 'Без абонемента';
+    const activationDate = this.parseDate(fieldMap.get(this.FIELD_IDS.LEAD.ACTIVATION_DATE));
+    const expirationDate = this.parseDate(fieldMap.get(this.FIELD_IDS.LEAD.EXPIRATION_DATE));
+    const lastVisitDate = this.parseDate(fieldMap.get(this.FIELD_IDS.LEAD.LAST_VISIT_DATE));
+    const ageGroup = fieldMap.get(this.FIELD_IDS.LEAD.AGE_GROUP) || '';
+    const branch = fieldMap.get(this.FIELD_IDS.LEAD.BRANCH) || '';
+    const subscriptionTypeField = fieldMap.get(this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE) || '';
+    
+    // 6. Определяем статус абонемента
+    const hasSubscription = totalClasses > 0 || remainingClasses > 0 || usedClasses > 0 ||
+                           (subscriptionType && subscriptionType !== 'Без абонемента');
+    
+    // 7. Проверяем, активна ли сделка
+    const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
+    const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+    
+    let subscriptionStatus = 'Нет данных';
+    let subscriptionBadge = 'inactive';
+    let subscriptionActive = false;
+    
+    console.log(`📊 Проверка активности:`);
+    console.log(`   Воронка абонементов: ${isInSubscriptionPipeline ? 'Да' : 'Нет'} (ID: ${lead.pipeline_id})`);
+    console.log(`   Активный статус: ${hasActiveStatus ? 'Да' : 'Нет'} (Статус ID: ${lead.status_id})`);
+    console.log(`   Есть абонемент: ${hasSubscription ? 'Да' : 'Нет'}`);
+    
+    if (hasActiveStatus && hasSubscription) {
+        subscriptionStatus = 'Активен';
+        subscriptionBadge = 'active';
+        subscriptionActive = true;
+        console.log(`✅ Абонемент активен!`);
+    } else if (hasSubscription) {
+        subscriptionStatus = 'Есть абонемент';
+        subscriptionBadge = 'warning';
+        console.log(`⚠️  Есть абонемент, но не активен`);
+    } else {
+        subscriptionStatus = 'Нет абонемента';
+        subscriptionBadge = 'inactive';
+        console.log(`❌ Нет абонемента`);
+    }
+    
+    console.log(`📊 РЕЗУЛЬТАТ извлечения данных:`);
+    console.log(`   ✅ Абонемент: ${hasSubscription ? 'Да' : 'Нет'}`);
+    console.log(`   📊 Занятий: ${usedClasses}/${totalClasses} (осталось: ${remainingClasses})`);
+    console.log(`   🏷️  Тип: ${subscriptionType}`);
+    console.log(`   📅 Активация: ${activationDate || 'Нет данных'}`);
+    console.log(`   📅 Окончание: ${expirationDate || 'Нет данных'}`);
+    console.log(`   📅 Последний визит: ${lastVisitDate || 'Нет данных'}`);
+    console.log(`   🎯 Статус: ${subscriptionStatus} (активный: ${subscriptionActive})`);
+    console.log(`   📍 Филиал: ${branch}`);
+    console.log(`   👥 Возрастная группа: ${ageGroup}`);
+    
+    return {
+        hasSubscription: hasSubscription,
+        subscriptionActive: subscriptionActive,
+        subscriptionStatus: subscriptionStatus,
+        subscriptionBadge: subscriptionBadge,
+        
+        subscriptionType: subscriptionType,
+        subscriptionTypeField: subscriptionTypeField,
+        totalClasses: totalClasses,
+        usedClasses: usedClasses,
+        remainingClasses: remainingClasses,
+        
+        expirationDate: expirationDate,
+        activationDate: activationDate,
+        lastVisitDate: lastVisitDate,
+        
+        ageGroup: ageGroup,
+        branch: branch,
+        
+        isInSubscriptionPipeline: isInSubscriptionPipeline,
+        hasActiveStatus: hasActiveStatus,
+        pipelineId: lead.pipeline_id,
+        statusId: lead.status_id,
+        
+        // Для отладки
+        rawData: {
+            totalClassesRaw: subscriptionTypeRaw,
+            usedClassesRaw: usedClassesRaw,
+            remainingClassesRaw: remainingClassesRaw
+        }
+    };
+}
+    
     // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+    // ==================== ИЗВЛЕЧЕНИЕ ЧИСЛА ИЗ ПОЛЯ ====================
+extractNumberFromField(value) {
+    if (value === null || value === undefined) {
+        return 0;
+    }
+    
+    if (typeof value === 'number') {
+        return value;
+    }
+    
+    if (typeof value === 'string') {
+        // Убираем все нецифровые символы, кроме точки и минуса
+        const cleanStr = value.replace(/[^\d.-]/g, '');
+        const num = parseFloat(cleanStr);
+        return isNaN(num) ? 0 : num;
+    }
+    
+    if (typeof value === 'boolean') {
+        return value ? 1 : 0;
+    }
+    
+    return 0;
+},
     getFieldValue(field) {
         if (!field || !field.values || field.values.length === 0) {
             return null;
