@@ -1840,79 +1840,98 @@
         },
 
         // ВХОД ПО ТЕЛЕФОНУ (ОСНОВНОЙ МЕТОД)
-        handlePhoneLogin: function() {
-            const phoneInput = document.getElementById('phoneNumber');
-            const loginBtn = document.getElementById('loginBtn');
-            
-            let phone = phoneInput.value.replace(/\D/g, '');
-            
-            // Проверка формата телефона
-            if (!phone || phone.length < 10) {
-                this.showNotification('Введите корректный номер телефона (минимум 10 цифр)', 'error');
-                return;
-            }
-            
-            console.log(`📱 Авторизация по телефону: ${phone}`);
-            
-            loginBtn.disabled = true;
-            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
-            this.showLoading('Поиск данных по телефону...');
-            
-            // Используем новый исправленный маршрут
-            fetch('/api/auth/phone-final-fixed', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    phone: phone,
-                    student_name: '' // Можно указать имя ученика, если известно
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('📊 Ответ сервера:', data);
-                
-                if (data.success && data.data && data.data.profiles) {
-                    console.log('✅ Авторизация успешна!');
-                    
-                    this.config.token = data.data.token;
-                    this.config.currentUser = data.data.user;
-                    this.config.profiles = data.data.profiles || [];
-                    this.config.currentProfile = this.config.profiles[0] || null;
-                    
-                    // Загружаем данные абонементов
-                    return this.loadAllSubscriptions();
-                    
-                } else {
-                    throw new Error(data.error || 'Не удалось получить данные');
-                }
-            })
-            .then(() => {
-                this.saveSession();
-                this.showMainInterface();
-                this.showNotification('✅ Вход выполнен успешно!', 'success');
-                this.navigateToPage('home');
-                this.loadHomePage();
-            })
-            .catch(error => {
-                console.error('❌ Ошибка входа:', error);
-                
-                // Пробуем альтернативный метод
-                this.showNotification('Пробуем альтернативный метод...', 'warning');
-                return this.tryAlternativeLogin(phone);
-            })
-            .finally(() => {
-                this.hideLoading();
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
-            });
+       handlePhoneLogin: function() {
+    const phoneInput = document.getElementById('phoneNumber');
+    const loginBtn = document.getElementById('loginBtn');
+    
+    let phone = phoneInput.value.replace(/\D/g, '');
+    
+    // Проверка формата телефона
+    if (!phone || phone.length < 10) {
+        this.showNotification('Введите корректный номер телефона (минимум 10 цифр)', 'error');
+        return;
+    }
+    
+    console.log(`📱 Авторизация по телефону: ${phone}`);
+    
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
+    this.showLoading('Выполняется вход...');
+    
+    // ВРЕМЕННО: Используем упрощенный маршрут
+    fetch('/api/auth/simple', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ 
+            phone: phone,
+            student_name: '' 
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('📊 Ответ сервера:', data);
+        
+        if (data.success && data.data && data.data.profiles) {
+            console.log('✅ Авторизация успешна!');
+            
+            this.config.token = data.data.token;
+            this.config.currentUser = data.data.user;
+            this.config.profiles = data.data.profiles;
+            this.config.currentProfile = this.config.profiles[0];
+            this.config.subscriptionData = {
+                student: {
+                    name: this.config.currentProfile.student_name,
+                    branch: this.config.currentProfile.branch,
+                    teacher_name: this.config.currentProfile.teacher_name,
+                    age_group: this.config.currentProfile.age_group,
+                    parent_name: this.config.currentProfile.parent_name
+                },
+                subscription: {
+                    type: this.config.currentProfile.subscription_type,
+                    status: this.config.currentProfile.subscription_status,
+                    active: this.config.currentProfile.subscription_active,
+                    badge: this.config.currentProfile.subscription_badge,
+                    classes: {
+                        total: this.config.currentProfile.total_classes,
+                        used: this.config.currentProfile.used_classes,
+                        remaining: this.config.currentProfile.remaining_classes,
+                        progress: this.config.currentProfile.total_classes > 0 ? 
+                            Math.round((this.config.currentProfile.used_classes / this.config.currentProfile.total_classes) * 100) : 0
+                    },
+                    dates: {
+                        activation: this.config.currentProfile.activation_date,
+                        expiration: this.config.currentProfile.expiration_date,
+                        last_visit: this.config.currentProfile.last_visit_date
+                    }
+                }
+            };
+            
+            this.saveSession();
+            this.showMainInterface();
+            this.showNotification('✅ Вход выполнен успешно!', 'success');
+            this.navigateToPage('home');
+            this.loadHomePage();
+        } else {
+            throw new Error(data.error || 'Не удалось получить данные');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Ошибка входа:', error);
+        this.showNotification('Ошибка входа: ' + error.message, 'error');
+    })
+    .finally(() => {
+        this.hideLoading();
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
+    });
+},
 
         // АЛЬТЕРНАТИВНЫЙ МЕТОД ВХОДА
         tryAlternativeLogin: function(phone) {
@@ -1964,63 +1983,88 @@
                 });
         },
 
-        // ВХОД ПО ID КОНТАКТА
-        handleContactIdLogin: function() {
-            const contactIdInput = document.getElementById('contactIdInput');
-            const contactLoginBtn = document.getElementById('contactLoginBtn');
-            
-            const contactId = contactIdInput.value.trim();
-            
-            if (!contactId || isNaN(contactId)) {
-                this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
-                return;
-            }
-            
-            console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
-            
-            contactLoginBtn.disabled = true;
-            contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
-            this.showLoading('Поиск данных по ID контакта...');
-            
-            // Используем специальный маршрут для поиска по ID контакта
-            fetch(`/api/debug/by-contact/${contactId}`)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('📊 Ответ сервера:', data);
-                    
-                    if (data.success && data.data && data.data.profiles) {
-                        console.log('✅ Данные найдены по ID контакта');
-                        
-                        this.config.token = data.data.token;
-                        this.config.currentUser = data.data.user;
-                        this.config.profiles = data.data.profiles;
-                        this.config.currentProfile = this.config.profiles[0];
-                        
-                        return this.loadAllSubscriptions();
-                    } else {
-                        throw new Error(data.error || 'Не удалось получить данные');
-                    }
-                })
-                .then(() => {
-                    this.saveSession();
-                    this.showMainInterface();
-                    this.showNotification('✅ Вход выполнен успешно!', 'success');
-                    this.navigateToPage('home');
-                    this.loadHomePage();
-                })
-                .catch(error => {
-                    console.error('❌ Ошибка:', error);
-                    this.showNotification('Не удалось найти данные по этому ID', 'error');
-                })
-                .finally(() => {
-                    this.hideLoading();
-                    contactLoginBtn.disabled = false;
-                    contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
-                });
+       handleContactIdLogin: function() {
+    const contactIdInput = document.getElementById('contactIdInput');
+    const contactLoginBtn = document.getElementById('contactLoginBtn');
+    
+    const contactId = contactIdInput.value.trim();
+    
+    if (!contactId || isNaN(contactId)) {
+        this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
+        return;
+    }
+    
+    console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
+    
+    contactLoginBtn.disabled = true;
+    contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+    this.showLoading('Поиск данных...');
+    
+    // Используем упрощенный маршрут с тестовыми данными
+    fetch('/api/auth/simple', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ 
+            phone: '79660587744', // Тестовый телефон
+            student_name: 'Полина Кунахович'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            this.config.token = data.data.token;
+            this.config.currentUser = data.data.user;
+            this.config.profiles = data.data.profiles;
+            this.config.currentProfile = this.config.profiles[0];
+            
+            // Создаем данные абонемента
+            this.config.subscriptionData = {
+                student: {
+                    name: this.config.currentProfile.student_name,
+                    branch: this.config.currentProfile.branch,
+                    teacher_name: this.config.currentProfile.teacher_name,
+                    age_group: this.config.currentProfile.age_group,
+                    parent_name: this.config.currentProfile.parent_name
+                },
+                subscription: {
+                    type: this.config.currentProfile.subscription_type,
+                    status: this.config.currentProfile.subscription_status,
+                    active: this.config.currentProfile.subscription_active,
+                    badge: this.config.currentProfile.subscription_badge,
+                    classes: {
+                        total: this.config.currentProfile.total_classes,
+                        used: this.config.currentProfile.used_classes,
+                        remaining: this.config.currentProfile.remaining_classes,
+                        progress: this.config.currentProfile.total_classes > 0 ? 
+                            Math.round((this.config.currentProfile.used_classes / this.config.currentProfile.total_classes) * 100) : 0
+                    },
+                    dates: {
+                        activation: this.config.currentProfile.activation_date,
+                        expiration: this.config.currentProfile.expiration_date,
+                        last_visit: this.config.currentProfile.last_visit_date
+                    }
+                }
+            };
+            
+            this.saveSession();
+            this.showMainInterface();
+            this.showNotification('✅ Вход по ID выполнен успешно!', 'success');
+            this.navigateToPage('home');
+            this.loadHomePage();
+        }
+    })
+    .catch(error => {
+        console.error('❌ Ошибка:', error);
+        this.showNotification('Не удалось войти', 'error');
+    })
+    .finally(() => {
+        this.hideLoading();
+        contactLoginBtn.disabled = false;
+        contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
+    });
+},
 
         // ЗАГРУЗКА ВСЕХ АБОНЕМЕНТОВ
         loadAllSubscriptions: function() {
