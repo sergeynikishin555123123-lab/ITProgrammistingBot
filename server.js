@@ -688,51 +688,54 @@ extractSubscriptionInfo(lead) {
     const hasSubscription = totalClasses > 0 || remainingClasses > 0 || usedClasses > 0 ||
                            (subscriptionType && subscriptionType !== 'Без абонемента');
     
-    // 7. Проверяем, активна ли сделка - ИСПРАВЛЕННАЯ ЛОГИКА
-    const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
+   const isInSubscriptionPipeline = this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id);
     const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+    const isLessonStatus = this.LESSON_STATUSES.includes(lead.status_id);
     
     console.log(`\n🔍 ПРОВЕРКА АКТИВНОСТИ СДЕЛКИ:`);
     console.log(`   ID сделки: ${lead.id}`);
-    console.log(`   ID воронки: ${lead.pipeline_id} (нужно: ${this.SUBSCRIPTION_PIPELINE_ID})`);
-    console.log(`   ID статуса: ${lead.status_id} (активные: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')})`);
-    console.log(`   В нужной воронке: ${isInSubscriptionPipeline ? '✅' : '❌'}`);
-    console.log(`   Активный статус: ${hasActiveStatus ? '✅' : '❌'}`);
-    console.log(`   Есть данные абонемента: ${hasSubscription ? '✅' : '❌'}`);
+    console.log(`   Воронка ${lead.pipeline_id} в списке: ${isInSubscriptionPipeline}`);
+    console.log(`   Статус ${lead.status_id} активный: ${hasActiveStatus}`);
+    console.log(`   Статус ${lead.status_id} занятие: ${isLessonStatus}`);
+    console.log(`   Есть данные абонемента: ${hasSubscription}`);
+    
+    // ЛОГИКА ПРОСТА:
+    // 1. Если сделка в воронке абонементов И статус активный И есть абонемент -> АКТИВЕН
+    // 2. Если статус занятия И есть абонемент -> АКТИВЕН (даже если не в "правильной" воронке)
+    // 3. Если есть абонемент, но не активный статус -> ЕСТЬ АБОНЕМЕНТ (не активен)
+    // 4. Нет данных об абонементе -> НЕТ АБОНЕМЕНТА
     
     let subscriptionStatus = 'Нет данных';
     let subscriptionBadge = 'inactive';
     let subscriptionActive = false;
     
-    // Условия для активного абонемента:
-    // 1. Сделка в воронке абонементов
-    // 2. Статус в списке активных
-    // 3. Есть данные об абонементе
+    // УСЛОВИЕ 1: Активный абонемент (в нужной воронке + активный статус)
     if (isInSubscriptionPipeline && hasActiveStatus && hasSubscription) {
         subscriptionStatus = 'Активен';
         subscriptionBadge = 'active';
         subscriptionActive = true;
-        console.log(`✅✅✅ АБОНЕМЕНТ АКТИВЕН!`);
-    } 
-    // Если сделка в воронке абонементов, но статус не активный
-    else if (isInSubscriptionPipeline && hasSubscription) {
-        subscriptionStatus = 'Не активен';
-        subscriptionBadge = 'warning';
-        subscriptionActive = false;
-        console.log(`⚠️  Есть абонемент, но статус не активный`);
+        console.log(`✅✅✅ АБОНЕМЕНТ АКТИВЕН (условие 1)`);
     }
-    // Если есть данные об абонементе, но не в той воронке
+    // УСЛОВИЕ 2: Статус занятия (даже если не в "правильной" воронке)
+    else if (isLessonStatus && hasSubscription) {
+        subscriptionStatus = 'Активен (занятие)';
+        subscriptionBadge = 'active';
+        subscriptionActive = true;
+        console.log(`✅✅✅ АБОНЕМЕНТ АКТИВЕН (условие 2 - статус занятия)`);
+    }
+    // УСЛОВИЕ 3: Есть абонемент, но не активный статус
     else if (hasSubscription) {
         subscriptionStatus = 'Есть абонемент';
-        subscriptionBadge = 'info';
+        subscriptionBadge = 'warning';
         subscriptionActive = false;
-        console.log(`ℹ️  Есть абонемент, но не в воронке абонементов`);
+        console.log(`⚠️  Есть абонемент, но не активный (условие 3)`);
     }
+    // УСЛОВИЕ 4: Нет абонемента
     else {
         subscriptionStatus = 'Нет абонемента';
         subscriptionBadge = 'inactive';
         subscriptionActive = false;
-        console.log(`❌ Нет абонемента`);
+        console.log(`❌ Нет абонемента (условие 4)`);
     }
     
     console.log(`📊 РЕЗУЛЬТАТ извлечения данных:`);
