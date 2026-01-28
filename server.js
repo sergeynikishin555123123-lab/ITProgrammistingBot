@@ -1443,6 +1443,167 @@ app.post('/api/auth/real-data', async (req, res) => {
 });
 
 // ==================== ПРОВЕРОЧНЫЕ МАРШРУТЫ ====================
+// ==================== ОТЛАДОЧНЫЙ МАРШРУТ ДЛЯ ПОИСКА УЧЕНИКОВ ====================
+app.get('/api/debug/get-students/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        console.log(`\n🔍 ОТЛАДКА ПОИСКА УЧЕНИКОВ ПО ТЕЛЕФОНУ: ${phone}`);
+        
+        // 1. Тест поиска контактов
+        console.log('\n🔍 1. Тест поиска контактов...');
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        
+        // 2. Тест извлечения учеников из каждого контакта
+        console.log('\n👥 2. Извлечение учеников из контактов...');
+        const allStudents = [];
+        
+        for (const contact of contacts) {
+            console.log(`\n📋 Контакт: "${contact.name || 'Без имени'}" (ID: ${contact.id})`);
+            
+            const students = amoCrmService.extractStudentsFromContact(contact);
+            console.log(`   Учеников в контакте: ${students.length}`);
+            
+            if (students.length > 0) {
+                students.forEach((student, index) => {
+                    console.log(`   ${index + 1}. ${student.studentName}`);
+                });
+                allStudents.push(...students);
+            }
+        }
+        
+        // 3. Тест поиска активных сделок
+        console.log('\n🎯 3. Поиск активных сделок...');
+        const contactLeadsData = [];
+        
+        for (const contact of contacts) {
+            console.log(`\n📊 Контакт ID: ${contact.id}`);
+            const leads = await amoCrmService.getContactLeads(contact.id);
+            console.log(`   Сделок всего: ${leads.length}`);
+            
+            // Находим активную сделку
+            const activeLead = await amoCrmService.findMostRecentActiveLead(contact.id);
+            
+            contactLeadsData.push({
+                contact_id: contact.id,
+                contact_name: contact.name,
+                leads_count: leads.length,
+                has_active_lead: !!activeLead,
+                active_lead_name: activeLead?.lead?.name,
+                active_lead_id: activeLead?.lead?.id
+            });
+            
+            if (activeLead) {
+                console.log(`   ✅ Активная сделка: "${activeLead.lead.name}" (ID: ${activeLead.lead.id})`);
+                console.log(`      Статус: ${activeLead.subscriptionInfo.subscriptionStatus}`);
+                console.log(`      Занятий: ${activeLead.subscriptionInfo.usedClasses}/${activeLead.subscriptionInfo.totalClasses}`);
+            } else {
+                console.log(`   ❌ Активных сделок не найдено`);
+            }
+        }
+        
+        // 4. Тест главного метода
+        console.log('\n📱 4. Тест главного метода getStudentsByPhone...');
+        const profiles = await amoCrmService.getStudentsByPhone(phone);
+        
+        console.log(`\n🎯 ИТОГО:`);
+        console.log(`   Контактов: ${contacts.length}`);
+        console.log(`   Учеников в контактах: ${allStudents.length}`);
+        console.log(`   Профилей создано: ${profiles.length}`);
+        
+        if (profiles.length > 0) {
+            profiles.forEach((profile, index) => {
+                console.log(`\n   ${index + 1}. ${profile.student_name}`);
+                console.log(`      Контакт ID: ${profile.amocrm_contact_id}`);
+                console.log(`      Сделка ID: ${profile.amocrm_lead_id || 'Нет'}`);
+                console.log(`      Абонемент: ${profile.subscription_type}`);
+                console.log(`      Занятий: ${profile.used_classes}/${profile.total_classes} (осталось: ${profile.remaining_classes})`);
+                console.log(`      Активен: ${profile.subscription_active === 1 ? 'Да' : 'Нет'}`);
+                console.log(`      Филиал: ${profile.branch}`);
+                console.log(`      Email: ${profile.email || 'Нет'}`);
+            });
+        } else {
+            console.log('   ❌ Профили не созданы');
+            
+            // Пробуем создать профиль вручную для отладки
+            console.log('\n🔧 Создание профиля вручную для отладки...');
+            if (contacts.length > 0) {
+                const contact = contacts[0];
+                const students = amoCrmService.extractStudentsFromContact(contact);
+                
+                if (students.length > 0) {
+                    const student = students[0];
+                    const defaultSubscription = amoCrmService.getDefaultSubscriptionInfo();
+                    
+                    const manualProfile = amoCrmService.createStudentProfile(
+                        contact,
+                        phone,
+                        student,
+                        defaultSubscription,
+                        null
+                    );
+                    
+                    console.log(`✅ Создан профиль вручную: ${manualProfile.student_name}`);
+                    console.log(`   Данные:`, manualProfile);
+                }
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                phone: phone,
+                contacts_count: contacts.length,
+                students_in_contacts_count: allStudents.length,
+                profiles_count: profiles.length,
+                contacts: contacts.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    has_students_fields: amoCrmService.hasStudentFields(c),
+                    custom_fields_count: c.custom_fields_values?.length || 0
+                })),
+                contact_leads_data: contactLeadsData,
+                profiles: profiles.map(p => ({
+                    student_name: p.student_name,
+                    contact_id: p.amocrm_contact_id,
+                    lead_id: p.amocrm_lead_id,
+                    subscription_type: p.subscription_type,
+                    total_classes: p.total_classes,
+                    used_classes: p.used_classes,
+                    remaining_classes: p.remaining_classes,
+                    subscription_active: p.subscription_active === 1,
+                    branch: p.branch,
+                    email: p.email
+                }))
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка отладки:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Добавьте этот метод в класс AmoCrmService
+hasStudentFields(contact) {
+    if (!contact || !contact.custom_fields_values) {
+        return false;
+    }
+    
+    const studentFieldIds = [
+        this.FIELD_IDS.CONTACT.CHILD_1_NAME,
+        this.FIELD_IDS.CONTACT.CHILD_2_NAME,
+        this.FIELD_IDS.CONTACT.CHILD_3_NAME
+    ];
+    
+    return contact.custom_fields_values.some(field => 
+        studentFieldIds.includes(field.field_id || field.id)
+    );
+}
 // ==================== ТЕСТ ПОИСКА КОНТАКТА ПО ТЕЛЕФОНУ ====================
 app.get('/api/test/phone-search/:phone', async (req, res) => {
     try {
