@@ -478,37 +478,128 @@ async getContactLeadsSorted(contactId) {
         return [];
     }
 }
-   async findLeadForStudentFixed(contactId, studentName) {
-    console.log(`\n🔍 ПОИСК СДЕЛКИ ДЛЯ: "${studentName}"`);
+  async findLeadForStudent(contactId, studentName) {
+    console.log(`\n🔍 ПОИСК СДЕЛКИ ДЛЯ УЧЕНИКА: "${studentName}"`);
+    console.log('='.repeat(60));
     
     try {
-        // Используем исправленный метод поиска сделок
-        const allLeads = await this.getContactLeadsFixed(contactId);
+        // Получаем все сделки контакта через исправленный метод
+        const response = await this.makeRequest('GET', 
+            `/api/v4/leads?filter[contact_id][]=${contactId}&with=custom_fields_values&limit=100`
+        );
         
-        // Ищем точное совпадение по имени
+        const allLeads = response?._embedded?.leads || [];
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        
+        if (allLeads.length === 0) {
+            console.log('❌ У контакта нет сделок');
+            return null;
+        }
+        
+        // Нормализуем имя ученика для поиска
         const normalizedStudentName = this.normalizeName(studentName);
+        console.log(`🔍 Ищем сделку для: "${normalizedStudentName}"`);
         
+        // 1. Сначала ищем ПОЛНОЕ совпадение
         for (const lead of allLeads) {
-            const leadName = this.normalizeName(lead.name);
+            if (!lead.name) continue;
             
-            // Более гибкий поиск: ищем части имени
-            if (leadName.includes(normalizedStudentName) || 
-                normalizedStudentName.includes(leadName.split(' ')[0])) {
+            const leadName = this.normalizeName(lead.name);
+            console.log(`   🔎 Проверяем: "${lead.name}" -> "${leadName}"`);
+            
+            // Проверяем РАЗНЫЕ варианты совпадения:
+            // 1. Полное совпадение имени
+            if (leadName.includes(normalizedStudentName)) {
+                console.log(`   ✅ Полное совпадение!`);
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
                 
-                console.log(`✅ Найдена сделка: "${lead.name}"`);
                 return {
                     lead: lead,
-                    subscriptionInfo: this.extractSubscriptionInfo(lead),
+                    subscriptionInfo: subscriptionInfo,
                     match_score: 100
+                };
+            }
+            
+            // 2. Проверяем по частям имени
+            const studentParts = normalizedStudentName.split(' ');
+            const leadParts = leadName.split(/[\s\-–]+/);
+            
+            let partsMatch = false;
+            
+            // Проверяем, есть ли все части имени ученика в названии сделки
+            const allStudentPartsInLead = studentParts.every(studentPart => 
+                studentPart.length > 2 && // Игнорируем короткие части
+                leadParts.some(leadPart => leadPart.includes(studentPart))
+            );
+            
+            // Или наоборот - есть ли части названия сделки в имени ученика
+            const significantLeadPartsInStudent = leadParts.some(leadPart => 
+                leadPart.length > 2 &&
+                studentParts.some(studentPart => studentPart.includes(leadPart))
+            );
+            
+            if (allStudentPartsInLead || significantLeadPartsInStudent) {
+                partsMatch = true;
+            }
+            
+            if (partsMatch) {
+                console.log(`   ✅ Совпадение по частям имени!`);
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                
+                return {
+                    lead: lead,
+                    subscriptionInfo: subscriptionInfo,
+                    match_score: 80
                 };
             }
         }
         
-        // Если не нашли, возвращаем null
+        // 2. Если не нашли по имени, ищем в воронке абонементов
+        console.log(`\n⚠️  Не нашли по имени, ищем в воронке абонементов...`);
+        
+        for (const lead of allLeads) {
+            if (lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID) {
+                console.log(`   ✅ Найдена сделка в воронке абонементов: "${lead.name}"`);
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                
+                if (subscriptionInfo.hasSubscription) {
+                    console.log(`   🎫 И с абонементом!`);
+                    return {
+                        lead: lead,
+                        subscriptionInfo: subscriptionInfo,
+                        match_score: 70
+                    };
+                }
+            }
+        }
+        
+        // 3. Ищем по ID известной сделки (для отладки)
+        console.log(`\n🔍 Пробуем найти по известному ID 28674745...`);
+        try {
+            const knownLead = await this.makeRequest('GET', 
+                `/api/v4/leads/28674745?with=custom_fields_values`
+            );
+            
+            if (knownLead) {
+                console.log(`   ✅ Нашли известную сделку: "${knownLead.name}"`);
+                const subscriptionInfo = this.extractSubscriptionInfo(knownLead);
+                
+                return {
+                    lead: knownLead,
+                    subscriptionInfo: subscriptionInfo,
+                    match_score: 100,
+                    match_reason: 'FORCED_BY_ID'
+                };
+            }
+        } catch (knownError) {
+            console.log(`   ❌ Не удалось получить известную сделку: ${knownError.message}`);
+        }
+        
+        console.log(`\n❌ Не нашли подходящей сделки для ученика "${studentName}"`);
         return null;
         
     } catch (error) {
-        console.error(`❌ Ошибка поиска:`, error.message);
+        console.error(`❌ Ошибка поиска сделки для ${studentName}:`, error.message);
         return null;
     }
 }
@@ -1482,6 +1573,81 @@ async getStudentsByPhone(phoneNumber) {
             console.error('❌ Ошибка загрузки статусов:', error.message);
         }
     }
+    async debugFindLeadForStudent(contactId, studentName) {
+    console.log(`\n🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ПОИСКА ДЛЯ: "${studentName}"`);
+    console.log('='.repeat(80));
+    
+    try {
+        const allLeads = await this.getContactLeadsSorted(contactId);
+        
+        console.log(`📊 Всего сделок: ${allLeads.length}`);
+        
+        const normalizedStudentName = this.normalizeName(studentName);
+        console.log(`🔍 Нормализованное имя: "${normalizedStudentName}"`);
+        
+        console.log(`\n📋 ВСЕ СДЕЛКИ КОНТАКТА:`);
+        console.log('─'.repeat(80));
+        
+        const leadMatches = [];
+        
+        for (const lead of allLeads) {
+            const leadName = this.normalizeName(lead.name || '');
+            
+            console.log(`ID: ${lead.id} | "${lead.name}" -> "${leadName}"`);
+            console.log(`   🎯 Воронка: ${lead.pipeline_id} ${lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID ? '(АБОНЕМЕНТОВ!)' : ''}`);
+            console.log(`   📊 Статус: ${lead.status_id}`);
+            
+            // Проверяем совпадение
+            let matchScore = 0;
+            let matchReason = '';
+            
+            if (leadName.includes(normalizedStudentName)) {
+                matchScore = 100;
+                matchReason = 'Полное совпадение';
+            } else {
+                const studentParts = normalizedStudentName.split(' ');
+                const leadParts = leadName.split(/[\s\-–]+/);
+                
+                // Проверяем по частям
+                const matchedParts = studentParts.filter(studentPart => 
+                    studentPart.length > 2 && 
+                    leadParts.some(leadPart => leadPart.includes(studentPart))
+                );
+                
+                if (matchedParts.length > 0) {
+                    matchScore = matchedParts.length * 20;
+                    matchReason = `Совпали части: ${matchedParts.join(', ')}`;
+                }
+            }
+            
+            if (matchScore > 0) {
+                leadMatches.push({
+                    lead: lead,
+                    matchScore: matchScore,
+                    matchReason: matchReason
+                });
+                
+                console.log(`   ✅ Совпадение: ${matchReason} (${matchScore} баллов)`);
+            }
+            
+            console.log('   ─'.repeat(30));
+        }
+        
+        // Сортируем по совпадению
+        leadMatches.sort((a, b) => b.matchScore - a.matchScore);
+        
+        console.log(`\n📊 ЛУЧШИЕ СОВПАДЕНИЯ (${leadMatches.length}):`);
+        leadMatches.forEach((match, index) => {
+            console.log(`${index + 1}. "${match.lead.name}" - ${match.matchScore} баллов (${match.matchReason})`);
+        });
+        
+        return leadMatches;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка диагностики:`, error.message);
+        return [];
+    }
+}
 async findSubscriptionLeadForStudent(contactId, studentName) {
     console.log(`\n🎯 ИСПРАВЛЕННЫЙ ПОИСК АБОНЕМЕНТА ДЛЯ: "${studentName}"`);
     console.log('='.repeat(60));
@@ -5068,6 +5234,54 @@ app.get('/api/test-connection/:contactId', async (req, res) => {
             tests_completed: 4,
             timestamp: new Date().toISOString()
         });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+app.get('/api/debug/find-lead-test/:contactId/:studentName', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        const studentName = decodeURIComponent(req.params.studentName);
+        
+        console.log(`\n🔍 ТЕСТ ПОИСКА СДЕЛКИ`);
+        console.log(`👤 Ученик: "${studentName}"`);
+        console.log(`📞 Контакт ID: ${contactId}`);
+        
+        const matches = await amoCrmService.debugFindLeadForStudent(contactId, studentName);
+        
+        if (matches.length > 0) {
+            const bestMatch = matches[0];
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(bestMatch.lead);
+            
+            res.json({
+                success: true,
+                data: {
+                    best_match: {
+                        lead_id: bestMatch.lead.id,
+                        lead_name: bestMatch.lead.name,
+                        match_score: bestMatch.matchScore,
+                        match_reason: bestMatch.matchReason,
+                        subscription_info: subscriptionInfo
+                    },
+                    all_matches: matches.map(m => ({
+                        lead_id: m.lead.id,
+                        lead_name: m.lead.name,
+                        match_score: m.matchScore,
+                        match_reason: m.matchReason
+                    })),
+                    total_matches: matches.length
+                }
+            });
+        } else {
+            res.json({
+                success: false,
+                error: 'Совпадений не найдено',
+                contact_id: contactId,
+                student_name: studentName
+            });
+        }
         
     } catch (error) {
         console.error('❌ Ошибка теста:', error);
