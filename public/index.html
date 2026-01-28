@@ -1315,7 +1315,7 @@
                             <input type="text" id="contactIdInput" class="phone-input" placeholder="Например: 123456" style="padding-left: 15px;">
                         </div>
                         
-                        <button class="btn btn-secondary" onclick="ArtApp.handleContactIdLogin()" id="contactLoginBtn">
+                       <button class="btn btn-secondary" id="contactLoginBtn">
                             <i class="fas fa-id-card"></i>
                             Войти по ID
                         </button>
@@ -2699,6 +2699,23 @@ handlePhoneLoginDirect: function(phone) {
                     userAvatar.addEventListener('click', () => this.navigateToPage('profile'));
                 }
             },
+         // Обработчик для кнопки входа по ID
+    const contactLoginBtn = document.getElementById('contactLoginBtn');
+    if (contactLoginBtn) {
+        contactLoginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleContactIdLogin();
+        });
+    }
+    
+    // Обработчики для других кнопок
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handlePhoneLogin();
+        });
+    }
 
             // ОТЛАДКА
             debug: function() {
