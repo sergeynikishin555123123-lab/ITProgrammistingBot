@@ -163,72 +163,242 @@ class AmoCrmService {
         }
     }
     
-    // ==================== ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ ====================
-    async searchContactsByPhone(phone) {
-        try {
-            const cleanPhone = phone.replace(/\D/g, '');
-            const last10Digits = cleanPhone.slice(-10);
-            
-            console.log(`🔍 Поиск контактов по телефону: ${last10Digits}`);
-            
-            // Пробуем разные форматы поиска
-            const searchFormats = [
-                last10Digits,
-                cleanPhone,
-                `+7${last10Digits}`,
-                `8${last10Digits}`,
-                `7${last10Digits}`
-            ];
-            
-            let allContacts = [];
-            
-            for (const searchTerm of searchFormats) {
-                if (!searchTerm || searchTerm.length < 7) continue;
-                
-                try {
-                    const response = await this.makeRequest('GET', 
-                        `/api/v4/contacts?query=${searchTerm}&with=custom_fields_values&limit=50`
-                    );
-                    
-                    if (response && response._embedded && response._embedded.contacts) {
-                        const contacts = response._embedded.contacts;
-                        
-                        // Фильтруем только те контакты, у которых действительно есть этот телефон
-                        const filteredContacts = contacts.filter(contact => 
-                            this.contactHasPhone(contact, last10Digits)
-                        );
-                        
-                        allContacts = [...allContacts, ...filteredContacts];
-                    }
-                } catch (error) {
-                    continue;
-                }
-            }
-            
-            // Убираем дубликаты
-            const uniqueContacts = [];
-            const seenIds = new Set();
-            
-            for (const contact of allContacts) {
-                if (!seenIds.has(contact.id)) {
-                    seenIds.add(contact.id);
-                    uniqueContacts.push(contact);
-                }
-            }
-            
-            console.log(`✅ Найдено контактов: ${uniqueContacts.length}`);
-            
-            return {
-                _embedded: {
-                    contacts: uniqueContacts
-                }
-            };
-            
-        } catch (error) {
-            console.error('❌ Ошибка поиска контактов:', error.message);
+  // ==================== ПОИСК КОНТАКТОВ ПО ТЕЛЕФОНУ (ИСПРАВЛЕННЫЙ) ====================
+async searchContactsByPhone(phone) {
+    try {
+        // Очищаем номер телефона
+        const cleanPhone = phone.replace(/\D/g, '');
+        console.log(`🔍 Поиск контактов по телефону (очищенный): ${cleanPhone}`);
+        
+        // Проверяем минимальную длину
+        if (cleanPhone.length < 7) {
+            console.log('❌ Слишком короткий номер телефона');
             return { _embedded: { contacts: [] } };
         }
+        
+        // Формируем поисковые варианты
+        const searchVariants = this.generatePhoneSearchVariants(cleanPhone);
+        console.log('📋 Варианты поиска:', searchVariants);
+        
+        let allContacts = [];
+        let seenContactIds = new Set();
+        
+        // Ищем каждый вариант
+        for (const searchTerm of searchVariants) {
+            if (!searchTerm || searchTerm.length < 7) continue;
+            
+            console.log(`   🔎 Поиск по варианту: "${searchTerm}"`);
+            
+            try {
+                // Поиск контактов через API v4 с фильтром по пользовательскому полю телефона
+                const response = await this.makeRequest('GET', 
+                    `/api/v4/contacts?filter[custom_fields_values][${this.FIELD_IDS.CONTACT.PHONE}][]=${searchTerm}&with=custom_fields_values&limit=250`
+                );
+                
+                if (response && response._embedded && response._embedded.contacts) {
+                    const contacts = response._embedded.contacts;
+                    console.log(`   📊 Найдено контактов по этому варианту: ${contacts.length}`);
+                    
+                    // Фильтруем только те контакты, у которых действительно есть этот телефон
+                    const filteredContacts = contacts.filter(contact => {
+                        // Пропускаем если уже видели этот контакт
+                        if (seenContactIds.has(contact.id)) {
+                            return false;
+                        }
+                        
+                        // Проверяем наличие телефона
+                        if (this.contactHasPhoneExact(contact, cleanPhone)) {
+                            seenContactIds.add(contact.id);
+                            return true;
+                        }
+                        
+                        return false;
+                    });
+                    
+                    if (filteredContacts.length > 0) {
+                        console.log(`   ✅ После фильтрации: ${filteredContacts.length} контактов`);
+                        allContacts = [...allContacts, ...filteredContacts];
+                    }
+                }
+            } catch (error) {
+                console.log(`   ⚠️  Ошибка поиска по варианту ${searchTerm}:`, error.message);
+                continue;
+            }
+        }
+        
+        // Альтернативный метод: если ничего не нашли, ищем через общий поиск
+        if (allContacts.length === 0) {
+            console.log('🔄 Альтернативный поиск через общий запрос...');
+            try {
+                // Берем последние 10 цифр для поиска
+                const last10Digits = cleanPhone.slice(-10);
+                
+                const response = await this.makeRequest('GET', 
+                    `/api/v4/contacts?query=${last10Digits}&with=custom_fields_values&limit=100`
+                );
+                
+                if (response && response._embedded && response._embedded.contacts) {
+                    const contacts = response._embedded.contacts;
+                    console.log(`📊 Найдено через общий поиск: ${contacts.length}`);
+                    
+                    // Фильтруем контакты с телефоном
+                    for (const contact of contacts) {
+                        if (seenContactIds.has(contact.id)) continue;
+                        
+                        if (this.contactHasPhoneExact(contact, cleanPhone)) {
+                            seenContactIds.add(contact.id);
+                            allContacts.push(contact);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('⚠️  Альтернативный поиск не сработал:', error.message);
+            }
+        }
+        
+        console.log(`✅ Итого найдено уникальных контактов: ${allContacts.length}`);
+        
+        // Если контактов нет, возвращаем пустой массив
+        if (allContacts.length === 0) {
+            return { _embedded: { contacts: [] } };
+        }
+        
+        // Получаем полную информацию о каждом контакте
+        const fullContacts = [];
+        for (const contact of allContacts) {
+            try {
+                const fullContact = await this.getFullContactInfo(contact.id);
+                if (fullContact) {
+                    fullContacts.push(fullContact);
+                }
+            } catch (error) {
+                console.log(`⚠️  Не удалось получить полную информацию о контакте ${contact.id}:`, error.message);
+                fullContacts.push(contact); // Добавляем хотя бы базовую информацию
+            }
+        }
+        
+        return { _embedded: { contacts: fullContacts } };
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска контактов:', error.message);
+        return { _embedded: { contacts: [] } };
     }
+},
+
+// ==================== ГЕНЕРАЦИЯ ВАРИАНТОВ ТЕЛЕФОНА ДЛЯ ПОИСКА ====================
+generatePhoneSearchVariants(cleanPhone) {
+    const variants = new Set();
+    
+    // Сохраняем исходный вариант
+    variants.add(cleanPhone);
+    
+    // Различные форматы
+    const last10 = cleanPhone.slice(-10);
+    const last7 = cleanPhone.slice(-7);
+    
+    // Российские форматы
+    if (cleanPhone.length === 11) {
+        if (cleanPhone.startsWith('7')) {
+            variants.add('8' + cleanPhone.slice(1)); // 7XXXXXXXXXX -> 8XXXXXXXXXX
+            variants.add(cleanPhone.slice(1)); // Без 7
+            variants.add('+7' + cleanPhone.slice(1)); // +7XXXXXXXXXX
+        } else if (cleanPhone.startsWith('8')) {
+            variants.add('7' + cleanPhone.slice(1)); // 8XXXXXXXXXX -> 7XXXXXXXXXX
+            variants.add(cleanPhone.slice(1)); // Без 8
+            variants.add('+7' + cleanPhone.slice(1)); // +7XXXXXXXXXX
+        }
+    } else if (cleanPhone.length === 10) {
+        variants.add('7' + cleanPhone); // XXXXXXXXXX -> 7XXXXXXXXXX
+        variants.add('8' + cleanPhone); // XXXXXXXXXX -> 8XXXXXXXXXX
+        variants.add('+7' + cleanPhone); // XXXXXXXXXX -> +7XXXXXXXXXX
+    }
+    
+    // Варианты без кода страны
+    if (cleanPhone.length >= 10) {
+        variants.add(cleanPhone.slice(-10)); // Последние 10 цифр
+    }
+    variants.add(cleanPhone.slice(-9)); // Последние 9 цифр
+    variants.add(last7); // Последние 7 цифр
+    
+    // Удаляем слишком короткие варианты
+    const result = Array.from(variants).filter(v => v && v.length >= 7);
+    return result;
+},
+
+// ==================== ПРОВЕРКА НАЛИЧИЯ ТЕЛЕФОНА У КОНТАКТА (ТОЧНЫЙ ПОИСК) ====================
+contactHasPhoneExact(contact, targetPhone) {
+    if (!contact || !contact.custom_fields_values) {
+        return false;
+    }
+    
+    // Очищаем целевой телефон
+    const cleanTarget = targetPhone.replace(/\D/g, '');
+    
+    // Ищем поле телефона
+    const phoneFields = contact.custom_fields_values.filter(field => {
+        const fieldId = field.field_id || field.id;
+        return fieldId === this.FIELD_IDS.CONTACT.PHONE;
+    });
+    
+    if (phoneFields.length === 0) {
+        return false;
+    }
+    
+    // Проверяем все значения телефона
+    for (const phoneField of phoneFields) {
+        if (phoneField.values && Array.isArray(phoneField.values)) {
+            for (const value of phoneField.values) {
+                const contactPhone = String(value.value || '').replace(/\D/g, '');
+                
+                // Различные варианты сравнения
+                if (contactPhone === cleanTarget) {
+                    return true;
+                }
+                
+                // Сравнение последних 10 цифр
+                if (contactPhone.slice(-10) === cleanTarget.slice(-10)) {
+                    return true;
+                }
+                
+                // Сравнение последних 7 цифр
+                if (contactPhone.slice(-7) === cleanTarget.slice(-7)) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
+},
+
+// ==================== ПОЛУЧЕНИЕ ПОЛНОЙ ИНФОРМАЦИИ О КОНТАКТЕ ====================
+async getFullContactInfo(contactId) {
+    try {
+        const contact = await this.makeRequest('GET', 
+            `/api/v4/contacts/${contactId}?with=custom_fields_values,leads`
+        );
+        
+        if (contact) {
+            console.log(`✅ Получен контакт ${contactId}: "${contact.name}"`);
+            return contact;
+        }
+    } catch (error) {
+        console.error(`❌ Ошибка получения контакта ${contactId}:`, error.message);
+        
+        // Пробуем без связанных сделок
+        try {
+            const contact = await this.makeRequest('GET', 
+                `/api/v4/contacts/${contactId}?with=custom_fields_values`
+            );
+            return contact;
+        } catch (error2) {
+            console.error(`❌ Не удалось получить контакт ${contactId}`);
+            return null;
+        }
+    }
+    
+    return null;
+},
     
     // Проверяет, есть ли у контакта указанный телефон
     contactHasPhone(contact, last10Digits) {
@@ -1224,6 +1394,60 @@ app.post('/api/auth/real-data', async (req, res) => {
 });
 
 // ==================== ПРОВЕРОЧНЫЕ МАРШРУТЫ ====================
+// ==================== ТЕСТ ПОИСКА КОНТАКТА ПО ТЕЛЕФОНУ ====================
+app.get('/api/test/phone-search/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        console.log(`\n📱 ТЕСТ ПОИСКА КОНТАКТА ПО ТЕЛЕФОНУ: ${phone}`);
+        
+        // Прямой поиск в amoCRM
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        const contacts = contactsResponse._embedded?.contacts || [];
+        
+        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        
+        const result = {
+            success: true,
+            data: {
+                phone_searched: phone,
+                total_contacts: contacts.length,
+                contacts: contacts.map(contact => {
+                    // Находим телефоны контакта
+                    const phones = [];
+                    if (contact.custom_fields_values) {
+                        contact.custom_fields_values.forEach(field => {
+                            if ((field.field_id || field.id) === amoCrmService.FIELD_IDS.CONTACT.PHONE) {
+                                if (field.values && Array.isArray(field.values)) {
+                                    field.values.forEach(value => {
+                                        phones.push(value.value);
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    
+                    return {
+                        id: contact.id,
+                        name: contact.name,
+                        phones: phones,
+                        custom_fields_count: contact.custom_fields_values?.length || 0,
+                        created_at: contact.created_at,
+                        updated_at: contact.updated_at
+                    };
+                })
+            }
+        };
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестового поиска по телефону:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
 // Добавьте в конец server.js перед startServer()
 app.get('/api/test/search', async (req, res) => {
     try {
