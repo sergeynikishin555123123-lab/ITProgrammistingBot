@@ -712,7 +712,7 @@ extractNumberFromField(value) {
     }
     
     return 0;
-},
+}
     getFieldValue(field) {
         if (!field || !field.values || field.values.length === 0) {
             return null;
