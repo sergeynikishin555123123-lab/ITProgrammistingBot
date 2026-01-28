@@ -48,6 +48,7 @@ app.use((req, res, next) => {
 
 class AmoCrmService {
 // Обновите конструктор класса AmoCrmService:
+// Обновите конструктор класса AmoCrmService:
 constructor() {
     console.log('\n' + '='.repeat(80));
     console.log('🎨 ИНИЦИАЛИЗАЦИЯ ДЛЯ ХУДОЖЕСТВЕННОЙ СТУДИИ');
@@ -89,26 +90,44 @@ constructor() {
         }
     };
     
-    // ВОРОНКИ, ГДЕ МОГУТ НАХОДИТЬСЯ АБОНЕМЕНТЫ
+    // ВОРОНКИ, ГДЕ МОГУТ НАХОДИТЬСЯ АБОНЕМЕНТЫ (на основе данных из /api/debug/pipelines)
     this.SUBSCRIPTION_PIPELINE_IDS = [
-        7977402, // Воронка "!Абонемент"
-        5663740  // Другая воронка, где найдены сделки
+        7977402,  // Воронка "!Абонемент"
+        5663740,  // Воронка "Входящие лиды"
+        5663743,  // Воронка "ШКОЛА ЧЕРТАНОВО" - где найдена сделка 13154405
+        7137514,  // Воронка "ШКОЛА СВИБЛОВО"
+        7490194,  // Воронка "АМАКИДС"
+        7977386,  // Воронка "!Воронка первичных продаж"
+        7977398,  // Воронка "!Воронка повторных продаж"
+        10151974  // Воронка "!Сертификаты"
     ];
     
-    // АКТИВНЫЕ СТАТУСЫ ДЛЯ АБОНЕМЕНТОВ (могут быть разные в разных воронках)
+    // АКТИВНЫЕ СТАТУСЫ ДЛЯ АБОНЕМЕНТОВ
+    // Статус 142 ("Успешно реализовано") считается активным для абонементов
     this.ACTIVE_SUBSCRIPTION_STATUSES = [
-        72490890, // "Купленный абонемент"
-        65473306, // "Активный абонемент"
-        142       // "Успешно реализовано" - этот статус тоже может быть активным
+        72490890, // "Купленный абонемент" (из воронки "!Абонемент")
+        65473306, // "Активный абонемент" (из воронки "!Абонемент")
+        142       // "Успешно реализовано" (есть во многих воронках)
     ];
     
-    this.SUCCESS_STATUSES = [142]; // "Успешно реализовано"
+    // Статусы, которые считаются завершенными продажами
+    this.SUCCESS_STATUSES = [142];
+    
+    // Статусы занятий в воронках школ (для сделок типа "1-Е ЗАНЯТИЕ", "2-Е ЗАНЯТИЕ" и т.д.)
+    this.LESSON_STATUSES = [
+        51325726, 51325729, 51325732, 51325735, 51325738, 51325741, 51325744, 51325747,
+        51325750, 51325753, 51325756, 51325759, 51325762, 51325765, 51325768, 51325771, // Чертаново
+        59693174, 59693178, 59693182, 59693186, 59693190, 59693194, 59693198, 59693202,
+        59693206, 59693210, 59693214, 59693218, 59693222, 59693226, 59693230, 59693234, // Свиблово
+        62131974, 62131978, 62131982, 62131986, 62131990, 62131994, 62131998, 62132002,
+        62132006, 62132010, 62132014, 62132018, 62132022, 62132026, 62132030, 62132034  // Амакидс
+    ];
     
     console.log('✅ Использую ВАШИ реальные данные:');
-    console.log(`   🎯 Воронки абонементов: ${this.SUBSCRIPTION_PIPELINE_IDS.join(', ')}`);
+    console.log(`   🎯 Воронки абонементов: ${this.SUBSCRIPTION_PIPELINE_IDS.length} воронок`);
     console.log(`   ✅ Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
+    console.log(`   📊 Статусы занятий: ${this.LESSON_STATUSES.length} статусов`);
 }
-
     
     // ==================== ИНИЦИАЛИЗАЦИЯ ====================
     async initialize() {
@@ -454,11 +473,96 @@ async findMostRecentActiveLead(contactId) {
         const activeLeads = [];
         
         for (const lead of allLeads) {
+            // 7. Проверяем, активна ли сделка - УЛУЧШЕННАЯ ЛОГИКА
+    const isInSubscriptionPipeline = this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id);
+    const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+    const isLessonStatus = this.LESSON_STATUSES.includes(lead.status_id);
+    
+    console.log(`\n🔍 ПРОВЕРКА АКТИВНОСТИ СДЕЛКИ:`);
+    console.log(`   ID сделки: ${lead.id}`);
+    console.log(`   ID воронки: ${lead.pipeline_id}`);
+    console.log(`   ID статуса: ${lead.status_id}`);
+    console.log(`   В воронке абонементов: ${isInSubscriptionPipeline ? '✅' : '❌'}`);
+    console.log(`   Активный статус: ${hasActiveStatus ? '✅' : '❌'}`);
+    console.log(`   Статус занятия: ${isLessonStatus ? '✅' : '❌'}`);
+    console.log(`   Есть данные абонемента: ${hasSubscription ? '✅' : '❌'}`);
+    
+    let subscriptionStatus = 'Нет данных';
+    let subscriptionBadge = 'inactive';
+    let subscriptionActive = false;
+    
+    // Условия для активного абонемента:
+    // 1. Сделка в одной из воронок абонементов ИЛИ имеет статус занятия
+    // 2. (Имеет активный статус ИЛИ статус занятия) И есть данные об абонементе
+    const canBeActive = (isInSubscriptionPipeline || isLessonStatus) && 
+                        (hasActiveStatus || isLessonStatus) && 
+                        hasSubscription;
+    
+    if (canBeActive) {
+        subscriptionStatus = 'Активен';
+        subscriptionBadge = 'active';
+        subscriptionActive = true;
+        console.log(`✅✅✅ АБОНЕМЕНТ АКТИВЕН!`);
+    } 
+    // Если сделка в воронке абонементов и есть данные, но статус не активный
+    else if (isInSubscriptionPipeline && hasSubscription) {
+        subscriptionStatus = 'Есть абонемент';
+        subscriptionBadge = 'warning';
+        subscriptionActive = false;
+        console.log(`⚠️  Есть абонемент, но статус не активный`);
+    }
+    // Если есть данные об абонементе
+    else if (hasSubscription) {
+        subscriptionStatus = 'Есть абонемент';
+        subscriptionBadge = 'info';
+        subscriptionActive = false;
+        console.log(`ℹ️  Есть абонемент`);
+    }
+    else {
+        subscriptionStatus = 'Нет абонемента';
+        subscriptionBadge = 'inactive';
+        subscriptionActive = false;
+        console.log(`❌ Нет абонемента`);
+    }
+    
+    // ... остальной код ...
+}
+
+// Обновите метод findMostRecentActiveLead:
+async findMostRecentActiveLead(contactId) {
+    console.log(`\n🎯 Поиск активной сделки для контакта: ${contactId}`);
+    console.log(`📊 Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
+    console.log(`📊 Статусы занятий: ${this.LESSON_STATUSES.length} статусов`);
+    console.log(`📊 Воронки абонементов: ${this.SUBSCRIPTION_PIPELINE_IDS.length} воронок`);
+    
+    try {
+        // Получаем ВСЕ сделки контакта
+        const allLeads = await this.getContactLeads(contactId);
+        
+        if (allLeads.length === 0) {
+            console.log('❌ У контакта нет сделок');
+            return null;
+        }
+        
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        
+        // Фильтруем сделки по критериям:
+        // 1. В одной из воронок абонементов ИЛИ имеет статус занятия
+        // 2. (Активный статус ИЛИ статус занятия)
+        // 3. С данными об абонементе
+        const activeLeads = [];
+        
+        for (const lead of allLeads) {
             const isInSubscriptionPipeline = this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id);
             const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+            const isLessonStatus = this.LESSON_STATUSES.includes(lead.status_id);
             const subscriptionInfo = this.extractSubscriptionInfo(lead);
             
-            if (isInSubscriptionPipeline && hasActiveStatus && subscriptionInfo.hasSubscription) {
+            const canBeActive = (isInSubscriptionPipeline || isLessonStatus) && 
+                                (hasActiveStatus || isLessonStatus) && 
+                                subscriptionInfo.hasSubscription;
+            
+            if (canBeActive) {
                 activeLeads.push({
                     lead: lead,
                     subscriptionInfo: subscriptionInfo,
@@ -2005,6 +2109,72 @@ app.get('/api/debug/test-multiple-phones', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+    // ==================== ПРОВЕРКА КОНКРЕТНОЙ СДЕЛКИ С НОВЫМИ НАСТРОЙКАМИ ====================
+app.get('/api/debug/check-lead-complete/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        console.log(`\n🔍 ПОЛНАЯ ПРОВЕРКА СДЕЛКИ С НОВЫМИ НАСТРОЙКАМИ: ${leadId}`);
+        
+        // Получаем сделку
+        const lead = await amoCrmService.makeRequest('GET', 
+            `/api/v4/leads/${leadId}?with=custom_fields_values`
+        );
+        
+        if (!lead) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        // Получаем информацию об абонементе
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        // Проверяем условия
+        const isInSubscriptionPipeline = amoCrmService.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id);
+        const hasActiveStatus = amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+        const isLessonStatus = amoCrmService.LESSON_STATUSES.includes(lead.status_id);
+        const hasSubscription = subscriptionInfo.hasSubscription;
+        
+        console.log(`\n📊 ПРОВЕРКА УСЛОВИЙ:`);
+        console.log(`   1. Воронка: ${lead.pipeline_id} в списке: ${isInSubscriptionPipeline ? '✅' : '❌'}`);
+        console.log(`   2. Статус ${lead.status_id} активный: ${hasActiveStatus ? '✅' : '❌'}`);
+        console.log(`   3. Статус ${lead.status_id} занятие: ${isLessonStatus ? '✅' : '❌'}`);
+        console.log(`   4. Есть данные абонемента: ${hasSubscription ? '✅' : '❌'}`);
+        
+        const canBeActive = (isInSubscriptionPipeline || isLessonStatus) && 
+                            (hasActiveStatus || isLessonStatus) && 
+                            hasSubscription;
+        
+        console.log(`\n🎯 ИТОГО: Сделка может быть активной: ${canBeActive ? '✅ ДА' : '❌ НЕТ'}`);
+        
+        res.json({
+            success: true,
+            data: {
+                lead: {
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id
+                },
+                subscription_info: subscriptionInfo,
+                conditions: {
+                    in_subscription_pipeline: isInSubscriptionPipeline,
+                    has_active_status: hasActiveStatus,
+                    is_lesson_status: isLessonStatus,
+                    has_subscription: hasSubscription,
+                    can_be_active: canBeActive
+                },
+                settings: {
+                    subscription_pipeline_ids: amoCrmService.SUBSCRIPTION_PIPELINE_IDS,
+                    active_statuses: amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES,
+                    lesson_statuses_count: amoCrmService.LESSON_STATUSES.length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
