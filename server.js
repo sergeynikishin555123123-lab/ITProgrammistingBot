@@ -58,6 +58,23 @@ class AmoCrmService {
         this.accessToken = AMOCRM_ACCESS_TOKEN;
         this.isInitialized = false;
         
+        // Привязываем методы к контексту
+        this.initialize = this.initialize.bind(this);
+        this.makeRequest = this.makeRequest.bind(this);
+        this.searchContactsByPhone = this.searchContactsByPhone.bind(this);
+        this.contactHasPhone = this.contactHasPhone.bind(this);
+        this.getFullContactInfo = this.getFullContactInfo.bind(this);
+        this.getContactLeads = this.getContactLeads.bind(this);
+        this.extractStudentsFromContact = this.extractStudentsFromContact.bind(this);
+        this.findMostRecentActiveLead = this.findMostRecentActiveLead.bind(this);
+        this.extractSubscriptionInfo = this.extractSubscriptionInfo.bind(this);
+        this.getFieldValue = this.getFieldValue.bind(this);
+        this.parseDate = this.parseDate.bind(this);
+        this.normalizeName = this.normalizeName.bind(this);
+        this.getStudentsByPhone = this.getStudentsByPhone.bind(this);
+        this.createStudentProfile = this.createStudentProfile.bind(this);
+        this.getDefaultSubscriptionInfo = this.getDefaultSubscriptionInfo.bind(this);
+        
         // ВАШИ РЕАЛЬНЫЕ ID ПОЛЕЙ ИЗ ДАМПА
         this.FIELD_IDS = {
             LEAD: {
@@ -1225,6 +1242,64 @@ app.post('/api/auth/real-data', async (req, res) => {
 });
 
 // ==================== ПРОВЕРОЧНЫЕ МАРШРУТЫ ====================
+// Добавьте в конец server.js перед startServer()
+app.get('/api/test/search', async (req, res) => {
+    try {
+        console.log('\n🧪 ТЕСТОВЫЙ ПОИСК КОНТАКТА');
+        
+        const phone = '79660587744';
+        console.log(`Телефон для поиска: ${phone}`);
+        
+        // Прямой поиск в amoCRM
+        const contactsResponse = await amoCrmService.searchContactsByPhone(phone);
+        console.log(`Найдено контактов: ${contactsResponse._embedded?.contacts?.length || 0}`);
+        
+        if (contactsResponse._embedded?.contacts?.length > 0) {
+            const contact = contactsResponse._embedded.contacts[0];
+            console.log(`Первый контакт: ${contact.name} (ID: ${contact.id})`);
+            
+            // Проверяем поля контакта
+            if (contact.custom_fields_values) {
+                console.log('Поля контакта:');
+                contact.custom_fields_values.forEach(field => {
+                    console.log(`  ID: ${field.field_id || field.id}, Значение: ${field.values?.[0]?.value || 'нет'}`);
+                });
+            }
+            
+            // Получаем сделки контакта
+            const leads = await amoCrmService.getContactLeads(contact.id);
+            console.log(`Сделок у контакта: ${leads.length}`);
+            
+            res.json({
+                success: true,
+                contact: {
+                    id: contact.id,
+                    name: contact.name,
+                    fields: contact.custom_fields_values?.map(f => ({
+                        id: f.field_id || f.id,
+                        value: f.values?.[0]?.value
+                    })),
+                    leads_count: leads.length,
+                    leads: leads.map(l => ({
+                        id: l.id,
+                        name: l.name,
+                        pipeline_id: l.pipeline_id,
+                        status_id: l.status_id
+                    }))
+                }
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'Контакты не найдены'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестового поиска:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 app.get('/api/status', (req, res) => {
     res.json({
         success: true,
