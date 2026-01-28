@@ -450,84 +450,8 @@ hasStudentFields(contact) {
     }
     
     // ==================== ПОИСК САМОЙ СВЕЖЕЙ АКТИВНОЙ СДЕЛКИ ====================
-async findMostRecentActiveLead(contactId) {
-    console.log(`\n🎯 Поиск активной сделки для контакта: ${contactId}`);
-    console.log(`📊 Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
-    console.log(`📊 Воронки абонементов: ${this.SUBSCRIPTION_PIPELINE_IDS.join(', ')}`);
-    
-    try {
-        // Получаем ВСЕ сделки контакта
-        const allLeads = await this.getContactLeads(contactId);
-        
-        if (allLeads.length === 0) {
-            console.log('❌ У контакта нет сделок');
-            return null;
-        }
-        
-        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
-        
-        // Фильтруем сделки по критериям:
-        // 1. В одной из воронок абонементов
-        // 2. С активным статусом
-        // 3. С данными об абонементе
-        const activeLeads = [];
-        
-        for (const lead of allLeads) {
-            // 7. Проверяем, активна ли сделка - УЛУЧШЕННАЯ ЛОГИКА
-    const isInSubscriptionPipeline = this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id);
-    const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
-    const isLessonStatus = this.LESSON_STATUSES.includes(lead.status_id);
-    
-    console.log(`\n🔍 ПРОВЕРКА АКТИВНОСТИ СДЕЛКИ:`);
-    console.log(`   ID сделки: ${lead.id}`);
-    console.log(`   ID воронки: ${lead.pipeline_id}`);
-    console.log(`   ID статуса: ${lead.status_id}`);
-    console.log(`   В воронке абонементов: ${isInSubscriptionPipeline ? '✅' : '❌'}`);
-    console.log(`   Активный статус: ${hasActiveStatus ? '✅' : '❌'}`);
-    console.log(`   Статус занятия: ${isLessonStatus ? '✅' : '❌'}`);
-    console.log(`   Есть данные абонемента: ${hasSubscription ? '✅' : '❌'}`);
-    
-    let subscriptionStatus = 'Нет данных';
-    let subscriptionBadge = 'inactive';
-    let subscriptionActive = false;
-    
-    // Условия для активного абонемента:
-    // 1. Сделка в одной из воронок абонементов ИЛИ имеет статус занятия
-    // 2. (Имеет активный статус ИЛИ статус занятия) И есть данные об абонементе
-    const canBeActive = (isInSubscriptionPipeline || isLessonStatus) && 
-                        (hasActiveStatus || isLessonStatus) && 
-                        hasSubscription;
-    
-    if (canBeActive) {
-        subscriptionStatus = 'Активен';
-        subscriptionBadge = 'active';
-        subscriptionActive = true;
-        console.log(`✅✅✅ АБОНЕМЕНТ АКТИВЕН!`);
-    } 
-    // Если сделка в воронке абонементов и есть данные, но статус не активный
-    else if (isInSubscriptionPipeline && hasSubscription) {
-        subscriptionStatus = 'Есть абонемент';
-        subscriptionBadge = 'warning';
-        subscriptionActive = false;
-        console.log(`⚠️  Есть абонемент, но статус не активный`);
-    }
-    // Если есть данные об абонементе
-    else if (hasSubscription) {
-        subscriptionStatus = 'Есть абонемент';
-        subscriptionBadge = 'info';
-        subscriptionActive = false;
-        console.log(`ℹ️  Есть абонемент`);
-    }
-    else {
-        subscriptionStatus = 'Нет абонемента';
-        subscriptionBadge = 'inactive';
-        subscriptionActive = false;
-        console.log(`❌ Нет абонемента`);
-    }
-    
-    // ... остальной код ...
-}
 
+    
 // Обновите метод findMostRecentActiveLead:
 async findMostRecentActiveLead(contactId) {
     console.log(`\n🎯 Поиск активной сделки для контакта: ${contactId}`);
