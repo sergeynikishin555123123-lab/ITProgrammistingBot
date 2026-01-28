@@ -411,75 +411,122 @@ class AmoCrmService {
     }
     
     // ==================== ПОИСК САМОЙ АКТИВНОЙ СДЕЛКИ ====================
-    async findBestLeadForContact(contactId) {
-        try {
-            const allLeads = await this.getContactLeads(contactId);
-            
-            if (allLeads.length === 0) {
-                return null;
-            }
-            
-            let bestLead = null;
-            let bestScore = -1;
-            
-            // Оцениваем каждую сделку
-            for (const lead of allLeads) {
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                const score = this.calculateLeadScore(lead, subscriptionInfo);
-                
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestLead = {
-                        lead: lead,
-                        subscriptionInfo: subscriptionInfo,
-                        score: score
-                    };
-                }
-            }
-            
-            return bestLead;
-            
-        } catch (error) {
-            console.error(`❌ Ошибка поиска сделки для контакта ${contactId}:`, error.message);
+    // ==================== ПОИСК ЛУЧШЕЙ СДЕЛКИ (ИСПРАВЛЕННЫЙ) ====================
+async findBestLeadForContact(contactId) {
+    try {
+        console.log(`\n🎯 ПОИСК ЛУЧШЕЙ СДЕЛКИ ДЛЯ КОНТАКТА ${contactId}`);
+        
+        const allLeads = await this.getContactLeads(contactId);
+        
+        if (allLeads.length === 0) {
+            console.log('❌ У контакта нет сделок');
             return null;
+        }
+        
+        console.log(`📊 Всего сделок: ${allLeads.length}`);
+        
+        let bestLead = null;
+        let bestScore = -1;
+        
+        // Логируем все сделки для отладки
+        console.log('\n📋 СПИСОК ВСЕХ СДЕЛОК:');
+        for (const [index, lead] of allLeads.slice(0, 20).entries()) {
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            const score = this.calculateLeadScore(lead, subscriptionInfo);
+            
+            console.log(`${index + 1}. ID: ${lead.id} - "${lead.name.substring(0, 50)}..."`);
+            console.log(`   Воронка: ${lead.pipeline_id}, Статус: ${lead.status_id}`);
+            console.log(`   Абонемент: ${subscriptionInfo.subscriptionType}`);
+            console.log(`   Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses}`);
+            console.log(`   Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+            console.log(`   Оценка: ${score}`);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestLead = {
+                    lead: lead,
+                    subscriptionInfo: subscriptionInfo,
+                    score: score
+                };
+            }
+        }
+        
+        if (bestLead) {
+            console.log(`\n🎉 ЛУЧШАЯ СДЕЛКА НАЙДЕНА:`);
+            console.log(`   ID: ${bestLead.lead.id}`);
+            console.log(`   Название: "${bestLead.lead.name}"`);
+            console.log(`   Оценка: ${bestScore}`);
+            console.log(`   Абонемент: ${bestLead.subscriptionInfo.subscriptionType}`);
+            console.log(`   Занятий: ${bestLead.subscriptionInfo.usedClasses}/${bestLead.subscriptionInfo.totalClasses}`);
+            console.log(`   Активен: ${bestLead.subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        } else {
+            console.log('❌ Не удалось найти подходящую сделку');
+        }
+        
+        return bestLead;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска сделки:`, error.message);
+        return null;
+    }
+}
+    
+    // Оценка сделки по важности
+    // ==================== ОЦЕНКА СДЕЛКИ (ИСПРАВЛЕННАЯ) ====================
+calculateLeadScore(lead, subscriptionInfo) {
+    let score = 0;
+    
+    // Баллы за наличие данных об абонементе (самое важное!)
+    if (subscriptionInfo.hasSubscription) {
+        score += 1000; // Максимальный приоритет
+        
+        // Дополнительные баллы за количество занятий
+        if (subscriptionInfo.totalClasses > 0) {
+            score += subscriptionInfo.totalClasses * 10;
+        }
+        
+        // Баллы за использованные занятия
+        if (subscriptionInfo.usedClasses > 0) {
+            score += subscriptionInfo.usedClasses * 5;
         }
     }
     
-    // Оценка сделки по важности
-    calculateLeadScore(lead, subscriptionInfo) {
-        let score = 0;
-        
-        // Баллы за воронку
-        if (this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id)) {
-            score += 100;
-        }
-        
-        // Баллы за статус
-        if (this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id)) {
-            score += 50;
-        }
-        
-        // Баллы за статус занятия
-        if (this.LESSON_STATUSES.includes(lead.status_id)) {
-            score += 40;
-        }
-        
-        // Баллы за наличие абонемента
-        if (subscriptionInfo.hasSubscription) {
-            score += 30;
-        }
-        
-        // Баллы за активность абонемента
-        if (subscriptionInfo.subscriptionActive) {
-            score += 20;
-        }
-        
-        // Баллы за свежесть (новые сделки важнее)
-        const daysOld = (Date.now() / 1000 - lead.created_at) / (24 * 60 * 60);
-        score += Math.max(0, 30 - daysOld);
-        
-        return score;
+    // Баллы за активность абонемента
+    if (subscriptionInfo.subscriptionActive) {
+        score += 500;
     }
+    
+    // Баллы за воронку (предпочтение воронке "!Абонемент")
+    if (lead.pipeline_id === 7977402) { // Воронка "!Абонемент"
+        score += 300;
+    } else if (this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id)) {
+        score += 200;
+    }
+    
+    // Баллы за статус (предпочтение активным статусам)
+    if (lead.status_id === 65473306) { // "Активный абонемент"
+        score += 400;
+    } else if (lead.status_id === 72490890) { // "Купленный абонемент"
+        score += 350;
+    } else if (lead.status_id === 142) { // "Успешно реализовано"
+        score += 300;
+    } else if (this.LESSON_STATUSES.includes(lead.status_id)) {
+        score += 250;
+    } else if (this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id)) {
+        score += 200;
+    }
+    
+    // Баллы за свежесть (новые сделки важнее)
+    const daysOld = (Date.now() / 1000 - lead.created_at) / (24 * 60 * 60);
+    score += Math.max(0, 100 - daysOld);
+    
+    // Штраф за сделки без названия или с пустыми названиями
+    if (!lead.name || lead.name.includes('Сделка #') || lead.name.includes('Автосделка:')) {
+        score -= 50;
+    }
+    
+    return score;
+}
     
     // ==================== ИЗВЛЕЧЕНИЕ ДАННЫХ ОБ АБОНЕМЕНТЕ ====================
     extractSubscriptionInfo(lead) {
@@ -1298,7 +1345,92 @@ app.get('/api/debug/lead/:leadId', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+// ==================== ОТЛАДКА ПОИСКА СДЕЛОК ДЛЯ КОНТАКТА ====================
+app.get('/api/debug/contact-leads/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        console.log(`\n🔍 ПОИСК ВСЕХ СДЕЛОК ДЛЯ КОНТАКТА: ${contactId}`);
+        
+        const allLeads = await amoCrmService.getContactLeads(contactId);
+        
+        console.log(`📊 Всего сделок: ${allLeads.length}`);
+        
+        // Собираем информацию о каждой сделке
+        const leadsInfo = [];
+        
+        for (const lead of allLeads.slice(0, 50)) { // Берем первые 50 сделок
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            
+            leadsInfo.push({
+                id: lead.id,
+                name: lead.name,
+                pipeline_id: lead.pipeline_id,
+                status_id: lead.status_id,
+                status_name: this.getStatusName(lead.status_id),
+                created_at: lead.created_at,
+                created_date: new Date(lead.created_at * 1000).toLocaleString(),
+                subscription_info: subscriptionInfo
+            });
+            
+            console.log(`\n📋 Сделка ID: ${lead.id}`);
+            console.log(`   Название: "${lead.name}"`);
+            console.log(`   Воронка: ${lead.pipeline_id}, Статус: ${lead.status_id}`);
+            console.log(`   Абонемент: ${subscriptionInfo.subscriptionType}`);
+            console.log(`   Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses} (осталось: ${subscriptionInfo.remainingClasses})`);
+            console.log(`   Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+        }
+        
+        // Ищем сделку 28674745
+        console.log(`\n🔍 ПОИСК КОНКРЕТНОЙ СДЕЛКИ 28674745...`);
+        const targetLead = allLeads.find(lead => lead.id === 28674745);
+        
+        if (targetLead) {
+            console.log(`✅ Сделка 28674745 найдена!`);
+            const targetSubscription = amoCrmService.extractSubscriptionInfo(targetLead);
+            console.log(`   Название: "${targetLead.name}"`);
+            console.log(`   Воронка: ${targetLead.pipeline_id}, Статус: ${targetLead.status_id}`);
+            console.log(`   Абонемент: ${targetSubscription.subscriptionType}`);
+            console.log(`   Занятий: ${targetSubscription.usedClasses}/${targetSubscription.totalClasses}`);
+            console.log(`   Активен: ${targetSubscription.subscriptionActive ? 'Да' : 'Нет'}`);
+        } else {
+            console.log(`❌ Сделка 28674745 не найдена в списке сделок контакта`);
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                contact_id: contactId,
+                total_leads: allLeads.length,
+                leads: leadsInfo,
+                target_lead_found: !!targetLead,
+                target_lead_info: targetLead ? {
+                    id: targetLead.id,
+                    name: targetLead.name,
+                    pipeline_id: targetLead.pipeline_id,
+                    status_id: targetLead.status_id,
+                    subscription_info: amoCrmService.extractSubscriptionInfo(targetLead)
+                } : null
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска сделок:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
+// Добавьте этот метод в класс AmoCrmService для получения имени статуса
+getStatusName(statusId) {
+    // Карта статусов (можно расширить)
+    const statusMap = {
+        142: 'Успешно реализовано',
+        143: 'Закрыто и не реализовано',
+        72490890: 'Купленный абонемент',
+        65473306: 'Активный абонемент'
+    };
+    
+    return statusMap[statusId] || `Статус ${statusId}`;
+}
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const amoCrmService = new AmoCrmService();
 
