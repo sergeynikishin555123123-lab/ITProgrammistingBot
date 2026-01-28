@@ -863,34 +863,53 @@ async findSubscriptionLeadForStudentFixed(contactId, studentName) {
         const studentLastName = normalizedStudentName.split(' ').pop();
         const studentFirstName = normalizedStudentName.split(' ')[0];
         
-        // Приоритет 1: Ищем сделку по точному совпадению имени
-        console.log(`\n🔍 Приоритет 1: Поиск по точному совпадению имени...`);
-        for (const lead of allLeads) {
-            const leadName = this.normalizeName(lead.name);
+       // Приоритет 1: Ищем сделку по точному совпадению имени
+console.log(`\n🔍 Приоритет 1: Поиск по точному совпадению имени...`);
+for (const lead of allLeads) {
+    const leadName = this.normalizeName(lead.name);
+    
+    // ГИБКИЙ ПОИСК: Разбиваем имена на части и ищем взаимные вхождения
+    const studentNameParts = normalizedStudentName.split(' ').filter(part => part.length > 1);
+    const leadNameParts = leadName.split(/[\s\-–]+/).filter(part => part.length > 1); // Учитываем разделители в названии сделки
+    
+    let matchFound = false;
+    let matchScore = 0;
+    
+    // Проверяем, все ли части имени ученика встречаются в названии сделки
+    const allStudentPartsInLead = studentNameParts.every(studentPart => 
+        leadNameParts.some(leadPart => leadPart.includes(studentPart))
+    );
+    
+    // И наоборот, проверяем, есть ли значимые части из названия сделки в имени ученика
+    const significantLeadPartsInStudent = leadNameParts.some(leadPart => 
+        leadPart.length > 2 && studentNameParts.some(studentPart => studentPart.includes(leadPart))
+    );
+    
+    if (allStudentPartsInLead || significantLeadPartsInStudent) {
+        matchFound = true;
+        matchScore = 80; // Высокий балл за логическое совпадение
+        console.log(`✅ Найдена сделка по гибкому совпадению: "${lead.name}"`);
+    }
+    
+    if (matchFound) {
+        console.log(`✅ Найдена сделка по имени: "${lead.name}"`);
+        
+        const subscriptionInfo = this.extractSubscriptionInfo(lead);
+        if (subscriptionInfo.hasSubscription) {
+            console.log(`🎫 УРА! Нашли абонемент в сделке`);
+            console.log(`📊 ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses} занятий`);
             
-            // Проверяем разные варианты совпадения
-            if (leadName.includes(normalizedStudentName) || 
-                leadName.includes(studentLastName) ||
-                normalizedStudentName.includes(leadName.split(' ')[0])) {
-                
-                console.log(`✅ Найдена сделка по имени: "${lead.name}"`);
-                
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                if (subscriptionInfo.hasSubscription) {
-                    console.log(`🎫 УРА! Нашли абонемент в сделке`);
-                    console.log(`📊 ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses} занятий`);
-                    
-                    return {
-                        lead: lead,
-                        subscriptionInfo: subscriptionInfo,
-                        match_type: 'EXACT_NAME_MATCH',
-                        confidence: 'HIGH'
-                    };
-                } else {
-                    console.log(`⚠️  Сделка найдена, но без абонемента`);
-                }
-            }
+            return {
+                lead: lead,
+                subscriptionInfo: subscriptionInfo,
+                match_type: 'FLEXIBLE_NAME_MATCH',
+                confidence: 'HIGH'
+            };
+        } else {
+            console.log(`⚠️  Сделка найдена, но без абонемента`);
         }
+    }
+}
         
         // Приоритет 2: Ищем сделки в воронке абонементов
         console.log(`\n🔍 Приоритет 2: Поиск в воронке абонементов (ID: ${this.SUBSCRIPTION_PIPELINE_ID})...`);
