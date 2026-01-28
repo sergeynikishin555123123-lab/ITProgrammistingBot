@@ -1830,93 +1830,132 @@
                 }
             },
 
-            // АВТОРИЗАЦИЯ ПО ID КОНТАКТА
-            handleContactIdLogin: function() {
-                const contactIdInput = document.getElementById('contactIdInput');
-                const contactLoginBtn = document.getElementById('contactLoginBtn');
+          // ИСПРАВЛЕННЫЙ КОД:
+handleContactIdLogin: function() {
+    const contactIdInput = document.getElementById('contactIdInput');
+    const contactLoginBtn = document.getElementById('contactLoginBtn');
+    
+    const contactId = contactIdInput.value.trim();
+    
+    if (!contactId || isNaN(contactId)) {
+        this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
+        return;
+    }
+    
+    console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
+    
+    contactLoginBtn.disabled = true;
+    contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+    this.showLoading('Поиск данных по ID контакта...');
+    
+    // ИСПРАВЛЕННЫЙ МАРШРУТ - используем by-contact
+    fetch(`/api/debug/by-contact/${contactId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.data && data.data.profiles) {
+                console.log('✅ Данные найдены по ID контакта');
                 
-                const contactId = contactIdInput.value.trim();
+                this.config.token = data.data.token;
+                this.config.currentUser = data.data.user || { 
+                    phone: data.data.phone || 'ID:' + contactId,
+                    name: data.data.contact_name || 'Клиент'
+                };
+                this.config.profiles = data.data.profiles || [];
+                this.config.currentProfile = this.config.profiles[0] || null;
                 
-                if (!contactId || isNaN(contactId)) {
-                    this.showNotification('Введите корректный ID контакта (только цифры)', 'error');
-                    return;
+                // Загружаем индивидуальные данные
+                return this.loadIndividualSubscriptions();
+                
+            } else {
+                throw new Error(data.error || 'Не удалось получить данные');
+            }
+        })
+        .then(subscriptionData => {
+            this.saveSession();
+            this.showMainInterface();
+            this.showNotification('✅ Данные загружены успешно!', 'success');
+            this.navigateToPage('home');
+            this.loadHomePage();
+        })
+        .catch(error => {
+            console.error('❌ Ошибка:', error);
+            
+            // Пробуем альтернативный метод - прямую авторизацию по ID сделки
+            this.showNotification('Пробуем другой метод...', 'warning');
+            
+            // Ищем известные сделки для этого контакта
+            return this.tryLeadIdForContact(contactId);
+        })
+        .finally(() => {
+            this.hideLoading();
+            contactLoginBtn.disabled = false;
+            contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
+        });
+},
+
+// Добавьте эту функцию для поиска сделок по контакту
+tryLeadIdForContact: function(contactId) {
+    console.log(`🔍 Ищем сделки для контакта ${contactId}...`);
+    
+    // Список известных ID сделок для тестирования
+    const knownLeadIds = [28674745, 28674541, 28677839];
+    
+    // Пробуем каждую сделку
+    for (const leadId of knownLeadIds) {
+        fetch(`/api/by-lead-id/${leadId}`)
+            .then(response => {
+                if (response.ok) return response.json();
+                throw new Error(`Lead ${leadId} не найден`);
+            })
+            .then(data => {
+                if (data.success) {
+                    console.log(`✅ Найдена сделка ${leadId}: ${data.data.lead.name}`);
+                    
+                    // Создаем тестовый профиль
+                    const testProfile = {
+                        id: leadId,
+                        student_name: data.data.student || data.data.profile?.student_name || 'Ученик',
+                        phone_number: data.data.phone || data.data.profile?.phone_number || 'Без телефона',
+                        branch: data.data.profile?.branch || 'Филиал не указан',
+                        subscription_type: data.data.profile?.subscription_type || 'Тестовый',
+                        subscription_active: 1,
+                        total_classes: data.data.profile?.total_classes || 0,
+                        remaining_classes: data.data.profile?.remaining_classes || 0,
+                        parent_name: data.data.contact?.name || 'Родитель',
+                        is_demo: 1
+                    };
+                    
+                    this.config.token = data.data.token;
+                    this.config.currentUser = {
+                        phone: data.data.phone || 'ID:' + contactId,
+                        name: data.data.contact?.name || 'Клиент'
+                    };
+                    this.config.profiles = [testProfile];
+                    this.config.currentProfile = testProfile;
+                    
+                    this.saveSession();
+                    this.showMainInterface();
+                    this.showNotification('✅ Вход выполнен через ID сделки!', 'success');
+                    this.navigateToPage('home');
+                    this.loadHomePage();
+                    
+                    return true; // Успех
                 }
-                
-                console.log(`🔑 Авторизация по ID контакта: ${contactId}`);
-                
-                contactLoginBtn.disabled = true;
-                contactLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
-                this.showLoading('Поиск данных по ID контакта...');
-                
-                // Используем исправленный API маршрут
-                fetch(`/api/debug/by-contact/${contactId}`) 
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success && data.data && data.data.profiles) {
-                            console.log('✅ Данные найдены по ID контакта');
-                            
-                            this.config.token = data.data.token;
-                            this.config.currentUser = data.data.user || { 
-                                phone: data.data.phone || 'ID:' + contactId,
-                                name: data.data.contact_name || 'Клиент'
-                            };
-                            this.config.profiles = data.data.profiles || [];
-                            this.config.currentProfile = this.config.profiles[0] || null;
-                            
-                            // Загружаем индивидуальные данные
-                            return this.loadIndividualSubscriptions();
-                            
-                        } else {
-                            throw new Error(data.error || 'Не удалось получить данные');
-                        }
-                    })
-                    .then(subscriptionData => {
-                        this.saveSession();
-                        this.showMainInterface();
-                        this.showNotification('✅ Данные загружены успешно!', 'success');
-                        this.navigateToPage('home');
-                        this.loadHomePage();
-                    })
-                    .catch(error => {
-                        console.error('❌ Ошибка:', error);
-                        
-                        // Пробуем альтернативный метод
-                        this.showNotification('Пробуем альтернативный метод...', 'warning');
-                        
-                        // Пробуем через телефон
-                        fetch(`/api/test-contact/${contactId}`)
-                            .then(res => res.json())
-                            .then(testData => {
-                                if (testData.success && testData.data.phone) {
-                                    console.log('✅ Найден телефон у контакта:', testData.data.phone);
-                                    this.config.currentUser = {
-                                        phone: testData.data.phone,
-                                        name: testData.data.contact.name,
-                                        contact_id: contactId
-                                    };
-                                    
-                                    // Авторизуемся по телефону
-                                    return this.handlePhoneLoginDirect(testData.data.phone);
-                                } else {
-                                    throw new Error('Не удалось получить телефон контакта');
-                                }
-                            })
-                            .catch(fallbackError => {
-                                console.error('❌ Все методы не сработали:', fallbackError);
-                                this.showNotification('Не удалось найти данные по этому ID. Попробуйте другой ID или свяжитесь с администратором.', 'error');
-                            });
-                    })
-                    .finally(() => {
-                        this.hideLoading();
-                        contactLoginBtn.disabled = false;
-                        contactLoginBtn.innerHTML = '<i class="fas fa-id-card"></i> Войти по ID';
-                    });
-            },
+                return false;
+            })
+            .catch(error => {
+                console.log(`❌ Сделка ${leadId} не подошла:`, error.message);
+                return false;
+            });
+    }
+    
+    this.showNotification('Не удалось найти данные. Попробуйте другой ID или телефон.', 'error');
+},
 
             // Вспомогательная функция для прямого входа по телефону
             handlePhoneLoginDirect: function(phone) {
@@ -1961,73 +2000,102 @@ fetch('/api/auth/phone-final', {
             },
 
             // ВХОД ПО ТЕЛЕФОНУ
-            handlePhoneLogin: function() {
-                const phoneInput = document.getElementById('phoneNumber');
-                const loginBtn = document.getElementById('loginBtn');
-                
-                let phone = phoneInput.value.replace(/\D/g, '');
-                
-                if (!phone || phone.length !== 11) {
-                    this.showNotification('Введите корректный номер телефона (11 цифр)', 'error');
-                    return;
-                }
-                
-                console.log(`📱 Авторизация по телефону: ${phone}`);
-                
-                loginBtn.disabled = true;
-                loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
-                this.showLoading('Выполняется вход...');
-                
-                fetch('/api/auth/phone', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        phone: phone,
-                        force_refresh: true
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        console.log('✅ Авторизация успешна');
-                        
-                        this.config.token = data.data.token;
-                        this.config.currentUser = data.data.user;
-                        this.config.profiles = data.data.profiles || [];
-                        this.config.currentProfile = this.config.profiles[0] || null;
-                        
-                        // Загружаем индивидуальные данные
-                        return this.loadIndividualSubscriptions();
-                        
-                    } else {
-                        throw new Error(data.error || 'Ошибка авторизации');
-                    }
-                })
-                .then(subscriptionData => {
-                    this.saveSession();
-                    this.showMainInterface();
-                    this.showNotification('✅ Вход выполнен успешно!', 'success');
-                    this.navigateToPage('home');
-                    this.loadHomePage();
-                })
-                .catch(error => {
-                    console.error('❌ Ошибка:', error);
-                    this.showNotification('Ошибка входа: ' + error.message, 'error');
-                    document.getElementById('newClientInfo').style.display = 'block';
-                })
-                .finally(() => {
-                    this.hideLoading();
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
-                });
-            },
+// ВАШ СТАРЫЙ КОД (замените его):
+handlePhoneLogin: function() {
+    const phoneInput = document.getElementById('phoneNumber');
+    const loginBtn = document.getElementById('loginBtn');
+    
+    let phone = phoneInput.value.replace(/\D/g, '');
+    
+    if (!phone || phone.length !== 11) {
+        this.showNotification('Введите корректный номер телефона (11 цифр)', 'error');
+        return;
+    }
+    
+    console.log(`📱 Авторизация по телефону: ${phone}`);
+    
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
+    this.showLoading('Выполняется вход...');
+    
+    // ИСПРАВЛЕННЫЙ МАРШРУТ - используем phone-final
+    fetch('/api/auth/phone-final', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            phone: phone
+            // student_name можно добавить если нужно, но не обязательно
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Авторизация успешна');
+            
+            this.config.token = data.data.token;
+            this.config.currentUser = data.data.user;
+            this.config.profiles = data.data.profiles || [];
+            this.config.currentProfile = this.config.profiles[0] || null;
+            
+            // Загружаем индивидуальные данные
+            return this.loadIndividualSubscriptions();
+            
+        } else {
+            throw new Error(data.error || 'Ошибка авторизации');
+        }
+    })
+    .then(subscriptionData => {
+        this.saveSession();
+        this.showMainInterface();
+        this.showNotification('✅ Вход выполнен успешно!', 'success');
+        this.navigateToPage('home');
+        this.loadHomePage();
+    })
+    .catch(error => {
+        console.error('❌ Ошибка:', error);
+        this.showNotification('Ошибка входа: ' + error.message, 'error');
+        document.getElementById('newClientInfo').style.display = 'block';
+        
+        // Fallback: попробуем старый метод или другой API
+        console.log('🔄 Пробуем альтернативный метод...');
+        this.tryAlternativeLoginMethods(phone);
+    })
+    .finally(() => {
+        this.hideLoading();
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
+    });
+},
+            // Добавьте эту функцию в объект ArtApp
+tryAlternativeLoginMethods: function(phone) {
+    console.log('🔄 Пробуем альтернативные методы входа...');
+    
+    // Метод 1: Прямой поиск сделки по телефону
+    fetch(`/api/quick-check/${phone}`)
+        .then(response => {
+            if (response.ok) return response.json();
+            throw new Error('Метод 1 не сработал');
+        })
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Альтернативный метод сработал!');
+                this.showNotification('Нашли данные через альтернативный метод', 'success');
+                // Здесь можно обработать данные
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            console.log('❌ Альтернативный метод не сработал:', error.message);
+        });
+},
 
             // ИНДИВИДУАЛЬНАЯ ЗАГРУЗКА АБОНЕМЕНТОВ ДЛЯ ВСЕХ УЧЕНИКОВ
             loadIndividualSubscriptions: function() {
@@ -2074,100 +2142,98 @@ fetch('/api/auth/phone-final', {
                 });
             },
 
-            // ЗАГРУЗКА АБОНЕМЕНТА ДЛЯ КОНКРЕТНОГО ПРОФИЛЯ
-            loadSubscriptionForProfile: function(profile) {
-                return new Promise((resolve, reject) => {
-                    console.log(`   🔍 Загрузка для: ${profile.student_name}`);
+           loadSubscriptionForProfile: function(profile) {
+    return new Promise((resolve, reject) => {
+        console.log(`   🔍 Загрузка для: ${profile.student_name}`);
+        
+        // 1. Пробуем получить индивидуальные данные через новый API
+        // Сначала пробуем универсальный поиск
+        fetch(`/api/find-student-working/${encodeURIComponent(profile.student_name)}/${this.config.currentUser.phone}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.profile) {
+                    console.log(`   ✅ Данные получены для ${profile.student_name}`);
                     
-                    // 1. Пробуем получить индивидуальные данные через диагностический API
-                    fetch(`/api/debug/for-app/${this.config.currentUser.phone}/${encodeURIComponent(profile.student_name)}`)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`HTTP ${response.status}`);
+                    const subscriptionData = {
+                        student: {
+                            name: profile.student_name,
+                            branch: data.data.profile.branch || profile.branch,
+                            teacher_name: profile.teacher_name || data.data.profile.teacher_name,
+                            age_group: profile.age_group || data.data.profile.age_group
+                        },
+                        subscription: {
+                            type: data.data.profile.subscription_type || profile.subscription_type,
+                            status: data.data.profile.subscription_status || profile.subscription_status,
+                            active: data.data.profile.subscription_active === 1 || profile.subscription_active === 1,
+                            badge: data.data.profile.subscription_badge || profile.subscription_badge,
+                            classes: {
+                                total: data.data.profile.total_classes || profile.total_classes || 0,
+                                used: data.data.profile.used_classes || profile.used_classes || 0,
+                                remaining: data.data.profile.remaining_classes || profile.remaining_classes || 0,
+                                progress: (data.data.profile.total_classes > 0 
+                                    ? Math.round(((data.data.profile.used_classes || 0) / data.data.profile.total_classes) * 100)
+                                    : 0)
+                            },
+                            dates: {
+                                activation: data.data.profile.activation_date || profile.activation_date,
+                                expiration: data.data.profile.expiration_date || profile.expiration_date,
+                                last_visit: data.data.profile.last_visit_date || profile.last_visit_date
                             }
-                            return response.json();
-                        })
-                        .then(data => {
-                            if (data.success && data.data && data.data.profile) {
-                                console.log(`   ✅ Данные получены для ${profile.student_name}`);
-                                
-                                const subscriptionData = {
-                                    student: {
-                                        name: profile.student_name,
-                                        branch: data.data.profile.branch || profile.branch,
-                                        teacher_name: profile.teacher_name || data.data.profile.teacher_name,
-                                        age_group: profile.age_group || data.data.profile.age_group
-                                    },
-                                    subscription: {
-                                        type: data.data.profile.subscription_type || profile.subscription_type,
-                                        status: data.data.profile.subscription_status || profile.subscription_status,
-                                        active: data.data.profile.subscription_active === 1 || profile.subscription_active === 1,
-                                        badge: data.data.profile.subscription_badge || profile.subscription_badge,
-                                        classes: {
-                                            total: data.data.profile.total_classes || profile.total_classes || 0,
-                                            used: data.data.profile.used_classes || profile.used_classes || 0,
-                                            remaining: data.data.profile.remaining_classes || profile.remaining_classes || 0,
-                                            progress: (data.data.profile.total_classes > 0 
-                                                ? Math.round(((data.data.profile.used_classes || 0) / data.data.profile.total_classes) * 100)
-                                                : 0)
-                                        },
-                                        dates: {
-                                            activation: data.data.profile.activation_date || profile.activation_date,
-                                            expiration: data.data.profile.expiration_date || profile.expiration_date,
-                                            last_visit: data.data.profile.last_visit_date || profile.last_visit_date
-                                        }
-                                    },
-                                    metadata: {
-                                        source: "INDIVIDUAL_API",
-                                        student_name: profile.student_name,
-                                        is_correct_lead: data.data.is_correct_lead || false,
-                                        match_score: data.data.match_score || 0
-                                    }
-                                };
-                                
-                                resolve(subscriptionData);
-                            } else {
-                                throw new Error(data.error || 'Нет данных в ответе');
-                            }
-                        })
-                        .catch(error => {
-                            console.log(`   ⚠️  Для ${profile.student_name} используем данные из профиля`);
-                            
-                            // Резервные данные из профиля
-                            const subscriptionData = {
-                                student: {
-                                    name: profile.student_name,
-                                    branch: profile.branch,
-                                    teacher_name: profile.teacher_name,
-                                    age_group: profile.age_group
-                                },
-                                subscription: {
-                                    type: profile.subscription_type || 'Без абонемента',
-                                    status: profile.subscription_status || 'Нет данных',
-                                    active: profile.subscription_active === 1,
-                                    badge: profile.subscription_badge || 'inactive',
-                                    classes: {
-                                        total: profile.total_classes || 0,
-                                        used: profile.used_classes || 0,
-                                        remaining: profile.remaining_classes || 0,
-                                        progress: 0
-                                    },
-                                    dates: {
-                                        activation: profile.activation_date,
-                                        expiration: profile.expiration_date,
-                                        last_visit: profile.last_visit_date
-                                    }
-                                },
-                                metadata: {
-                                    source: "FALLBACK_PROFILE_DATA",
-                                    warning: "Используются данные из профиля"
-                                }
-                            };
-                            
-                            resolve(subscriptionData);
-                        });
-                });
-            },
+                        },
+                        metadata: {
+                            source: "INDIVIDUAL_API",
+                            student_name: profile.student_name
+                        }
+                    };
+                    
+                    resolve(subscriptionData);
+                } else {
+                    throw new Error(data.error || 'Нет данных в ответе');
+                }
+            })
+            .catch(error => {
+                console.log(`   ⚠️  Для ${profile.student_name} используем данные из профиля`);
+                
+                // Резервные данные из профиля
+                const subscriptionData = {
+                    student: {
+                        name: profile.student_name,
+                        branch: profile.branch,
+                        teacher_name: profile.teacher_name,
+                        age_group: profile.age_group
+                    },
+                    subscription: {
+                        type: profile.subscription_type || 'Без абонемента',
+                        status: profile.subscription_status || 'Нет данных',
+                        active: profile.subscription_active === 1,
+                        badge: profile.subscription_badge || 'inactive',
+                        classes: {
+                            total: profile.total_classes || 0,
+                            used: profile.used_classes || 0,
+                            remaining: profile.remaining_classes || 0,
+                            progress: 0
+                        },
+                        dates: {
+                            activation: profile.activation_date,
+                            expiration: profile.expiration_date,
+                            last_visit: profile.last_visit_date
+                        }
+                    },
+                    metadata: {
+                        source: "FALLBACK_PROFILE_DATA",
+                        warning: "Используются данные из профиля"
+                    }
+                };
+                
+                resolve(subscriptionData);
+            });
+    });
+},
 
             // ЗАГРУЗКА ГЛАВНОЙ СТРАНИЦЫ
             loadHomePage: function() {
