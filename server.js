@@ -423,69 +423,100 @@ hasStudentFields(contact) {
     }
     
     // ==================== ПОИСК САМОЙ СВЕЖЕЙ АКТИВНОЙ СДЕЛКИ ====================
-    async findMostRecentActiveLead(contactId) {
-        console.log(`\n🎯 Поиск самой свежей активной сделки для контакта: ${contactId}`);
+   async findMostRecentActiveLead(contactId) {
+    console.log(`\n🎯 Поиск активной сделки для контакта: ${contactId}`);
+    console.log(`📊 Активные статусы: ${this.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
+    console.log(`📊 Воронка абонементов: ${this.SUBSCRIPTION_PIPELINE_ID}`);
+    
+    try {
+        // Получаем ВСЕ сделки контакта
+        const allLeads = await this.getContactLeads(contactId);
         
-        try {
-            // Получаем ВСЕ сделки контакта
-            const allLeads = await this.getContactLeads(contactId);
-            
-            if (allLeads.length === 0) {
-                console.log('❌ У контакта нет сделок');
-                return null;
-            }
-            
-            console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
-            
-            // Фильтруем только активные сделки в воронке абонементов
-            const activeLeads = allLeads.filter(lead => 
-                lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID && 
-                this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id)
-            );
-            
-            console.log(`🎯 Активных сделок в воронке абонементов: ${activeLeads.length}`);
-            
-            if (activeLeads.length === 0) {
-                console.log('⚠️  Активных сделок в воронке абонементов не найдено');
-                
-                // Ищем любую сделку с данными об абонементе
-                for (const lead of allLeads) {
-                    const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                    if (subscriptionInfo.hasSubscription) {
-                        console.log(`✅ Найдена сделка с абонементом: "${lead.name}"`);
-                        return {
-                            lead: lead,
-                            subscriptionInfo: subscriptionInfo,
-                            match_type: 'ANY_SUBSCRIPTION'
-                        };
-                    }
-                }
-                
-                return null;
-            }
-            
-            // Находим самую свежую активную сделку (по created_at)
-            const mostRecentLead = activeLeads.reduce((latest, current) => {
-                return (current.created_at > latest.created_at) ? current : latest;
-            });
-            
-            console.log(`🎉 Самая свежая активная сделка: "${mostRecentLead.name}"`);
-            console.log(`   📅 Дата создания: ${new Date(mostRecentLead.created_at * 1000).toLocaleString()}`);
-            console.log(`   🎯 Статус ID: ${mostRecentLead.status_id}`);
-            
-            const subscriptionInfo = this.extractSubscriptionInfo(mostRecentLead);
-            
-            return {
-                lead: mostRecentLead,
-                subscriptionInfo: subscriptionInfo,
-                match_type: 'MOST_RECENT_ACTIVE'
-            };
-            
-        } catch (error) {
-            console.error(`❌ Ошибка поиска сделки:`, error.message);
+        if (allLeads.length === 0) {
+            console.log('❌ У контакта нет сделок');
             return null;
         }
+        
+        console.log(`📊 Всего сделок у контакта: ${allLeads.length}`);
+        
+        // Фильтруем сделки по критериям:
+        // 1. В воронке абонементов
+        // 2. С активным статусом
+        // 3. С данными об абонементе
+        const activeLeads = [];
+        
+        for (const lead of allLeads) {
+            const isInSubscriptionPipeline = lead.pipeline_id === this.SUBSCRIPTION_PIPELINE_ID;
+            const hasActiveStatus = this.ACTIVE_SUBSCRIPTION_STATUSES.includes(lead.status_id);
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            
+            if (isInSubscriptionPipeline && hasActiveStatus && subscriptionInfo.hasSubscription) {
+                activeLeads.push({
+                    lead: lead,
+                    subscriptionInfo: subscriptionInfo,
+                    created_at: lead.created_at
+                });
+                console.log(`✅ Найдена активная сделка: "${lead.name}" (ID: ${lead.id})`);
+            }
+        }
+        
+        console.log(`🎯 Активных сделок найдено: ${activeLeads.length}`);
+        
+        if (activeLeads.length === 0) {
+            console.log('⚠️  Активных сделок не найдено, ищем любую сделку с абонементом...');
+            
+            // Ищем любую сделку с данными об абонементе
+            const leadsWithSubscription = [];
+            
+            for (const lead of allLeads) {
+                const subscriptionInfo = this.extractSubscriptionInfo(lead);
+                if (subscriptionInfo.hasSubscription) {
+                    leadsWithSubscription.push({
+                        lead: lead,
+                        subscriptionInfo: subscriptionInfo,
+                        created_at: lead.created_at
+                    });
+                }
+            }
+            
+            if (leadsWithSubscription.length > 0) {
+                // Находим самую свежую
+                const mostRecent = leadsWithSubscription.reduce((latest, current) => {
+                    return (current.created_at > latest.created_at) ? current : latest;
+                });
+                
+                console.log(`✅ Найдена сделка с абонементом: "${mostRecent.lead.name}"`);
+                return {
+                    lead: mostRecent.lead,
+                    subscriptionInfo: mostRecent.subscriptionInfo,
+                    match_type: 'ANY_SUBSCRIPTION'
+                };
+            }
+            
+            return null;
+        }
+        
+        // Находим самую свежую активную сделку
+        const mostRecentLead = activeLeads.reduce((latest, current) => {
+            return (current.created_at > latest.created_at) ? current : latest;
+        });
+        
+        console.log(`🎉 Самая свежая активная сделка: "${mostRecentLead.lead.name}"`);
+        console.log(`   📅 Дата создания: ${new Date(mostRecentLead.created_at * 1000).toLocaleString()}`);
+        console.log(`   🎯 Статус ID: ${mostRecentLead.lead.status_id}`);
+        console.log(`   📊 Занятий: ${mostRecentLead.subscriptionInfo.usedClasses}/${mostRecentLead.subscriptionInfo.totalClasses}`);
+        
+        return {
+            lead: mostRecentLead.lead,
+            subscriptionInfo: mostRecentLead.subscriptionInfo,
+            match_type: 'MOST_RECENT_ACTIVE'
+        };
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска сделки:`, error.message);
+        return null;
     }
+}
     
     // ==================== ИЗВЛЕЧЕНИЕ ДАННЫХ ОБ АБОНЕМЕНТЕ (ИСПРАВЛЕННЫЙ) ====================
 extractSubscriptionInfo(lead) {
