@@ -421,8 +421,7 @@ getStatusName(statusId) {
         return false;
     }
     
-    // ==================== ПОИСК САМОЙ АКТИВНОЙ СДЕЛКИ ====================
-// ==================== ПОИСК ЛУЧШЕЙ СДЕЛКИ (ПЕРЕПИСАННЫЙ) ====================
+   // ==================== ПОИСК ЛУЧШЕЙ СДЕЛКИ (ИСПРАВЛЕННЫЙ) ====================
 async findBestLeadForContact(contactId) {
     try {
         console.log(`\n🎯 ПОИСК ЛУЧШЕЙ СДЕЛКИ ДЛЯ КОНТАКТА ${contactId}`);
@@ -436,10 +435,10 @@ async findBestLeadForContact(contactId) {
         
         console.log(`📊 Всего сделок: ${allLeads.length}`);
         
-        // ШАГ 1: Ищем сделки с данными об абонементе в ВОРОНКЕ 7977402 (!Абонемент)
+        // ШАГ 1: Ищем сделки ТОЛЬКО в воронке "!Абонемент" (7977402)
         const subscriptionPipelineLeads = [];
         for (const lead of allLeads) {
-            if (lead.pipeline_id === 7977402) { // Воронка "!Абонемент"
+            if (lead.pipeline_id === 7977402) { // ТОЛЬКО эта воронка!
                 const subscriptionInfo = this.extractSubscriptionInfo(lead);
                 if (subscriptionInfo.hasSubscription) {
                     subscriptionPipelineLeads.push({
@@ -451,7 +450,7 @@ async findBestLeadForContact(contactId) {
             }
         }
         
-        console.log(`📊 Сделок в воронке "!Абонемент": ${subscriptionPipelineLeads.length}`);
+        console.log(`📊 Сделок в воронке "!Абонемент" (7977402): ${subscriptionPipelineLeads.length}`);
         
         // Если нашли сделки в воронке абонементов, берем лучшую
         if (subscriptionPipelineLeads.length > 0) {
@@ -461,7 +460,7 @@ async findBestLeadForContact(contactId) {
             console.log(`\n🎉 НАЙДЕНА ЛУЧШАЯ СДЕЛКА В ВОРОНКЕ "!Абонемент":`);
             console.log(`   ID: ${bestLead.lead.id}`);
             console.log(`   Название: "${bestLead.lead.name}"`);
-            console.log(`   Статус: ${bestLead.lead.status_id}`);
+            console.log(`   Статус: ${bestLead.lead.status_id} (${this.getStatusName(bestLead.lead.status_id)})`);
             console.log(`   Абонемент: ${bestLead.subscriptionInfo.subscriptionType}`);
             console.log(`   Занятий: ${bestLead.subscriptionInfo.usedClasses}/${bestLead.subscriptionInfo.totalClasses}`);
             console.log(`   Активен: ${bestLead.subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
@@ -469,21 +468,19 @@ async findBestLeadForContact(contactId) {
             return bestLead;
         }
         
-        // ШАГ 2: Если нет сделок в воронке "!Абонемент", ищем в других воронках
+        // ШАГ 2: Если нет сделок в воронке "!Абонемент", ищем сделки с абонементом в ЛЮБОЙ воронке
         console.log('\n🔍 Сделок в воронке "!Абонемент" не найдено, ищем в других воронках...');
         
         const otherLeadsWithSubscription = [];
         for (const lead of allLeads) {
-            // Ищем в других воронках абонементов
-            if (this.SUBSCRIPTION_PIPELINE_IDS.includes(lead.pipeline_id) && lead.pipeline_id !== 7977402) {
-                const subscriptionInfo = this.extractSubscriptionInfo(lead);
-                if (subscriptionInfo.hasSubscription) {
-                    otherLeadsWithSubscription.push({
-                        lead: lead,
-                        subscriptionInfo: subscriptionInfo,
-                        score: this.calculateLeadScore(lead, subscriptionInfo)
-                    });
-                }
+            // Ищем сделки с абонементом в ЛЮБОЙ воронке
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            if (subscriptionInfo.hasSubscription && subscriptionInfo.subscriptionActive) {
+                otherLeadsWithSubscription.push({
+                    lead: lead,
+                    subscriptionInfo: subscriptionInfo,
+                    score: this.calculateLeadScore(lead, subscriptionInfo)
+                });
             }
         }
         
@@ -491,7 +488,7 @@ async findBestLeadForContact(contactId) {
             otherLeadsWithSubscription.sort((a, b) => b.score - a.score);
             const bestLead = otherLeadsWithSubscription[0];
             
-            console.log(`\n🎉 НАЙДЕНА ЛУЧШАЯ СДЕЛКА В ДРУГОЙ ВОРОНКЕ:`);
+            console.log(`\n🎉 НАЙДЕНА ЛУЧШАЯ СДЕЛКА С АКТИВНЫМ АБОНЕМЕНТОМ:`);
             console.log(`   ID: ${bestLead.lead.id}`);
             console.log(`   Воронка: ${bestLead.lead.pipeline_id}`);
             console.log(`   Название: "${bestLead.lead.name}"`);
@@ -500,15 +497,25 @@ async findBestLeadForContact(contactId) {
             return bestLead;
         }
         
-        // ШАГ 3: Если совсем не нашли сделок с абонементом, ищем ЛЮБУЮ сделку
-        console.log('\n🔍 Сделок с абонементом не найдено, ищем любую сделку...');
+        // ШАГ 3: Если совсем не нашли сделок с абонементом, ищем самую свежую сделку
+        console.log('\n🔍 Активных абонементов не найдено, ищем самую свежую сделку...');
         
-        // Ищем самую свежую сделку
+        // Ищем самую свежую сделку (менее 3 месяцев)
         let mostRecentLead = null;
+        const threeMonthsAgo = Date.now() / 1000 - (90 * 24 * 60 * 60); // 90 дней назад
+        
         for (const lead of allLeads) {
-            if (!mostRecentLead || lead.created_at > mostRecentLead.created_at) {
-                mostRecentLead = lead;
+            if (lead.created_at > threeMonthsAgo) { // Только свежие сделки
+                if (!mostRecentLead || lead.created_at > mostRecentLead.created_at) {
+                    mostRecentLead = lead;
+                }
             }
+        }
+        
+        // Если нет свежих, берем самую последнюю
+        if (!mostRecentLead && allLeads.length > 0) {
+            allLeads.sort((a, b) => b.created_at - a.created_at);
+            mostRecentLead = allLeads[0];
         }
         
         if (mostRecentLead) {
@@ -533,72 +540,90 @@ async findBestLeadForContact(contactId) {
         return null;
     }
 }
-    
-    // Оценка сделки по важности
-    // ==================== ОЦЕНКА СДЕЛКИ (ИСПРАВЛЕННАЯ) ====================
-// ==================== ОЦЕНКА СДЕЛКИ (ОБНОВЛЕННАЯ) ====================
+
+// ==================== ОЦЕНКА СДЕЛКИ (УЛУЧШЕННАЯ) ====================
 calculateLeadScore(lead, subscriptionInfo) {
     let score = 0;
     
-    // БАЛЛЫ ЗА НАЛИЧИЕ АБОНЕМЕНТА (САМОЕ ВАЖНОЕ!)
+    // МАКСИМАЛЬНЫЙ ПРИОРИТЕТ - ВОРОНКА "!Абонемент"
+    if (lead.pipeline_id === 7977402) {
+        score += 100000; // Супер-приоритет для этой воронки
+        
+        // Дополнительный бонус за статусы в этой воронке
+        if (lead.status_id === 65473306) { // "Активный абонемент"
+            score += 50000;
+        } else if (lead.status_id === 72490890) { // "Купленный абонемент"
+            score += 40000;
+        }
+    }
+    
+    // БАЛЛЫ ЗА НАЛИЧИЕ АБОНЕМЕНТА
     if (subscriptionInfo.hasSubscription) {
-        score += 10000; // Максимальный приоритет
+        score += 10000;
         
         // Бонус за конкретное количество занятий
         if (subscriptionInfo.totalClasses >= 8) {
-            score += 500; // 8+ занятий - лучший абонемент
+            score += 5000; // 8+ занятий
         } else if (subscriptionInfo.totalClasses >= 4) {
-            score += 300; // 4-7 занятий
+            score += 3000; // 4-7 занятий
         }
         
-        // Бонус за использованные занятия (показывает реальную активность)
+        // Бонус за использованные занятия
         if (subscriptionInfo.usedClasses > 0) {
-            score += subscriptionInfo.usedClasses * 100;
+            score += subscriptionInfo.usedClasses * 1000;
         }
         
         // Бонус за остаток занятий
         if (subscriptionInfo.remainingClasses > 0) {
-            score += subscriptionInfo.remainingClasses * 50;
+            score += subscriptionInfo.remainingClasses * 500;
         }
     }
     
-    // БАЛЛЫ ЗА АКТИВНОСТЬ
+    // БАЛЛЫ ЗА АКТИВНОСТЬ (самое важное после воронки)
     if (subscriptionInfo.subscriptionActive) {
-        score += 5000;
+        score += 50000;
     }
     
     // БАЛЛЫ ЗА СТАТУС (приоритет по убыванию)
-    if (lead.status_id === 65473306) { // "Активный абонемент" - самый лучший
-        score += 4000;
+    if (lead.status_id === 65473306) { // "Активный абонемент"
+        score += 40000;
     } else if (lead.status_id === 72490890) { // "Купленный абонемент"
-        score += 3000;
+        score += 30000;
     } else if (this.LESSON_STATUSES.includes(lead.status_id)) { // Статусы занятий
-        score += 2000;
+        score += 20000;
     } else if (lead.status_id === 142) { // "Успешно реализовано"
-        score += 1000;
+        score += 10000;
     }
     
     // БАЛЛЫ ЗА СВЕЖЕСТЬ (новые сделки важнее)
     const daysOld = (Date.now() / 1000 - lead.created_at) / (24 * 60 * 60);
-    if (daysOld < 7) { // Менее недели
-        score += 1000;
-    } else if (daysOld < 30) { // Менее месяца
-        score += 500;
+    if (daysOld < 30) { // Менее месяца - максимальный бонус
+        score += 10000;
     } else if (daysOld < 90) { // Менее 3 месяцев
-        score += 200;
+        score += 5000;
+    } else if (daysOld < 180) { // Менее 6 месяцев
+        score += 2000;
     }
     
-    // БОНУС за правильное название (содержит имя ученика)
-    if (lead.name && lead.name.includes('-') && !lead.name.includes('Сделка #')) {
-        score += 300;
+    // ШТРАФ за старые сделки (более года)
+    if (daysOld > 365) {
+        score -= 50000; // Суровый штраф за старые сделки
     }
     
-    // ШТРАФ за пустые или авто-названия
-    if (!lead.name || lead.name.includes('Сделка #') || lead.name.includes('Автосделка:')) {
-        score -= 200;
+    // ШТРАФ за автосделки и плохие названия
+    if (lead.name && (lead.name.includes('Сделка #') || 
+                      lead.name.includes('Автосделка:') || 
+                      lead.name.includes('Автосделка '))) {
+        score -= 30000;
     }
     
-    console.log(`   Оценка сделки ${lead.id}: ${score}`);
+    // БОНУС за хорошее название (содержит имя ученика и информацию об абонементе)
+    if (lead.name && lead.name.includes('-') && 
+        (lead.name.includes('занятий') || lead.name.includes('занятия'))) {
+        score += 10000;
+    }
+    
+    console.log(`   Оценка сделки ${lead.id}: ${score} (воронка: ${lead.pipeline_id}, статус: ${lead.status_id})`);
     return score;
 }
     
@@ -648,26 +673,48 @@ calculateLeadScore(lead, subscriptionInfo) {
         const isLessonStatus = this.LESSON_STATUSES.includes(lead.status_id);
         
         // Абонемент активен если:
-        // 1. Есть данные об абонементе И
-        // 2. (Сделка в воронке абонементов И статус активный) ИЛИ (статус занятия)
-        let subscriptionActive = false;
-        let subscriptionStatus = 'Нет данных';
-        let subscriptionBadge = 'inactive';
-        
-        if (hasSubscription) {
-            if ((isInSubscriptionPipeline && hasActiveStatus) || isLessonStatus) {
-                subscriptionActive = true;
-                subscriptionStatus = 'Активен';
-                subscriptionBadge = 'active';
-            } else {
-                subscriptionActive = false;
-                subscriptionStatus = 'Есть абонемент';
-                subscriptionBadge = 'warning';
-            }
+// 1. Сделка в воронке "!Абонемент" (7977402) И статус активный
+// 2. ИЛИ статус занятия в школьных воронках
+// 3. ИЛИ сделка в других воронках и имеет статус 142
+
+let subscriptionActive = false;
+let subscriptionStatus = 'Нет данных';
+let subscriptionBadge = 'inactive';
+
+if (hasSubscription) {
+    // Воронка "!Абонемент" с активными статусами
+    if (lead.pipeline_id === 7977402 && hasActiveStatus) {
+        subscriptionActive = true;
+        subscriptionStatus = 'Активен';
+        subscriptionBadge = 'active';
+    } 
+    // Статусы занятий в школьных воронках
+    else if (isLessonStatus && 
+             (lead.pipeline_id === 5663743 ||  // ШКОЛА ЧЕРТАНОВО
+              lead.pipeline_id === 7137514 ||  // ШКОЛА СВИБЛОВО
+              lead.pipeline_id === 7490194)) { // АМАКИДС
+        subscriptionActive = true;
+        subscriptionStatus = 'Идет обучение';
+        subscriptionBadge = 'active';
+    }
+    // Статус 142 в любых воронках (кроме очень старых)
+    else if (lead.status_id === 142) {
+        const daysOld = (Date.now() / 1000 - lead.created_at) / (24 * 60 * 60);
+        if (daysOld < 180) { // Менее 6 месяцев
+            subscriptionActive = true;
+            subscriptionStatus = 'Активен';
+            subscriptionBadge = 'active';
         } else {
-            subscriptionStatus = 'Нет абонемента';
-            subscriptionBadge = 'inactive';
+            subscriptionActive = false;
+            subscriptionStatus = 'Завершен';
+            subscriptionBadge = 'warning';
         }
+    } else {
+        subscriptionActive = false;
+        subscriptionStatus = 'Есть абонемент';
+        subscriptionBadge = 'warning';
+    }
+
         
         return {
             hasSubscription: hasSubscription,
@@ -1907,7 +1954,55 @@ app.get('/api/debug/full-contact-analysis/:contactId', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
+// ==================== ТЕСТ КОНКРЕТНОГО КОНТАКТА ====================
+app.get('/api/debug/test-contact/:contactId', async (req, res) => {
+    try {
+        const contactId = parseInt(req.params.contactId);
+        console.log(`\n🧪 ТЕСТ КОНТАКТА ${contactId}`);
+        
+        // Получаем контакт
+        const contact = await amoCrmService.makeRequest('GET', 
+            `/api/v4/contacts/${contactId}?with=custom_fields_values`
+        );
+        
+        // Получаем все сделки
+        const allLeads = await amoCrmService.getContactLeads(contactId);
+        
+        // Находим лучшую сделку
+        const bestLead = await amoCrmService.findBestLeadForContact(contactId);
+        
+        res.json({
+            success: true,
+            data: {
+                contact: {
+                    id: contact.id,
+                    name: contact.name,
+                    phone: amoCrmService.extractPhoneFromContact(contact)
+                },
+                total_leads: allLeads.length,
+                best_lead: bestLead ? {
+                    id: bestLead.lead.id,
+                    name: bestLead.lead.name,
+                    pipeline_id: bestLead.lead.pipeline_id,
+                    status_id: bestLead.lead.status_id,
+                    score: bestLead.score,
+                    subscription_info: bestLead.subscriptionInfo
+                } : null,
+                all_leads_info: allLeads.map(lead => ({
+                    id: lead.id,
+                    name: lead.name,
+                    pipeline_id: lead.pipeline_id,
+                    status_id: lead.status_id,
+                    created_at: lead.created_at,
+                    created_date: new Date(lead.created_at * 1000).toLocaleDateString()
+                }))
+            }
+        });
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // ==================== ОТЛАДКА ПОИСКА СДЕЛОК ДЛЯ КОНТАКТА ====================
 app.get('/api/debug/contact-leads/:contactId', async (req, res) => {
     try {
