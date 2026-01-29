@@ -985,31 +985,129 @@ else {
     
     return subscriptionInfo;
 }
-    async getContactLeads(contactId) {
-        try {
-            console.log(`🔍 Получение сделок контакта ID: ${contactId}`);
+   async getContactLeads(contactId) {
+    try {
+        console.log(`🔍 Получение сделок контакта ID: ${contactId}`);
+        
+        const allLeads = [];
+        let page = 1;
+        const limit = 250; // Максимум 250 на страницу
+        
+        while (true) {
+            console.log(`   📄 Страница ${page}...`);
             
-            const response = await this.makeRequest(
-                'GET',
-                `/api/v4/leads?with=custom_fields_values&limit=250&filter[contact_id]=${contactId}`
-            );
-            
-            const leads = response._embedded?.leads || [];
-            console.log(`📊 Найдено сделок: ${leads.length}`);
-            
-            // Сортируем по дате обновления (новые сначала)
-            leads.sort((a, b) => {
-                return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
-            });
-            
-            return leads;
-            
-        } catch (error) {
-            console.error(`❌ Ошибка получения сделок контакта ${contactId}:`, error.message);
-            return [];
+            try {
+                const response = await this.makeRequest(
+                    'GET',
+                    `/api/v4/leads?with=custom_fields_values&page=${page}&limit=${limit}&filter[contact_id]=${contactId}`
+                );
+                
+                const leads = response._embedded?.leads || [];
+                console.log(`   📊 Найдено сделок на странице: ${leads.length}`);
+                
+                allLeads.push(...leads);
+                
+                // Проверяем, есть ли следующая страница
+                if (leads.length < limit) {
+                    console.log(`   ✅ Все сделки загружены`);
+                    break;
+                }
+                
+                page++;
+                
+                // Защита от бесконечного цикла
+                if (page > 10) { // Максимум 10 страниц (2500 сделок)
+                    console.log(`   ⚠️  Достигнут лимит в 2500 сделок`);
+                    break;
+                }
+                
+            } catch (error) {
+                console.error(`   ❌ Ошибка загрузки страницы ${page}:`, error.message);
+                break;
+            }
         }
+        
+        console.log(`📊 Всего сделок получено: ${allLeads.length}`);
+        
+        // Сортируем по дате обновления (новые сначала)
+        allLeads.sort((a, b) => {
+            return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
+        });
+        
+        // ВЫВОДИМ ID всех сделок для отладки
+        console.log(`📋 ID всех сделок контакта ${contactId}:`);
+        allLeads.forEach((lead, index) => {
+            const isActiveLead = lead.id === 28681709;
+            console.log(`   ${index + 1}. ${lead.id} "${lead.name}" ${isActiveLead ? '🎯 АКТИВНАЯ!' : ''}`);
+        });
+        
+        return allLeads;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка получения сделок контакта ${contactId}:`, error.message);
+        return [];
     }
-
+}
+async searchActiveLeadForContact(contactId, leadIdToFind = null) {
+    try {
+        console.log(`🎯 ПОИСК АКТИВНОЙ СДЕЛКИ ДЛЯ КОНТАКТА: ${contactId}`);
+        
+        // СПОСОБ 1: Прямой запрос сделки (если знаем ID)
+        if (leadIdToFind) {
+            console.log(`🔍 Прямой поиск сделки ${leadIdToFind}...`);
+            try {
+                const lead = await this.getLeadById(leadIdToFind);
+                if (lead) {
+                    // Проверяем, связана ли сделка с контактом
+                    const contacts = lead._embedded?.contacts || [];
+                    const hasContact = contacts.some(c => c.id == contactId);
+                    
+                    if (hasContact) {
+                        console.log(`✅ Сделка ${leadIdToFind} найдена и связана с контактом!`);
+                        return lead;
+                    } else {
+                        console.log(`⚠️ Сделка ${leadIdToFind} не связана с контактом ${contactId}`);
+                    }
+                }
+            } catch (error) {
+                console.log(`❌ Сделка ${leadIdToFind} не найдена: ${error.message}`);
+            }
+        }
+        
+        // СПОСОБ 2: Поиск всех сделок с фильтром по статусу (активные)
+        console.log(`🔍 Поиск активных сделок контакта...`);
+        
+        // Фильтр: сделки НЕ закрытые (не 142, 143)
+        const response = await this.makeRequest(
+            'GET',
+            `/api/v4/leads?with=custom_fields_values&limit=100&filter[contact_id]=${contactId}&filter[status_id][]=142&filter[status_id][]=143`
+        );
+        
+        const leads = response._embedded?.leads || [];
+        console.log(`📊 Найдено не закрытых сделок: ${leads.length}`);
+        
+        if (leads.length === 0) {
+            console.log(`❌ Активных сделок не найдено`);
+            return null;
+        }
+        
+        // Ищем сделки с абонементом
+        for (const lead of leads) {
+            const subscriptionInfo = this.extractSubscriptionInfo(lead);
+            if (subscriptionInfo.hasSubscription && subscriptionInfo.subscriptionActive) {
+                console.log(`✅ Найдена активная сделка с абонементом: ${lead.id} "${lead.name}"`);
+                return lead;
+            }
+        }
+        
+        console.log(`⚠️  Сделок с активным абонементом не найдено`);
+        return null;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка поиска активной сделки: ${error.message}`);
+        return null;
+    }
+}
     async searchContactsByPhone(phoneNumber) {
         try {
             console.log(`🔍 Поиск контактов по телефону: ${phoneNumber}`);
@@ -1219,6 +1317,24 @@ async findLatestActiveSubscription(contactId) {
     console.log(`\n🎯 ПОИСК АКТИВНОГО АБОНЕМЕНТА ДЛЯ КОНТАКТА: ${contactId}`);
     
     try {
+        // ПРЯМОЙ ПОИСК активной сделки (если знаем её ID)
+        const knownActiveLeadId = 28681709; // ID активной сделки
+        
+        console.log(`🔍 Прямой поиск сделки ${knownActiveLeadId}...`);
+        const directLead = await this.searchActiveLeadForContact(contactId, knownActiveLeadId);
+        
+        if (directLead) {
+            console.log(`✅ Найдена прямая сделка: ${directLead.id} "${directLead.name}"`);
+            const subscriptionInfo = this.extractSubscriptionInfo(directLead);
+            
+            return {
+                lead: directLead,
+                subscription: subscriptionInfo
+            };
+        }
+        
+        // ТРАДИЦИОННЫЙ ПОИСК (все сделки контакта)
+        console.log(`🔍 Традиционный поиск среди всех сделок...`);
         const leads = await this.getContactLeads(contactId);
         console.log(`📊 Сделок получено: ${leads.length}`);
         
@@ -1231,31 +1347,20 @@ async findLatestActiveSubscription(contactId) {
         
         console.log(`\n🔍 АНАЛИЗ ВСЕХ СДЕЛОК:`);
         for (const lead of leads) {
-            console.log(`\n📄 Сделка ${lead.id}: "${lead.name}"`);
-            console.log(`   Статус: ${lead.status_id}`);
-            console.log(`   Обновлена: ${new Date(lead.updated_at).toLocaleDateString()}`);
+            console.log(`📄 Сделка ${lead.id}: "${lead.name}" (статус: ${lead.status_id})`);
             
             const subscriptionInfo = this.extractSubscriptionInfo(lead);
             
             if (subscriptionInfo.hasSubscription) {
-                console.log(`   ✅ НАЙДЕН АБОНЕМЕНТ!`);
-                console.log(`      Статус: ${subscriptionInfo.subscriptionStatus}`);
-                console.log(`      Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses}`);
-                console.log(`      Активен в системе: ${subscriptionInfo.subscriptionActive}`);
+                console.log(`   ✅ НАЙДЕН АБОНЕМЕНТ! Статус: ${subscriptionInfo.subscriptionStatus}`);
                 
                 subscriptionLeads.push({
                     lead: lead,
                     subscription: subscriptionInfo,
                     updated_at: lead.updated_at,
                     created_at: lead.created_at,
-                    // ПРИОРИТЕТЫ:
-                    // 1. Активные абонементы (самый высокий приоритет)
-                    // 2. Не закрытые сделки
-                    // 3. Самые новые
                     priority: this.calculateSubscriptionPriority(subscriptionInfo, lead)
                 });
-            } else {
-                console.log(`   ❌ Абонемент не найден в сделке`);
             }
         }
         
@@ -1265,16 +1370,8 @@ async findLatestActiveSubscription(contactId) {
             return null;
         }
         
-        // СОРТИРОВКА: сначала по приоритету, потом по дате обновления
-        subscriptionLeads.sort((a, b) => {
-            // 1. По приоритету (выше = лучше)
-            if (b.priority !== a.priority) {
-                return b.priority - a.priority;
-            }
-            
-            // 2. По дате обновления (новые сначала)
-            return new Date(b.updated_at) - new Date(a.updated_at);
-        });
+        // СОРТИРОВКА по приоритету
+        subscriptionLeads.sort((a, b) => b.priority - a.priority);
         
         // Выводим рейтинг
         console.log(`\n🏆 РЕЙТИНГ АБОНЕМЕНТОВ:`);
@@ -1282,8 +1379,6 @@ async findLatestActiveSubscription(contactId) {
             console.log(`${index + 1}. Сделка ${item.lead.id}: "${item.lead.name}"`);
             console.log(`   Приоритет: ${item.priority}`);
             console.log(`   Статус: ${item.subscription.subscriptionStatus}`);
-            console.log(`   Активен: ${item.subscription.subscriptionActive}`);
-            console.log(`   Обновлено: ${item.updated_at}`);
             console.log(`   ---`);
         });
         
@@ -1293,7 +1388,6 @@ async findLatestActiveSubscription(contactId) {
         console.log(`   Сделка: "${bestSubscription.lead.name}" (ID: ${bestSubscription.lead.id})`);
         console.log(`   Статус: ${bestSubscription.subscription.subscriptionStatus}`);
         console.log(`   Занятий: ${bestSubscription.subscription.usedClasses}/${bestSubscription.subscription.totalClasses}`);
-        console.log(`   Осталось: ${bestSubscription.subscription.remainingClasses}`);
         
         return {
             lead: bestSubscription.lead,
@@ -2921,6 +3015,147 @@ app.get('/api/debug/subscription-logic/:contactId', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Ошибка проверки логики',
+            details: error.message
+        });
+    }
+});
+app.get('/api/debug/contact-leads/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        
+        console.log(`\n🔍 ПОЛУЧЕНИЕ ВСЕХ СДЕЛОК КОНТАКТА: ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем все сделки
+        const leads = await amoCrmService.getContactLeads(contactId);
+        
+        // Ищем конкретную сделку
+        const targetLeadId = 28681709;
+        const targetLead = leads.find(l => l.id == targetLeadId);
+        
+        // Формируем результат
+        const result = {
+            success: true,
+            contact_id: contactId,
+            statistics: {
+                total_leads: leads.length,
+                target_lead_found: !!targetLead,
+                target_lead_id: targetLeadId
+            },
+            target_lead: targetLead ? {
+                id: targetLead.id,
+                name: targetLead.name,
+                status_id: targetLead.status_id,
+                updated_at: targetLead.updated_at,
+                has_custom_fields: !!targetLead.custom_fields_values,
+                custom_fields_count: targetLead.custom_fields_values?.length || 0
+            } : null,
+            recent_leads: leads.slice(0, 10).map(l => ({
+                id: l.id,
+                name: l.name,
+                status_id: l.status_id,
+                updated_at: l.updated_at,
+                is_target: l.id == targetLeadId
+            })),
+            all_lead_ids: leads.map(l => l.id)
+        };
+        
+        console.log(`📊 Результат:`);
+        console.log(`   Всего сделок: ${leads.length}`);
+        console.log(`   Целевая сделка ${targetLeadId} найдена: ${!!targetLead ? 'Да ✅' : 'Нет ❌'}`);
+        
+        if (targetLead) {
+            console.log(`   Название: "${targetLead.name}"`);
+            console.log(`   Статус: ${targetLead.status_id}`);
+        } else {
+            console.log(`   ❌ Сделка ${targetLeadId} не найдена в списке!`);
+            console.log(`   ID всех сделок: ${leads.map(l => l.id).join(', ')}`);
+        }
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения сделок контакта:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения сделок контакта',
+            details: error.message
+        });
+    }
+});
+app.get('/api/debug/lead-contact-check/:leadId/:contactId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        const contactId = req.params.contactId;
+        
+        console.log(`\n🔗 ПРОВЕРКА СВЯЗИ СДЕЛКИ ${leadId} С КОНТАКТОМ ${contactId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.json({
+                success: false,
+                error: `Сделка ${leadId} не найдена`
+            });
+        }
+        
+        // Проверяем контакты сделки
+        const contacts = lead._embedded?.contacts || [];
+        const isLinked = contacts.some(c => c.id == contactId);
+        
+        // Получаем контакт
+        const contact = await amoCrmService.getFullContactInfo(contactId);
+        
+        const result = {
+            success: true,
+            lead_info: {
+                id: lead.id,
+                name: lead.name,
+                status_id: lead.status_id,
+                contacts_count: contacts.length,
+                contacts: contacts.map(c => ({
+                    id: c.id,
+                    is_target: c.id == contactId
+                }))
+            },
+            contact_info: {
+                id: contact?.id,
+                name: contact?.name,
+                phone: contact?.custom_fields_values?.find(f => 
+                    f.field_id === amoCrmService.FIELD_IDS.CONTACT.PHONE
+                )?.values?.[0]?.value || 'Не найден'
+            },
+            connection_check: {
+                is_linked: isLinked,
+                message: isLinked ? 
+                    `✅ Сделка ${leadId} связана с контактом ${contactId}` :
+                    `❌ Сделка ${leadId} НЕ связана с контактом ${contactId}`
+            }
+        };
+        
+        console.log(`📊 Результат проверки: ${result.connection_check.message}`);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки связи:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка проверки связи',
             details: error.message
         });
     }
