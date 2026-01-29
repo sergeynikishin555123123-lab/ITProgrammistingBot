@@ -233,88 +233,99 @@ async loadEnumValues() {
     try {
         console.log('📊 Загрузка enum значений из amoCRM...');
         
-        // Загружаем поля сделок
-        try {
-            const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
-            const leadFields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : 
-                             (leadFieldsResponse._embedded?.custom_fields || []);
-            
-            console.log(`   Полей сделок: ${leadFields.length}`);
-            
-            for (const field of leadFields) {
-                if (field && field.id && field.enums && Array.isArray(field.enums)) {
-                    const enumMapping = {};
-                    for (const enumItem of field.enums) {
-                        if (enumItem.id && enumItem.value) {
-                            enumMapping[String(enumItem.id)] = enumItem.value;
-                        }
-                    }
-                    
-                    if (Object.keys(enumMapping).length > 0) {
-                        this.enumCache.set(field.id, enumMapping);
-                    }
-                }
-            }
-        } catch (error) {
-            console.log(`   Ошибка загрузки полей сделок: ${error.message}`);
+        // Сбрасываем кэш
+        this.enumCache.clear();
+        
+        // Ключевые поля сделок (LEAD)
+        const leadImportantFields = [
+            { id: this.FIELD_IDS.LEAD.TOTAL_CLASSES, name: 'Абонемент занятий:' },
+            { id: this.FIELD_IDS.LEAD.USED_CLASSES, name: 'Счетчик занятий:' },
+            { id: this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE, name: 'Тип абонемента' },
+            { id: this.FIELD_IDS.LEAD.BRANCH, name: 'Филиал (сделка)' },
+            { id: this.FIELD_IDS.LEAD.AGE_GROUP, name: 'Группа возраст:' },
+            { id: this.FIELD_IDS.LEAD.FREEZE, name: 'Заморозка абонемента:' }
+        ];
+        
+        // Ключевые поля контактов (CONTACT)
+        const contactImportantFields = [
+            { id: this.FIELD_IDS.CONTACT.BRANCH, name: 'Филиал:' },
+            { id: this.FIELD_IDS.CONTACT.TEACHER, name: 'Преподаватель' },
+            { id: this.FIELD_IDS.CONTACT.AGE_GROUP, name: 'Возраст группы' },
+            { id: this.FIELD_IDS.CONTACT.DAY_OF_WEEK, name: 'День недели посещения' }
+        ];
+        
+        console.log('🔍 Загрузка полей сделок...');
+        for (const fieldInfo of leadImportantFields) {
+            await this.loadFieldEnum(fieldInfo, 'leads');
         }
         
-        // Загружаем поля контактов
-        try {
-            const contactFieldsResponse = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
-            const contactFields = Array.isArray(contactFieldsResponse) ? contactFieldsResponse : 
-                                (contactFieldsResponse._embedded?.custom_fields || []);
-            
-            console.log(`   Полей контактов: ${contactFields.length}`);
-            
-            for (const field of contactFields) {
-                if (field && field.id && field.enums && Array.isArray(field.enums)) {
-                    const enumMapping = {};
-                    for (const enumItem of field.enums) {
-                        if (enumItem.id && enumItem.value) {
-                            enumMapping[String(enumItem.id)] = enumItem.value;
-                        }
-                    }
-                    
-                    if (Object.keys(enumMapping).length > 0) {
-                        this.enumCache.set(field.id, enumMapping);
-                    }
-                }
-            }
-        } catch (error) {
-            console.log(`   Ошибка загрузки полей контактов: ${error.message}`);
+        console.log('🔍 Загрузка полей контактов...');
+        for (const fieldInfo of contactImportantFields) {
+            await this.loadFieldEnum(fieldInfo, 'contacts');
         }
         
         console.log(`✅ Загружено enum значений: ${this.enumCache.size}`);
         
-        // Показываем загруженные значения
-        console.log('\n📊 ЗАГРУЖЕННЫЕ ENUM ЗНАЧЕНИЯ:');
-        
-        // Проверяем ключевые поля
-        const keyFields = [
-            { id: this.FIELD_IDS.LEAD.TOTAL_CLASSES, name: 'Абонемент занятий:' },
-            { id: this.FIELD_IDS.LEAD.USED_CLASSES, name: 'Счетчик занятий:' },
-            { id: this.FIELD_IDS.CONTACT.BRANCH, name: 'Филиал:' },
-            { id: this.FIELD_IDS.CONTACT.TEACHER, name: 'Преподаватель' },
-            { id: this.FIELD_IDS.CONTACT.AGE_GROUP, name: 'Возраст группы' }
-        ];
-        
-        for (const field of keyFields) {
-            const enumMapping = this.enumCache.get(field.id);
-            if (enumMapping) {
-                console.log(`   ${field.name} (${field.id}): ${Object.keys(enumMapping).length} значений`);
-                // Показываем первые 5 значений
-                const entries = Object.entries(enumMapping).slice(0, 5);
-                for (const [enumId, value] of entries) {
-                    console.log(`     ${enumId} → "${value}"`);
-                }
-            } else {
-                console.log(`   ${field.name} (${field.id}): НЕ ЗАГРУЖЕНО`);
-            }
-        }
+        // Показываем что загрузилось
+        this.showLoadedEnumValues();
         
     } catch (error) {
         console.error('❌ Ошибка загрузки enum значений:', error.message);
+    }
+}
+
+async loadFieldEnum(fieldInfo, entityType) {
+    try {
+        const response = await this.makeRequest(
+            'GET', 
+            `/api/v4/${entityType}/custom_fields/${fieldInfo.id}`
+        );
+        
+        if (response && response.enums && Array.isArray(response.enums)) {
+            const enumMapping = {};
+            for (const enumItem of response.enums) {
+                if (enumItem.id && enumItem.value) {
+                    enumMapping[String(enumItem.id)] = enumItem.value;
+                }
+            }
+            
+            if (Object.keys(enumMapping).length > 0) {
+                this.enumCache.set(fieldInfo.id, enumMapping);
+                console.log(`   ✅ ${fieldInfo.name} (${fieldInfo.id}): ${Object.keys(enumMapping).length} значений`);
+                return true;
+            }
+        }
+        console.log(`   ⚠️  ${fieldInfo.name} (${fieldInfo.id}): нет enum значений`);
+        return false;
+    } catch (error) {
+        console.log(`   ❌ ${fieldInfo.name} (${fieldInfo.id}): ${error.message}`);
+        return false;
+    }
+}
+
+showLoadedEnumValues() {
+    console.log('\n📊 ЗАГРУЖЕННЫЕ ENUM ЗНАЧЕНИЯ:');
+    
+    // Проверяем ключевые поля
+    const checkFields = [
+        { id: this.FIELD_IDS.LEAD.TOTAL_CLASSES, name: 'Абонемент занятий:' },
+        { id: this.FIELD_IDS.LEAD.USED_CLASSES, name: 'Счетчик занятий:' },
+        { id: this.FIELD_IDS.LEAD.SUBSCRIPTION_TYPE, name: 'Тип абонемента' },
+        { id: this.FIELD_IDS.CONTACT.BRANCH, name: 'Филиал:' },
+        { id: this.FIELD_IDS.CONTACT.TEACHER, name: 'Преподаватель' }
+    ];
+    
+    for (const field of checkFields) {
+        const enumMapping = this.enumCache.get(field.id);
+        if (enumMapping) {
+            console.log(`\n🔸 ${field.name} (${field.id}):`);
+            // Показываем все значения (их обычно немного)
+            for (const [enumId, value] of Object.entries(enumMapping)) {
+                console.log(`   ${enumId} → "${value}"`);
+            }
+        } else {
+            console.log(`\n❌ ${field.name} (${field.id}): НЕ ЗАГРУЖЕНО`);
+        }
     }
 }
     async makeRequest(method, endpoint, data = null, retries = 3) {
@@ -420,31 +431,30 @@ async loadEnumValues() {
         }
     }
 
-  getFieldDisplayValue(fieldId, value) {
+getFieldDisplayValue(fieldId, value) {
     try {
         if (!value || value === '') return '';
         
         const strValue = String(value);
         
-        // Проверяем кэш enum значений
+        // 1. Проверяем кэш enum значений
         const enumMapping = this.enumCache.get(fieldId);
         if (enumMapping && enumMapping[strValue]) {
             return enumMapping[strValue];
         }
         
-        // Для поля "Абонемент занятий:" используем наш маппинг
+        // 2. Проверяем наш маппинг для числовых полей
+        if (this.SUBSCRIPTION_ENUM_MAPPING[strValue]) {
+            return String(this.SUBSCRIPTION_ENUM_MAPPING[strValue]);
+        }
+        
+        // 3. Для поля "Абонемент занятий:" добавляем "занятий"
         if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
             const num = this.SUBSCRIPTION_ENUM_MAPPING[strValue];
             return num ? `${num} занятий` : strValue;
         }
         
-        // Для поля "Счетчик занятий:" тоже используем маппинг
-        if (fieldId === this.FIELD_IDS.LEAD.USED_CLASSES) {
-            const num = this.SUBSCRIPTION_ENUM_MAPPING[strValue];
-            return num ? `${num}` : strValue;
-        }
-        
-        // Возвращаем как есть, если не нашли в маппинге
+        // 4. Возвращаем как есть
         return strValue;
         
     } catch (error) {
