@@ -1,3 +1,4 @@
+// server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -6,33 +7,554 @@ const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const axios = require('axios');
+const fs = require('fs').promises;
 const { Telegraf, Markup, session } = require('telegraf');
 const rateLimit = require('express-rate-limit');
+const axios = require('axios');
+const querystring = require('querystring');
 
 const app = express();
 
 // ==================== КОНФИГУРАЦИЯ ====================
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4';
-const DOMAIN = process.env.DOMAIN || 'https://sergeynikishin555123123-lab-itprogrammistingbot-8f42.twc1.net';
+const DOMAIN = process.env.DOMAIN || 'http://localhost:3000';
 const JWT_SECRET = process.env.JWT_SECRET || 'art-school-jwt-secret-2024';
 
-const AMOCRM_CONFIG = {
-    domain: process.env.AMOCRM_DOMAIN || 'yourcompany.amocrm.ru',
-    client_id: process.env.AMOCRM_CLIENT_ID || '',
-    client_secret: process.env.AMOCRM_CLIENT_SECRET || '',
-    redirect_uri: `${DOMAIN}/oauth/callback`,
-    access_token: process.env.AMOCRM_ACCESS_TOKEN || '',
-    refresh_token: process.env.AMOCRM_REFRESH_TOKEN || ''
+// Настройки amoCRM
+const AMOCRM_CLIENT_ID = process.env.AMOCRM_CLIENT_ID;
+const AMOCRM_CLIENT_SECRET = process.env.AMOCRM_CLIENT_SECRET;
+const AMOCRM_REDIRECT_URI = process.env.AMOCRM_REDIRECT_URI;
+const AMOCRM_DOMAIN = process.env.AMOCRM_DOMAIN;
+const AMOCRM_AUTH_CODE = process.env.AMOCRM_AUTH_CODE;
+const AMOCRM_ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;
+
+// ==================== НАСТРОЙКА EXPRESS ====================
+app.set('trust proxy', 1); // Важно для rate-limit
+
+const corsOptions = {
+    origin: '*',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.static('public'));
+
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    if (req.path.startsWith('/api')) {
+        res.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.header('Pragma', 'no-cache');
+        res.header('Expires', '0');
+    }
+    next();
+});
 
 // ==================== ИНИЦИАЛИЗАЦИЯ TELEGRAM БОТА ====================
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
-
-// Middleware для сессий
 bot.use(session({ defaultSession: () => ({}) }));
+
+// ==================== УПРОЩЕННЫЙ КЛАСС AMOCRM ====================
+class AmoCrmService {
+    constructor() {
+        this.baseUrl = AMOCRM_DOMAIN ? `https://${AMOCRM_DOMAIN}` : null;
+        this.accessToken = AMOCRM_ACCESS_TOKEN;
+        this.isInitialized = !!(AMOCRM_DOMAIN && AMOCRM_ACCESS_TOKEN);
+        
+        if (this.isInitialized) {
+            console.log(`✅ amoCRM подключен: ${AMOCRM_DOMAIN}`);
+        } else {
+            console.log('⚠️ amoCRM не подключен, используются демо-данные');
+        }
+    }
+
+    async initialize() {
+        return this.isInitialized;
+    }
+
+    async makeRequest(method, endpoint, data = null) {
+        if (!this.isInitialized) {
+            throw new Error('amoCRM не инициализирован');
+        }
+
+        try {
+            const config = {
+                method: method,
+                url: `${this.baseUrl}${endpoint}`,
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 10000
+            };
+
+            if (data) {
+                config.data = data;
+            }
+
+            const response = await axios(config);
+            return response.data;
+            
+        } catch (error) {
+            console.error(`❌ Ошибка запроса к amoCRM ${endpoint}:`, error.message);
+            throw error;
+        }
+    }
+
+    async getContacts(filters = {}) {
+        try {
+            if (!this.isInitialized) {
+                return this.getMockContacts();
+            }
+            
+            let query = '/api/v4/contacts';
+            const params = [];
+            
+            if (filters.phone) {
+                query += `?query=${encodeURIComponent(filters.phone)}`;
+            }
+            
+            if (filters.limit) {
+                query += `${query.includes('?') ? '&' : '?'}limit=${filters.limit}`;
+            }
+            
+            return await this.makeRequest('GET', query);
+            
+        } catch (error) {
+            console.log('⚠️ Использую демо-данные для контактов');
+            return this.getMockContacts();
+        }
+    }
+
+    async getLeads(filters = {}) {
+        try {
+            if (!this.isInitialized) {
+                return this.getMockLeads();
+            }
+            
+            let query = '/api/v4/leads';
+            
+            if (filters.contact_id) {
+                query += `?filter[contacts][id]=${filters.contact_id}`;
+            }
+            
+            return await this.makeRequest('GET', query);
+            
+        } catch (error) {
+            console.log('⚠️ Использую демо-данные для сделок');
+            return this.getMockLeads();
+        }
+    }
+
+    getMockContacts() {
+        return {
+            _embedded: {
+                contacts: [
+                    {
+                        id: 1001,
+                        name: "Иван Иванов",
+                        custom_fields_values: [
+                            {
+                                field_name: "Телефон",
+                                values: [{ value: "+79991234567" }]
+                            },
+                            {
+                                field_name: "Филиал",
+                                values: [{ value: "Свиблово" }]
+                            },
+                            {
+                                field_name: "Родитель",
+                                values: [{ value: "Мария Иванова" }]
+                            },
+                            {
+                                field_name: "Email",
+                                values: [{ value: "ivan@example.com" }]
+                            }
+                        ]
+                    },
+                    {
+                        id: 1002,
+                        name: "Мария Сидорова",
+                        custom_fields_values: [
+                            {
+                                field_name: "Телефон",
+                                values: [{ value: "+79997654321" }]
+                            },
+                            {
+                                field_name: "Филиал",
+                                values: [{ value: "Чертаново" }]
+                            },
+                            {
+                                field_name: "Родитель",
+                                values: [{ value: "Ольга Сидорова" }]
+                            },
+                            {
+                                field_name: "Email",
+                                values: [{ value: "maria@example.com" }]
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+    }
+
+    getMockLeads() {
+        return {
+            _embedded: {
+                leads: [
+                    {
+                        id: 2001,
+                        name: "Абонемент #2001",
+                        price: 12000,
+                        status_id: 142,
+                        created_at: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60,
+                        custom_fields_values: [
+                            {
+                                field_name: "Всего занятий",
+                                values: [{ value: 12 }]
+                            },
+                            {
+                                field_name: "Осталось занятий",
+                                values: [{ value: 5 }]
+                            },
+                            {
+                                field_name: "Дата окончания",
+                                values: [{ value: "2024-12-31" }]
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+    }
+
+    async syncAllData() {
+        try {
+            console.log('🔄 Синхронизация данных...');
+            
+            if (this.isInitialized) {
+                await this.syncTeachersFromAmo();
+                await this.syncStudentsFromAmo();
+                await this.syncSubscriptionsFromAmo();
+                console.log('✅ Данные синхронизированы из amoCRM');
+            } else {
+                console.log('📝 Загрузка демо-данных...');
+                await this.syncDemoData();
+            }
+            
+            return true;
+            
+        } catch (error) {
+            console.error('❌ Ошибка синхронизации:', error.message);
+            await this.syncDemoData();
+            return false;
+        }
+    }
+
+    async syncTeachersFromAmo() {
+        try {
+            if (!this.isInitialized) {
+                return this.syncDemoTeachers();
+            }
+            
+            const response = await this.makeRequest('GET', '/api/v4/users');
+            const users = response._embedded?.users || [];
+            
+            for (const user of users) {
+                const existingTeacher = await db.get(
+                    'SELECT * FROM teachers WHERE amocrm_user_id = ?',
+                    [user.id]
+                );
+                
+                const teacherData = {
+                    name: user.name || '',
+                    email: user.email || '',
+                    phone_number: user.phone || '',
+                    amocrm_user_id: user.id,
+                    is_active: 1
+                };
+                
+                if (!existingTeacher) {
+                    await db.run(
+                        `INSERT INTO teachers (name, email, phone_number, amocrm_user_id, is_active) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                        Object.values(teacherData)
+                    );
+                }
+            }
+            
+            console.log(`✅ Синхронизировано ${users.length} преподавателей`);
+            
+        } catch (error) {
+            console.log('⚠️ Использую демо-преподавателей');
+            await this.syncDemoTeachers();
+        }
+    }
+
+    async syncDemoTeachers() {
+        try {
+            const demoTeachers = [
+                ['Анна Петрова', 'https://via.placeholder.com/300x300/4A90E2/FFFFFF?text=АП', 
+                 'Художник-педагог, член Союза художников России', 
+                 'Академический рисунок, графика', 8,
+                 'Опытный преподаватель с 8-летним стажем. Специализируется на академическом рисунке и графике.',
+                 '["Свиблово"]', '@anna_petrova', '+79997778899', 'anna@artschool.ru', null, 1],
+                 
+                ['Сергей Смирнов', 'https://via.placeholder.com/300x300/9C6ADE/FFFFFF?text=СС',
+                 'Художник-живописец, преподаватель с 10-летним стажем',
+                 'Акварель, масляная живопись', 10,
+                 'Эксперт в акварельной и масляной живописи. Работы учеников регулярно участвуют в выставках.',
+                 '["Чертаново"]', '@sergey_smirnov', '+79996667788', 'sergey@artschool.ru', null, 2],
+                 
+                ['Елена Ковалева', 'https://via.placeholder.com/300x300/FFC107/FFFFFF?text=ЕК',
+                 'Иллюстратор, дизайнер, преподаватель детских групп',
+                 'Скетчинг, иллюстрация, детское творчество', 6,
+                 'Специализируется на работе с детьми. Разработала авторскую методику обучения рисованию для детей.',
+                 '["Свиблово", "Чертаново"]', '@elena_kovaleva', '+79995554433', 'elena@artschool.ru', null, 3]
+            ];
+            
+            for (const teacher of demoTeachers) {
+                const existing = await db.get('SELECT 1 FROM teachers WHERE name = ?', [teacher[0]]);
+                if (!existing) {
+                    await db.run(
+                        `INSERT INTO teachers (name, photo_url, qualification, specialization, 
+                         experience_years, description, branches, telegram_username, 
+                         phone_number, email, amocrm_user_id, display_order) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        teacher
+                    );
+                }
+            }
+            
+            console.log('✅ Демо-преподаватели загружены');
+            
+        } catch (error) {
+            console.error('❌ Ошибка загрузки демо-преподавателей:', error.message);
+        }
+    }
+
+    async syncStudentsFromAmo() {
+        try {
+            if (!this.isInitialized) {
+                return this.syncDemoStudents();
+            }
+            
+            const response = await this.getContacts({ limit: 50 });
+            const contacts = response._embedded?.contacts || [];
+            
+            for (const contact of contacts) {
+                let phone = '';
+                let branch = '';
+                
+                if (contact.custom_fields_values) {
+                    const phoneField = contact.custom_fields_values.find(field => 
+                        field.field_code === 'PHONE' || field.field_name?.toLowerCase().includes('телефон')
+                    );
+                    if (phoneField?.values?.[0]) {
+                        phone = phoneField.values[0].value;
+                    }
+                    
+                    const branchField = contact.custom_fields_values.find(field => 
+                        field.field_name?.toLowerCase().includes('филиал')
+                    );
+                    if (branchField?.values?.[0]) {
+                        branch = branchField.values[0].value;
+                    }
+                }
+                
+                const existingStudent = await db.get(
+                    'SELECT * FROM student_profiles WHERE amocrm_contact_id = ?',
+                    [contact.id]
+                );
+                
+                if (!existingStudent) {
+                    await db.run(
+                        `INSERT INTO student_profiles 
+                         (amocrm_contact_id, student_name, phone_number, branch, is_active) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [contact.id, contact.name || '', phone, branch || 'Не указан', 1]
+                    );
+                }
+            }
+            
+            console.log(`✅ Синхронизировано ${contacts.length} учеников`);
+            
+        } catch (error) {
+            console.log('⚠️ Использую демо-учеников');
+            await this.syncDemoStudents();
+        }
+    }
+
+    async syncDemoStudents() {
+        try {
+            const demoStudents = [
+                [null, 'Иван Иванов', 'Мария Иванова', '+79991234567', 'ivan@example.com', 
+                 'Свиблово', 'Художественный курс для начинающих', 12, 5, 
+                 '2024-12-31', 'Анна Петрова', 'понедельник', '16:00-17:30'],
+                 
+                [null, 'Мария Сидорова', 'Ольга Сидорова', '+79997654321', 'maria@example.com',
+                 'Чертаново', 'Курс акварельной живописи', 16, 8,
+                 '2024-11-30', 'Сергей Смирнов', 'среда', '16:30-18:00']
+            ];
+            
+            for (const student of demoStudents) {
+                const existing = await db.get(
+                    'SELECT 1 FROM student_profiles WHERE student_name = ? AND phone_number = ?',
+                    [student[1], student[3]]
+                );
+                
+                if (!existing) {
+                    await db.run(
+                        `INSERT INTO student_profiles 
+                         (amocrm_contact_id, student_name, parent_name, phone_number, email,
+                          branch, subscription_type, total_classes, remaining_classes,
+                          expiration_date, teacher_name, day_of_week, time_slot, is_active)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [...student, 1]
+                    );
+                }
+            }
+            
+            console.log('✅ Демо-ученики загружены');
+            
+        } catch (error) {
+            console.error('❌ Ошибка загрузки демо-учеников:', error.message);
+        }
+    }
+
+    async syncSubscriptionsFromAmo() {
+        try {
+            if (!this.isInitialized) {
+                return;
+            }
+            
+            const response = await this.getLeads({ limit: 50 });
+            const leads = response._embedded?.leads || [];
+            
+            for (const lead of leads) {
+                if (lead._embedded?.contacts?.[0]) {
+                    const contactId = lead._embedded.contacts[0].id;
+                    
+                    await db.run(
+                        `UPDATE student_profiles 
+                         SET subscription_type = ?, total_classes = ?, remaining_classes = ?,
+                             expiration_date = ?
+                         WHERE amocrm_contact_id = ?`,
+                        [
+                            `Абонемент #${lead.id}`,
+                            12,
+                            8,
+                            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                            contactId
+                        ]
+                    );
+                }
+            }
+            
+            console.log(`✅ Синхронизировано ${leads.length} абонементов`);
+            
+        } catch (error) {
+            console.error('❌ Ошибка синхронизации абонементов:', error.message);
+        }
+    }
+
+    async syncDemoData() {
+        await this.syncDemoTeachers();
+        await this.syncDemoStudents();
+        console.log('✅ Все демо-данные загружены');
+    }
+
+    async getStudentByPhoneFromAmo(phoneNumber) {
+        try {
+            if (!this.isInitialized) {
+                return this.getMockStudentProfiles(phoneNumber);
+            }
+            
+            const contacts = await this.getContacts({ phone: phoneNumber });
+            
+            if (contacts._embedded?.contacts?.length > 0) {
+                const contact = contacts._embedded.contacts[0];
+                const leads = await this.getLeads({ contact_id: contact.id });
+                
+                const customFields = {};
+                if (contact.custom_fields_values) {
+                    for (const field of contact.custom_fields_values) {
+                        if (field.values?.[0]) {
+                            const fieldName = field.field_name || field.field_code;
+                            customFields[fieldName] = field.values[0].value;
+                        }
+                    }
+                }
+                
+                const studentProfile = {
+                    amocrm_contact_id: contact.id,
+                    student_name: contact.name || '',
+                    parent_name: customFields['Родитель'] || '',
+                    phone_number: phoneNumber,
+                    email: customFields['Email'] || '',
+                    branch: customFields['Филиал'] || 'Не указан',
+                    subscription_type: leads._embedded?.leads?.[0] ? `Абонемент #${leads._embedded.leads[0].id}` : 'Без абонемента',
+                    total_classes: 12,
+                    remaining_classes: 8,
+                    expiration_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    teacher_name: customFields['Преподаватель'] || '',
+                    day_of_week: customFields['День недели'] || '',
+                    time_slot: customFields['Время'] || '',
+                    custom_fields: customFields
+                };
+                
+                return [studentProfile];
+            }
+            
+            return this.getMockStudentProfiles(phoneNumber);
+            
+        } catch (error) {
+            console.error('❌ Ошибка получения ученика:', error.message);
+            return this.getMockStudentProfiles(phoneNumber);
+        }
+    }
+
+    getMockStudentProfiles(phoneNumber) {
+        return [
+            {
+                student_name: 'Иван Иванов',
+                parent_name: 'Мария Иванова',
+                phone_number: phoneNumber,
+                email: 'ivan@example.com',
+                branch: 'Свиблово',
+                subscription_type: 'Художественный курс для начинающих',
+                total_classes: 12,
+                remaining_classes: 5,
+                expiration_date: '2024-12-31',
+                teacher_name: 'Анна Петрова',
+                day_of_week: 'понедельник',
+                time_slot: '16:00-17:30'
+            },
+            {
+                student_name: 'Мария Сидорова',
+                parent_name: 'Ольга Сидорова',
+                phone_number: phoneNumber,
+                email: 'maria@example.com',
+                branch: 'Чертаново',
+                subscription_type: 'Курс акварельной живописи',
+                total_classes: 16,
+                remaining_classes: 8,
+                expiration_date: '2024-11-30',
+                teacher_name: 'Сергей Смирнов',
+                day_of_week: 'среда',
+                time_slot: '16:30-18:00'
+            }
+        ];
+    }
+}
+
+// Создаем экземпляр сервиса amoCRM
+const amoCrmService = new AmoCrmService();
 
 // ==================== БАЗА ДАННЫХ ====================
 let db;
@@ -41,9 +563,12 @@ const initDatabase = async () => {
     try {
         console.log('🔄 Инициализация базы данных школы рисования...');
         
+        // Создаем директорию для базы данных если её нет
         const dbDir = path.join(__dirname, 'data');
-        if (!fs.existsSync(dbDir)) {
-            fs.mkdirSync(dbDir, { recursive: true });
+        try {
+            await fs.mkdir(dbDir, { recursive: true });
+        } catch (mkdirError) {
+            // Игнорируем ошибку если директория уже существует
         }
         
         const dbPath = path.join(dbDir, 'art_school.db');
@@ -55,24 +580,61 @@ const initDatabase = async () => {
         });
 
         console.log('✅ База данных SQLite подключена');
+        
         await db.run('PRAGMA foreign_keys = ON');
         await db.run('PRAGMA journal_mode = WAL');
-
+        
         await createTables();
         await createDemoData();
-        await setupWebhook();
+        
+        console.log('🎉 База данных успешно инициализирована!');
+        
+        // Инициализируем amoCRM
+        await amoCrmService.initialize();
+        
+        // Синхронизируем данные
+        await amoCrmService.syncAllData();
         
         return db;
     } catch (error) {
         console.error('❌ Ошибка инициализации базы данных:', error.message);
-        throw error;
+        
+        try {
+            console.log('🔄 Пробуем создать временную базу данных в памяти...');
+            db = await open({
+                filename: ':memory:',
+                driver: sqlite3.Database
+            });
+            
+            console.log('✅ Создана временная база данных в памяти');
+            await db.run('PRAGMA foreign_keys = ON');
+            await createTables();
+            await createDemoData();
+            console.log('⚠️ ВНИМАНИЕ: Используется база данных в памяти. Данные не сохранятся после перезапуска!');
+            
+            return db;
+        } catch (memoryError) {
+            console.error('❌ Не удалось создать даже базу в памяти:', memoryError.message);
+            throw error;
+        }
     }
 };
 
 const createTables = async () => {
     try {
-        console.log('📊 Создание таблиц школы рисования...');
+        console.log('📊 Создание таблиц...');
         
+        // Токены amoCRM
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS amocrm_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT NOT NULL,
+                expires_at INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
         // Пользователи Telegram
         await db.exec(`
             CREATE TABLE IF NOT EXISTS telegram_users (
@@ -89,18 +651,17 @@ const createTables = async () => {
             )
         `);
 
-        // Профили учеников (связь с amoCRM)
+        // Профили учеников
         await db.exec(`
             CREATE TABLE IF NOT EXISTS student_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 telegram_user_id INTEGER,
-                amo_contact_id INTEGER,
-                amo_deal_id INTEGER,
+                amocrm_contact_id INTEGER UNIQUE,
                 student_name TEXT NOT NULL,
                 parent_name TEXT,
                 phone_number TEXT NOT NULL,
                 email TEXT,
-                branch TEXT NOT NULL CHECK(branch IN ('Свиблово', 'Чертаново')),
+                branch TEXT NOT NULL CHECK(branch IN ('Свиблово', 'Чертаново', 'Не указан')),
                 subscription_type TEXT,
                 total_classes INTEGER DEFAULT 0,
                 remaining_classes INTEGER DEFAULT 0,
@@ -108,6 +669,8 @@ const createTables = async () => {
                 teacher_name TEXT,
                 day_of_week TEXT,
                 time_slot TEXT,
+                amocrm_lead_id INTEGER,
+                amocrm_custom_fields TEXT,
                 is_active INTEGER DEFAULT 1,
                 last_selected INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -150,10 +713,11 @@ const createTables = async () => {
                 specialization TEXT,
                 experience_years INTEGER,
                 description TEXT,
-                branches TEXT, -- JSON массив филиалов
+                branches TEXT,
                 telegram_username TEXT,
                 phone_number TEXT,
                 email TEXT,
+                amocrm_user_id INTEGER UNIQUE,
                 is_active INTEGER DEFAULT 1,
                 display_order INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -170,6 +734,7 @@ const createTables = async () => {
                 attendance_time TIME,
                 status TEXT DEFAULT 'attended' CHECK(status IN ('attended', 'missed', 'cancelled')),
                 notes TEXT,
+                amocrm_task_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (student_profile_id) REFERENCES student_profiles(id) ON DELETE CASCADE,
                 FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE SET NULL
@@ -197,7 +762,7 @@ const createTables = async () => {
                 content TEXT NOT NULL,
                 short_description TEXT,
                 image_url TEXT,
-                branch TEXT, -- NULL для всех филиалов
+                branch TEXT,
                 is_active INTEGER DEFAULT 1,
                 publish_date DATE DEFAULT CURRENT_DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -212,7 +777,7 @@ const createTables = async () => {
                 name TEXT NOT NULL,
                 email TEXT,
                 phone_number TEXT,
-                branches TEXT, -- JSON массив филиалов
+                branches TEXT,
                 role TEXT DEFAULT 'admin' CHECK(role IN ('admin', 'superadmin')),
                 is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -228,10 +793,10 @@ const createTables = async () => {
                 message_type TEXT CHECK(message_type IN ('cancellation', 'replacement', 'reschedule', 'custom')),
                 title TEXT,
                 message TEXT NOT NULL,
-                branches TEXT, -- JSON массив филиалов
-                teacher_ids TEXT, -- JSON массив ID преподавателей
-                days_of_week TEXT, -- JSON массив дней недели
-                filters_applied TEXT, -- JSON с фильтрами
+                branches TEXT,
+                teacher_ids TEXT,
+                days_of_week TEXT,
+                filters_applied TEXT,
                 recipients_count INTEGER DEFAULT 0,
                 sent_count INTEGER DEFAULT 0,
                 failed_count INTEGER DEFAULT 0,
@@ -239,46 +804,6 @@ const createTables = async () => {
                 sent_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (admin_id) REFERENCES administrators(id) ON DELETE CASCADE
-            )
-        `);
-
-        // Лог рассылок
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS broadcast_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                broadcast_id INTEGER NOT NULL,
-                student_profile_id INTEGER,
-                telegram_user_id INTEGER,
-                telegram_message_id INTEGER,
-                status TEXT CHECK(status IN ('sent', 'delivered', 'failed')),
-                error_message TEXT,
-                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id) ON DELETE CASCADE,
-                FOREIGN KEY (student_profile_id) REFERENCES student_profiles(id) ON DELETE SET NULL,
-                FOREIGN KEY (telegram_user_id) REFERENCES telegram_users(id) ON DELETE SET NULL
-            )
-        `);
-
-        // Сообщения для администраторов
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS admin_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_profile_id INTEGER NOT NULL,
-                telegram_user_id INTEGER,
-                telegram_message_id INTEGER,
-                message_type TEXT DEFAULT 'contact' CHECK(message_type IN ('contact', 'renewal', 'question')),
-                message TEXT NOT NULL,
-                branch TEXT,
-                student_name TEXT,
-                status TEXT DEFAULT 'new' CHECK(status IN ('new', 'read', 'replied', 'closed')),
-                admin_id INTEGER,
-                admin_response TEXT,
-                admin_response_message_id INTEGER,
-                responded_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (student_profile_id) REFERENCES student_profiles(id) ON DELETE CASCADE,
-                FOREIGN KEY (telegram_user_id) REFERENCES telegram_users(id) ON DELETE SET NULL,
-                FOREIGN KEY (admin_id) REFERENCES administrators(id) ON DELETE SET NULL
             )
         `);
 
@@ -298,18 +823,7 @@ const createTables = async () => {
             )
         `);
 
-        // Токены для amoCRM API
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS amocrm_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                access_token TEXT NOT NULL,
-                refresh_token TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        // Сессии пользователей для веб-интерфейса
+        // Сессии пользователей
         await db.exec(`
             CREATE TABLE IF NOT EXISTS user_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -324,21 +838,16 @@ const createTables = async () => {
             )
         `);
 
-        // Очередь уведомлений
+        // Логи синхронизации
         await db.exec(`
-            CREATE TABLE IF NOT EXISTS notification_queue (
+            CREATE TABLE IF NOT EXISTS amocrm_sync_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_user_id INTEGER,
-                message TEXT NOT NULL,
-                message_type TEXT CHECK(message_type IN ('reminder', 'cancellation', 'news', 'broadcast', 'system')),
-                data TEXT, -- JSON с дополнительными данными
-                scheduled_for TIMESTAMP,
-                status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'sent', 'failed')),
-                retry_count INTEGER DEFAULT 0,
+                sync_type TEXT NOT NULL,
+                records_count INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'success' CHECK(status IN ('success', 'error', 'partial')),
                 error_message TEXT,
-                sent_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (telegram_user_id) REFERENCES telegram_users(id) ON DELETE SET NULL
+                sync_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
@@ -353,7 +862,7 @@ const createTables = async () => {
 // ==================== ДЕМО ДАННЫЕ ====================
 const createDemoData = async () => {
     try {
-        console.log('📝 Создание демо-данных для школы рисования...');
+        console.log('📝 Создание демо-данных...');
 
         // Демо администраторы
         const adminExists = await db.get("SELECT 1 FROM administrators LIMIT 1");
@@ -373,41 +882,6 @@ const createDemoData = async () => {
             console.log('✅ Демо-администраторы созданы');
         }
 
-        // Демо преподаватели
-        const teachersExist = await db.get("SELECT 1 FROM teachers LIMIT 1");
-        if (!teachersExist) {
-            const teachers = [
-                ['Анна Петрова', 'https://via.placeholder.com/300x300/4A90E2/FFFFFF?text=АП', 
-                 'Художник-педагог, член Союза художников России', 
-                 'Академический рисунок, графика', 8,
-                 'Опытный преподаватель с 8-летним стажем. Специализируется на академическом рисунке и графике.',
-                 '["Свиблово"]', '@anna_petrova', '+79997778899', 'anna@artschool.ru', 1],
-                 
-                ['Сергей Смирнов', 'https://via.placeholder.com/300x300/9C6ADE/FFFFFF?text=СС',
-                 'Художник-живописец, преподаватель с 10-летним стажем',
-                 'Акварель, масляная живопись', 10,
-                 'Эксперт в акварельной и масляной живописи. Работы учеников регулярно участвуют в выставках.',
-                 '["Чертаново"]', '@sergey_smirnov', '+79996667788', 'sergey@artschool.ru', 2],
-                 
-                ['Елена Ковалева', 'https://via.placeholder.com/300x300/FFC107/FFFFFF?text=ЕК',
-                 'Иллюстратор, дизайнер, преподаватель детских групп',
-                 'Скетчинг, иллюстрация, детское творчество', 6,
-                 'Специализируется на работе с детьми. Разработала авторскую методику обучения рисованию для детей.',
-                 '["Свиблово", "Чертаново"]', '@elena_kovaleva', '+79995554433', 'elena@artschool.ru', 3]
-            ];
-            
-            for (const teacher of teachers) {
-                await db.run(
-                    `INSERT INTO teachers (name, photo_url, qualification, specialization, 
-                     experience_years, description, branches, telegram_username, 
-                     phone_number, email, display_order) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    teacher
-                );
-            }
-            console.log('✅ Демо-преподаватели созданы');
-        }
-
         // Демо расписание
         const scheduleExists = await db.get("SELECT 1 FROM schedule LIMIT 1");
         if (!scheduleExists) {
@@ -417,7 +891,7 @@ const createDemoData = async () => {
                 ['Свиблово', 'вторник', '17:00', '18:30', 3, 'Елена Ковалева', 'Дети 5-7 лет', 'Кабинет 2', 6, 4],
                 ['Чертаново', 'среда', '16:30', '18:00', 2, 'Сергей Смирнов', 'Взрослые', 'Кабинет 3', 10, 8],
                 ['Чертаново', 'суббота', '11:00', '12:30', 2, 'Сергей Смирнов', 'Подростки', 'Кабинет 3', 8, 7],
-                ['Чертаново', 'суббота', '13:00', '14:30', 3, 'Елена Ковалева', 'Дети 7-9 лет', 'Кабинет 4', 8, 6]
+                ['Чертаново', 'суббота', '13:00', '14:30', 3, 'Елена Ковалеva', 'Дети 7-9 лет', 'Кабинет 4', 8, 6]
             ];
             
             for (const item of schedule) {
@@ -523,1055 +997,344 @@ const createDemoData = async () => {
     }
 };
 
-// ==================== TELEGRAM БОТ КОМАНДЫ ====================
+// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
-// Стартовая команда
-bot.start(async (ctx) => {
-    const telegramId = ctx.from.id;
-    const firstName = ctx.from.first_name || '';
-    const lastName = ctx.from.last_name || '';
-    const username = ctx.from.username || '';
-    
-    // Проверяем, зарегистрирован ли пользователь
-    const user = await db.get(
-        'SELECT * FROM telegram_users WHERE telegram_id = ?',
-        [telegramId]
-    );
-    
-    if (!user) {
-        // Предлагаем авторизацию
-        await ctx.replyWithHTML(
-            `🎨 <b>Добро пожаловать в художественную студию!</b>\n\n` +
-            `Для доступа к личному кабинету необходимо авторизоваться.\n\n` +
-            `Пожалуйста, поделитесь своим номером телефона для поиска ваших абонементов:`,
-            Markup.keyboard([
-                [Markup.button.contactRequest('📱 Поделиться номером телефона')]
-            ]).resize()
-        );
-    } else {
-        // Показываем меню
-        await showMainMenu(ctx);
-    }
-});
-
-// Обработка контакта
-bot.on('contact', async (ctx) => {
-    const telegramId = ctx.from.id;
-    const phoneNumber = ctx.message.contact.phone_number;
-    const firstName = ctx.from.first_name || '';
-    const lastName = ctx.from.last_name || '';
-    const username = ctx.from.username || '';
-    
+// Поиск профилей по номеру телефона
+async function findProfilesByPhone(phoneNumber) {
     try {
-        // Сохраняем/обновляем пользователя
-        let user = await db.get(
-            'SELECT * FROM telegram_users WHERE telegram_id = ?',
-            [telegramId]
+        console.log(`🔍 Поиск ученика по телефону: ${phoneNumber}`);
+        
+        // Пробуем найти в amoCRM
+        const profiles = await amoCrmService.getStudentByPhoneFromAmo(phoneNumber);
+        
+        if (profiles && profiles.length > 0) {
+            console.log(`✅ Найдено ${profiles.length} профилей`);
+            return profiles;
+        }
+        
+        // Если не нашли, ищем в локальной базе
+        const localProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number = ? AND is_active = 1`,
+            [phoneNumber]
         );
         
-        if (!user) {
-            const result = await db.run(
-                `INSERT INTO telegram_users (telegram_id, phone_number, first_name, last_name, username) 
-                 VALUES (?, ?, ?, ?, ?)`,
-                [telegramId, phoneNumber, firstName, lastName, username]
-            );
-            user = await db.get(
-                'SELECT * FROM telegram_users WHERE id = ?',
-                [result.lastID]
-            );
-            console.log(`✅ Новый пользователь: ${telegramId}`);
-        } else {
-            await db.run(
-                `UPDATE telegram_users 
-                 SET phone_number = ?, first_name = ?, last_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [phoneNumber, firstName, lastName, username, user.id]
-            );
+        if (localProfiles && localProfiles.length > 0) {
+            console.log(`✅ Найдено ${localProfiles.length} профилей в локальной базе`);
+            return localProfiles;
         }
         
-        // Ищем профили в amoCRM
-        const amocrmResult = await findInAmocrmByPhone(phoneNumber);
-        
-        if (!amocrmResult.success || amocrmResult.data.profiles.length === 0) {
-            await ctx.replyWithHTML(
-                `❌ <b>Абонементы не найдены</b>\n\n` +
-                `По вашему номеру телефона не найдены активные абонементы в художественной студии.\n\n` +
-                `Пожалуйста, свяжитесь с администратором для уточнения информации.`,
-                Markup.keyboard([
-                    ['📞 Связаться с администратором'],
-                    ['🏠 Главное меню']
-                ]).resize()
-            );
-            return;
-        }
-        
-        // Сохраняем профили
-        const savedProfiles = await saveProfilesFromAmocrm(user.id, amocrmResult.data.profiles);
-        
-        if (savedProfiles.length === 1) {
-            // Автоматически выбираем единственный профиль
-            await db.run(
-                'UPDATE student_profiles SET last_selected = 1 WHERE id = ?',
-                [savedProfiles[0].id]
-            );
-            
-            await ctx.replyWithHTML(
-                `✅ <b>Авторизация успешна!</b>\n\n` +
-                `Найден абонемент для <b>${savedProfiles[0].student_name}</b>\n` +
-                `Филиал: <b>${savedProfiles[0].branch}</b>\n` +
-                `Осталось занятий: <b>${savedProfiles[0].remaining_classes}</b>\n\n` +
-                `Теперь вы можете использовать все функции личного кабинета.`,
-                await getMainMenuKeyboard()
-            );
-        } else {
-            // Предлагаем выбрать профиль
-            await ctx.replyWithHTML(
-                `✅ <b>Найдено несколько абонементов</b>\n\n` +
-                `Пожалуйста, выберите подходящий профиль:`,
-                await getProfilesKeyboard(savedProfiles)
-            );
-        }
+        // Если ничего не нашли, возвращаем пустой массив
+        console.log('⚠️ Профили не найдены');
+        return [];
         
     } catch (error) {
-        console.error('Ошибка обработки контакта:', error);
-        await ctx.reply(
-            '❌ Произошла ошибка при обработке вашего номера телефона. Пожалуйста, попробуйте позже.'
-        );
-    }
-});
-
-// Команда меню
-bot.command('menu', async (ctx) => {
-    await showMainMenu(ctx);
-});
-
-// Команда расписания
-bot.command('schedule', async (ctx) => {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    if (!profile) {
-        await ctx.reply('У вас нет выбранного профиля. Пожалуйста, выберите профиль в меню.');
-        return;
-    }
-    
-    await showSchedule(ctx, profile);
-});
-
-// Команда абонемента
-bot.command('subscription', async (ctx) => {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    if (!profile) {
-        await ctx.reply('У вас нет выбранного профиля. Пожалуйста, выберите профиль в меню.');
-        return;
-    }
-    
-    await showSubscription(ctx, profile);
-});
-
-// Команда преподавателей
-bot.command('teachers', async (ctx) => {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    if (!profile) {
-        await ctx.reply('У вас нет выбранного профиля. Пожалуйста, выберите профиль в меню.');
-        return;
-    }
-    
-    await showTeachers(ctx, profile.branch);
-});
-
-// Команда помощи
-bot.command('help', async (ctx) => {
-    await ctx.replyWithHTML(
-        `🎨 <b>Помощь по использованию бота художественной студии</b>\n\n` +
-        `<b>Основные команды:</b>\n` +
-        `/start - Начать работу с ботом\n` +
-        `/menu - Показать главное меню\n` +
-        `/schedule - Показать расписание\n` +
-        `/subscription - Информация об абонементе\n` +
-        `/teachers - Список преподавателей\n` +
-        `/help - Эта справка\n\n` +
-        `<b>Как это работает:</b>\n` +
-        `1. При первом использовании поделитесь номером телефона\n` +
-        `2. Система найдет ваши абонементы в художественной студии\n` +
-        `3. Выберите нужный профиль (если их несколько)\n` +
-        `4. Используйте меню для доступа к функциям\n\n` +
-        `<b>Функции:</b>\n` +
-        `• Просмотр расписания занятий\n` +
-        `• Проверка остатка занятий\n` +
-        `• История посещений\n` +
-        `• Информация о преподавателях\n` +
-        `• Связь с администратором\n` +
-        `• Уведомления об изменениях\n\n` +
-        `<b>Техническая поддержка:</b>\n` +
-        `Если у вас возникли проблемы, напишите @art_school_support`
-    );
-});
-
-// ==================== TELEGRAM БОТ МЕНЮ ====================
-
-async function showMainMenu(ctx) {
-    const user = await getTelegramUser(ctx.from.id);
-    if (!user) {
-        await ctx.reply('Пожалуйста, сначала авторизуйтесь с помощью /start');
-        return;
-    }
-    
-    const profile = await getSelectedProfile(user.id);
-    
-    if (profile) {
-        await ctx.replyWithHTML(
-            `🎨 <b>Главное меню</b>\n\n` +
-            `<b>Текущий профиль:</b> ${profile.student_name}\n` +
-            `<b>Филиал:</b> ${profile.branch}\n` +
-            `<b>Осталось занятий:</b> ${profile.remaining_classes}\n\n` +
-            `Выберите действие:`,
-            await getMainMenuKeyboard()
-        );
-    } else {
-        const profiles = await db.all(
-            'SELECT * FROM student_profiles WHERE telegram_user_id = ? AND is_active = 1',
-            [user.id]
-        );
-        
-        if (profiles.length === 0) {
-            await ctx.replyWithHTML(
-                `❌ <b>Абонементы не найдены</b>\n\n` +
-                `У вас нет активных абонементов в художественной студии.\n\n` +
-                `Для получения доступа свяжитесь с администратором.`,
-                Markup.keyboard([
-                    ['📞 Связаться с администратором'],
-                    ['/start']
-                ]).resize()
-            );
-        } else {
-            await ctx.replyWithHTML(
-                `👤 <b>Выберите профиль</b>\n\n` +
-                `У вас найдено несколько абонементов. Пожалуйста, выберите профиль:`,
-                await getProfilesKeyboard(profiles)
-            );
-        }
+        console.error('❌ Ошибка поиска профилей:', error.message);
+        return [];
     }
 }
 
-async function showSchedule(ctx, profile) {
-    try {
-        const schedule = await db.all(
-            `SELECT * FROM schedule 
-             WHERE branch = ? AND is_active = 1
-             ORDER BY 
-                 CASE day_of_week 
-                     WHEN 'понедельник' THEN 1
-                     WHEN 'вторник' THEN 2
-                     WHEN 'среда' THEN 3
-                     WHEN 'четверг' THEN 4
-                     WHEN 'пятница' THEN 5
-                     WHEN 'суббота' THEN 6
-                     WHEN 'воскресенье' THEN 7
-                     ELSE 8
-                 END, start_time`,
-            [profile.branch]
-        );
-        
-        if (schedule.length === 0) {
-            await ctx.reply(
-                '📅 Расписание для вашего филиала пока не заполнено.'
-            );
-            return;
-        }
-        
-        let message = `📅 <b>Расписание занятий - ${profile.branch}</b>\n\n`;
-        
-        const days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
-        
-        for (const day of days) {
-            const dayLessons = schedule.filter(lesson => lesson.day_of_week === day);
-            
-            if (dayLessons.length > 0) {
-                message += `\n<b>${day.charAt(0).toUpperCase() + day.slice(1)}:</b>\n`;
-                
-                for (const lesson of dayLessons) {
-                    const statusEmoji = lesson.status === 'cancelled' ? '❌' : 
-                                       lesson.status === 'changed' ? '🔄' : '✅';
-                    
-                    message += `${statusEmoji} <b>${lesson.start_time}-${lesson.end_time}</b>\n`;
-                    message += `   ${lesson.group_name}\n`;
-                    message += `   Преподаватель: ${lesson.teacher_name}\n`;
-                    message += `   Кабинет: ${lesson.room_number}\n`;
-                    
-                    if (lesson.status_note) {
-                        message += `   📌 ${lesson.status_note}\n`;
-                    }
-                    
-                    message += '\n';
-                }
-            }
-        }
-        
-        await ctx.replyWithHTML(message, Markup.inlineKeyboard([
-            [Markup.button.callback('🔄 Обновить', 'refresh_schedule')],
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]));
-        
-    } catch (error) {
-        console.error('Ошибка показа расписания:', error);
-        await ctx.reply('❌ Произошла ошибка при загрузке расписания.');
-    }
-}
-
-async function showSubscription(ctx, profile) {
-    try {
-        // Получаем историю посещений
-        const visits = await db.all(
-            `SELECT * FROM attendance 
-             WHERE student_profile_id = ?
-             ORDER BY attendance_date DESC
-             LIMIT 10`,
-            [profile.id]
-        );
-        
-        const usedClasses = profile.total_classes - profile.remaining_classes;
-        const progressPercent = profile.total_classes > 0 ? 
-            Math.round((usedClasses / profile.total_classes) * 100) : 0;
-        
-        let message = `🎫 <b>Мой абонемент</b>\n\n`;
-        message += `<b>Ученик:</b> ${profile.student_name}\n`;
-        message += `<b>Филиал:</b> ${profile.branch}\n`;
-        message += `<b>Абонемент:</b> ${profile.subscription_type}\n`;
-        message += `<b>Всего занятий:</b> ${profile.total_classes}\n`;
-        message += `<b>Использовано:</b> ${usedClasses}\n`;
-        message += `<b>Осталось:</b> ${profile.remaining_classes}\n`;
-        
-        if (profile.expiration_date) {
-            const expDate = new Date(profile.expiration_date);
-            const today = new Date();
-            const daysLeft = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-            
-            message += `<b>Срок действия:</b> ${expDate.toLocaleDateString('ru-RU')}\n`;
-            message += `<b>Осталось дней:</b> ${daysLeft}\n`;
-        }
-        
-        message += `\n<b>Прогресс:</b>\n`;
-        message += `[${'█'.repeat(Math.floor(progressPercent/10))}${'░'.repeat(10 - Math.floor(progressPercent/10))}] ${progressPercent}%\n`;
-        
-        if (visits.length > 0) {
-            message += `\n<b>Последние посещения:</b>\n`;
-            for (const visit of visits.slice(0, 5)) {
-                const date = new Date(visit.attendance_date);
-                const statusEmoji = visit.status === 'attended' ? '✅' : 
-                                   visit.status === 'missed' ? '❌' : '⏸️';
-                message += `${statusEmoji} ${date.toLocaleDateString('ru-RU')} ${visit.attendance_time || ''}\n`;
-            }
-        }
-        
-        const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('📞 Связаться с администратором', 'contact_admin')],
-            [Markup.button.callback('🔄 Обновить', 'refresh_subscription')],
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]);
-        
-        await ctx.replyWithHTML(message, keyboard);
-        
-    } catch (error) {
-        console.error('Ошибка показа абонемента:', error);
-        await ctx.reply('❌ Произошла ошибка при загрузке информации об абонементе.');
-    }
-}
-
-async function showTeachers(ctx, branch) {
-    try {
-        const teachers = await db.all(
-            `SELECT * FROM teachers 
-             WHERE is_active = 1 
-               AND (branches LIKE ? OR branches LIKE '%"all"%' OR branches IS NULL)
-             ORDER BY display_order, name`,
-            [`%${branch}%`]
-        );
-        
-        if (teachers.length === 0) {
-            await ctx.reply('👨‍🏫 Информация о преподавателях вашего филиала пока не доступна.');
-            return;
-        }
-        
-        let message = `👨‍🏫 <b>Преподаватели - ${branch}</b>\n\n`;
-        
-        for (const teacher of teachers) {
-            message += `<b>${teacher.name}</b>\n`;
-            message += `${teacher.qualification}\n`;
-            message += `<b>Специализация:</b> ${teacher.specialization}\n`;
-            message += `<b>Опыт:</b> ${teacher.experience_years} лет\n\n`;
-        }
-        
-        await ctx.replyWithHTML(message, Markup.inlineKeyboard([
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]));
-        
-    } catch (error) {
-        console.error('Ошибка показа преподавателей:', error);
-        await ctx.reply('❌ Произошла ошибка при загрузке списка преподавателей.');
-    }
-}
-
-// ==================== TELEGRAM БОТ ОБРАБОТЧИКИ ====================
-
-// Обработка callback запросов
-bot.on('callback_query', async (ctx) => {
-    const callbackData = ctx.callbackQuery.data;
-    const userId = ctx.from.id;
-    
-    try {
-        await ctx.answerCbQuery();
-        
-        const user = await getTelegramUser(userId);
-        if (!user) return;
-        
-        switch (callbackData) {
-            case 'back_to_menu':
-                await showMainMenu(ctx);
-                break;
-                
-            case 'refresh_schedule':
-                const profile1 = await getSelectedProfile(user.id);
-                if (profile1) {
-                    await showSchedule(ctx, profile1);
-                }
-                break;
-                
-            case 'refresh_subscription':
-                const profile2 = await getSelectedProfile(user.id);
-                if (profile2) {
-                    await showSubscription(ctx, profile2);
-                }
-                break;
-                
-            case 'contact_admin':
-                const profile3 = await getSelectedProfile(user.id);
-                if (profile3) {
-                    await contactAdmin(ctx, profile3);
-                }
-                break;
-                
-            case 'select_profile':
-                // Обработка выбора профиля
-                const profiles = await db.all(
-                    'SELECT * FROM student_profiles WHERE telegram_user_id = ? AND is_active = 1',
-                    [user.id]
-                );
-                if (profiles.length > 0) {
-                    await ctx.replyWithHTML(
-                        `👤 <b>Выберите профиль:</b>`,
-                        await getProfilesKeyboard(profiles)
-                    );
-                }
-                break;
-                
-            default:
-                if (callbackData.startsWith('profile_')) {
-                    const profileId = parseInt(callbackData.replace('profile_', ''));
-                    await selectProfile(ctx, user.id, profileId);
-                }
-                break;
-        }
-        
-    } catch (error) {
-        console.error('Ошибка обработки callback:', error);
-        await ctx.reply('❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.');
-    }
-});
-
-// Обработка текстовых сообщений
-bot.on('text', async (ctx) => {
-    const text = ctx.message.text;
-    const userId = ctx.from.id;
-    
-    const user = await getTelegramUser(userId);
-    if (!user) return;
-    
-    switch (text) {
-        case '🏠 Главное меню':
-            await showMainMenu(ctx);
-            break;
-            
-        case '📅 Расписание':
-            const profile1 = await getSelectedProfile(user.id);
-            if (profile1) {
-                await showSchedule(ctx, profile1);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '🎫 Мой абонемент':
-            const profile2 = await getSelectedProfile(user.id);
-            if (profile2) {
-                await showSubscription(ctx, profile2);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '👨‍🏫 Преподаватели':
-            const profile3 = await getSelectedProfile(user.id);
-            if (profile3) {
-                await showTeachers(ctx, profile3.branch);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '📞 Связаться с администратором':
-            const profile4 = await getSelectedProfile(user.id);
-            if (profile4) {
-                await contactAdmin(ctx, profile4);
-            } else {
-                await ctx.reply('Пожалуйста, сначала выберите профиль.');
-            }
-            break;
-            
-        case '❓ Помощь':
-            await ctx.replyWithHTML(
-                `🎨 <b>Помощь по использованию бота</b>\n\n` +
-                `Для навигации используйте кнопки меню:\n\n` +
-                `• <b>Расписание</b> - просмотр занятий\n` +
-                `• <b>Мой абонемент</b> - информация об абонементе\n` +
-                `• <b>Преподаватели</b> - список преподавателей\n` +
-                `• <b>Связь с администратором</b> - задать вопрос\n\n` +
-                `Также вы можете использовать команды:\n` +
-                `/start - начать работу\n` +
-                `/menu - главное меню\n` +
-                `/help - помощь\n\n` +
-                `Для технической поддержки: @art_school_support`
-            );
-            break;
-    }
-});
-
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ БОТА ====================
-
-async function getTelegramUser(telegramId) {
-    return await db.get(
-        'SELECT * FROM telegram_users WHERE telegram_id = ?',
-        [telegramId]
-    );
-}
-
-async function getSelectedProfile(telegramUserId) {
-    return await db.get(
-        'SELECT * FROM student_profiles WHERE telegram_user_id = ? AND last_selected = 1 AND is_active = 1',
-        [telegramUserId]
-    );
-}
-
-async function selectProfile(ctx, telegramUserId, profileId) {
-    try {
-        // Сбрасываем все выбранные профили
-        await db.run(
-            'UPDATE student_profiles SET last_selected = 0 WHERE telegram_user_id = ?',
-            [telegramUserId]
-        );
-        
-        // Выбираем новый профиль
-        await db.run(
-            'UPDATE student_profiles SET last_selected = 1 WHERE id = ?',
-            [profileId]
-        );
-        
-        const profile = await db.get(
-            'SELECT * FROM student_profiles WHERE id = ?',
-            [profileId]
-        );
-        
-        await ctx.replyWithHTML(
-            `✅ <b>Профиль выбран!</b>\n\n` +
-            `Теперь вы используете профиль <b>${profile.student_name}</b>\n` +
-            `Филиал: <b>${profile.branch}</b>\n\n` +
-            `Теперь вы можете просматривать расписание и информацию об абонементе.`,
-            await getMainMenuKeyboard()
-        );
-        
-    } catch (error) {
-        console.error('Ошибка выбора профиля:', error);
-        await ctx.reply('❌ Произошла ошибка при выборе профиля.');
-    }
-}
-
-async function contactAdmin(ctx, profile) {
-    try {
-        // Получаем контакт администратора
-        const contact = await db.get(
-            'SELECT * FROM branch_contacts WHERE branch = ? AND is_active = 1',
-            [profile.branch]
-        );
-        
-        if (!contact) {
-            await ctx.reply('❌ Контакты администратора не найдены.');
-            return;
-        }
-        
-        let message = `📞 <b>Связаться с администратором</b>\n\n`;
-        message += `<b>Филиал:</b> ${profile.branch}\n`;
-        message += `<b>Ученик:</b> ${profile.student_name}\n\n`;
-        message += `<b>Контакты администратора:</b>\n`;
-        
-        if (contact.telegram_username) {
-            message += `Telegram: ${contact.telegram_username}\n`;
-        }
-        
-        if (contact.phone_number) {
-            message += `Телефон: ${contact.phone_number}\n`;
-        }
-        
-        if (contact.email) {
-            message += `Email: ${contact.email}\n`;
-        }
-        
-        if (contact.address) {
-            message += `Адрес: ${contact.address}\n`;
-        }
-        
-        if (contact.working_hours) {
-            message += `Часы работы: ${contact.working_hours}\n`;
-        }
-        
-        message += `\nВы можете написать администратору напрямую или использовать кнопку ниже:`;
-        
-        const keyboard = Markup.inlineKeyboard([
-            contact.telegram_username ? 
-                [Markup.button.url('💬 Написать в Telegram', `https://t.me/${contact.telegram_username.replace('@', '')}`)] : 
-                [],
-            contact.phone_number ? 
-                [Markup.button.url('📞 Позвонить', `tel:${contact.phone_number}`)] : 
-                [],
-            [Markup.button.callback('🏠 В меню', 'back_to_menu')]
-        ]);
-        
-        await ctx.replyWithHTML(message, keyboard);
-        
-        // Создаем запись в базе о запросе связи
-        await db.run(
-            `INSERT INTO admin_messages 
-             (student_profile_id, telegram_user_id, message_type, message, branch, student_name) 
-             VALUES (?, ?, 'contact', 'Пользователь запросил контакт администратора', ?, ?)`,
-            [profile.id, profile.telegram_user_id, profile.branch, profile.student_name]
-        );
-        
-    } catch (error) {
-        console.error('Ошибка показа контактов администратора:', error);
-        await ctx.reply('❌ Произошла ошибка при получении контактов администратора.');
-    }
-}
-
-async function getMainMenuKeyboard() {
-    return Markup.keyboard([
-        ['📅 Расписание', '🎫 Мой абонемент'],
-        ['👨‍🏫 Преподаватели', '📞 Связаться с администратором'],
-        ['❓ Помощь', '🏠 Главное меню']
-    ]).resize();
-}
-
-async function getProfilesKeyboard(profiles) {
-    const buttons = profiles.map(profile => [
-        Markup.button.callback(
-            `${profile.student_name} (${profile.branch}) - ${profile.remaining_classes} занятий`,
-            `profile_${profile.id}`
-        )
-    ]);
-    
-    buttons.push([Markup.button.callback('🏠 В меню', 'back_to_menu')]);
-    
-    return Markup.inlineKeyboard(buttons);
-}
-
-async function saveProfilesFromAmocrm(telegramUserId, profiles) {
+// Сохранение профилей в базу
+async function saveProfiles(telegramUserId, profiles) {
     const savedProfiles = [];
     
     for (const profile of profiles) {
-        // Проверяем существующий профиль
-        const existingProfile = await db.get(
-            `SELECT * FROM student_profiles 
-             WHERE amo_deal_id = ? AND telegram_user_id = ?`,
-            [profile.amo_deal_id, telegramUserId]
-        );
-        
-        if (!existingProfile) {
-            // Создаем новый профиль
-            const result = await db.run(
-                `INSERT INTO student_profiles 
-                 (telegram_user_id, amo_contact_id, amo_deal_id, student_name, 
-                  parent_name, phone_number, branch, subscription_type, 
-                  total_classes, remaining_classes, expiration_date, 
-                  teacher_name, day_of_week, time_slot) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    telegramUserId,
-                    profile.amo_contact_id,
-                    profile.amo_deal_id,
-                    profile.student_name,
-                    profile.parent_name || '',
-                    profile.phone_number,
-                    profile.branch,
-                    profile.subscription_type,
-                    profile.total_classes,
-                    profile.remaining_classes,
-                    profile.expiration_date,
-                    profile.teacher_name || '',
-                    profile.day_of_week || '',
-                    profile.time_slot || ''
-                ]
+        try {
+            // Проверяем существующий профиль
+            const existingProfile = await db.get(
+                `SELECT * FROM student_profiles 
+                 WHERE phone_number = ? AND student_name = ? AND telegram_user_id = ?`,
+                [profile.phone_number, profile.student_name, telegramUserId]
             );
             
-            const newProfile = await db.get(
-                'SELECT * FROM student_profiles WHERE id = ?',
-                [result.lastID]
-            );
-            savedProfiles.push(newProfile);
-        } else {
-            // Обновляем существующий профиль
-            await db.run(
-                `UPDATE student_profiles 
-                 SET student_name = ?, branch = ?, subscription_type = ?,
-                     total_classes = ?, remaining_classes = ?, expiration_date = ?,
-                     teacher_name = ?, day_of_week = ?, time_slot = ?,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [
-                    profile.student_name,
-                    profile.branch,
-                    profile.subscription_type,
-                    profile.total_classes,
-                    profile.remaining_classes,
-                    profile.expiration_date,
-                    profile.teacher_name || '',
-                    profile.day_of_week || '',
-                    profile.time_slot || '',
-                    existingProfile.id
-                ]
-            );
-            
-            savedProfiles.push({
-                ...existingProfile,
-                ...profile
-            });
+            if (!existingProfile) {
+                // Создаем новый профиль
+                const result = await db.run(
+                    `INSERT INTO student_profiles 
+                     (telegram_user_id, amocrm_contact_id, student_name, parent_name, phone_number, 
+                      email, branch, subscription_type, total_classes, remaining_classes, 
+                      expiration_date, teacher_name, day_of_week, time_slot, amocrm_custom_fields) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        telegramUserId,
+                        profile.amocrm_contact_id || null,
+                        profile.student_name,
+                        profile.parent_name || '',
+                        profile.phone_number,
+                        profile.email || '',
+                        profile.branch || 'Не указан',
+                        profile.subscription_type || 'Без абонемента',
+                        profile.total_classes || 0,
+                        profile.remaining_classes || 0,
+                        profile.expiration_date || null,
+                        profile.teacher_name || '',
+                        profile.day_of_week || '',
+                        profile.time_slot || '',
+                        profile.custom_fields ? JSON.stringify(profile.custom_fields) : null
+                    ]
+                );
+                
+                const newProfile = await db.get(
+                    'SELECT * FROM student_profiles WHERE id = ?',
+                    [result.lastID]
+                );
+                savedProfiles.push(newProfile);
+            } else {
+                // Обновляем существующий профиль
+                await db.run(
+                    `UPDATE student_profiles 
+                     SET branch = ?, subscription_type = ?,
+                         total_classes = ?, remaining_classes = ?, expiration_date = ?,
+                         teacher_name = ?, day_of_week = ?, time_slot = ?,
+                         amocrm_contact_id = ?, amocrm_custom_fields = ?,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id = ?`,
+                    [
+                        profile.branch || existingProfile.branch,
+                        profile.subscription_type || existingProfile.subscription_type,
+                        profile.total_classes || existingProfile.total_classes,
+                        profile.remaining_classes || existingProfile.remaining_classes,
+                        profile.expiration_date || existingProfile.expiration_date,
+                        profile.teacher_name || existingProfile.teacher_name,
+                        profile.day_of_week || existingProfile.day_of_week,
+                        profile.time_slot || existingProfile.time_slot,
+                        profile.amocrm_contact_id || existingProfile.amocrm_contact_id,
+                        profile.custom_fields ? JSON.stringify(profile.custom_fields) : existingProfile.amocrm_custom_fields,
+                        existingProfile.id
+                    ]
+                );
+                
+                savedProfiles.push({
+                    ...existingProfile,
+                    ...profile
+                });
+            }
+        } catch (error) {
+            console.error('❌ Ошибка сохранения профиля:', error.message);
         }
     }
     
     return savedProfiles;
 }
 
-// ==================== СИСТЕМА УВЕДОМЛЕНИЙ И РАССЫЛОК ====================
+// ==================== TELEGRAM БОТ КОМАНДЫ ====================
 
-// Функция отправки уведомления пользователю
-async function sendNotification(telegramUserId, message, options = {}) {
-    try {
-        const user = await db.get(
-            'SELECT * FROM telegram_users WHERE id = ?',
-            [telegramUserId]
-        );
-        
-        if (!user || !user.telegram_id) {
-            throw new Error('Пользователь не найден');
-        }
-        
-        const messageOptions = {
-            parse_mode: 'HTML',
-            ...options
-        };
-        
-        const sentMessage = await bot.telegram.sendMessage(
-            user.telegram_id,
-            message,
-            messageOptions
-        );
-        
-        return {
-            success: true,
-            message_id: sentMessage.message_id
-        };
-        
-    } catch (error) {
-        console.error('Ошибка отправки уведомления:', error.message);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-}
+const WEB_APP_URL = DOMAIN.replace('https://', '').replace('http://', '');
 
-// Функция отправки массовой рассылки
-async function sendBroadcast(broadcastId) {
+bot.start(async (ctx) => {
+    const telegramId = ctx.from.id;
+    const firstName = ctx.from.first_name || '';
+    const lastName = ctx.from.last_name || '';
+    const username = ctx.from.username || '';
+    
     try {
-        const broadcast = await db.get(
-            'SELECT * FROM broadcasts WHERE id = ?',
-            [broadcastId]
+        // Сохраняем пользователя
+        const existingUser = await db.get(
+            'SELECT * FROM telegram_users WHERE telegram_id = ?',
+            [telegramId]
         );
         
-        if (!broadcast) {
-            throw new Error('Рассылка не найдена');
-        }
-        
-        // Получаем получателей по фильтрам
-        let query = `
-            SELECT DISTINCT sp.*, tu.telegram_id
-            FROM student_profiles sp
-            LEFT JOIN telegram_users tu ON sp.telegram_user_id = tu.id
-            WHERE sp.is_active = 1 AND tu.telegram_id IS NOT NULL
-        `;
-        
-        let params = [];
-        
-        if (broadcast.branches) {
-            const branches = JSON.parse(broadcast.branches);
-            if (branches.length > 0) {
-                query += ` AND sp.branch IN (${branches.map(() => '?').join(',')})`;
-                params.push(...branches);
-            }
-        }
-        
-        if (broadcast.teacher_ids) {
-            const teacherIds = JSON.parse(broadcast.teacher_ids);
-            if (teacherIds.length > 0) {
-                const teachers = await db.all(
-                    'SELECT name FROM teachers WHERE id IN (' + teacherIds.map(() => '?').join(',') + ')',
-                    teacherIds
-                );
-                const teacherNames = teachers.map(t => t.name);
-                if (teacherNames.length > 0) {
-                    query += ` AND sp.teacher_name IN (${teacherNames.map(() => '?').join(',')})`;
-                    params.push(...teacherNames);
-                }
-            }
-        }
-        
-        if (broadcast.days_of_week) {
-            const days = JSON.parse(broadcast.days_of_week);
-            if (days.length > 0) {
-                query += ` AND sp.day_of_week IN (${days.map(() => '?').join(',')})`;
-                params.push(...days);
-            }
-        }
-        
-        const recipients = await db.all(query, params);
-        
-        if (recipients.length === 0) {
+        if (!existingUser) {
             await db.run(
-                'UPDATE broadcasts SET status = "failed" WHERE id = ?',
-                [broadcastId]
+                `INSERT INTO telegram_users (telegram_id, first_name, last_name, username) 
+                 VALUES (?, ?, ?, ?)`,
+                [telegramId, firstName, lastName, username]
             );
-            return {
-                success: false,
-                error: 'Нет получателей по заданным фильтрам'
-            };
+        } else {
+            await db.run(
+                `UPDATE telegram_users 
+                 SET first_name = ?, last_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE telegram_id = ?`,
+                [firstName, lastName, username, telegramId]
+            );
         }
-        
-        // Обновляем статус рассылки
-        await db.run(
-            `UPDATE broadcasts 
-             SET status = 'sending', recipients_count = ?
-             WHERE id = ?`,
-            [recipients.length, broadcastId]
-        );
-        
-        let sentCount = 0;
-        let failedCount = 0;
-        
-        // Отправляем сообщения
-        for (const recipient of recipients) {
-            try {
-                const result = await sendNotification(
-                    recipient.telegram_user_id,
-                    broadcast.message,
-                    { parse_mode: 'HTML' }
-                );
-                
-                if (result.success) {
-                    sentCount++;
-                    
-                    // Логируем успешную отправку
-                    await db.run(
-                        `INSERT INTO broadcast_logs 
-                         (broadcast_id, student_profile_id, telegram_user_id, telegram_message_id, status) 
-                         VALUES (?, ?, ?, ?, 'sent')`,
-                        [broadcastId, recipient.id, recipient.telegram_user_id, result.message_id]
-                    );
-                } else {
-                    failedCount++;
-                    
-                    // Логируем ошибку
-                    await db.run(
-                        `INSERT INTO broadcast_logs 
-                         (broadcast_id, student_profile_id, telegram_user_id, status, error_message) 
-                         VALUES (?, ?, ?, 'failed', ?)`,
-                        [broadcastId, recipient.id, recipient.telegram_user_id, result.error]
-                    );
-                }
-                
-                // Небольшая задержка чтобы не превысить лимиты Telegram
-                await new Promise(resolve => setTimeout(resolve, 100));
-                
-            } catch (error) {
-                console.error(`Ошибка отправки пользователю ${recipient.id}:`, error);
-                failedCount++;
-                
-                await db.run(
-                    `INSERT INTO broadcast_logs 
-                     (broadcast_id, student_profile_id, telegram_user_id, status, error_message) 
-                     VALUES (?, ?, ?, 'failed', ?)`,
-                    [broadcastId, recipient.id, recipient.telegram_user_id, error.message]
-                );
-            }
-        }
-        
-        // Обновляем финальный статус рассылки
-        await db.run(
-            `UPDATE broadcasts 
-             SET status = 'sent', sent_count = ?, failed_count = ?, sent_at = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [sentCount, failedCount, broadcastId]
-        );
-        
-        return {
-            success: true,
-            sent: sentCount,
-            failed: failedCount,
-            total: recipients.length
-        };
-        
     } catch (error) {
-        console.error('Ошибка отправки рассылки:', error);
-        
-        await db.run(
-            'UPDATE broadcasts SET status = "failed" WHERE id = ?',
-            [broadcastId]
-        );
-        
-        return {
-            success: false,
-            error: error.message
-        };
+        console.error('Ошибка сохранения пользователя:', error);
     }
-}
+    
+    await ctx.replyWithHTML(
+        `🎨 <b>Добро пожаловать в художественную студию!</b>\n\n` +
+        `Для доступа к вашему расписанию, абонементу и другим функциям перейдите в наше веб-приложение:`,
+        Markup.inlineKeyboard([
+            Markup.button.webApp(
+                '🚀 Открыть приложение',
+                `https://${WEB_APP_URL}`
+            )
+        ])
+    );
+});
 
-// ==================== AMOCRM ИНТЕГРАЦИЯ ====================
+bot.command('app', async (ctx) => {
+    await ctx.replyWithHTML(
+        `🎨 <b>Откройте приложение художественной студии</b>\n\n` +
+        `Перейдите по кнопке ниже, чтобы получить доступ ко всем функциям:`,
+        Markup.inlineKeyboard([
+            Markup.button.webApp(
+                '🚀 Открыть приложение',
+                `https://${WEB_APP_URL}`
+            )
+        ])
+    );
+});
 
-// Поиск в amoCRM по номеру телефона
-async function findInAmocrmByPhone(phoneNumber) {
-    try {
-        // Для демо возвращаем тестовые данные
-        // В реальном приложении здесь будет интеграция с amoCRM API
-        
-        console.log(`🔍 Поиск в amoCRM по номеру: ${phoneNumber}`);
-        
-        // Тестовые данные для демо
-        const demoProfiles = [
-            {
-                amo_contact_id: 1001,
-                amo_deal_id: 2001,
-                student_name: 'Иван Иванов',
-                parent_name: 'Мария Иванова',
-                phone_number: phoneNumber,
-                branch: 'Свиблово',
-                subscription_type: 'Художественный курс для начинающих',
-                total_classes: 12,
-                remaining_classes: 5,
-                expiration_date: '2024-12-31',
-                teacher_name: 'Анна Петрова',
-                day_of_week: 'понедельник',
-                time_slot: '16:00-17:30'
-            },
-            {
-                amo_contact_id: 1002,
-                amo_deal_id: 2002,
-                student_name: 'Мария Сидорова',
-                parent_name: 'Ольга Сидорова',
-                phone_number: phoneNumber,
-                branch: 'Чертаново',
-                subscription_type: 'Курс акварельной живописи',
-                total_classes: 16,
-                remaining_classes: 8,
-                expiration_date: '2024-11-30',
-                teacher_name: 'Сергей Смирнов',
-                day_of_week: 'среда',
-                time_slot: '16:30-18:00'
-            }
-        ];
-        
-        return {
-            success: true,
-            data: {
-                contact: { id: 1001, name: 'Родитель ученика' },
-                profiles: demoProfiles,
-                total_profiles: demoProfiles.length
-            }
-        };
-        
-    } catch (error) {
-        console.error('Ошибка поиска в amoCRM:', error.message);
-        return {
-            success: false,
-            error: 'Ошибка интеграции с amoCRM'
-        };
+bot.command('help', async (ctx) => {
+    await ctx.replyWithHTML(
+        `🎨 <b>Помощь по боту художественной студии</b>\n\n` +
+        `<b>Основные команды:</b>\n` +
+        `/start - Начать работу с ботом\n` +
+        `/app - Открыть веб-приложение\n` +
+        `/help - Эта справка\n\n` +
+        `<b>Как использовать:</b>\n` +
+        `1. Нажмите /start для начала работы\n` +
+        `2. Нажмите кнопку "Открыть приложение"\n` +
+        `3. В приложении авторизуйтесь через Telegram\n` +
+        `4. Используйте все функции личного кабинета\n\n` +
+        `<b>Техническая поддержка:</b>\n` +
+        `Если у вас возникли проблемы, напишите администратору в приложении`
+    );
+});
+
+// Обработка текстовых сообщений
+bot.on('text', async (ctx) => {
+    const text = ctx.message.text;
+    
+    if (text.startsWith('/')) {
+        return;
     }
-}
+    
+    await ctx.replyWithHTML(
+        `🎨 Для работы с функциями художественной студии используйте наше веб-приложение:`,
+        Markup.inlineKeyboard([
+            Markup.button.webApp(
+                '🚀 Открыть приложение',
+                `https://${WEB_APP_URL}`
+            )
+        ])
+    );
+});
 
-// ==================== WEBHOOK НАСТРОЙКА ====================
-
-async function setupWebhook() {
-    try {
-        const webhookUrl = `${DOMAIN}/webhook`;
-        await bot.telegram.setWebhook(webhookUrl);
-        console.log(`✅ Webhook установлен: ${webhookUrl}`);
-    } catch (error) {
-        console.error('❌ Ошибка установки webhook:', error.message);
-    }
-}
-
-// ==================== EXPRESS НАСТРОЙКИ ====================
-
-// CORS настройки
-const corsOptions = {
-    origin: '*',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Статические файлы из public директории
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Rate limiting
+// ==================== RATE LIMITING ====================
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 минут
-    max: 100 // лимит запросов
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Слишком много запросов с вашего IP, пожалуйста, попробуйте позже'
 });
 app.use('/api/', limiter);
 
-// ==================== WEBHOOK ДЛЯ TELEGRAM ====================
-
+// Webhook для Telegram
 app.post('/webhook', (req, res) => {
     bot.handleUpdate(req.body, res);
 });
 
-// ==================== API ДЛЯ ВЕБ-ПРИЛОЖЕНИЯ ====================
+// ==================== API ДЛЯ РАБОТЫ С AMOCRM ====================
+
+// Статус amoCRM
+app.get('/api/amocrm/status', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: {
+                is_initialized: amoCrmService.isInitialized,
+                domain: AMOCRM_DOMAIN,
+                client_id: !!AMOCRM_CLIENT_ID,
+                access_token: !!AMOCRM_ACCESS_TOKEN,
+                using_demo_data: !amoCrmService.isInitialized
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения статуса amoCRM'
+        });
+    }
+});
+
+// Тестовый эндпоинт для проверки amoCRM
+app.get('/api/test-amocrm', async (req, res) => {
+    try {
+        const testResult = {
+            is_initialized: amoCrmService.isInitialized,
+            domain: AMOCRM_DOMAIN,
+            using_demo_data: !amoCrmService.isInitialized
+        };
+        
+        if (amoCrmService.isInitialized) {
+            try {
+                const accountInfo = await amoCrmService.makeRequest('GET', '/api/v4/account');
+                testResult.connection_success = true;
+                testResult.account_id = accountInfo.id;
+                testResult.account_name = accountInfo.name;
+            } catch (apiError) {
+                testResult.connection_success = false;
+                testResult.api_error = apiError.message;
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Тест соединения с amoCRM',
+            data: testResult
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка тестирования amoCRM'
+        });
+    }
+});
+
+// Синхронизация данных
+app.post('/api/amocrm/sync', async (req, res) => {
+    try {
+        const { sync_type } = req.body;
+        
+        let result;
+        
+        switch (sync_type) {
+            case 'teachers':
+                await amoCrmService.syncTeachersFromAmo();
+                break;
+            case 'students':
+                await amoCrmService.syncStudentsFromAmo();
+                break;
+            case 'subscriptions':
+                await amoCrmService.syncSubscriptionsFromAmo();
+                break;
+            case 'all':
+            default:
+                result = await amoCrmService.syncAllData();
+                break;
+        }
+        
+        res.json({
+            success: true,
+            message: `Синхронизация ${sync_type || 'all'} завершена`,
+            using_demo_data: !amoCrmService.isInitialized
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка синхронизации с amoCRM',
+            using_demo_data: !amoCrmService.isInitialized
+        });
+    }
+});
+
+// ==================== ОСНОВНОЙ API ====================
+
+// Статус сервера
+app.get('/api/status', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Сервер школы рисования работает',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        amocrm_connected: amoCrmService.isInitialized,
+        using_demo_data: !amoCrmService.isInitialized
+    });
+});
 
 // Авторизация через Telegram
 app.post('/api/auth/telegram', async (req, res) => {
@@ -1603,32 +1366,34 @@ app.post('/api/auth/telegram', async (req, res) => {
                 'SELECT * FROM telegram_users WHERE id = ?',
                 [result.lastID]
             );
-            
-            console.log(`✅ Новый пользователь Telegram создан: ${telegramUser.id}`);
         } else {
             // Обновляем существующего пользователя
             await db.run(
                 `UPDATE telegram_users 
-                 SET first_name = ?, last_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP
+                 SET phone_number = ?, first_name = ?, last_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?`,
-                [first_name || '', last_name || '', username || '', telegramUser.id]
+                [phone, first_name || '', last_name || '', username || '', telegramUser.id]
             );
         }
         
-        // Ищем профили в amoCRM
-        const amocrmResult = await findInAmocrmByPhone(phone);
+        // Ищем профили по телефону
+        const profiles = await findProfilesByPhone(phone);
+        const savedProfiles = await saveProfiles(telegramUser.id, profiles);
         
-        if (!amocrmResult.success) {
-            return res.status(404).json({
-                success: false,
-                error: amocrmResult.error || 'Профили не найдены в amoCRM'
-            });
+        // Если есть профили, устанавливаем первый как выбранный
+        if (savedProfiles.length > 0) {
+            await db.run(
+                'UPDATE student_profiles SET last_selected = 0 WHERE telegram_user_id = ?',
+                [telegramUser.id]
+            );
+            
+            await db.run(
+                'UPDATE student_profiles SET last_selected = 1 WHERE id = ?',
+                [savedProfiles[0].id]
+            );
         }
         
-        // Сохраняем найденные профили
-        const savedProfiles = await saveProfilesFromAmocrm(telegramUser.id, amocrmResult.data.profiles);
-        
-        // Создаем JWT токен для веб-приложения
+        // Создаем JWT токен
         const token = jwt.sign(
             {
                 id: telegramUser.id,
@@ -1641,17 +1406,19 @@ app.post('/api/auth/telegram', async (req, res) => {
         
         res.json({
             success: true,
-            message: 'Авторизация успешна',
+            message: profiles.length > 0 ? 'Авторизация успешна' : 'Профили не найдены',
             data: {
                 user: telegramUser,
                 profiles: savedProfiles,
                 total_profiles: savedProfiles.length,
+                amocrm_connected: amoCrmService.isInitialized,
+                using_demo_data: !amoCrmService.isInitialized,
                 token: token
             }
         });
         
     } catch (error) {
-        console.error('Ошибка авторизации через Telegram:', error.message);
+        console.error('Ошибка авторизации:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка авторизации'
@@ -1659,204 +1426,7 @@ app.post('/api/auth/telegram', async (req, res) => {
     }
 });
 
-// API для админ-панели
-const adminAuthMiddleware = async (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization;
-        
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({
-                success: false,
-                error: 'Требуется авторизация'
-            });
-        }
-        
-        const token = authHeader.replace('Bearer ', '').trim();
-        
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            req.user = decoded;
-            next();
-        } catch (jwtError) {
-            return res.status(401).json({
-                success: false,
-                error: 'Неверный токен'
-            });
-        }
-    } catch (error) {
-        console.error('Ошибка authMiddleware:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Внутренняя ошибка сервера'
-        });
-    }
-};
-
-// Создание рассылки
-app.post('/api/admin/broadcasts', adminAuthMiddleware, async (req, res) => {
-    try {
-        const { message, filters, type, title } = req.body;
-        
-        if (!message) {
-            return res.status(400).json({
-                success: false,
-                error: 'Введите текст сообщения'
-            });
-        }
-        
-        // Проверяем права администратора
-        const admin = await db.get(
-            'SELECT * FROM administrators WHERE telegram_id = ? OR id = ?',
-            [req.user.telegram_id, req.user.id]
-        );
-        
-        if (!admin) {
-            return res.status(403).json({
-                success: false,
-                error: 'Доступ запрещен'
-            });
-        }
-        
-        // Создаем рассылку
-        const result = await db.run(
-            `INSERT INTO broadcasts 
-             (admin_id, broadcast_type, message_type, title, message, 
-              branches, teacher_ids, days_of_week, filters_applied) 
-             VALUES (?, 'service', ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                admin.id,
-                type || 'custom',
-                title || 'Рассылка',
-                message,
-                filters?.branches ? JSON.stringify(filters.branches) : null,
-                filters?.teacher_ids ? JSON.stringify(filters.teacher_ids) : null,
-                filters?.days_of_week ? JSON.stringify(filters.days_of_week) : null,
-                filters ? JSON.stringify(filters) : null
-            ]
-        );
-        
-        const broadcastId = result.lastID;
-        
-        // Запускаем рассылку в фоне
-        setTimeout(() => {
-            sendBroadcast(broadcastId).then(result => {
-                console.log(`📤 Рассылка ${broadcastId} завершена:`, result);
-            });
-        }, 1000);
-        
-        res.json({
-            success: true,
-            message: 'Рассылка создана и запущена',
-            data: {
-                broadcast_id: broadcastId
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка создания рассылки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка создания рассылки'
-        });
-    }
-});
-
-// Получение статистики рассылок
-app.get('/api/admin/broadcasts/stats', adminAuthMiddleware, async (req, res) => {
-    try {
-        const stats = await db.get(`
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-                SUM(CASE WHEN status = 'sending' THEN 1 ELSE 0 END) as sending,
-                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft
-            FROM broadcasts
-        `);
-        
-        const recentBroadcasts = await db.all(`
-            SELECT b.*, a.name as admin_name
-            FROM broadcasts b
-            LEFT JOIN administrators a ON b.admin_id = a.id
-            ORDER BY b.created_at DESC
-            LIMIT 10
-        `);
-        
-        res.json({
-            success: true,
-            data: {
-                stats,
-                recent_broadcasts: recentBroadcasts
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка получения статистики:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения статистики'
-        });
-    }
-});
-
-// Получение получателей по фильтрам
-app.post('/api/admin/recipients/count', adminAuthMiddleware, async (req, res) => {
-    try {
-        const { branches, teacher_ids, days_of_week } = req.body;
-        
-        let query = `
-            SELECT COUNT(DISTINCT tu.id) as count
-            FROM student_profiles sp
-            LEFT JOIN telegram_users tu ON sp.telegram_user_id = tu.id
-            WHERE sp.is_active = 1 AND tu.telegram_id IS NOT NULL
-        `;
-        
-        let params = [];
-        
-        if (branches && branches.length > 0) {
-            query += ` AND sp.branch IN (${branches.map(() => '?').join(',')})`;
-            params.push(...branches);
-        }
-        
-        if (teacher_ids && teacher_ids.length > 0) {
-            const teachers = await db.all(
-                'SELECT name FROM teachers WHERE id IN (' + teacher_ids.map(() => '?').join(',') + ')',
-                teacher_ids
-            );
-            const teacherNames = teachers.map(t => t.name);
-            if (teacherNames.length > 0) {
-                query += ` AND sp.teacher_name IN (${teacherNames.map(() => '?').join(',')})`;
-                params.push(...teacherNames);
-            }
-        }
-        
-        if (days_of_week && days_of_week.length > 0) {
-            query += ` AND sp.day_of_week IN (${days_of_week.map(() => '?').join(',')})`;
-            params.push(...days_of_week);
-        }
-        
-        const result = await db.get(query, params);
-        
-        res.json({
-            success: true,
-            data: {
-                count: result.count,
-                filters: { branches, teacher_ids, days_of_week }
-            }
-        });
-        
-    } catch (error) {
-        console.error('Ошибка расчета получателей:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка расчета получателей'
-        });
-    }
-});
-
-// ==================== ОСНОВНОЙ API ====================
-
-// Получение расписания
+// Расписание
 app.post('/api/schedule', async (req, res) => {
     try {
         const { branch, week_start } = req.body;
@@ -1894,7 +1464,6 @@ app.post('/api/schedule', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Ошибка получения расписания:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения расписания'
@@ -1902,7 +1471,7 @@ app.post('/api/schedule', async (req, res) => {
     }
 });
 
-// Получение информации об абонементе
+// Абонемент
 app.post('/api/subscription', async (req, res) => {
     try {
         const { profile_id } = req.body;
@@ -1926,7 +1495,7 @@ app.post('/api/subscription', async (req, res) => {
             });
         }
         
-        // Получаем историю посещений
+        // История посещений
         const visits = await db.all(
             `SELECT * FROM attendance 
              WHERE student_profile_id = ?
@@ -1939,12 +1508,12 @@ app.post('/api/subscription', async (req, res) => {
             success: true,
             data: {
                 subscription: profile,
-                visits: visits
+                visits: visits,
+                amocrm_connected: amoCrmService.isInitialized
             }
         });
         
     } catch (error) {
-        console.error('Ошибка получения информации об абонементе:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения информации об абонементе'
@@ -1952,7 +1521,7 @@ app.post('/api/subscription', async (req, res) => {
     }
 });
 
-// Получение преподавателей
+// Преподаватели
 app.get('/api/teachers', async (req, res) => {
     try {
         const { branch } = req.query;
@@ -1983,7 +1552,6 @@ app.get('/api/teachers', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Ошибка получения преподавателей:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения преподавателей'
@@ -1991,7 +1559,7 @@ app.get('/api/teachers', async (req, res) => {
     }
 });
 
-// Получение FAQ
+// FAQ
 app.get('/api/faq', async (req, res) => {
     try {
         const faq = await db.all(
@@ -2008,7 +1576,6 @@ app.get('/api/faq', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Ошибка получения FAQ:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения FAQ'
@@ -2016,7 +1583,7 @@ app.get('/api/faq', async (req, res) => {
     }
 });
 
-// Получение новостей
+// Новости
 app.get('/api/news', async (req, res) => {
     try {
         const { branch } = req.query;
@@ -2042,7 +1609,6 @@ app.get('/api/news', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Ошибка получения новостей:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения новостей'
@@ -2050,8 +1616,198 @@ app.get('/api/news', async (req, res) => {
     }
 });
 
-// ==================== ЗАПУСК СЕРВЕРА ====================
+// Админ авторизация
+app.post('/api/admin/auth', async (req, res) => {
+    try {
+        const { telegram_id } = req.body;
+        
+        if (!telegram_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Необходим telegram_id'
+            });
+        }
+        
+        const admin = await db.get(
+            'SELECT * FROM administrators WHERE telegram_id = ?',
+            [telegram_id]
+        );
+        
+        if (!admin) {
+            return res.status(403).json({
+                success: false,
+                error: 'Доступ запрещен'
+            });
+        }
+        
+        const token = jwt.sign(
+            {
+                id: admin.id,
+                telegram_id: admin.telegram_id,
+                role: admin.role
+            },
+            JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+        
+        res.json({
+            success: true,
+            data: {
+                admin: admin,
+                token: token
+            }
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка авторизации'
+        });
+    }
+});
 
+// Статистика (админ)
+app.get('/api/admin/stats', async (req, res) => {
+    try {
+        const { token } = req.query;
+        
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                error: 'Необходим токен'
+            });
+        }
+        
+        // Проверяем токен
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            
+            const admin = await db.get(
+                'SELECT * FROM administrators WHERE id = ?',
+                [decoded.id]
+            );
+            
+            if (!admin) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Доступ запрещен'
+                });
+            }
+            
+            // Статистика
+            const totalStudents = await db.get('SELECT COUNT(*) as count FROM student_profiles WHERE is_active = 1');
+            const totalTeachers = await db.get('SELECT COUNT(*) as count FROM teachers WHERE is_active = 1');
+            const todayAttendance = await db.get(`
+                SELECT COUNT(*) as count FROM attendance 
+                WHERE DATE(attendance_date) = DATE('now')
+            `);
+            const activeSubscriptions = await db.get(`
+                SELECT COUNT(*) as count FROM student_profiles 
+                WHERE remaining_classes > 0 AND expiration_date >= DATE('now')
+            `);
+            
+            // Статистика по филиалам
+            const branchesStats = await db.all(`
+                SELECT branch, COUNT(*) as students_count 
+                FROM student_profiles 
+                WHERE is_active = 1 
+                GROUP BY branch
+            `);
+            
+            res.json({
+                success: true,
+                data: {
+                    total_students: totalStudents.count,
+                    total_teachers: totalTeachers.count,
+                    today_attendance: todayAttendance.count,
+                    active_subscriptions: activeSubscriptions.count,
+                    branches: branchesStats,
+                    amocrm_connected: amoCrmService.isInitialized
+                }
+            });
+            
+        } catch (jwtError) {
+            return res.status(401).json({
+                success: false,
+                error: 'Неверный токен'
+            });
+        }
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения статистики'
+        });
+    }
+});
+
+// ==================== OAuth callback ====================
+app.get('/oauth/callback', async (req, res) => {
+    try {
+        const { code } = req.query;
+        
+        if (!code) {
+            return res.status(400).send('Не передан код авторизации');
+        }
+        
+        console.log('🔄 Получен код авторизации amoCRM');
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Авторизация amoCRM</title>
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                    .container { max-width: 500px; margin: 0 auto; }
+                    .success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="success">✅ Код авторизации получен</div>
+                    <p>Код авторизации: <code>${code.substring(0, 50)}...</code></p>
+                    <p>Сохраните этот код в файле .env как AMOCRM_AUTH_CODE</p>
+                    <p><a href="/admin">Перейти в админ-панель</a></p>
+                </div>
+            </body>
+            </html>
+        `);
+        
+    } catch (error) {
+        res.status(500).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Ошибка</title>
+            </head>
+            <body>
+                <div style="color: #f44336; font-size: 24px; margin-bottom: 20px;">❌ Ошибка</div>
+                <p>${error.message}</p>
+            </body>
+            </html>
+        `);
+    }
+});
+
+// Статические файлы
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// 404 обработчик
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Маршрут не найден'
+    });
+});
+
+// ==================== ЗАПУСК СЕРВЕРА ====================
 const startServer = async () => {
     try {
         console.log('\n' + '='.repeat(80));
@@ -2061,39 +1817,70 @@ const startServer = async () => {
         await initDatabase();
         console.log('✅ База данных готова');
         
+        // Пробуем запустить бота
+        try {
+            const botInfo = await bot.telegram.getMe();
+            console.log(`🤖 Telegram бот: @${botInfo.username}`);
+            
+            bot.launch().then(() => {
+                console.log('✅ Telegram бот запущен в режиме polling');
+            }).catch(botError => {
+                if (botError.response?.error_code === 409) {
+                    console.log('⚠️  Другой экземпляр бота уже запущен. Используем только API.');
+                } else {
+                    console.error('❌ Ошибка запуска бота:', botError.message);
+                }
+            });
+        } catch (botError) {
+            console.log('🤖 Telegram бот: Информация недоступна');
+            console.log('⚠️  Проверьте токен бота или интернет соединение');
+        }
+        
         const PORT = process.env.PORT || 3000;
         app.listen(PORT, () => {
             console.log(`🚀 Сервер запущен на порту ${PORT}!`);
             console.log(`🌐 Доступ по адресу: http://localhost:${PORT}`);
-            console.log(`🤖 Telegram бот: @${(await bot.telegram.getMe()).username}`);
             console.log('='.repeat(80));
             console.log('🔧 КОНФИГУРАЦИЯ:');
             console.log('='.repeat(50));
             console.log(`Бот токен: ${TELEGRAM_BOT_TOKEN ? '✅ Установлен' : '❌ Не установлен'}`);
             console.log(`Домен: ${DOMAIN}`);
+            console.log(`amoCRM домен: ${AMOCRM_DOMAIN || '❌ Не установлен'}`);
+            console.log(`amoCRM client_id: ${AMOCRM_CLIENT_ID ? '✅ Установлен' : '❌ Не установлен'}`);
+            console.log(`amoCRM access_token: ${AMOCRM_ACCESS_TOKEN ? '✅ Установлен' : '❌ Не установлен'}`);
+            console.log(`amoCRM инициализирован: ${amoCrmService.isInitialized ? '✅ Да' : '❌ Нет'}`);
+            console.log(`Используются демо-данные: ${!amoCrmService.isInitialized ? '✅ Да' : '❌ Нет'}`);
             console.log('='.repeat(50));
+            
             console.log('\n🎯 ОСНОВНЫЕ ФУНКЦИОНАЛЬНОСТИ:');
             console.log('='.repeat(60));
-            console.log('✅ Telegram бот с меню и командами');
-            console.log('✅ Система уведомлений и рассылок');
-            console.log('✅ Админ-панель для управления рассылками');
-            console.log('✅ Интеграция с amoCRM (демо)');
-            console.log('✅ Веб-интерфейс для учеников');
+            console.log('✅ Telegram бот с веб-приложением');
+            console.log('✅ Интеграция с amoCRM (демо/реальные данные)');
+            console.log('✅ Синхронизация учеников, преподавателей и абонементов');
             console.log('✅ Расписание занятий');
             console.log('✅ Управление абонементами');
-            console.log('✅ Каталог преподавателей');
-            console.log('✅ FAQ и новости');
-            console.log('✅ Связь с администратором');
+            console.log('✅ Админ-панель');
+            console.log('✅ Статистика и аналитика');
             console.log('='.repeat(60));
             
             console.log('\n📱 КАК ИСПОЛЬЗОВАТЬ:');
             console.log('='.repeat(60));
             console.log('1. Откройте Telegram бота');
             console.log('2. Нажмите /start и поделитесь номером телефона');
-            console.log('3. Выберите профиль (если несколько)');
-            console.log('4. Используйте меню для навигации');
-            console.log('5. Для админ-панели откройте веб-интерфейс');
+            console.log('3. Перейдите в веб-приложение');
+            console.log('4. Для админ-панели: http://localhost:3000/admin');
+            console.log('5. Проверить статус amoCRM: http://localhost:3000/api/test-amocrm');
             console.log('='.repeat(60));
+            
+            // Запускаем периодическую синхронизацию
+            setInterval(async () => {
+                try {
+                    console.log('🔄 Автоматическая синхронизация данных...');
+                    await amoCrmService.syncAllData();
+                } catch (syncError) {
+                    console.error('❌ Ошибка автоматической синхронизации:', syncError.message);
+                }
+            }, 30 * 60 * 1000); // Каждые 30 минут
         });
         
     } catch (error) {
