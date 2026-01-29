@@ -754,14 +754,13 @@
             this.showLoading('Выполняется вход...');
             
             // Используем правильный маршрут с сервера
-            fetch('/api/auth/real-data', {
+            fetch('/api/auth/phone', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ 
-                    phone: phone,
-                    student_name: '' 
+                    phone: phone
                 })
             })
             .then(response => {
@@ -895,6 +894,7 @@
                     </div>
                 `;
                 badgeElement.textContent = 'Нет данных';
+                badgeElement.className = 'badge expired';
                 return;
             }
             
@@ -932,16 +932,22 @@
                     </div>
                 </div>
                 
+                ${subscription.dates?.activation || subscription.dates?.expiration ? `
                 <div style="margin-top: 20px; padding: 15px; background: var(--gray-light); border-radius: 10px; border: 2px solid var(--gray-medium);">
+                    ${subscription.dates?.activation ? `
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <span>Дата активации</span>
-                        <span style="font-weight: 600;">${this.formatDate(subscription.dates?.activation) || 'Не указана'}</span>
+                        <span style="font-weight: 600;">${this.formatDate(subscription.dates.activation)}</span>
                     </div>
+                    ` : ''}
+                    ${subscription.dates?.expiration ? `
                     <div style="display: flex; justify-content: space-between;">
                         <span>Срок действия</span>
-                        <span style="font-weight: 600;">${this.formatDate(subscription.dates?.expiration) || 'Не указан'}</span>
+                        <span style="font-weight: 600;">${this.formatDate(subscription.dates.expiration)}</span>
                     </div>
+                    ` : ''}
                 </div>
+                ` : ''}
                 
                 <div style="margin-top: 15px; font-size: 0.9rem; color: var(--gray-dark); text-align: center;">
                     <i class="fas fa-database"></i>
@@ -1074,6 +1080,79 @@
                     </div>
                 </div>
             `;
+            
+            // Попробуем загрузить данные из API
+            this.loadSubscriptionFromAPI();
+        },
+
+        // ЗАГРУЗКА ДАННЫХ АБОНЕМЕНТА ИЗ API
+        loadSubscriptionFromAPI: function() {
+            if (!this.config.token) {
+                this.showNotification('Требуется авторизация', 'error');
+                return;
+            }
+            
+            fetch('/api/profiles', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.profiles) {
+                    // Найдем текущий профиль в обновленных данных
+                    const currentProfileName = this.config.currentProfile.student_name;
+                    const updatedProfile = data.data.profiles.find(p => p.student_name === currentProfileName);
+                    
+                    if (updatedProfile) {
+                        this.config.currentProfile = updatedProfile;
+                        
+                        // Обновляем subscriptionData
+                        this.config.subscriptionData = {
+                            student: {
+                                name: updatedProfile.student_name,
+                                branch: updatedProfile.branch,
+                                teacher_name: updatedProfile.teacher_name,
+                                age_group: updatedProfile.age_group,
+                                parent_name: updatedProfile.parent_name
+                            },
+                            subscription: {
+                                type: updatedProfile.subscription_type,
+                                status: updatedProfile.subscription_status,
+                                active: updatedProfile.subscription_active,
+                                badge: updatedProfile.subscription_badge,
+                                classes: {
+                                    total: updatedProfile.total_classes,
+                                    used: updatedProfile.used_classes,
+                                    remaining: updatedProfile.remaining_classes,
+                                    progress: updatedProfile.total_classes > 0 ? 
+                                        Math.round((updatedProfile.used_classes / updatedProfile.total_classes) * 100) : 0
+                                },
+                                dates: {
+                                    activation: updatedProfile.activation_date,
+                                    expiration: updatedProfile.expiration_date,
+                                    last_visit: updatedProfile.last_visit_date
+                                }
+                            }
+                        };
+                        
+                        this.renderFullSubscription(this.config.subscriptionData);
+                        this.saveSession();
+                        this.showNotification('✅ Данные абонемента обновлены', 'success');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки абонемента:', error);
+                this.showNotification('Ошибка загрузки данных', 'error');
+            });
         },
 
         // РЕНДЕРИНГ ПОЛНОЙ СТРАНИЦЫ АБОНЕМЕНТА
@@ -1319,7 +1398,7 @@
         refreshSubscription: function() {
             this.showNotification('Обновление данных...', 'success');
             this.config.subscriptionData = null;
-            this.loadSubscriptionPage();
+            this.loadSubscriptionFromAPI();
         },
 
         // ВЫХОД ИЗ СИСТЕМЫ
