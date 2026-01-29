@@ -1191,16 +1191,22 @@ async loadEnumValues() {
         };
         
         try {
+            // Получаем информацию об аккаунте
+            result.account = await this.makeRequest('GET', '/api/v4/account');
+            console.log(`✅ Информация об аккаунте получена: ${result.account.name}`);
+        } catch (error) {
+            console.log(`⚠️  Не удалось получить информацию об аккаунте: ${error.message}`);
+        }
+        
+        try {
             // Получаем поля сделок
             const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
-            // ПРАВИЛЬНАЯ обработка ответа:
-            result.lead_fields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : 
-                                (leadFieldsResponse._embedded?.custom_fields || []);
+            result.lead_fields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : [];
             console.log(`✅ Поля сделок получены: ${result.lead_fields.length}`);
             
-            // Загружаем enum значения в кэш
+            // Обрабатываем и кэшируем enum значения
             for (const field of result.lead_fields) {
-                if (field && field.id && field.enums) {
+                if (field && field.id && field.enums && Array.isArray(field.enums)) {
                     const enumMapping = {};
                     for (const enumItem of field.enums) {
                         if (enumItem.id && enumItem.value) {
@@ -1209,49 +1215,68 @@ async loadEnumValues() {
                     }
                     if (Object.keys(enumMapping).length > 0) {
                         this.enumCache.set(field.id, enumMapping);
+                        
+                        // Добавляем в field_mappings
+                        result.field_mappings.push({
+                            id: field.id,
+                            name: field.name,
+                            type: field.type,
+                            entity_type: 'lead',
+                            enum_count: field.enums.length,
+                            is_in_our_config: Object.values(this.FIELD_IDS.LEAD).includes(field.id)
+                        });
                     }
                 }
             }
-            
         } catch (error) {
             console.log(`⚠️  Не удалось получить поля сделок: ${error.message}`);
         }
-
+        
+        try {
+            // Получаем поля контактов
+            const contactFieldsResponse = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
+            result.contact_fields = Array.isArray(contactFieldsResponse) ? contactFieldsResponse : [];
+            console.log(`✅ Поля контактов получены: ${result.contact_fields.length}`);
             
-            // Получаем все поля контактов
-            try {
-                const contactFieldsResponse = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
-                const contactFields = Array.isArray(contactFieldsResponse) ? contactFieldsResponse : [];
-                result.contact_fields = contactFields;
-                console.log(`✅ Поля контактов получены: ${contactFields.length}`);
-                
-                for (const field of contactFields) {
-                    if (field && field.id) {
+            // Обрабатываем и кэшируем enum значения для контактов
+            for (const field of result.contact_fields) {
+                if (field && field.id && field.enums && Array.isArray(field.enums)) {
+                    const enumMapping = {};
+                    for (const enumItem of field.enums) {
+                        if (enumItem.id && enumItem.value) {
+                            enumMapping[String(enumItem.id)] = enumItem.value;
+                        }
+                    }
+                    if (Object.keys(enumMapping).length > 0) {
+                        this.enumCache.set(field.id, enumMapping);
+                        
+                        // Добавляем в field_mappings
                         result.field_mappings.push({
                             id: field.id,
-                            name: field.name || 'Без имени',
-                            type: field.type || 'unknown',
+                            name: field.name,
+                            type: field.type,
                             entity_type: 'contact',
+                            enum_count: field.enums.length,
                             is_in_our_config: Object.values(this.FIELD_IDS.CONTACT).includes(field.id)
                         });
                     }
                 }
-            } catch (error) {
-                console.log(`⚠️  Не удалось получить поля контактов: ${error.message}`);
             }
-            
-            result.custom_fields_count = result.field_mappings.length;
-            
-            console.log(`📊 ИТОГО: ${result.custom_fields_count} полей`);
-            
-            return result;
-            
         } catch (error) {
-            console.error('❌ Ошибка получения информации о полях:', error.message);
-            throw error;
+            console.log(`⚠️  Не удалось получить поля контактов: ${error.message}`);
         }
+        
+        result.custom_fields_count = result.field_mappings.length;
+        
+        console.log(`📊 ИТОГО: ${result.custom_fields_count} полей с enum`);
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения информации о полях:', error.message);
+        throw error;
     }
-
+}
     async getLeadById(leadId) {
         try {
             console.log(`🔍 Получение сделки по ID: ${leadId}`);
