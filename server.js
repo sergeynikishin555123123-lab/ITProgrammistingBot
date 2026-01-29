@@ -3138,650 +3138,7 @@ app.get('/api/admin/stats', async (req, res) => {
     }
 });
 
-// ==================== OAuth callback ====================
-app.get('/oauth/callback', async (req, res) => {
-    try {
-        const { code, referer, state } = req.query;
-        
-        console.log('\n' + '='.repeat(80));
-        console.log('🔄 OAuth CALLBACK ОТ AMOCRM');
-        console.log('='.repeat(80));
-        console.log(`📝 Код авторизации: ${code ? '✅ Получен (' + code.substring(0, 20) + '...)' : '❌ Отсутствует'}`);
-        console.log(`🔗 Referer: ${referer || 'Не указан'}`);
-        console.log(`🏷️ State: ${state || 'Не указан'}`);
-        console.log(`🕐 Время: ${new Date().toLocaleString()}`);
-        
-        if (!code) {
-            const errorHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Ошибка авторизации amoCRM</title>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        * {
-                            margin: 0;
-                            padding: 0;
-                            box-sizing: border-box;
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-                        }
-                        
-                        body {
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            min-height: 100vh;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            padding: 20px;
-                        }
-                        
-                        .container {
-                            background: white;
-                            border-radius: 20px;
-                            padding: 40px;
-                            max-width: 600px;
-                            width: 100%;
-                            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                            text-align: center;
-                        }
-                        
-                        .error-icon {
-                            font-size: 80px;
-                            color: #f44336;
-                            margin-bottom: 20px;
-                        }
-                        
-                        h1 {
-                            color: #333;
-                            margin-bottom: 20px;
-                            font-size: 28px;
-                        }
-                        
-                        .message {
-                            color: #666;
-                            margin-bottom: 30px;
-                            line-height: 1.6;
-                            font-size: 16px;
-                        }
-                        
-                        .details {
-                            background: #f8f9fa;
-                            border-radius: 10px;
-                            padding: 20px;
-                            margin: 20px 0;
-                            text-align: left;
-                        }
-                        
-                        .details h3 {
-                            color: #555;
-                            margin-bottom: 10px;
-                            font-size: 18px;
-                        }
-                        
-                        .details ul {
-                            list-style: none;
-                            padding: 0;
-                        }
-                        
-                        .details li {
-                            padding: 8px 0;
-                            color: #777;
-                            border-bottom: 1px solid #eee;
-                        }
-                        
-                        .details li:last-child {
-                            border-bottom: none;
-                        }
-                        
-                        .btn {
-                            display: inline-block;
-                            background: #4CAF50;
-                            color: white;
-                            padding: 15px 30px;
-                            text-decoration: none;
-                            border-radius: 50px;
-                            font-weight: 600;
-                            font-size: 16px;
-                            transition: all 0.3s ease;
-                            margin: 10px;
-                        }
-                        
-                        .btn:hover {
-                            background: #45a049;
-                            transform: translateY(-2px);
-                            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-                        }
-                        
-                        .btn-secondary {
-                            background: #2196F3;
-                        }
-                        
-                        .btn-secondary:hover {
-                            background: #0b7dda;
-                        }
-                        
-                        .btn-group {
-                            margin-top: 30px;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="error-icon">❌</div>
-                        <h1>Ошибка авторизации amoCRM</h1>
-                        
-                        <div class="message">
-                            Не получен код авторизации от amoCRM. Возможные причины:
-                        </div>
-                        
-                        <div class="details">
-                            <h3>Возможные причины:</h3>
-                            <ul>
-                                <li>❌ Пользователь отменил авторизацию</li>
-                                <li>❌ Истекло время действия запроса</li>
-                                <li>❌ Неверные настройки интеграции в amoCRM</li>
-                                <li>❌ Не совпадает redirect_uri</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="btn-group">
-                            <a href="/admin" class="btn">Вернуться в админ-панель</a>
-                            <a href="/api/amocrm/status" class="btn btn-secondary">Проверить статус</a>
-                        </div>
-                    </div>
-                </body>
-                </html>
-            `;
-            return res.send(errorHtml);
-        }
-        
-        try {
-            console.log(`\n🔄 Получаем access token по коду...`);
-            
-            // Получаем access token
-            await amoCrmService.getAccessToken(code);
-            
-            const successHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Успешная авторизация amoCRM</title>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        * {
-                            margin: 0;
-                            padding: 0;
-                            box-sizing: border-box;
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-                        }
-                        
-                        body {
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            min-height: 100vh;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            padding: 20px;
-                        }
-                        
-                        .container {
-                            background: white;
-                            border-radius: 20px;
-                            padding: 40px;
-                            max-width: 700px;
-                            width: 100%;
-                            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                        }
-                        
-                        .success-icon {
-                            font-size: 80px;
-                            color: #4CAF50;
-                            text-align: center;
-                            margin-bottom: 20px;
-                        }
-                        
-                        h1 {
-                            color: #333;
-                            margin-bottom: 20px;
-                            font-size: 28px;
-                            text-align: center;
-                        }
-                        
-                        .subtitle {
-                            color: #666;
-                            text-align: center;
-                            margin-bottom: 30px;
-                            font-size: 18px;
-                        }
-                        
-                        .info-card {
-                            background: #f8f9fa;
-                            border-radius: 15px;
-                            padding: 25px;
-                            margin: 20px 0;
-                            border-left: 5px solid #4CAF50;
-                        }
-                        
-                        .info-card h3 {
-                            color: #333;
-                            margin-bottom: 15px;
-                            font-size: 20px;
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                        }
-                        
-                        .info-card h3:before {
-                            content: "✅";
-                            font-size: 24px;
-                        }
-                        
-                        .info-card p {
-                            color: #666;
-                            line-height: 1.6;
-                            margin-bottom: 10px;
-                        }
-                        
-                        .details {
-                            background: white;
-                            border-radius: 10px;
-                            padding: 15px;
-                            margin-top: 15px;
-                            border: 1px solid #e0e0e0;
-                        }
-                        
-                        .details pre {
-                            background: #f5f5f5;
-                            padding: 15px;
-                            border-radius: 5px;
-                            overflow-x: auto;
-                            font-family: 'Courier New', monospace;
-                            font-size: 14px;
-                            color: #333;
-                        }
-                        
-                        .btn-group {
-                            display: flex;
-                            gap: 15px;
-                            margin-top: 30px;
-                            flex-wrap: wrap;
-                            justify-content: center;
-                        }
-                        
-                        .btn {
-                            display: inline-flex;
-                            align-items: center;
-                            justify-content: center;
-                            gap: 10px;
-                            background: #4CAF50;
-                            color: white;
-                            padding: 15px 30px;
-                            text-decoration: none;
-                            border-radius: 50px;
-                            font-weight: 600;
-                            font-size: 16px;
-                            transition: all 0.3s ease;
-                            min-width: 200px;
-                        }
-                        
-                        .btn:hover {
-                            background: #45a049;
-                            transform: translateY(-2px);
-                            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-                        }
-                        
-                        .btn-secondary {
-                            background: #2196F3;
-                        }
-                        
-                        .btn-secondary:hover {
-                            background: #0b7dda;
-                        }
-                        
-                        .btn-test {
-                            background: #FF9800;
-                        }
-                        
-                        .btn-test:hover {
-                            background: #e68900;
-                        }
-                        
-                        .btn-icon {
-                            font-size: 20px;
-                        }
-                        
-                        .note {
-                            background: #fff8e1;
-                            border: 1px solid #ffd54f;
-                            border-radius: 10px;
-                            padding: 15px;
-                            margin-top: 20px;
-                            font-size: 14px;
-                            color: #856404;
-                        }
-                        
-                        @media (max-width: 600px) {
-                            .container {
-                                padding: 20px;
-                            }
-                            
-                            .btn-group {
-                                flex-direction: column;
-                            }
-                            
-                            .btn {
-                                width: 100%;
-                            }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="success-icon">✅</div>
-                        <h1>Авторизация amoCRM успешна!</h1>
-                        <div class="subtitle">Система подключена к вашему аккаунту amoCRM</div>
-                        
-                        <div class="info-card">
-                            <h3>Подключение установлено</h3>
-                            <p><strong>Домен:</strong> ${AMOCRM_DOMAIN}</p>
-                            <p><strong>Статус:</strong> <span style="color: #4CAF50; font-weight: bold;">✅ Готов к использованию</span></p>
-                            <p><strong>Access Token:</strong> Получен и сохранен в базе данных</p>
-                            <p><strong>Refresh Token:</strong> Получен для автоматического обновления</p>
-                        </div>
-                        
-                        <div class="info-card">
-                            <h3>Следующие шаги</h3>
-                            <p>1. Проверьте подключение через диагностику</p>
-                            <p>2. Запустите синхронизацию данных</p>
-                            <p>3. Протестируйте поиск учеников по телефону</p>
-                        </div>
-                        
-                        <div class="note">
-                            <strong>⚠️ Важно:</strong> Код авторизации одноразовый. Токены сохранены в базе данных и будут автоматически обновляться. Не нужно сохранять этот код в .env файл.
-                        </div>
-                        
-                        <div class="btn-group">
-                            <a href="/admin" class="btn">
-                                <span class="btn-icon">⚙️</span>
-                                Перейти в админ-панель
-                            </a>
-                            <a href="/api/debug/amocrm-test" class="btn btn-test">
-                                <span class="btn-icon">🧪</span>
-                                Проверить подключение
-                            </a>
-                            <a href="/api/debug/amocrm-contacts?phone=79991234567" class="btn btn-secondary">
-                                <span class="btn-icon">🔍</span>
-                                Тестовый поиск
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <script>
-                        // Сохраняем статус в localStorage для админ-панели
-                        localStorage.setItem('amocrm_authorized', 'true');
-                        localStorage.setItem('amocrm_authorized_time', new Date().toISOString());
-                    </script>
-                </body>
-                </html>
-            `;
-            
-            res.send(successHtml);
-            
-        } catch (tokenError) {
-            console.error('❌ Ошибка получения токена:', tokenError.message);
-            
-            const errorHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Ошибка получения токена amoCRM</title>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        * {
-                            margin: 0;
-                            padding: 0;
-                            box-sizing: border-box;
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-                        }
-                        
-                        body {
-                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-                            min-height: 100vh;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            padding: 20px;
-                        }
-                        
-                        .container {
-                            background: white;
-                            border-radius: 20px;
-                            padding: 40px;
-                            max-width: 700px;
-                            width: 100%;
-                            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                        }
-                        
-                        .error-icon {
-                            font-size: 80px;
-                            color: #f44336;
-                            text-align: center;
-                            margin-bottom: 20px;
-                        }
-                        
-                        h1 {
-                            color: #333;
-                            margin-bottom: 20px;
-                            font-size: 28px;
-                            text-align: center;
-                        }
-                        
-                        .error-details {
-                            background: #ffebee;
-                            border-radius: 15px;
-                            padding: 25px;
-                            margin: 20px 0;
-                            border-left: 5px solid #f44336;
-                        }
-                        
-                        .error-details h3 {
-                            color: #c62828;
-                            margin-bottom: 15px;
-                            font-size: 20px;
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                        }
-                        
-                        .error-details h3:before {
-                            content: "❌";
-                            font-size: 24px;
-                        }
-                        
-                        .error-details pre {
-                            background: white;
-                            padding: 15px;
-                            border-radius: 5px;
-                            overflow-x: auto;
-                            font-family: 'Courier New', monospace;
-                            font-size: 14px;
-                            color: #c62828;
-                            border: 1px solid #ffcdd2;
-                            margin-top: 10px;
-                        }
-                        
-                        .solutions {
-                            background: #e8f5e9;
-                            border-radius: 15px;
-                            padding: 25px;
-                            margin: 20px 0;
-                            border-left: 5px solid #4CAF50;
-                        }
-                        
-                        .solutions h3 {
-                            color: #2e7d32;
-                            margin-bottom: 15px;
-                            font-size: 20px;
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                        }
-                        
-                        .solutions h3:before {
-                            content: "💡";
-                            font-size: 24px;
-                        }
-                        
-                        .solutions ul {
-                            list-style: none;
-                            padding: 0;
-                        }
-                        
-                        .solutions li {
-                            padding: 10px 0;
-                            color: #555;
-                            border-bottom: 1px solid #c8e6c9;
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                        }
-                        
-                        .solutions li:last-child {
-                            border-bottom: none;
-                        }
-                        
-                        .solutions li:before {
-                            content: "👉";
-                            color: #4CAF50;
-                        }
-                        
-                        .btn-group {
-                            display: flex;
-                            gap: 15px;
-                            margin-top: 30px;
-                            flex-wrap: wrap;
-                            justify-content: center;
-                        }
-                        
-                        .btn {
-                            display: inline-flex;
-                            align-items: center;
-                            justify-content: center;
-                            gap: 10px;
-                            background: #2196F3;
-                            color: white;
-                            padding: 15px 30px;
-                            text-decoration: none;
-                            border-radius: 50px;
-                            font-weight: 600;
-                            font-size: 16px;
-                            transition: all 0.3s ease;
-                            min-width: 200px;
-                        }
-                        
-                        .btn:hover {
-                            background: #0b7dda;
-                            transform: translateY(-2px);
-                            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-                        }
-                        
-                        .btn-retry {
-                            background: #4CAF50;
-                        }
-                        
-                        .btn-retry:hover {
-                            background: #45a049;
-                        }
-                        
-                        @media (max-width: 600px) {
-                            .container {
-                                padding: 20px;
-                            }
-                            
-                            .btn-group {
-                                flex-direction: column;
-                            }
-                            
-                            .btn {
-                                width: 100%;
-                            }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="error-icon">❌</div>
-                        <h1>Ошибка получения токена amoCRM</h1>
-                        
-                        <div class="error-details">
-                            <h3>Детали ошибки</h3>
-                            <p><strong>Сообщение:</strong> ${tokenError.message}</p>
-                            ${tokenError.response ? `
-                                <p><strong>Статус:</strong> ${tokenError.response.status}</p>
-                                <p><strong>Ответ сервера:</strong></p>
-                                <pre>${JSON.stringify(tokenError.response.data, null, 2)}</pre>
-                            ` : ''}
-                        </div>
-                        
-                        <div class="solutions">
-                            <h3>Возможные решения</h3>
-                            <ul>
-                                <li>Проверьте корректность AMOCRM_CLIENT_ID и AMOCRM_CLIENT_SECRET в .env файле</li>
-                                <li>Убедитесь, что redirect_uri совпадает с указанным в настройках интеграции amoCRM</li>
-                                <li>Проверьте, что код авторизации не был использован ранее</li>
-                                <li>Убедитесь, что интеграция в amoCRM активна и имеет необходимые права</li>
-                                <li>Попробуйте сгенерировать новый код авторизации</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="btn-group">
-                            <a href="/admin" class="btn">Вернуться в админ-панель</a>
-                            ${AMOCRM_CLIENT_ID ? `
-                                <a href="https://www.amocrm.ru/oauth?client_id=${AMOCRM_CLIENT_ID}&state=art_school" 
-                                   class="btn btn-retry" target="_blank">
-                                   🔄 Получить новый код
-                                </a>
-                            ` : ''}
-                        </div>
-                    </div>
-                </body>
-                </html>
-            `;
-            
-            res.send(errorHtml);
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка в OAuth callback:', error);
-        
-        const errorHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Ошибка обработки callback</title>
-                <style>
-                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-                    .error { color: #f44336; font-size: 24px; margin-bottom: 20px; }
-                    .details { background: #ffebee; padding: 20px; border-radius: 10px; margin: 20px auto; max-width: 600px; }
-                </style>
-            </head>
-            <body>
-                <div class="error">❌ Ошибка обработки callback</div>
-                <div class="details">
-                    <p><strong>Сообщение:</strong> ${error.message}</p>
-                    ${error.stack ? `<pre style="text-align: left; overflow: auto;">${error.stack}</pre>` : ''}
-                </div>
-                <p><a href="/admin">Вернуться в админ-панель</a></p>
-            </body>
-            </html>
-        `;
-        
-        res.send(errorHtml);
-    }
-});
+
 
 // ==================== МАРШРУТЫ ДЛЯ СТАТИЧЕСКИХ ФАЙЛОВ ====================
 app.get('/', (req, res) => {
@@ -3814,7 +3171,497 @@ app.get('/oauth/link', (req, res) => {
         }
     });
 });
+// Полная диагностика всех активных абонементов и пользователей
+app.get('/api/debug/subscriptions-full', async (req, res) => {
+    try {
+        console.log('\n' + '='.repeat(100));
+        console.log('🔍 ПОЛНАЯ ДИАГНОСТИКА АКТИВНЫХ АБОНЕМЕНТОВ');
+        console.log('='.repeat(100));
+        
+        const diagnostics = {
+            timestamp: new Date().toISOString(),
+            amocrm_status: {
+                initialized: amoCrmService.isInitialized,
+                domain: AMOCRM_DOMAIN,
+                using_demo_data: !amoCrmService.isInitialized
+            },
+            summary: {},
+            active_subscriptions: [],
+            expired_subscriptions: [],
+            users_without_subscriptions: [],
+            subscription_statistics: {},
+            branch_statistics: {},
+            teacher_statistics: {},
+            raw_data_sample: {}
+        };
 
+        // 1. СТАТИСТИКА ПО ВСЕМ АБОНЕМЕНТАМ
+        console.log('\n📊 1. СТАТИСТИКА ПО АБОНЕМЕНТАМ:');
+        
+        const allSubscriptions = await db.all(`
+            SELECT 
+                sp.*,
+                tu.telegram_id,
+                tu.first_name as telegram_first_name,
+                tu.last_name as telegram_last_name,
+                tu.username as telegram_username
+            FROM student_profiles sp
+            LEFT JOIN telegram_users tu ON sp.telegram_user_id = tu.id
+            WHERE sp.is_active = 1
+            ORDER BY sp.branch, sp.student_name
+        `);
+
+        console.log(`📈 Всего активных профилей: ${allSubscriptions.length}`);
+
+        // 2. АКТИВНЫЕ АБОНЕМЕНТЫ (есть занятия и дата не истекла)
+        const activeSubs = allSubscriptions.filter(profile => {
+            const hasClasses = profile.remaining_classes > 0;
+            const isNotExpired = !profile.expiration_date || 
+                new Date(profile.expiration_date) >= new Date();
+            const hasSubscription = profile.subscription_type && 
+                profile.subscription_type !== 'Без абонемента';
+            
+            return hasClasses && isNotExpired && hasSubscription;
+        });
+
+        console.log(`✅ Активных абонементов: ${activeSubs.length}`);
+
+        // 3. ИСТЕКШИЕ АБОНЕМЕНТЫ
+        const expiredSubs = allSubscriptions.filter(profile => {
+            const hasExpired = profile.expiration_date && 
+                new Date(profile.expiration_date) < new Date();
+            const hasSubscription = profile.subscription_type && 
+                profile.subscription_type !== 'Без абонемента';
+            
+            return hasExpired && hasSubscription;
+        });
+
+        console.log(`⏰ Истекших абонементов: ${expiredSubs.length}`);
+
+        // 4. БЕЗ АБОНЕМЕНТА
+        const noSubscriptions = allSubscriptions.filter(profile => {
+            return !profile.subscription_type || 
+                   profile.subscription_type === 'Без абонемента' ||
+                   profile.remaining_classes === 0;
+        });
+
+        console.log(`📭 Без абонемента: ${noSubscriptions.length}`);
+
+        // 5. СТАТИСТИКА ПО ФИЛИАЛАМ
+        console.log('\n🏢 2. СТАТИСТИКА ПО ФИЛИАЛАМ:');
+        const branchStats = {};
+        
+        activeSubs.forEach(profile => {
+            const branch = profile.branch || 'Не указан';
+            if (!branchStats[branch]) {
+                branchStats[branch] = {
+                    count: 0,
+                    total_classes: 0,
+                    remaining_classes: 0,
+                    subscriptions: []
+                };
+            }
+            branchStats[branch].count++;
+            branchStats[branch].total_classes += profile.total_classes || 0;
+            branchStats[branch].remaining_classes += profile.remaining_classes || 0;
+            branchStats[branch].subscriptions.push(profile.subscription_type);
+        });
+
+        Object.keys(branchStats).forEach(branch => {
+            console.log(`   ${branch}:`);
+            console.log(`     👥 Учеников: ${branchStats[branch].count}`);
+            console.log(`     📚 Всего занятий: ${branchStats[branch].total_classes}`);
+            console.log(`     ✅ Осталось занятий: ${branchStats[branch].remaining_classes}`);
+            
+            // Уникальные типы абонементов
+            const uniqueSubs = [...new Set(branchStats[branch].subscriptions)];
+            console.log(`     🎫 Типы абонементов: ${uniqueSubs.length}`);
+            uniqueSubs.forEach((sub, idx) => {
+                const count = branchStats[branch].subscriptions.filter(s => s === sub).length;
+                console.log(`       ${idx + 1}. ${sub}: ${count} учеников`);
+            });
+        });
+
+        // 6. СТАТИСТИКА ПО ПРЕПОДАВАТЕЛЯМ
+        console.log('\n👩‍🏫 3. СТАТИСТИКА ПО ПРЕПОДАВАТЕЛЯМ:');
+        const teacherStats = {};
+        
+        activeSubs.forEach(profile => {
+            const teacher = profile.teacher_name || 'Не указан';
+            if (!teacherStats[teacher]) {
+                teacherStats[teacher] = {
+                    count: 0,
+                    branches: new Set(),
+                    total_classes: 0,
+                    remaining_classes: 0
+                };
+            }
+            teacherStats[teacher].count++;
+            teacherStats[teacher].branches.add(profile.branch);
+            teacherStats[teacher].total_classes += profile.total_classes || 0;
+            teacherStats[teacher].remaining_classes += profile.remaining_classes || 0;
+        });
+
+        Object.keys(teacherStats).forEach(teacher => {
+            console.log(`   ${teacher}:`);
+            console.log(`     👥 Учеников: ${teacherStats[teacher].count}`);
+            console.log(`     🏢 Филиалы: ${Array.from(teacherStats[teacher].branches).join(', ')}`);
+            console.log(`     📚 Всего занятий: ${teacherStats[teacher].total_classes}`);
+            console.log(`     ✅ Осталось занятий: ${teacherStats[teacher].remaining_classes}`);
+        });
+
+        // 7. АНАЛИЗ СРОКОВ ДЕЙСТВИЯ
+        console.log('\n📅 4. АНАЛИЗ СРОКОВ ДЕЙСТВИЯ:');
+        
+        const today = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(today.getDate() + 7);
+        const nextMonth = new Date();
+        nextMonth.setDate(today.getDate() + 30);
+
+        const expiringSoon = activeSubs.filter(profile => {
+            if (!profile.expiration_date) return false;
+            const expDate = new Date(profile.expiration_date);
+            return expDate >= today && expDate <= nextMonth;
+        });
+
+        const expiringThisWeek = expiringSoon.filter(profile => {
+            const expDate = new Date(profile.expiration_date);
+            return expDate <= nextWeek;
+        });
+
+        console.log(`   📅 Истекают в этом месяце: ${expiringSoon.length}`);
+        console.log(`   ⚠️  Истекают на этой неделе: ${expiringThisWeek.length}`);
+
+        // 8. ПОДРОБНАЯ ИНФОРМАЦИЯ ОБ АКТИВНЫХ АБОНЕМЕНТАХ
+        console.log('\n📋 5. ПОДРОБНЫЙ СПИСОК АКТИВНЫХ АБОНЕМЕНТОВ:');
+        
+        const detailedActiveSubs = await Promise.all(activeSubs.slice(0, 50).map(async (profile) => {
+            // Получаем историю посещений
+            const visits = await db.all(`
+                SELECT * FROM attendance 
+                WHERE student_profile_id = ?
+                ORDER BY attendance_date DESC
+                LIMIT 5
+            `, [profile.id]);
+
+            // Получаем расписание
+            const schedule = await db.get(`
+                SELECT * FROM schedule 
+                WHERE branch = ? AND teacher_name LIKE ?
+                AND day_of_week LIKE ? AND is_active = 1
+                LIMIT 1
+            `, [
+                profile.branch,
+                `%${profile.teacher_name || ''}%`,
+                `%${profile.day_of_week || ''}%`
+            ]);
+
+            // Рассчитываем прогресс
+            const total = profile.total_classes || 1;
+            const remaining = profile.remaining_classes || 0;
+            const used = total - remaining;
+            const progressPercent = total > 0 ? Math.round((used / total) * 100) : 0;
+
+            // Определяем статус
+            let status = 'active';
+            if (profile.expiration_date && new Date(profile.expiration_date) < today) {
+                status = 'expired';
+            } else if (remaining === 0) {
+                status = 'used';
+            } else if (remaining <= 3) {
+                status = 'low';
+            }
+
+            return {
+                id: profile.id,
+                student_name: profile.student_name,
+                parent_name: profile.parent_name,
+                phone_number: profile.phone_number,
+                email: profile.email,
+                branch: profile.branch,
+                subscription_type: profile.subscription_type,
+                total_classes: total,
+                remaining_classes: remaining,
+                used_classes: used,
+                progress_percent: progressPercent,
+                expiration_date: profile.expiration_date,
+                teacher_name: profile.teacher_name,
+                day_of_week: profile.day_of_week,
+                time_slot: profile.time_slot,
+                status: status,
+                is_demo: profile.is_demo || 0,
+                telegram_user: profile.telegram_id ? {
+                    id: profile.telegram_id,
+                    username: profile.telegram_username,
+                    name: `${profile.telegram_first_name || ''} ${profile.telegram_last_name || ''}`.trim()
+                } : null,
+                recent_visits: visits.length,
+                schedule_info: schedule ? {
+                    group_name: schedule.group_name,
+                    room_number: schedule.room_number,
+                    start_time: schedule.start_time,
+                    end_time: schedule.end_time
+                } : null
+            };
+        }));
+
+        // 9. ФОРМИРУЕМ ОТВЕТ
+        diagnostics.summary = {
+            total_profiles: allSubscriptions.length,
+            active_subscriptions: activeSubs.length,
+            expired_subscriptions: expiredSubs.length,
+            without_subscriptions: noSubscriptions.length,
+            expiring_this_week: expiringThisWeek.length,
+            expiring_this_month: expiringSoon.length
+        };
+
+        diagnostics.active_subscriptions = detailedActiveSubs;
+        
+        diagnostics.expired_subscriptions = expiredSubs.slice(0, 20).map(profile => ({
+            student_name: profile.student_name,
+            phone_number: profile.phone_number,
+            branch: profile.branch,
+            subscription_type: profile.subscription_type,
+            expiration_date: profile.expiration_date,
+            days_expired: profile.expiration_date ? 
+                Math.floor((today - new Date(profile.expiration_date)) / (1000 * 60 * 60 * 24)) : null
+        }));
+
+        diagnostics.users_without_subscriptions = noSubscriptions.slice(0, 20).map(profile => ({
+            student_name: profile.student_name,
+            phone_number: profile.phone_number,
+            branch: profile.branch,
+            teacher_name: profile.teacher_name,
+            last_seen: profile.updated_at
+        }));
+
+        diagnostics.subscription_statistics = {
+            by_type: {},
+            by_status: {
+                active: activeSubs.length,
+                expired: expiredSubs.length,
+                used: allSubscriptions.filter(p => p.remaining_classes === 0 && p.total_classes > 0).length,
+                without: noSubscriptions.length
+            }
+        };
+
+        // Статистика по типам абонементов
+        const subscriptionTypes = {};
+        activeSubs.forEach(profile => {
+            const type = profile.subscription_type || 'Не указан';
+            subscriptionTypes[type] = (subscriptionTypes[type] || 0) + 1;
+        });
+
+        diagnostics.subscription_statistics.by_type = subscriptionTypes;
+
+        diagnostics.branch_statistics = branchStats;
+        diagnostics.teacher_statistics = teacherStats;
+
+        // 10. СЫРЫЕ ДАННЫЕ ДЛЯ ОТЛАДКИ (первые 3 записи)
+        diagnostics.raw_data_sample = {
+            amocrm_initialized: amoCrmService.isInitialized,
+            sample_profiles: allSubscriptions.slice(0, 3).map(p => ({
+                id: p.id,
+                name: p.student_name,
+                phone: p.phone_number,
+                subscription: p.subscription_type,
+                classes: `${p.remaining_classes}/${p.total_classes}`,
+                expiration: p.expiration_date,
+                is_demo: p.is_demo
+            }))
+        };
+
+        // 11. ВЫВОД В КОНСОЛЬ ИТОГОВ
+        console.log('\n' + '='.repeat(100));
+        console.log('📈 ИТОГОВАЯ СТАТИСТИКА:');
+        console.log('='.repeat(100));
+        console.log(`👥 Всего учеников: ${diagnostics.summary.total_profiles}`);
+        console.log(`✅ Активных абонементов: ${diagnostics.summary.active_subscriptions}`);
+        console.log(`⏰ Истекших абонементов: ${diagnostics.summary.expired_subscriptions}`);
+        console.log(`📭 Без абонемента: ${diagnostics.summary.without_subscriptions}`);
+        console.log(`⚠️  Истекают на этой неделе: ${diagnostics.summary.expiring_this_week}`);
+        console.log(`📅 Истекают в этом месяце: ${diagnostics.summary.expiring_this_month}`);
+        
+        // Общее количество занятий
+        const totalClasses = activeSubs.reduce((sum, p) => sum + (p.total_classes || 0), 0);
+        const remainingClasses = activeSubs.reduce((sum, p) => sum + (p.remaining_classes || 0), 0);
+        const usedClasses = totalClasses - remainingClasses;
+        const utilizationRate = totalClasses > 0 ? Math.round((usedClasses / totalClasses) * 100) : 0;
+        
+        console.log(`\n📚 ОБЩАЯ СТАТИСТИКА ЗАНЯТИЙ:`);
+        console.log(`   Всего занятий в абонементах: ${totalClasses}`);
+        console.log(`   Использовано занятий: ${usedClasses}`);
+        console.log(`   Осталось занятий: ${remainingClasses}`);
+        console.log(`   Процент использования: ${utilizationRate}%`);
+        
+        // Средние показатели
+        const avgClassesPerStudent = activeSubs.length > 0 ? 
+            Math.round(totalClasses / activeSubs.length) : 0;
+        const avgRemainingPerStudent = activeSubs.length > 0 ? 
+            Math.round(remainingClasses / activeSubs.length) : 0;
+        
+        console.log(`\n📊 СРЕДНИЕ ПОКАЗАТЕЛИ:`);
+        console.log(`   Среднее занятий на ученика: ${avgClassesPerStudent}`);
+        console.log(`   Средний остаток занятий: ${avgRemainingPerStudent}`);
+        
+        // Топ абонементов
+        console.log(`\n🏆 ТОП ТИПОВ АБОНЕМЕНТОВ:`);
+        const sortedTypes = Object.entries(subscriptionTypes)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        sortedTypes.forEach(([type, count], index) => {
+            console.log(`   ${index + 1}. ${type}: ${count} учеников`);
+        });
+        
+        console.log('='.repeat(100));
+
+        // 12. ВОЗВРАЩАЕМ ОТВЕТ
+        res.json({
+            success: true,
+            diagnostics: diagnostics,
+            export_info: {
+                formats: ['json', 'csv', 'excel'],
+                endpoints: {
+                    json: '/api/debug/subscriptions-full',
+                    csv: '/api/debug/subscriptions-full?format=csv',
+                    active_only: '/api/debug/subscriptions-full?status=active',
+                    expired_only: '/api/debug/subscriptions-full?status=expired'
+                },
+                filters_available: ['branch', 'teacher', 'status', 'expiration_date']
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Ошибка полной диагностики абонементов:', error.message);
+        console.error('Stack trace:', error.stack);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка выполнения полной диагностики',
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// Экспорт в CSV
+app.get('/api/debug/subscriptions-export', async (req, res) => {
+    try {
+        const { format = 'csv', status = 'active' } = req.query;
+        
+        console.log(`\n📤 ЭКСПОРТ ДАННЫХ АБОНЕМЕНТОВ`);
+        console.log(`📝 Формат: ${format}, Статус: ${status}`);
+        
+        let query = `
+            SELECT 
+                sp.student_name,
+                sp.parent_name,
+                sp.phone_number,
+                sp.email,
+                sp.branch,
+                sp.subscription_type,
+                sp.total_classes,
+                sp.remaining_classes,
+                sp.expiration_date,
+                sp.teacher_name,
+                sp.day_of_week,
+                sp.time_slot,
+                sp.is_demo,
+                sp.created_at,
+                sp.updated_at
+            FROM student_profiles sp
+            WHERE sp.is_active = 1
+        `;
+        
+        const params = [];
+        
+        if (status === 'active') {
+            query += ` AND sp.remaining_classes > 0 
+                       AND (sp.expiration_date IS NULL OR sp.expiration_date >= DATE('now'))`;
+        } else if (status === 'expired') {
+            query += ` AND sp.expiration_date < DATE('now')`;
+        } else if (status === 'used') {
+            query += ` AND sp.remaining_classes = 0 AND sp.total_classes > 0`;
+        }
+        
+        query += ` ORDER BY sp.branch, sp.student_name`;
+        
+        const profiles = await db.all(query, params);
+        
+        if (format === 'csv') {
+            // Заголовки CSV
+            const headers = [
+                'ФИО ученика',
+                'Родитель',
+                'Телефон',
+                'Email',
+                'Филиал',
+                'Тип абонемента',
+                'Всего занятий',
+                'Осталось занятий',
+                'Дата окончания',
+                'Преподаватель',
+                'День недели',
+                'Время',
+                'Демо-данные',
+                'Дата создания',
+                'Дата обновления'
+            ];
+            
+            // Данные
+            const rows = profiles.map(p => [
+                p.student_name || '',
+                p.parent_name || '',
+                p.phone_number || '',
+                p.email || '',
+                p.branch || '',
+                p.subscription_type || '',
+                p.total_classes || 0,
+                p.remaining_classes || 0,
+                p.expiration_date || '',
+                p.teacher_name || '',
+                p.day_of_week || '',
+                p.time_slot || '',
+                p.is_demo ? 'Да' : 'Нет',
+                p.created_at || '',
+                p.updated_at || ''
+            ]);
+            
+            // Создаем CSV
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+            
+            // Устанавливаем заголовки для скачивания
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="subscriptions_${status}_${new Date().toISOString().split('T')[0]}.csv"`);
+            
+            res.send(csvContent);
+            
+        } else {
+            // JSON формат
+            res.json({
+                success: true,
+                data: {
+                    profiles: profiles,
+                    total: profiles.length,
+                    status: status,
+                    exported_at: new Date().toISOString()
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка экспорта данных:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка экспорта данных'
+        });
+    }
+});
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const startServer = async () => {
     try {
