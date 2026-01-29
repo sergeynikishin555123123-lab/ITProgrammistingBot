@@ -2157,6 +2157,88 @@ app.post('/api/auth/phone', async (req, res) => {
         });
     }
 });
+app.get('/api/sync/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n🔄 ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ: ${phone}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        console.log(`📱 Форматированный телефон: ${formattedPhone}`);
+        
+        // Поиск в amoCRM
+        console.log('🔍 Поиск профилей в amoCRM...');
+        const profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        
+        console.log(`📊 Найдено профилей в amoCRM: ${profiles.length}`);
+        
+        if (profiles.length === 0) {
+            return res.json({
+                success: true,
+                message: 'Профили не найдены в amoCRM',
+                profiles_found: 0
+            });
+        }
+        
+        // Сохранение в БД
+        console.log('💾 Сохранение в базу данных...');
+        const savedCount = await saveProfilesToDatabase(profiles);
+        
+        // Получаем обновленные данные из БД
+        const cleanPhone = phone.replace(/\D/g, '');
+        const dbProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1
+             ORDER BY subscription_active DESC, updated_at DESC`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        const result = {
+            success: true,
+            message: `Синхронизация завершена. Найдено ${profiles.length} профилей, сохранено ${savedCount}`,
+            sync_details: {
+                amocrm_profiles: profiles.length,
+                saved_to_db: savedCount,
+                phone_searched: formattedPhone,
+                timestamp: new Date().toISOString()
+            },
+            profiles: dbProfiles.map(p => ({
+                id: p.id,
+                student_name: p.student_name,
+                branch: p.branch,
+                teacher: p.teacher_name,
+                subscription_status: p.subscription_status,
+                subscription_active: p.subscription_active === 1,
+                classes: `${p.used_classes}/${p.total_classes}`,
+                remaining: p.remaining_classes,
+                last_visit: p.last_visit_date,
+                source: p.source,
+                updated: p.updated_at
+            }))
+        };
+        
+        console.log(`✅ Синхронизация завершена успешно!`);
+        console.log(`   Профилей найдено: ${profiles.length}`);
+        console.log(`   Профилей сохранено: ${savedCount}`);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка синхронизации:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка синхронизации',
+            details: error.message
+        });
+    }
+});
 // ==================== ПРОСТОЙ ТЕСТОВЫЙ МАРШРУТ ====================
 
 // Простой тест авторизации через GET (для браузера)
@@ -2238,7 +2320,6 @@ app.get('/api/test/auth-simple/:phone', async (req, res) => {
     }
 });
 
-// Тест конкретного пользователя с деталями
 app.get('/api/test/student/:phone', async (req, res) => {
     try {
         const phone = req.params.phone;
@@ -2248,9 +2329,13 @@ app.get('/api/test/student/:phone', async (req, res) => {
         const formattedPhone = formatPhoneNumber(phone);
         
         // Ищем профили через основной метод
-        const profiles = amoCrmService.isInitialized 
-            ? await amoCrmService.getStudentsByPhone(formattedPhone)
-            : [];
+        let profiles = [];
+        if (amoCrmService.isInitialized) {
+            profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+            if (profiles.length > 0) {
+                await saveProfilesToDatabase(profiles);
+            }
+        }
         
         // Ищем в БД
         const cleanPhone = phone.replace(/\D/g, '');
@@ -2270,14 +2355,16 @@ app.get('/api/test/student/:phone', async (req, res) => {
             search_results: {
                 amocrm_found: profiles.length,
                 database_found: dbProfiles.length,
-                amocrm_connected: amoCrmService.isInitialized
+                amocrm_connected: amoCrmService.isInitialized,
+                profiles_saved: profiles.length > 0 ? 'Да' : 'Нет'
             },
             amocrm_profiles: profiles.map(p => ({
                 student: p.student_name,
                 branch: p.branch,
                 subscription: `${p.used_classes}/${p.total_classes}`,
                 status: p.subscription_status,
-                source: p.source
+                source: p.source,
+                active: p.subscription_active === 1
             })),
             database_profiles: dbProfiles.map(p => ({
                 student: p.student_name,
@@ -2285,7 +2372,8 @@ app.get('/api/test/student/:phone', async (req, res) => {
                 subscription: `${p.used_classes}/${p.total_classes}`,
                 status: p.subscription_status,
                 source: p.source,
-                updated: p.updated_at
+                updated: p.updated_at,
+                active: p.subscription_active === 1
             }))
         };
         
@@ -2303,7 +2391,74 @@ app.get('/api/test/student/:phone', async (req, res) => {
         });
     }
 });
-
+app.get('/api/debug/db-check/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`\n🔍 ПРОВЕРКА БАЗЫ ДАННЫХ ДЛЯ: ${phone}`);
+        
+        // Проверяем наличие в БД
+        const profiles = await db.all(
+            `SELECT id, student_name, phone_number, branch, 
+                    subscription_active, subscription_status,
+                    total_classes, used_classes, remaining_classes,
+                    created_at, updated_at, source, is_demo
+             FROM student_profiles 
+             WHERE phone_number LIKE ? 
+             ORDER BY updated_at DESC`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        // Проверяем таблицу сессий
+        const sessions = await db.all(
+            `SELECT session_id, phone_number, created_at, expires_at, is_active
+             FROM user_sessions 
+             WHERE phone_number LIKE ?
+             ORDER BY created_at DESC
+             LIMIT 3`,
+            [`%${cleanPhone}%`]
+        );
+        
+        res.json({
+            success: true,
+            phone: phone,
+            search_pattern: `%${cleanPhone.slice(-10)}%`,
+            database_stats: {
+                total_profiles: profiles.length,
+                active_profiles: profiles.filter(p => p.subscription_active === 1).length,
+                amocrm_profiles: profiles.filter(p => p.source === 'amocrm').length,
+                demo_profiles: profiles.filter(p => p.is_demo === 1).length
+            },
+            profiles: profiles.map(p => ({
+                id: p.id,
+                student: p.student_name,
+                phone: p.phone_number,
+                branch: p.branch,
+                active: p.subscription_active === 1,
+                status: p.subscription_status,
+                classes: `${p.used_classes}/${p.total_classes}`,
+                remaining: p.remaining_classes,
+                source: p.source,
+                demo: p.is_demo === 1,
+                created: p.created_at,
+                updated: p.updated_at
+            })),
+            sessions: sessions,
+            table_counts: {
+                student_profiles: await db.get('SELECT COUNT(*) as count FROM student_profiles'),
+                user_sessions: await db.get('SELECT COUNT(*) as count FROM user_sessions')
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки БД:', error.message);
+        res.json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 // Быстрая проверка (самый простой тест)
 app.get('/api/quick-check/:phone', async (req, res) => {
     try {
@@ -2311,29 +2466,53 @@ app.get('/api/quick-check/:phone', async (req, res) => {
         
         console.log(`\n⚡ БЫСТРАЯ ПРОВЕРКА: ${phone}`);
         
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        // Пробуем найти в amoCRM
+        let profiles = [];
+        if (amoCrmService.isInitialized) {
+            console.log('🔍 Поиск в amoCRM...');
+            profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+            console.log(`📊 Найдено в amoCRM: ${profiles.length} профилей`);
+            
+            if (profiles.length > 0) {
+                await saveProfilesToDatabase(profiles);
+                console.log('💾 Профили сохранены в БД');
+            }
+        }
+        
+        // Ищем в локальной БД
         const cleanPhone = phone.replace(/\D/g, '');
-        const profiles = await db.all(
-            `SELECT student_name, branch, subscription_status, total_classes 
+        const dbProfiles = await db.all(
+            `SELECT student_name, branch, subscription_status, total_classes, 
+                    subscription_active, used_classes, remaining_classes
              FROM student_profiles 
              WHERE phone_number LIKE ? AND is_active = 1
+             ORDER BY subscription_active DESC, updated_at DESC
              LIMIT 5`,
             [`%${cleanPhone.slice(-10)}%`]
         );
         
         const result = {
             phone: phone,
-            found: profiles.length > 0,
-            count: profiles.length,
-            students: profiles.map(p => ({
+            phone_formatted: formattedPhone,
+            found: profiles.length > 0 || dbProfiles.length > 0,
+            amocrm_found: profiles.length,
+            database_found: dbProfiles.length,
+            amocrm_connected: amoCrmService.isInitialized,
+            students: dbProfiles.map(p => ({
                 name: p.student_name,
                 branch: p.branch,
                 subscription: p.subscription_status,
-                classes: p.total_classes
+                active: p.subscription_active === 1,
+                classes: `${p.used_classes || 0}/${p.total_classes || 0}`,
+                remaining: p.remaining_classes || 0
             })),
             timestamp: new Date().toLocaleTimeString()
         };
         
-        console.log(`✅ Найдено: ${profiles.length} учеников`);
+        console.log(`✅ Найдено: ${profiles.length + dbProfiles.length} учеников`);
+        console.log(`   amoCRM: ${profiles.length}, База данных: ${dbProfiles.length}`);
         
         res.json(result);
         
