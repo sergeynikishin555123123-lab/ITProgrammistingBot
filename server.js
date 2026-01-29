@@ -233,51 +233,85 @@ async loadEnumValues() {
     try {
         console.log('📊 Загрузка enum значений из amoCRM...');
         
-        // Загружаем поля сделок для получения enum
-        const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
-        const leadFields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : [];
-        
-        console.log(`   Полей сделок: ${leadFields.length}`);
-        
-        for (const field of leadFields) {
-            if (field && field.id && field.enums && Array.isArray(field.enums) && field.enums.length > 0) {
-                // Создаем маппинг enum_id -> значение
-                const enumMapping = {};
-                for (const enumItem of field.enums) {
-                    if (enumItem.id && enumItem.value) {
-                        enumMapping[String(enumItem.id)] = enumItem.value;
+        // Загружаем поля сделок
+        try {
+            const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
+            const leadFields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : 
+                             (leadFieldsResponse._embedded?.custom_fields || []);
+            
+            console.log(`   Полей сделок: ${leadFields.length}`);
+            
+            for (const field of leadFields) {
+                if (field && field.id && field.enums && Array.isArray(field.enums)) {
+                    const enumMapping = {};
+                    for (const enumItem of field.enums) {
+                        if (enumItem.id && enumItem.value) {
+                            enumMapping[String(enumItem.id)] = enumItem.value;
+                        }
+                    }
+                    
+                    if (Object.keys(enumMapping).length > 0) {
+                        this.enumCache.set(field.id, enumMapping);
                     }
                 }
-                
-                if (Object.keys(enumMapping).length > 0) {
-                    this.enumCache.set(field.id, enumMapping);
-                }
             }
+        } catch (error) {
+            console.log(`   Ошибка загрузки полей сделок: ${error.message}`);
         }
         
-        // Загружаем поля контактов для получения enum
-        const contactFieldsResponse = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
-        const contactFields = Array.isArray(contactFieldsResponse) ? contactFieldsResponse : [];
-        
-        console.log(`   Полей контактов: ${contactFields.length}`);
-        
-        for (const field of contactFields) {
-            if (field && field.id && field.enums && Array.isArray(field.enums) && field.enums.length > 0) {
-                // Создаем маппинг enum_id -> значение
-                const enumMapping = {};
-                for (const enumItem of field.enums) {
-                    if (enumItem.id && enumItem.value) {
-                        enumMapping[String(enumItem.id)] = enumItem.value;
+        // Загружаем поля контактов
+        try {
+            const contactFieldsResponse = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
+            const contactFields = Array.isArray(contactFieldsResponse) ? contactFieldsResponse : 
+                                (contactFieldsResponse._embedded?.custom_fields || []);
+            
+            console.log(`   Полей контактов: ${contactFields.length}`);
+            
+            for (const field of contactFields) {
+                if (field && field.id && field.enums && Array.isArray(field.enums)) {
+                    const enumMapping = {};
+                    for (const enumItem of field.enums) {
+                        if (enumItem.id && enumItem.value) {
+                            enumMapping[String(enumItem.id)] = enumItem.value;
+                        }
+                    }
+                    
+                    if (Object.keys(enumMapping).length > 0) {
+                        this.enumCache.set(field.id, enumMapping);
                     }
                 }
-                
-                if (Object.keys(enumMapping).length > 0) {
-                    this.enumCache.set(field.id, enumMapping);
-                }
             }
+        } catch (error) {
+            console.log(`   Ошибка загрузки полей контактов: ${error.message}`);
         }
         
         console.log(`✅ Загружено enum значений: ${this.enumCache.size}`);
+        
+        // Показываем загруженные значения
+        console.log('\n📊 ЗАГРУЖЕННЫЕ ENUM ЗНАЧЕНИЯ:');
+        
+        // Проверяем ключевые поля
+        const keyFields = [
+            { id: this.FIELD_IDS.LEAD.TOTAL_CLASSES, name: 'Абонемент занятий:' },
+            { id: this.FIELD_IDS.LEAD.USED_CLASSES, name: 'Счетчик занятий:' },
+            { id: this.FIELD_IDS.CONTACT.BRANCH, name: 'Филиал:' },
+            { id: this.FIELD_IDS.CONTACT.TEACHER, name: 'Преподаватель' },
+            { id: this.FIELD_IDS.CONTACT.AGE_GROUP, name: 'Возраст группы' }
+        ];
+        
+        for (const field of keyFields) {
+            const enumMapping = this.enumCache.get(field.id);
+            if (enumMapping) {
+                console.log(`   ${field.name} (${field.id}): ${Object.keys(enumMapping).length} значений`);
+                // Показываем первые 5 значений
+                const entries = Object.entries(enumMapping).slice(0, 5);
+                for (const [enumId, value] of entries) {
+                    console.log(`     ${enumId} → "${value}"`);
+                }
+            } else {
+                console.log(`   ${field.name} (${field.id}): НЕ ЗАГРУЖЕНО`);
+            }
+        }
         
     } catch (error) {
         console.error('❌ Ошибка загрузки enum значений:', error.message);
@@ -386,24 +420,35 @@ async loadEnumValues() {
         }
     }
 
-   getFieldDisplayValue(fieldId, value) {
+  getFieldDisplayValue(fieldId, value) {
     try {
-        if (!value) return '';
+        if (!value || value === '') return '';
+        
+        const strValue = String(value);
         
         // Проверяем кэш enum значений
         const enumMapping = this.enumCache.get(fieldId);
-        if (enumMapping && enumMapping[String(value)]) {
-            return enumMapping[String(value)];
+        if (enumMapping && enumMapping[strValue]) {
+            return enumMapping[strValue];
         }
         
         // Для поля "Абонемент занятий:" используем наш маппинг
         if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
-            const num = this.SUBSCRIPTION_ENUM_MAPPING[String(value)];
-            return num ? `${num} занятий` : value;
+            const num = this.SUBSCRIPTION_ENUM_MAPPING[strValue];
+            return num ? `${num} занятий` : strValue;
         }
         
-        return String(value);
+        // Для поля "Счетчик занятий:" тоже используем маппинг
+        if (fieldId === this.FIELD_IDS.LEAD.USED_CLASSES) {
+            const num = this.SUBSCRIPTION_ENUM_MAPPING[strValue];
+            return num ? `${num}` : strValue;
+        }
+        
+        // Возвращаем как есть, если не нашли в маппинге
+        return strValue;
+        
     } catch (error) {
+        console.error('❌ Ошибка getFieldDisplayValue:', error);
         return String(value);
     }
 }
@@ -695,103 +740,108 @@ async loadEnumValues() {
         }
     }
 
-    extractStudentsFromContact(contact) {
-        const students = [];
+   extractStudentsFromContact(contact) {
+    const students = [];
+    
+    try {
+        console.log(`👤 Поиск детей в контакте: ${contact.name || 'Без имени'}`);
         
-        try {
-            console.log(`👤 Поиск детей в контакте: ${contact.name || 'Без имени'}`);
-            
-            if (!contact.custom_fields_values) {
-                return students;
-            }
-            
-            const customFields = contact.custom_fields_values;
-            
-            // Находим поля с именами детей
-            const childrenData = [
-                { nameFieldId: this.FIELD_IDS.CONTACT.CHILD_1_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY },
-                { nameFieldId: this.FIELD_IDS.CONTACT.CHILD_2_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY },
-                { nameFieldId: this.FIELD_IDS.CONTACT.CHILD_3_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY }
-            ];
-            
-            for (let i = 0; i < childrenData.length; i++) {
-                const childConfig = childrenData[i];
-                const childNumber = i + 1;
-                
-                // Ищем имя ребенка
-                const nameField = customFields.find(f => f.field_id === childConfig.nameFieldId);
-                if (!nameField) continue;
-                
-                const childName = this.getFieldValue(nameField);
-                if (!childName || childName.trim() === '') continue;
-                
-                console.log(`   👶 Ребенок ${childNumber}: ${childName}`);
-                
-                // Создаем объект с информацией о ребенке
-                const studentInfo = {
-                    studentName: childName,
-                    birthDate: '',
-                    branch: '',
-                    parentName: contact.name || '',
-                    teacherName: '',
-                    dayOfWeek: '',
-                    timeSlot: '',
-                    ageGroup: '',
-                    allergies: '',
-                    hasActiveSubscription: false,
-                    lastVisitDate: ''
-                };
-                
-                // Ищем день рождения
-                const birthdayField = customFields.find(f => f.field_id === childConfig.birthdayFieldId);
-                if (birthdayField) {
-                    const birthdayValue = this.getFieldValue(birthdayField);
-                    if (birthdayValue) {
-                        studentInfo.birthDate = this.parseDate(birthdayValue);
-                    }
-                }
-                
-                // Ищем другие поля
-                for (const field of customFields) {
-                    const fieldId = field.field_id;
-                    const fieldValue = this.getFieldValue(field);
-                    
-                    if (!fieldValue) continue;
-                    
-                    if (fieldId === this.FIELD_IDS.CONTACT.BRANCH) {
-                        studentInfo.branch = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
-                        studentInfo.teacherName = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.DAY_OF_WEEK) {
-                        studentInfo.dayOfWeek = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.AGE_GROUP) {
-                        studentInfo.ageGroup = fieldValue;
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB) {
-                        studentInfo.hasActiveSubscription = fieldValue.toLowerCase() === 'да';
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.LAST_VISIT) {
-                        studentInfo.lastVisitDate = this.parseDate(fieldValue);
-                    }
-                    else if (fieldId === this.FIELD_IDS.CONTACT.ALLERGIES) {
-                        studentInfo.allergies = fieldValue;
-                    }
-                }
-                
-                students.push(studentInfo);
-            }
-            
-            console.log(`📊 Найдено детей: ${students.length}`);
-            
-        } catch (error) {
-            console.error('❌ Ошибка извлечения учеников из контакта:', error);
+        if (!contact.custom_fields_values) {
+            return students;
         }
         
-        return students;
+        const customFields = contact.custom_fields_values;
+        
+        // Находим поля с именами детей
+        const childrenData = [
+            { nameFieldId: this.FIELD_IDS.CONTACT.CHILD_1_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY },
+            { nameFieldId: this.FIELD_IDS.CONTACT.CHILD_2_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY },
+            { nameFieldId: this.FIELD_IDS.CONTACT.CHILD_3_NAME, birthdayFieldId: this.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY }
+        ];
+        
+        for (let i = 0; i < childrenData.length; i++) {
+            const childConfig = childrenData[i];
+            const childNumber = i + 1;
+            
+            // Ищем имя ребенка
+            const nameField = customFields.find(f => f.field_id === childConfig.nameFieldId);
+            if (!nameField) continue;
+            
+            const childName = this.getFieldValue(nameField);
+            if (!childName || childName.trim() === '') continue;
+            
+            // ИСПРАВЛЕНИЕ: используем getFieldDisplayValue для текстовых полей
+            const displayName = this.getFieldDisplayValue(childConfig.nameFieldId, childName);
+            console.log(`   👶 Ребенок ${childNumber}: ${displayName}`);
+            
+            // Создаем объект с информацией о ребенке
+            const studentInfo = {
+                studentName: displayName,  // Используем отображаемое имя
+                birthDate: '',
+                branch: '',
+                parentName: contact.name || '',
+                teacherName: '',
+                dayOfWeek: '',
+                timeSlot: '',
+                ageGroup: '',
+                allergies: '',
+                hasActiveSubscription: false,
+                lastVisitDate: ''
+            };
+            
+            // Ищем день рождения
+            const birthdayField = customFields.find(f => f.field_id === childConfig.birthdayFieldId);
+            if (birthdayField) {
+                const birthdayValue = this.getFieldValue(birthdayField);
+                if (birthdayValue) {
+                    studentInfo.birthDate = this.parseDate(birthdayValue);
+                }
+            }
+            
+            // Ищем другие поля
+            for (const field of customFields) {
+                const fieldId = field.field_id;
+                const fieldValue = this.getFieldValue(field);
+                
+                if (!fieldValue) continue;
+                
+                // ИСПРАВЛЕНИЕ: используем getFieldDisplayValue для всех enum полей
+                const displayValue = this.getFieldDisplayValue(fieldId, fieldValue);
+                
+                if (fieldId === this.FIELD_IDS.CONTACT.BRANCH) {
+                    studentInfo.branch = displayValue;  // Теперь будет "Свиблово", а не "529779"
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.TEACHER) {
+                    studentInfo.teacherName = displayValue;  // Теперь будет "Аня К", а не "556183"
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.DAY_OF_WEEK) {
+                    studentInfo.dayOfWeek = displayValue;
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.AGE_GROUP) {
+                    studentInfo.ageGroup = displayValue;  // Теперь будет "8-10 лет", а не "549419"
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.HAS_ACTIVE_SUB) {
+                    studentInfo.hasActiveSubscription = displayValue.toLowerCase() === 'да';
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.LAST_VISIT) {
+                    studentInfo.lastVisitDate = this.parseDate(fieldValue);
+                }
+                else if (fieldId === this.FIELD_IDS.CONTACT.ALLERGIES) {
+                    studentInfo.allergies = displayValue;
+                }
+            }
+            
+            students.push(studentInfo);
+        }
+        
+        console.log(`📊 Найдено детей: ${students.length}`);
+        
+    } catch (error) {
+        console.error('❌ Ошибка извлечения учеников из контакта:', error);
     }
+    
+    return students;
+}
 
     async findLatestActiveSubscription(contactId) {
         console.log(`🎯 Поиск активного абонемента для контакта: ${contactId}`);
@@ -1128,47 +1178,45 @@ async loadEnumValues() {
         }
     }
 
-    async getAllFieldsInfo() {
+   async getAllFieldsInfo() {
+    try {
+        console.log(`📊 Получение информации о полях amoCRM`);
+        
+        const result = {
+            account: null,
+            lead_fields: [],
+            contact_fields: [],
+            custom_fields_count: 0,
+            field_mappings: []
+        };
+        
         try {
-            console.log(`📊 Получение информации о полях amoCRM`);
+            // Получаем поля сделок
+            const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
+            // ПРАВИЛЬНАЯ обработка ответа:
+            result.lead_fields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : 
+                                (leadFieldsResponse._embedded?.custom_fields || []);
+            console.log(`✅ Поля сделок получены: ${result.lead_fields.length}`);
             
-            const result = {
-                account: null,
-                lead_fields: [],
-                contact_fields: [],
-                custom_fields_count: 0,
-                field_mappings: []
-            };
-            
-            // Получаем информацию об аккаунте
-            try {
-                result.account = await this.makeRequest('GET', '/api/v4/account');
-                console.log(`✅ Информация об аккаунте получена`);
-            } catch (error) {
-                console.log(`⚠️  Не удалось получить информацию об аккаунте: ${error.message}`);
-            }
-            
-            // Получаем все поля сделок
-            try {
-                const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
-                const leadFields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : [];
-                result.lead_fields = leadFields;
-                console.log(`✅ Поля сделок получены: ${leadFields.length}`);
-                
-                for (const field of leadFields) {
-                    if (field && field.id) {
-                        result.field_mappings.push({
-                            id: field.id,
-                            name: field.name || 'Без имени',
-                            type: field.type || 'unknown',
-                            entity_type: 'lead',
-                            is_in_our_config: Object.values(this.FIELD_IDS.LEAD).includes(field.id)
-                        });
+            // Загружаем enum значения в кэш
+            for (const field of result.lead_fields) {
+                if (field && field.id && field.enums) {
+                    const enumMapping = {};
+                    for (const enumItem of field.enums) {
+                        if (enumItem.id && enumItem.value) {
+                            enumMapping[String(enumItem.id)] = enumItem.value;
+                        }
+                    }
+                    if (Object.keys(enumMapping).length > 0) {
+                        this.enumCache.set(field.id, enumMapping);
                     }
                 }
-            } catch (error) {
-                console.log(`⚠️  Не удалось получить поля сделок: ${error.message}`);
             }
+            
+        } catch (error) {
+            console.log(`⚠️  Не удалось получить поля сделок: ${error.message}`);
+        }
+
             
             // Получаем все поля контактов
             try {
