@@ -748,7 +748,22 @@ if (hasSubscription) {
         };
     }
     
-    // Извлечение числа из значения поля
+    // Метод 4 - ДОБАВЛЕН ПРОПУЩЕННЫЙ МЕТОД
+    extractPhoneFromContact(contact) {
+        if (!contact.custom_fields_values) return '';
+        
+        const phoneField = contact.custom_fields_values.find(f => 
+            (f.field_id || f.id) === this.FIELD_IDS.CONTACT.PHONE
+        );
+        
+        if (phoneField && phoneField.values && phoneField.values.length > 0) {
+            return phoneField.values[0].value || '';
+        }
+        
+        return '';
+    }
+    
+    // Метод 5 - ИСПРАВЛЕННЫЙ СИНТАКСИС
     extractNumber(value) {
         if (value === null || value === undefined) return 0;
         
