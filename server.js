@@ -63,6 +63,7 @@ class AmoCrmService {
         this.fieldMappings = new Map();
         this.customFieldCache = new Map();
         this.accountInfo = null;
+        this.enumCache = new Map();
         
         // ВАШИ ID ПОЛЕЙ
         this.FIELD_IDS = {
@@ -106,60 +107,182 @@ class AmoCrmService {
         // Кэш enum значений
         this.enumCache = new Map();
         
-        // Маппинг enum_id для поля "Абонемент занятий:"
-        this.SUBSCRIPTION_ENUM_MAPPING = {
-            '504033': 4,    // "4 занятия"
-            '504035': 8,    // "8 занятий" 
-            '504037': 16,   // "16 занятий"
-            '504039': 4,    // "Продвинутый 4 занятия"
-            '504041': 8,    // "Продвинутый 8 занятий"
-            '504043': 16,   // "Продвинутый 16 занятий"
-            '504237': 5,    // "База Блок № 1 - 5 занятий"
-            '504239': 6,    // "База Блок № 2 - 6 занятий"
-            '504241': 5,    // "База Блок № 3 - 5 занятий"
-            '504243': 16,   // "База - 16 занятий"
-        };
-    }
+       // Маппинг enum_id для полей amoCRM
+    this.SUBSCRIPTION_ENUM_MAPPING = {
+        // Абонемент занятий: (850241)
+        '504033': 4,    // "4 занятия"
+        '504035': 8,    // "8 занятий" 
+        '504037': 16,   // "16 занятий"
+        '504039': 4,    // "Продвинутый 4 занятия"
+        '504041': 8,    // "Продвинутый 8 занятий"
+        '504043': 16,   // "Продвинутый 16 занятий"
+        '504237': 5,    // "База Блок № 1 - 5 занятий"
+        '504239': 6,    // "База Блок № 2 - 6 занятий"
+        '504241': 5,    // "База Блок № 3 - 5 занятий"
+        '504243': 16,   // "База - 16 занятий"
+        
+        // Счетчик занятий: (850257)
+        '504105': 1,    // "1"
+        '504107': 2,    // "2"
+        '504109': 3,    // "3"
+        '504111': 4,    // "4"
+        '504113': 5,    // "5"
+        '504115': 6,    // "6"
+        '504117': 7,    // "7"
+        '504119': 8,    // "8"
+        '504121': 9,    // "9"
+        '504123': 10,   // "10"
+        '504125': 11,   // "11"
+        '504127': 12,   // "12"
+        '504129': 13,   // "13"
+        '504131': 14,   // "14"
+        '504133': 15,   // "15"
+        '504135': 16,   // "16"
+        '504137': 17,   // "17"
+        '504139': 18,   // "18"
+        '504141': 19,   // "19"
+        '504143': 20,   // "20"
+        '504145': 21,   // "21"
+        '504147': 22,   // "22"
+        '504149': 23,   // "23"
+        '504151': 24,   // "24"
+    };
+}
 
     // ==================== ОСНОВНЫЕ МЕТОДЫ ====================
     
     async initialize() {
+    try {
+        if (!this.accessToken) {
+            console.log('❌ Отсутствует токен доступа amoCRM');
+            return false;
+        }
+        
+        if (!AMOCRM_SUBDOMAIN) {
+            console.log('❌ Не указан домен amoCRM');
+            return false;
+        }
+        
+        console.log(`🔗 Проверка подключения к amoCRM...`);
+        console.log(`   Домен: ${this.baseUrl}`);
+        console.log(`   Токен: ${this.accessToken ? '✓ Присутствует' : '✗ Отсутствует'}`);
+        
         try {
-            if (!this.accessToken) {
-                console.log('❌ Отсутствует токен доступа amoCRM');
-                return false;
+            // Проверяем подключение
+            const response = await this.makeRequest('GET', '/api/v4/account');
+            this.accountInfo = response;
+            this.isInitialized = true;
+            
+            // Загружаем enum значения из amoCRM
+            await this.loadEnumValues();
+            
+            console.log('✅ amoCRM успешно инициализирован');
+            console.log(`🏢 Аккаунт: ${response.name}`);
+            console.log(`👤 ID пользователя: ${response.current_user?.id || 'неизвестно'}`);
+            console.log(`🔗 Домен: ${this.baseUrl}`);
+            console.log(`📊 Загружено enum значений: ${this.enumCache.size}`);
+            
+            // Показываем загруженные значения для ключевых полей
+            console.log('\n📊 ЗАГРУЖЕННЫЕ ENUM ЗНАЧЕНИЯ:');
+            
+            // Для поля "Абонемент занятий:" (850241)
+            const subscriptionEnum = this.enumCache.get(this.FIELD_IDS.LEAD.TOTAL_CLASSES);
+            if (subscriptionEnum) {
+                console.log(`   🎫 Абонемент занятий: (${this.FIELD_IDS.LEAD.TOTAL_CLASSES})`);
+                for (const [enumId, value] of Object.entries(subscriptionEnum)) {
+                    const num = this.SUBSCRIPTION_ENUM_MAPPING[enumId];
+                    console.log(`     ${enumId} → "${value}" → ${num} занятий`);
+                }
             }
             
-            if (!AMOCRM_SUBDOMAIN) {
-                console.log('❌ Не указан домен amoCRM');
-                return false;
+            // Для поля "Счетчик занятий:" (850257)
+            const counterEnum = this.enumCache.get(this.FIELD_IDS.LEAD.USED_CLASSES);
+            if (counterEnum) {
+                console.log(`   📊 Счетчик занятий: (${this.FIELD_IDS.LEAD.USED_CLASSES})`);
+                for (const [enumId, value] of Object.entries(counterEnum)) {
+                    console.log(`     ${enumId} → "${value}"`);
+                }
             }
             
-            console.log(`🔗 Проверка подключения к amoCRM...`);
-            console.log(`   Домен: ${this.baseUrl}`);
-            
-            try {
-                const response = await this.makeRequest('GET', '/api/v4/account');
-                this.accountInfo = response;
-                this.isInitialized = true;
-                
-                console.log('✅ amoCRM успешно инициализирован');
-                console.log(`🏢 Аккаунт: ${response.name}`);
-                
-                return true;
-            } catch (apiError) {
-                console.error('❌ Ошибка API amoCRM:', apiError.message);
-                console.error('   Проверьте токен и домен!');
-                this.isInitialized = false;
-                return false;
+            // Для поля "Филиал:" в контактах (871273)
+            const branchEnum = this.enumCache.get(this.FIELD_IDS.CONTACT.BRANCH);
+            if (branchEnum) {
+                console.log(`   📍 Филиал: (${this.FIELD_IDS.CONTACT.BRANCH})`);
+                for (const [enumId, value] of Object.entries(branchEnum)) {
+                    console.log(`     ${enumId} → "${value}"`);
+                }
             }
-        } catch (error) {
-            console.error('❌ Ошибка инициализации amoCRM:', error.message);
+            
+            console.log('\n✅ Инициализация завершена успешно!');
+            return true;
+            
+        } catch (apiError) {
+            console.error('❌ Ошибка API amoCRM:', apiError.message);
+            console.error('   Проверьте токен и домен!');
             this.isInitialized = false;
             return false;
         }
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации amoCRM:', error.message);
+        this.isInitialized = false;
+        return false;
     }
-
+}
+async loadEnumValues() {
+    try {
+        console.log('📊 Загрузка enum значений из amoCRM...');
+        
+        // Загружаем поля сделок для получения enum
+        const leadFieldsResponse = await this.makeRequest('GET', '/api/v4/leads/custom_fields');
+        const leadFields = Array.isArray(leadFieldsResponse) ? leadFieldsResponse : [];
+        
+        console.log(`   Полей сделок: ${leadFields.length}`);
+        
+        for (const field of leadFields) {
+            if (field && field.id && field.enums && Array.isArray(field.enums) && field.enums.length > 0) {
+                // Создаем маппинг enum_id -> значение
+                const enumMapping = {};
+                for (const enumItem of field.enums) {
+                    if (enumItem.id && enumItem.value) {
+                        enumMapping[String(enumItem.id)] = enumItem.value;
+                    }
+                }
+                
+                if (Object.keys(enumMapping).length > 0) {
+                    this.enumCache.set(field.id, enumMapping);
+                }
+            }
+        }
+        
+        // Загружаем поля контактов для получения enum
+        const contactFieldsResponse = await this.makeRequest('GET', '/api/v4/contacts/custom_fields');
+        const contactFields = Array.isArray(contactFieldsResponse) ? contactFieldsResponse : [];
+        
+        console.log(`   Полей контактов: ${contactFields.length}`);
+        
+        for (const field of contactFields) {
+            if (field && field.id && field.enums && Array.isArray(field.enums) && field.enums.length > 0) {
+                // Создаем маппинг enum_id -> значение
+                const enumMapping = {};
+                for (const enumItem of field.enums) {
+                    if (enumItem.id && enumItem.value) {
+                        enumMapping[String(enumItem.id)] = enumItem.value;
+                    }
+                }
+                
+                if (Object.keys(enumMapping).length > 0) {
+                    this.enumCache.set(field.id, enumMapping);
+                }
+            }
+        }
+        
+        console.log(`✅ Загружено enum значений: ${this.enumCache.size}`);
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки enum значений:', error.message);
+    }
+}
     async makeRequest(method, endpoint, data = null, retries = 3) {
         const url = `${this.baseUrl}${endpoint}`;
         const config = {
@@ -263,22 +386,27 @@ class AmoCrmService {
         }
     }
 
-    getFieldDisplayValue(fieldId, value) {
-        try {
-            if (!value) return '';
-            
-            // Для поля "Абонемент занятий:" используем наш маппинг
-            if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
-                const num = this.SUBSCRIPTION_ENUM_MAPPING[String(value)];
-                return num ? `${num} занятий` : value;
-            }
-            
-            return String(value);
-        } catch (error) {
-            return String(value);
+   getFieldDisplayValue(fieldId, value) {
+    try {
+        if (!value) return '';
+        
+        // Проверяем кэш enum значений
+        const enumMapping = this.enumCache.get(fieldId);
+        if (enumMapping && enumMapping[String(value)]) {
+            return enumMapping[String(value)];
         }
+        
+        // Для поля "Абонемент занятий:" используем наш маппинг
+        if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
+            const num = this.SUBSCRIPTION_ENUM_MAPPING[String(value)];
+            return num ? `${num} занятий` : value;
+        }
+        
+        return String(value);
+    } catch (error) {
+        return String(value);
     }
-
+}
     parseDate(value) {
         if (!value) return null;
         
@@ -314,29 +442,28 @@ class AmoCrmService {
         }
     }
 
-    parseNumeric(value) {
-        if (!value) return 0;
+   parseNumeric(value) {
+    if (!value) return 0;
+    
+    try {
+        const str = String(value).trim();
         
-        try {
-            const str = String(value).trim();
-            
-            // Пробуем извлечь число из строки
-            const numMatch = str.match(/\d+/);
-            if (numMatch) {
-                return parseInt(numMatch[0], 10);
-            }
-            
-            // Проверяем enum_id для поля "Абонемент занятий:"
-            if (this.SUBSCRIPTION_ENUM_MAPPING[str]) {
-                return this.SUBSCRIPTION_ENUM_MAPPING[str];
-            }
-            
-            return 0;
-        } catch (error) {
-            return 0;
+        // Сначала проверяем enum_id через наш маппинг
+        if (this.SUBSCRIPTION_ENUM_MAPPING[str]) {
+            return this.SUBSCRIPTION_ENUM_MAPPING[str];
         }
+        
+        // Затем пробуем извлечь число из строки
+        const numMatch = str.match(/\d+/);
+        if (numMatch) {
+            return parseInt(numMatch[0], 10);
+        }
+        
+        return 0;
+    } catch (error) {
+        return 0;
     }
-
+}
     // ==================== ОСНОВНАЯ ЛОГИКА ====================
     
     extractSubscriptionInfo(lead) {
@@ -373,25 +500,27 @@ class AmoCrmService {
             
             console.log(`🔍 Анализ абонемента в сделке "${lead.name}" (ID: ${lead.id})`);
             
-            // Проходим по всем полям
-            for (const field of customFields) {
-                const fieldId = field.field_id;
-                if (!fieldId) continue;
-                
-                const fieldValue = this.getFieldValue(field);
-                if (fieldValue === null || fieldValue === '') continue;
-                
-                // ОСНОВНЫЕ ПОЛЯ АБОНЕМЕНТА
-                if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
-                    subscriptionInfo.hasSubscription = true;
-                    subscriptionInfo.totalClasses = this.parseNumeric(fieldValue);
-                    console.log(`   🎫 Абонемент: ${fieldValue} -> ${subscriptionInfo.totalClasses} занятий`);
-                }
-                else if (fieldId === this.FIELD_IDS.LEAD.USED_CLASSES) {
-                    subscriptionInfo.hasSubscription = true;
-                    subscriptionInfo.usedClasses = this.parseNumeric(fieldValue);
-                    console.log(`   📊 Счетчик занятий: ${fieldValue} -> ${subscriptionInfo.usedClasses}`);
-                }
+// В цикле обработки полей ИСПРАВИТЬ:
+    for (const field of customFields) {
+        const fieldId = field.field_id;
+        if (!fieldId) continue;
+        
+        const fieldValue = this.getFieldValue(field);
+        if (fieldValue === null || fieldValue === '') continue;
+        
+        console.log(`   ${fieldId}: ${fieldValue}`);
+        
+        // ОСНОВНЫЕ ПОЛЯ АБОНЕМЕНТА
+        if (fieldId === this.FIELD_IDS.LEAD.TOTAL_CLASSES) {
+            subscriptionInfo.hasSubscription = true;
+            subscriptionInfo.totalClasses = this.parseNumeric(fieldValue);
+            console.log(`     → Абонемент: ${fieldValue} -> ${subscriptionInfo.totalClasses} занятий`);
+        }
+        else if (fieldId === this.FIELD_IDS.LEAD.USED_CLASSES) {
+            subscriptionInfo.hasSubscription = true;
+            subscriptionInfo.usedClasses = this.parseNumeric(fieldValue);
+            console.log(`     → Счетчик занятий: ${fieldValue} -> ${subscriptionInfo.usedClasses}`);
+        }
                 else if (fieldId === this.FIELD_IDS.LEAD.USED_CLASSES_NUM) {
                     subscriptionInfo.hasSubscription = true;
                     const used = this.parseNumeric(fieldValue);
@@ -749,12 +878,12 @@ class AmoCrmService {
             phone_number: phoneNumber,
             email: email || '',
             birth_date: studentInfo.birthDate || '',
-            branch: studentInfo.branch || subscriptionInfo.branch || '',
+            branch: this.getFieldDisplayValue(this.FIELD_IDS.CONTACT.BRANCH, studentInfo.branch) || '',
             parent_name: studentInfo.parentName || contact.name || '',
             day_of_week: studentInfo.dayOfWeek || '',
             time_slot: studentInfo.timeSlot || '',
-            teacher_name: studentInfo.teacherName || '',
-            age_group: studentInfo.ageGroup || subscriptionInfo.ageGroup || '',
+            teacher_name: this.getFieldDisplayValue(this.FIELD_IDS.CONTACT.TEACHER, studentInfo.teacherName) || '',
+            age_group: this.getFieldDisplayValue(this.FIELD_IDS.CONTACT.AGE_GROUP, studentInfo.ageGroup) || '',
             course: studentInfo.course || '',
             allergies: studentInfo.allergies || '',
             
