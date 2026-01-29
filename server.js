@@ -2030,7 +2030,195 @@ app.post('/api/auth/phone', async (req, res) => {
         });
     }
 });
+// ==================== ПРОСТОЙ ТЕСТОВЫЙ МАРШРУТ ====================
 
+// Простой тест авторизации через GET (для браузера)
+app.get('/api/test/auth-simple/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n🧪 ПРОСТОЙ ТЕСТ АВТОРИЗАЦИИ: ${phone}`);
+        
+        // Форматируем телефон
+        const formattedPhone = formatPhoneNumber(phone);
+        console.log(`📱 Форматированный: ${formattedPhone}`);
+        console.log(`🔗 amoCRM: ${amoCrmService.isInitialized ? '✅' : '❌'}`);
+        
+        let profiles = [];
+        
+        // 1. Пробуем найти в amoCRM
+        if (amoCrmService.isInitialized) {
+            console.log('🔍 Поиск в amoCRM...');
+            profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+            console.log(`📊 Найдено в amoCRM: ${profiles.length} профилей`);
+            
+            if (profiles.length > 0) {
+                await saveProfilesToDatabase(profiles);
+            }
+        }
+        
+        // 2. Если не нашли в amoCRM, ищем в локальной БД
+        if (profiles.length === 0) {
+            console.log('🔍 Поиск в локальной БД...');
+            const cleanPhone = phone.replace(/\D/g, '');
+            profiles = await db.all(
+                `SELECT * FROM student_profiles 
+                 WHERE phone_number LIKE ? AND is_active = 1
+                 ORDER BY updated_at DESC`,
+                [`%${cleanPhone.slice(-10)}%`]
+            );
+            console.log(`📊 Найдено в БД: ${profiles.length} профилей`);
+        }
+        
+        // 3. Формируем ответ
+        const result = {
+            success: true,
+            test_info: {
+                phone_original: phone,
+                phone_formatted: formattedPhone,
+                amocrm_connected: amoCrmService.isInitialized,
+                profiles_found: profiles.length,
+                timestamp: new Date().toISOString()
+            },
+            profiles: profiles.map(p => ({
+                student_name: p.student_name,
+                branch: p.branch || 'Не указан',
+                teacher_name: p.teacher_name || 'Не указан',
+                subscription_status: p.subscription_status,
+                subscription_type: p.subscription_type,
+                total_classes: p.total_classes,
+                remaining_classes: p.remaining_classes || 0,
+                used_classes: p.used_classes || 0,
+                last_visit_date: p.last_visit_date,
+                source: p.source,
+                is_demo: p.is_demo === 1
+            }))
+        };
+        
+        console.log(`✅ Тест завершен. Найдено: ${profiles.length} профилей`);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error.message);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка теста',
+            details: error.message,
+            phone: req.params.phone
+        });
+    }
+});
+
+// Тест конкретного пользователя с деталями
+app.get('/api/test/student/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n🎯 ТЕСТ КОНКРЕТНОГО УЧЕНИКА: ${phone}`);
+        
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        // Ищем профили через основной метод
+        const profiles = amoCrmService.isInitialized 
+            ? await amoCrmService.getStudentsByPhone(formattedPhone)
+            : [];
+        
+        // Ищем в БД
+        const cleanPhone = phone.replace(/\D/g, '');
+        const dbProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        const result = {
+            success: true,
+            phone_info: {
+                original: phone,
+                formatted: formattedPhone,
+                search_pattern: `%${cleanPhone.slice(-10)}%`
+            },
+            search_results: {
+                amocrm_found: profiles.length,
+                database_found: dbProfiles.length,
+                amocrm_connected: amoCrmService.isInitialized
+            },
+            amocrm_profiles: profiles.map(p => ({
+                student: p.student_name,
+                branch: p.branch,
+                subscription: `${p.used_classes}/${p.total_classes}`,
+                status: p.subscription_status,
+                source: p.source
+            })),
+            database_profiles: dbProfiles.map(p => ({
+                student: p.student_name,
+                branch: p.branch,
+                subscription: `${p.used_classes}/${p.total_classes}`,
+                status: p.subscription_status,
+                source: p.source,
+                updated: p.updated_at
+            }))
+        };
+        
+        console.log(`📊 Результаты:`);
+        console.log(`   amoCRM: ${profiles.length} профилей`);
+        console.log(`   База данных: ${dbProfiles.length} профилей`);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка теста ученика'
+        });
+    }
+});
+
+// Быстрая проверка (самый простой тест)
+app.get('/api/quick-check/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n⚡ БЫСТРАЯ ПРОВЕРКА: ${phone}`);
+        
+        const cleanPhone = phone.replace(/\D/g, '');
+        const profiles = await db.all(
+            `SELECT student_name, branch, subscription_status, total_classes 
+             FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1
+             LIMIT 5`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        const result = {
+            phone: phone,
+            found: profiles.length > 0,
+            count: profiles.length,
+            students: profiles.map(p => ({
+                name: p.student_name,
+                branch: p.branch,
+                subscription: p.subscription_status,
+                classes: p.total_classes
+            })),
+            timestamp: new Date().toLocaleTimeString()
+        };
+        
+        console.log(`✅ Найдено: ${profiles.length} учеников`);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка быстрой проверки:', error.message);
+        res.json({
+            phone: req.params.phone,
+            found: false,
+            error: error.message
+        });
+    }
+});
 app.get('/api/profiles', async (req, res) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
