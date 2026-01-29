@@ -1419,6 +1419,495 @@ app.get('/api/debug/lead/:leadId', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// ==================== ПОЛНЫЙ АНАЛИЗ СИСТЕМЫ ====================
+app.get('/api/debug/full-system-check', async (req, res) => {
+    try {
+        console.log('\n' + '='.repeat(100));
+        console.log('🔍 ПОЛНЫЙ АНАЛИЗ ВСЕЙ СИСТЕМЫ');
+        console.log('='.repeat(100));
+        
+        const result = {
+            system_info: {},
+            amocrm_status: {},
+            test_profiles: {},
+            field_analysis: {},
+            pipeline_analysis: {},
+            lead_comparison: {},
+            recommendations: []
+        };
+        
+        // 1. ИНФОРМАЦИЯ О СИСТЕМЕ
+        console.log('\n📋 1. ИНФОРМАЦИЯ О СИСТЕМЕ');
+        result.system_info = {
+            server_time: new Date().toISOString(),
+            node_version: process.version,
+            environment: process.env.NODE_ENV || 'development',
+            amocrm_initialized: amoCrmService.isInitialized,
+            amocrm_domain: AMOCRM_SUBDOMAIN,
+            database: 'SQLite (art_school.db)'
+        };
+        
+        console.log(`   Серверное время: ${result.system_info.server_time}`);
+        console.log(`   AMOCRM инициализирован: ${result.system_info.amocrm_initialized}`);
+        console.log(`   Домен: ${result.system_info.amocrm_domain}.amocrm.ru`);
+        
+        // 2. ПРОВЕРКА ПОДКЛЮЧЕНИЯ К AMOCRM
+        console.log('\n🔌 2. ПРОВЕРКА ПОДКЛЮЧЕНИЯ К AMOCRM');
+        try {
+            const account = await amoCrmService.makeRequest('GET', '/api/v4/account');
+            result.amocrm_status = {
+                connected: true,
+                account_id: account.id,
+                account_name: account.name,
+                account_currency: account.currency,
+                timezone: account.timezone,
+                current_user: account.current_user
+            };
+            console.log(`   ✅ Подключено к аккаунту: "${account.name}" (ID: ${account.id})`);
+        } catch (error) {
+            result.amocrm_status = {
+                connected: false,
+                error: error.message
+            };
+            console.log(`   ❌ Ошибка подключения: ${error.message}`);
+        }
+        
+        // 3. ТЕСТОВЫЕ ПРОФИЛИ
+        console.log('\n👥 3. ТЕСТОВЫЕ ПРОФИЛИ');
+        const testPhones = ['79778853270', '79161916984', '79660587744'];
+        result.test_profiles = {};
+        
+        for (const phone of testPhones) {
+            console.log(`\n   📱 Телефон: ${phone}`);
+            try {
+                const profiles = await amoCrmService.getStudentsByPhone(phone);
+                result.test_profiles[phone] = {
+                    found: profiles.length > 0,
+                    count: profiles.length,
+                    profiles: profiles.map(p => ({
+                        student_name: p.student_name,
+                        contact_id: p.amocrm_contact_id,
+                        lead_id: p.amocrm_lead_id,
+                        subscription_type: p.subscription_type,
+                        total_classes: p.total_classes,
+                        used_classes: p.used_classes,
+                        remaining_classes: p.remaining_classes,
+                        subscription_active: p.subscription_active === 1,
+                        branch: p.branch
+                    }))
+                };
+                
+                console.log(`     Найдено профилей: ${profiles.length}`);
+                if (profiles.length > 0) {
+                    profiles.forEach(p => {
+                        console.log(`     👤 ${p.student_name}: ${p.subscription_type}, ${p.used_classes}/${p.total_classes}`);
+                    });
+                }
+            } catch (error) {
+                result.test_profiles[phone] = {
+                    found: false,
+                    error: error.message
+                };
+                console.log(`     ❌ Ошибка: ${error.message}`);
+            }
+        }
+        
+        // 4. АНАЛИЗ ПОЛЕЙ И ВОРОНОК
+        console.log('\n🏗️  4. АНАЛИЗ ПОЛЕЙ И ВОРОНОК');
+        
+        // 4.1 Настройки нашей системы
+        result.field_analysis = {
+            our_settings: {
+                subscription_pipeline_ids: amoCrmService.SUBSCRIPTION_PIPELINE_IDS,
+                active_subscription_statuses: amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES,
+                lesson_statuses_count: amoCrmService.LESSON_STATUSES.length,
+                field_ids: amoCrmService.FIELD_IDS
+            }
+        };
+        
+        console.log(`   Наши настройки:`);
+        console.log(`     Воронок для поиска: ${amoCrmService.SUBSCRIPTION_PIPELINE_IDS.length}`);
+        console.log(`     Активных статусов: ${amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.join(', ')}`);
+        console.log(`     ID поля "Абонемент занятий:": ${amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES}`);
+        console.log(`     ID поля "Счетчик занятий:": ${amoCrmService.FIELD_IDS.LEAD.USED_CLASSES}`);
+        console.log(`     ID поля "Остаток занятий": ${amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES}`);
+        
+        // 4.2 Получение реальных данных из amoCRM
+        try {
+            // Получаем все воронки
+            console.log('\n   📊 Получение реальных данных из amoCRM...');
+            const pipelines = await amoCrmService.makeRequest('GET', '/api/v4/leads/pipelines');
+            
+            if (pipelines._embedded && pipelines._embedded.pipelines) {
+                result.pipeline_analysis = {
+                    total_pipelines: pipelines._embedded.pipelines.length,
+                    pipelines: []
+                };
+                
+                console.log(`   Всего воронок в amoCRM: ${pipelines._embedded.pipelines.length}`);
+                
+                // Анализируем каждую воронку
+                for (const pipeline of pipelines._embedded.pipelines) {
+                    console.log(`\n   📁 Воронка: "${pipeline.name}" (ID: ${pipeline.id})`);
+                    
+                    try {
+                        const pipelineWithStatuses = await amoCrmService.makeRequest('GET', 
+                            `/api/v4/leads/pipelines/${pipeline.id}`
+                        );
+                        
+                        const pipelineInfo = {
+                            id: pipeline.id,
+                            name: pipeline.name,
+                            statuses: pipelineWithStatuses._embedded?.statuses?.map(s => ({
+                                id: s.id,
+                                name: s.name,
+                                is_active_subscription: amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.includes(s.id),
+                                is_lesson_status: amoCrmService.LESSON_STATUSES.includes(s.id),
+                                is_in_subscription_pipeline: amoCrmService.SUBSCRIPTION_PIPELINE_IDS.includes(pipeline.id)
+                            })) || []
+                        };
+                        
+                        result.pipeline_analysis.pipelines.push(pipelineInfo);
+                        
+                        // Выводим информацию о статусах
+                        if (pipelineInfo.statuses.length > 0) {
+                            console.log(`     Статусы (${pipelineInfo.statuses.length}):`);
+                            pipelineInfo.statuses.forEach(status => {
+                                let markers = [];
+                                if (status.is_active_subscription) markers.push('✅ Активный статус');
+                                if (status.is_lesson_status) markers.push('📚 Статус занятия');
+                                if (status.is_in_subscription_pipeline) markers.push('🎯 Воронка абонементов');
+                                
+                                console.log(`       ${status.id}: "${status.name}" ${markers.join(', ')}`);
+                            });
+                        }
+                        
+                    } catch (pipeError) {
+                        console.log(`     ⚠️  Не удалось получить статусы: ${pipeError.message}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.log(`   ❌ Ошибка получения данных воронок: ${error.message}`);
+        }
+        
+        // 5. СРАВНЕНИЕ СДЕЛОК
+        console.log('\n⚖️  5. СРАВНЕНИЕ СДЕЛОК');
+        result.lead_comparison = {};
+        
+        // Тестовые сделки для сравнения
+        const testLeads = [
+            { id: 13154405, description: 'Автосделка в воронке 5663740' },
+            { id: 28674745, description: 'Полина Кунахович в воронке 7977402' },
+            { id: 28679861, description: 'Рома Красницкий в воронке 7977402' }
+        ];
+        
+        for (const testLead of testLeads) {
+            console.log(`\n   🔍 Сделка ${testLead.id}: ${testLead.description}`);
+            
+            try {
+                const lead = await amoCrmService.makeRequest('GET', 
+                    `/api/v4/leads/${testLead.id}?with=custom_fields_values`
+                );
+                
+                if (lead) {
+                    const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                    const score = amoCrmService.calculateLeadScore(lead, subscriptionInfo);
+                    
+                    result.lead_comparison[testLead.id] = {
+                        id: lead.id,
+                        name: lead.name,
+                        pipeline_id: lead.pipeline_id,
+                        status_id: lead.status_id,
+                        created_at: lead.created_at,
+                        created_date: new Date(lead.created_at * 1000).toLocaleString(),
+                        subscription_info: subscriptionInfo,
+                        score: score,
+                        fields_count: lead.custom_fields_values?.length || 0,
+                        important_fields: {}
+                    };
+                    
+                    // Извлекаем важные поля
+                    if (lead.custom_fields_values) {
+                        const importantFieldIds = [
+                            amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES,
+                            amoCrmService.FIELD_IDS.LEAD.USED_CLASSES,
+                            amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES,
+                            amoCrmService.FIELD_IDS.LEAD.ACTIVATION_DATE,
+                            amoCrmService.FIELD_IDS.LEAD.EXPIRATION_DATE
+                        ];
+                        
+                        for (const field of lead.custom_fields_values) {
+                            const fieldId = field.field_id || field.id;
+                            if (importantFieldIds.includes(fieldId)) {
+                                result.lead_comparison[testLead.id].important_fields[fieldId] = {
+                                    value: amoCrmService.getFieldValue(field),
+                                    raw: field.values
+                                };
+                            }
+                        }
+                    }
+                    
+                    console.log(`     Название: "${lead.name}"`);
+                    console.log(`     Воронка: ${lead.pipeline_id}, Статус: ${lead.status_id}`);
+                    console.log(`     Абонемент: ${subscriptionInfo.subscriptionType}`);
+                    console.log(`     Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses} (осталось: ${subscriptionInfo.remainingClasses})`);
+                    console.log(`     Активен: ${subscriptionInfo.subscriptionActive ? 'Да' : 'Нет'}`);
+                    console.log(`     Оценка системы: ${score}`);
+                    console.log(`     Поля: ${lead.custom_fields_values?.length || 0}`);
+                    
+                    // Выводим важные поля
+                    Object.entries(result.lead_comparison[testLead.id].important_fields).forEach(([fieldId, data]) => {
+                        console.log(`     Поле ${fieldId}: "${data.value}"`);
+                    });
+                }
+            } catch (error) {
+                console.log(`     ❌ Ошибка: ${error.message}`);
+                result.lead_comparison[testLead.id] = {
+                    error: error.message
+                };
+            }
+        }
+        
+        // 6. РЕКОМЕНДАЦИИ
+        console.log('\n💡 6. РЕКОМЕНДАЦИИ И ВЫВОДЫ');
+        result.recommendations = [];
+        
+        // Проверка настроек
+        if (!amoCrmService.SUBSCRIPTION_PIPELINE_IDS.includes(7977402)) {
+            result.recommendations.push('❌ Воронка "!Абонемент" (7977402) не в списке SUBSCRIPTION_PIPELINE_IDS');
+        } else {
+            result.recommendations.push('✅ Воронка "!Абонемент" в списке');
+        }
+        
+        if (!amoCrmService.ACTIVE_SUBSCRIPTION_STATUSES.includes(65473306)) {
+            result.recommendations.push('❌ Статус "Активный абонемент" (65473306) не в списке активных статусов');
+        } else {
+            result.recommendations.push('✅ Статус "Активный абонемент" в списке активных');
+        }
+        
+        // Проверка полей
+        const testLead = result.lead_comparison[28674745];
+        if (testLead && testLead.subscription_info) {
+            if (testLead.subscription_info.totalClasses !== 8) {
+                result.recommendations.push(`❌ Проблема с извлечением totalClasses: должно быть 8, а извлекается ${testLead.subscription_info.totalClasses}`);
+            }
+            if (testLead.subscription_info.usedClasses !== 1) {
+                result.recommendations.push(`❌ Проблема с извлечением usedClasses: должно быть 1, а извлекается ${testLead.subscription_info.usedClasses}`);
+            }
+        }
+        
+        // Проверка логики выбора сделок
+        const polyanaLead = result.lead_comparison[28674745];
+        const autoLead = result.lead_comparison[13154405];
+        
+        if (polyanaLead && autoLead) {
+            if (autoLead.score > polyanaLead.score) {
+                result.recommendations.push(`❌ ПРОБЛЕМА: Автосделка ${autoLead.id} имеет оценку ${autoLead.score}, а правильная сделка ${polyanaLead.id} - ${polyanaLead.score}`);
+                result.recommendations.push(`   Автосделка выигрывает из-за более высокой оценки!`);
+            } else {
+                result.recommendations.push(`✅ Правильная сделка имеет более высокую оценку`);
+            }
+        }
+        
+        // Выводим рекомендации
+        result.recommendations.forEach((rec, index) => {
+            console.log(`   ${index + 1}. ${rec}`);
+        });
+        
+        console.log('\n' + '='.repeat(100));
+        console.log('✅ ПОЛНЫЙ АНАЛИЗ ЗАВЕРШЕН');
+        console.log('='.repeat(100));
+        
+        res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ КРИТИЧЕСКАЯ ОШИБКА В СИСТЕМЕ:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
+// ==================== ДЕТАЛЬНЫЙ АНАЛИЗ КОНКРЕТНОГО КОНТАКТА ====================
+app.get('/api/debug/full-contact-analysis/:contactId', async (req, res) => {
+    try {
+        const contactId = req.params.contactId;
+        console.log(`\n🔍 ПОЛНЫЙ АНАЛИЗ КОНТАКТА ${contactId}`);
+        
+        const result = {
+            contact_info: {},
+            all_leads: [],
+            lead_analysis: [],
+            system_selection: {},
+            recommendations: []
+        };
+        
+        // 1. Получаем полную информацию о контакте
+        console.log('\n📋 1. ИНФОРМАЦИЯ О КОНТАКТЕ');
+        try {
+            const contact = await amoCrmService.makeRequest('GET', 
+                `/api/v4/contacts/${contactId}?with=custom_fields_values,leads`
+            );
+            
+            result.contact_info = {
+                id: contact.id,
+                name: contact.name,
+                created_at: contact.created_at,
+                updated_at: contact.updated_at,
+                custom_fields_count: contact.custom_fields_values?.length || 0,
+                leads_count: contact._embedded?.leads?.length || 0
+            };
+            
+            console.log(`   Имя: "${contact.name}"`);
+            console.log(`   Поля: ${contact.custom_fields_values?.length || 0}`);
+            console.log(`   Сделок: ${contact._embedded?.leads?.length || 0}`);
+            
+            // Выводим учеников из контакта
+            const students = amoCrmService.extractStudentsFromContact(contact);
+            console.log(`   Учеников в контакте: ${students.length}`);
+            students.forEach((student, index) => {
+                console.log(`     ${index + 1}. ${student.studentName}`);
+            });
+            
+        } catch (error) {
+            console.log(`   ❌ Ошибка получения контакта: ${error.message}`);
+        }
+        
+        // 2. Получаем ВСЕ сделки контакта
+        console.log('\n📊 2. ВСЕ СДЕЛКИ КОНТАКТА');
+        const allLeads = await amoCrmService.getContactLeads(contactId);
+        result.all_leads = allLeads.map(lead => ({
+            id: lead.id,
+            name: lead.name,
+            pipeline_id: lead.pipeline_id,
+            status_id: lead.status_id,
+            created_at: lead.created_at
+        }));
+        
+        console.log(`   Всего сделок: ${allLeads.length}`);
+        
+        // 3. Анализируем каждую сделку
+        console.log('\n🔬 3. АНАЛИЗ КАЖДОЙ СДЕЛКИ');
+        for (const lead of allLeads.slice(0, 20)) { // Анализируем первые 20 сделок
+            console.log(`\n   📋 Сделка ID: ${lead.id}`);
+            console.log(`     Название: "${lead.name}"`);
+            console.log(`     Воронка: ${lead.pipeline_id}, Статус: ${lead.status_id}`);
+            
+            const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+            const score = amoCrmService.calculateLeadScore(lead, subscriptionInfo);
+            
+            const leadAnalysis = {
+                id: lead.id,
+                name: lead.name,
+                pipeline_id: lead.pipeline_id,
+                status_id: lead.status_id,
+                subscription_info: subscriptionInfo,
+                score: score,
+                is_best_candidate: false
+            };
+            
+            // Проверяем критерии для "лучшей" сделки
+            let criteria = [];
+            if (lead.pipeline_id === 7977402) criteria.push('✅ Воронка "!Абонемент"');
+            if (subscriptionInfo.hasSubscription) criteria.push('✅ Есть абонемент');
+            if (subscriptionInfo.subscriptionActive) criteria.push('✅ Активен');
+            if (subscriptionInfo.totalClasses > 0) criteria.push(`✅ ${subscriptionInfo.totalClasses} занятий`);
+            
+            if (criteria.length > 0) {
+                console.log(`     Критерии: ${criteria.join(', ')}`);
+            }
+            
+            console.log(`     Оценка: ${score}`);
+            console.log(`     Абонемент: ${subscriptionInfo.subscriptionType}`);
+            console.log(`     Занятий: ${subscriptionInfo.usedClasses}/${subscriptionInfo.totalClasses}`);
+            
+            result.lead_analysis.push(leadAnalysis);
+        }
+        
+        // 4. Что выберет наша система
+        console.log('\n🎯 4. ВЫБОР СИСТЕМЫ');
+        const bestLead = await amoCrmService.findBestLeadForContact(contactId);
+        
+        if (bestLead) {
+            result.system_selection = {
+                selected_lead_id: bestLead.lead.id,
+                selected_lead_name: bestLead.lead.name,
+                score: bestLead.score,
+                subscription_info: bestLead.subscriptionInfo,
+                reason: 'Наибольшая оценка по системе'
+            };
+            
+            console.log(`   ✅ Система выбрала: ${bestLead.lead.id} - "${bestLead.lead.name}"`);
+            console.log(`     Оценка: ${bestLead.score}`);
+            console.log(`     Абонемент: ${bestLead.subscriptionInfo.subscriptionType}`);
+            console.log(`     Занятий: ${bestLead.subscriptionInfo.usedClasses}/${bestLead.subscriptionInfo.totalClasses}`);
+            
+            // Помечаем выбранную сделку в анализе
+            const selectedIndex = result.lead_analysis.findIndex(l => l.id === bestLead.lead.id);
+            if (selectedIndex !== -1) {
+                result.lead_analysis[selectedIndex].is_best_candidate = true;
+                result.lead_analysis[selectedIndex].selection_reason = 'Выбрана системой как лучшая';
+            }
+        } else {
+            console.log(`   ❌ Система не выбрала сделку`);
+        }
+        
+        // 5. Рекомендации
+        console.log('\n💡 5. РЕКОМЕНДАЦИИ');
+        
+        // Находим сделки в воронке "!Абонемент"
+        const subscriptionPipelineLeads = result.lead_analysis.filter(l => l.pipeline_id === 7977402);
+        if (subscriptionPipelineLeads.length > 0) {
+            result.recommendations.push(`✅ В воронке "!Абонемент" найдено ${subscriptionPipelineLeads.length} сделок`);
+            
+            // Проверяем, выбрала ли система сделку из этой воронки
+            const bestIsFromSubscriptionPipeline = subscriptionPipelineLeads.some(l => l.is_best_candidate);
+            if (!bestIsFromSubscriptionPipeline) {
+                result.recommendations.push(`❌ ПРОБЛЕМА: Система выбрала сделку НЕ из воронки "!Абонемент"`);
+                
+                // Находим лучшую сделку из воронки "!Абонемент"
+                const bestInPipeline = subscriptionPipelineLeads.reduce((best, current) => 
+                    current.score > best.score ? current : best
+                );
+                
+                result.recommendations.push(`   Лучшая сделка в воронке "!Абонемент": ${bestInPipeline.id} (оценка: ${bestInPipeline.score})`);
+                result.recommendations.push(`   Выбранная сделка: ${result.system_selection.selected_lead_id} (оценка: ${result.system_selection.score})`);
+            }
+        } else {
+            result.recommendations.push(`⚠️  В воронке "!Абонемент" сделок не найдено`);
+        }
+        
+        // Проверяем данные абонемента
+        if (result.system_selection.subscription_info) {
+            const subInfo = result.system_selection.subscription_info;
+            if (subInfo.totalClasses > 0 && subInfo.usedClasses === 0) {
+                result.recommendations.push(`⚠️  В выбранной сделке 0 использованных занятий, возможно это неактуальная сделка`);
+            }
+        }
+        
+        result.recommendations.forEach((rec, index) => {
+            console.log(`   ${index + 1}. ${rec}`);
+        });
+        
+        res.json({
+            success: true,
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ==================== ОТЛАДКА ПОИСКА СДЕЛОК ДЛЯ КОНТАКТА ====================
 app.get('/api/debug/contact-leads/:contactId', async (req, res) => {
     try {
