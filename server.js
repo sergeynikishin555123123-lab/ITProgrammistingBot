@@ -2029,14 +2029,26 @@ async function saveProfilesToDatabase(profiles) {
     try {
         console.log(`💾 Сохранение профилей в БД...`);
         let savedCount = 0;
+        let updatedCount = 0;
         
         for (const profile of profiles) {
             try {
                 const existingProfile = await db.get(
-                    `SELECT id FROM student_profiles 
+                    `SELECT id, subscription_type, subscription_status, subscription_active, 
+                            total_classes, used_classes, remaining_classes, updated_at
+                     FROM student_profiles 
                      WHERE student_name = ? AND phone_number = ?`,
                     [profile.student_name, profile.phone_number]
                 );
+                
+                // Сравниваем данные абонемента
+                const isSameSubscription = existingProfile && 
+                    existingProfile.subscription_type === profile.subscription_type &&
+                    existingProfile.subscription_status === profile.subscription_status &&
+                    existingProfile.subscription_active === profile.subscription_active &&
+                    existingProfile.total_classes === profile.total_classes &&
+                    existingProfile.used_classes === profile.used_classes &&
+                    existingProfile.remaining_classes === profile.remaining_classes;
                 
                 const columns = [
                     'amocrm_contact_id', 'parent_contact_id', 'amocrm_lead_id', 'student_name', 'phone_number', 'email',
@@ -2082,6 +2094,7 @@ async function saveProfilesToDatabase(profiles) {
                 ];
                 
                 if (!existingProfile) {
+                    // Новый профиль
                     const placeholders = columns.map(() => '?').join(', ');
                     const columnNames = columns.join(', ');
                     
@@ -2090,22 +2103,33 @@ async function saveProfilesToDatabase(profiles) {
                         values
                     );
                     savedCount++;
+                    console.log(`   ✅ Создан новый профиль: ${profile.student_name}`);
                 } else {
+                    // Существующий профиль - ОБНОВЛЯЕМ ВСЕ ПОЛЯ
                     const setClause = columns.map(col => `${col} = ?`).join(', ');
                     
                     await db.run(
                         `UPDATE student_profiles SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
                         [...values, existingProfile.id]
                     );
-                    savedCount++;
+                    
+                    if (isSameSubscription) {
+                        console.log(`   🔄 Обновлен профиль (без изменений абонемента): ${profile.student_name}`);
+                    } else {
+                        console.log(`   🔄 ОБНОВЛЕН АБОНЕМЕНТ: ${profile.student_name}`);
+                        console.log(`      Было: ${existingProfile.subscription_type} (${existingProfile.used_classes}/${existingProfile.total_classes})`);
+                        console.log(`      Стало: ${profile.subscription_type} (${profile.used_classes}/${profile.total_classes})`);
+                        updatedCount++;
+                    }
                 }
             } catch (profileError) {
                 console.error(`⚠️  Ошибка сохранения профиля:`, profileError.message);
             }
         }
         
-        console.log(`✅ Сохранено/обновлено профилей: ${savedCount}`);
-        return savedCount;
+        console.log(`✅ Сохранено новых: ${savedCount}, Обновлено: ${updatedCount}, Всего: ${savedCount + updatedCount}`);
+        return savedCount + updatedCount;
+        
     } catch (error) {
         console.error(`❌ Общая ошибка сохранения профилей: ${error.message}`);
         return 0;
@@ -2326,8 +2350,9 @@ app.post('/api/auth/phone', async (req, res) => {
 app.get('/api/sync/:phone', async (req, res) => {
     try {
         const phone = req.params.phone;
+        const force = req.query.force === 'true'; // Новый параметр
         
-        console.log(`\n🔄 ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ: ${phone}`);
+        console.log(`\n🔄 СИНХРОНИЗАЦИЯ: ${phone}${force ? ' (ФОРСИРОВАННАЯ)' : ''}`);
         
         if (!amoCrmService.isInitialized) {
             return res.json({
@@ -2338,6 +2363,16 @@ app.get('/api/sync/:phone', async (req, res) => {
         
         const formattedPhone = formatPhoneNumber(phone);
         console.log(`📱 Форматированный телефон: ${formattedPhone}`);
+        
+        // ФОРСИРОВАННАЯ СИНХРОНИЗАЦИЯ: удаляем старые данные
+        if (force) {
+            console.log('🧹 Удаление старых данных...');
+            const cleanPhone = phone.replace(/\D/g, '');
+            await db.run(
+                `DELETE FROM student_profiles WHERE phone_number LIKE ?`,
+                [`%${cleanPhone.slice(-10)}%`]
+            );
+        }
         
         // Поиск в amoCRM
         console.log('🔍 Поиск профилей в amoCRM...');
@@ -2352,6 +2387,19 @@ app.get('/api/sync/:phone', async (req, res) => {
                 profiles_found: 0
             });
         }
+        
+        // ДЕТАЛЬНЫЙ ВЫВОД найденных профилей
+        console.log(`\n📊 НАЙДЕННЫЕ ПРОФИЛИ В AMOCRM:`);
+        profiles.forEach((profile, index) => {
+            console.log(`${index + 1}. ${profile.student_name}`);
+            console.log(`   • Абонемент: ${profile.subscription_type}`);
+            console.log(`   • Статус: ${profile.subscription_status}`);
+            console.log(`   • Активен: ${profile.subscription_active === 1 ? 'Да ✅' : 'Нет ❌'}`);
+            console.log(`   • Занятия: ${profile.used_classes}/${profile.total_classes}`);
+            console.log(`   • Остаток: ${profile.remaining_classes}`);
+            console.log(`   • Источник: ${profile.source}`);
+            console.log(`   ---`);
+        });
         
         // Сохранение в БД
         console.log('💾 Сохранение в базу данных...');
@@ -2373,6 +2421,7 @@ app.get('/api/sync/:phone', async (req, res) => {
                 amocrm_profiles: profiles.length,
                 saved_to_db: savedCount,
                 phone_searched: formattedPhone,
+                force_update: force,
                 timestamp: new Date().toISOString()
             },
             profiles: dbProfiles.map(p => ({
@@ -2380,19 +2429,30 @@ app.get('/api/sync/:phone', async (req, res) => {
                 student_name: p.student_name,
                 branch: p.branch,
                 teacher: p.teacher_name,
+                subscription_type: p.subscription_type,
                 subscription_status: p.subscription_status,
                 subscription_active: p.subscription_active === 1,
                 classes: `${p.used_classes}/${p.total_classes}`,
                 remaining: p.remaining_classes,
-                last_visit: p.last_visit_date,
+                expiration_date: p.expiration_date,
+                last_visit_date: p.last_visit_date,
                 source: p.source,
                 updated: p.updated_at
             }))
         };
         
-        console.log(`✅ Синхронизация завершена успешно!`);
+        console.log(`\n✅ Синхронизация завершена успешно!`);
         console.log(`   Профилей найдено: ${profiles.length}`);
         console.log(`   Профилей сохранено: ${savedCount}`);
+        
+        // Проверяем, есть ли активные абонементы
+        const activeProfiles = dbProfiles.filter(p => p.subscription_active === 1);
+        if (activeProfiles.length > 0) {
+            console.log(`\n🎉 НАЙДЕНЫ АКТИВНЫЕ АБОНЕМЕНТЫ!`);
+            activeProfiles.forEach(p => {
+                console.log(`   👤 ${p.student_name}: ${p.subscription_status}`);
+            });
+        }
         
         res.json(result);
         
@@ -3306,6 +3366,249 @@ app.get('/api/force-update-profile/:profileId', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Ошибка обновления профиля',
+            details: error.message
+        });
+    }
+});
+app.get('/api/force-refresh-all', async (req, res) => {
+    try {
+        console.log(`\n🔄 ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ВСЕХ ПРОФИЛЕЙ`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем все активные профили из БД
+        const profiles = await db.all(
+            `SELECT id, student_name, phone_number, subscription_type, 
+                    subscription_status, subscription_active, total_classes,
+                    used_classes, remaining_classes, source, is_demo
+             FROM student_profiles 
+             WHERE is_active = 1 AND is_demo = 0
+             ORDER BY updated_at ASC
+             LIMIT 50`
+        );
+        
+        console.log(`📊 Профилей для обновления: ${profiles.length}`);
+        
+        const results = [];
+        
+        for (const profile of profiles) {
+            console.log(`\n🔍 Обновление профиля: ${profile.student_name}`);
+            console.log(`   Текущие данные: ${profile.subscription_type} (${profile.used_classes}/${profile.total_classes})`);
+            
+            try {
+                // Ищем профили в amoCRM
+                const amoCrmProfiles = await amoCrmService.getStudentsByPhone(profile.phone_number);
+                
+                if (amoCrmProfiles.length > 0) {
+                    // Сохраняем обновленные профили
+                    const savedCount = await saveProfilesToDatabase(amoCrmProfiles);
+                    
+                    // Получаем обновленный профиль
+                    const updatedProfile = await db.get(
+                        `SELECT * FROM student_profiles WHERE id = ?`,
+                        [profile.id]
+                    );
+                    
+                    const changes = {
+                        before: {
+                            subscription_type: profile.subscription_type,
+                            subscription_status: profile.subscription_status,
+                            subscription_active: profile.subscription_active,
+                            total_classes: profile.total_classes,
+                            used_classes: profile.used_classes,
+                            remaining_classes: profile.remaining_classes
+                        },
+                        after: updatedProfile ? {
+                            subscription_type: updatedProfile.subscription_type,
+                            subscription_status: updatedProfile.subscription_status,
+                            subscription_active: updatedProfile.subscription_active,
+                            total_classes: updatedProfile.total_classes,
+                            used_classes: updatedProfile.used_classes,
+                            remaining_classes: updatedProfile.remaining_classes
+                        } : null,
+                        changed: updatedProfile && (
+                            profile.subscription_type !== updatedProfile.subscription_type ||
+                            profile.subscription_status !== updatedProfile.subscription_status ||
+                            profile.subscription_active !== updatedProfile.subscription_active ||
+                            profile.total_classes !== updatedProfile.total_classes ||
+                            profile.used_classes !== updatedProfile.used_classes ||
+                            profile.remaining_classes !== updatedProfile.remaining_classes
+                        )
+                    };
+                    
+                    results.push({
+                        profile_id: profile.id,
+                        student_name: profile.student_name,
+                        phone: profile.phone_number,
+                        amocrm_found: amoCrmProfiles.length,
+                        updated: savedCount > 0,
+                        changes: changes
+                    });
+                    
+                    if (changes.changed) {
+                        console.log(`   ✅ ОБНОВЛЕН!`);
+                        console.log(`      Было: ${profile.subscription_type} (${profile.used_classes}/${profile.total_classes})`);
+                        console.log(`      Стало: ${updatedProfile.subscription_type} (${updatedProfile.used_classes}/${updatedProfile.total_classes})`);
+                    } else {
+                        console.log(`   ℹ️  Изменений нет`);
+                    }
+                    
+                } else {
+                    console.log(`   ⚠️  Не найдено в amoCRM`);
+                    results.push({
+                        profile_id: profile.id,
+                        student_name: profile.student_name,
+                        phone: profile.phone_number,
+                        amocrm_found: 0,
+                        updated: false,
+                        error: 'Не найдено в amoCRM'
+                    });
+                }
+                
+            } catch (error) {
+                console.error(`   ❌ Ошибка обновления: ${error.message}`);
+                results.push({
+                    profile_id: profile.id,
+                    student_name: profile.student_name,
+                    phone: profile.phone_number,
+                    error: error.message
+                });
+            }
+            
+            // Небольшая пауза между запросами
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // Статистика
+        const updatedCount = results.filter(r => r.updated).length;
+        const changedCount = results.filter(r => r.changes?.changed).length;
+        
+        res.json({
+            success: true,
+            summary: {
+                total_profiles: results.length,
+                updated_profiles: updatedCount,
+                changed_profiles: changedCount,
+                timestamp: new Date().toISOString()
+            },
+            results: results.map(r => ({
+                profile_id: r.profile_id,
+                student: r.student_name,
+                phone: r.phone_number,
+                amocrm_found: r.amocrm_found || 0,
+                updated: r.updated || false,
+                changed: r.changes?.changed || false,
+                error: r.error
+            }))
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка принудительного обновления:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка принудительного обновления',
+            details: error.message
+        });
+    }
+});
+app.get('/api/clean-and-recreate/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        
+        console.log(`\n🧹 ОЧИСТКА И ПЕРЕСОЗДАНИЕ ПРОФИЛЕЙ: ${phone}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // 1. Удаляем старые профили
+        const cleanPhone = phone.replace(/\D/g, '');
+        const deleteResult = await db.run(
+            `DELETE FROM student_profiles WHERE phone_number LIKE ?`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        console.log(`🗑️  Удалено профилей: ${deleteResult.changes}`);
+        
+        // 2. Ищем профили в amoCRM
+        const formattedPhone = formatPhoneNumber(phone);
+        console.log(`🔍 Поиск в amoCRM: ${formattedPhone}`);
+        
+        const profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        console.log(`📊 Найдено профилей в amoCRM: ${profiles.length}`);
+        
+        // 3. Сохраняем новые профили
+        let savedCount = 0;
+        if (profiles.length > 0) {
+            savedCount = await saveProfilesToDatabase(profiles);
+        }
+        
+        // 4. Получаем обновленные данные
+        const dbProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1
+             ORDER BY updated_at DESC`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        const result = {
+            success: true,
+            operation: 'clean_and_recreate',
+            phone: phone,
+            formatted_phone: formattedPhone,
+            statistics: {
+                deleted_old: deleteResult.changes,
+                found_in_amocrm: profiles.length,
+                saved_new: savedCount,
+                current_in_db: dbProfiles.length
+            },
+            current_profiles: dbProfiles.map(p => ({
+                id: p.id,
+                student_name: p.student_name,
+                branch: p.branch,
+                subscription_type: p.subscription_type,
+                subscription_status: p.subscription_status,
+                subscription_active: p.subscription_active === 1,
+                classes: `${p.used_classes}/${p.total_classes}`,
+                remaining: p.remaining_classes,
+                source: p.source,
+                updated: p.updated_at
+            }))
+        };
+        
+        console.log(`✅ Операция завершена:`);
+        console.log(`   Удалено старых: ${deleteResult.changes}`);
+        console.log(`   Найдено в amoCRM: ${profiles.length}`);
+        console.log(`   Сохранено новых: ${savedCount}`);
+        console.log(`   Текущих в БД: ${dbProfiles.length}`);
+        
+        if (dbProfiles.length > 0) {
+            console.log(`\n📊 ТЕКУЩИЕ ПРОФИЛИ:`);
+            dbProfiles.forEach(p => {
+                console.log(`   👤 ${p.student_name}`);
+                console.log(`      Абонемент: ${p.subscription_type}`);
+                console.log(`      Статус: ${p.subscription_status}`);
+                console.log(`      Активен: ${p.subscription_active === 1 ? 'Да ✅' : 'Нет ❌'}`);
+                console.log(`      Занятия: ${p.used_classes}/${p.total_classes} (осталось: ${p.remaining_classes})`);
+                console.log(`      ---`);
+            });
+        }
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка очистки и пересоздания:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка очистки и пересоздания',
             details: error.message
         });
     }
