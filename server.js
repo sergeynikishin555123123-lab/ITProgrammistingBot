@@ -2135,7 +2135,146 @@ const createTables = async () => {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-        console.log('✅ Таблица user_sessions создана');
+        console.log('✅ Таблица user_sessions создана');// Дополнительные таблицы для админ-панели
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS teachers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        photo_url TEXT,
+        branch TEXT NOT NULL,
+        specialization TEXT,
+        experience INTEGER DEFAULT 0,
+        education TEXT,
+        description TEXT,
+        email TEXT,
+        is_active INTEGER DEFAULT 1,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+console.log('✅ Таблица teachers создана');
+
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS schedule (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date DATE NOT NULL,
+        time TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        teacher_id INTEGER,
+        group_name TEXT,
+        age_group TEXT,
+        status TEXT DEFAULT 'active',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (teacher_id) REFERENCES teachers(id)
+    )
+`);
+console.log('✅ Таблица schedule создана');
+
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS faq (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        category TEXT DEFAULT 'general',
+        display_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+console.log('✅ Таблица faq создана');
+
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        image_url TEXT,
+        branch TEXT DEFAULT 'all',
+        publish_date DATE,
+        views INTEGER DEFAULT 0,
+        is_published INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+console.log('✅ Таблица news создана');
+
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS mailings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        name TEXT,
+        segment TEXT,
+        branch TEXT,
+        teacher TEXT,
+        day TEXT,
+        message TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        recipients_count INTEGER DEFAULT 0,
+        sent_count INTEGER DEFAULT 0,
+        failed_count INTEGER DEFAULT 0,
+        scheduled_for TIMESTAMP,
+        sent_at TIMESTAMP,
+        created_by INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES admins(id)
+    )
+`);
+console.log('✅ Таблица mailings создана');
+
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS system_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        level TEXT NOT NULL,
+        message TEXT NOT NULL,
+        user_id INTEGER,
+        ip_address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+console.log('✅ Таблица system_logs создана');
+
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS admins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'admin',
+        branch TEXT DEFAULT 'all',
+        permissions TEXT DEFAULT '[]',
+        is_active INTEGER DEFAULT 1,
+        last_login TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+console.log('✅ Таблица admins создана');
+
+// Тестовый администратор (если нет)
+try {
+    const existingAdmin = await db.get('SELECT id FROM admins WHERE email = ?', ['admin@artschool.ru']);
+    if (!existingAdmin) {
+        // В реальном приложении пароль должен быть захэширован
+        await db.run(`
+            INSERT INTO admins (name, email, password_hash, role, permissions)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            'Администратор',
+            'admin@artschool.ru',
+            '$2b$10$YourHashedPasswordHere', // В реальном приложении используйте bcrypt
+            'admin',
+            '["all"]'
+        ]);
+        console.log('👤 Тестовый администратор создан');
+    }
+} catch (error) {
+    console.log('⚠️ Ошибка создания тестового администратора:', error.message);
+}
         
         console.log('\n🎉 Все таблицы созданы успешно!');
         
@@ -2586,6 +2725,20 @@ app.get('/api/sync/:phone', async (req, res) => {
             details: error.message
         });
     }
+});
+
+// Маршрут для админ-панели
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// API для админ-панели
+app.get('/api/admin/status', verifyAdminToken, (req, res) => {
+    res.json({
+        success: true,
+        message: 'Админ-панель работает',
+        user: req.admin
+    });
 });
 // ==================== ПРОСТОЙ ТЕСТОВЫЙ МАРШРУТ ====================
 
@@ -4313,7 +4466,696 @@ app.get('/api/test/full-cycle/:phone', async (req, res) => {
         });
     }
 });
+// ==================== АДМИН API МАРШРУТЫ ====================
 
+// Аутентификация администратора
+app.post('/api/admin/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        console.log(`🔐 Попытка входа администратора: ${email}`);
+        
+        // В реальном приложении проверка будет в базе данных
+        if (email === 'admin@artschool.ru' && password === 'admin123') {
+            const adminData = {
+                id: 1,
+                name: 'Администратор',
+                email: email,
+                role: 'Администратор',
+                branch: 'all',
+                permissions: ['all']
+            };
+            
+            const token = jwt.sign(
+                {
+                    admin_id: adminData.id,
+                    email: adminData.email,
+                    role: adminData.role,
+                    permissions: adminData.permissions
+                },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+            
+            res.json({
+                success: true,
+                message: 'Вход выполнен успешно',
+                data: {
+                    token: token,
+                    admin: adminData
+                }
+            });
+        } else {
+            res.status(401).json({
+                success: false,
+                error: 'Неверный email или пароль'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка входа администратора:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка входа'
+        });
+    }
+});
+
+// Получение статистики для дашборда
+app.get('/api/admin/dashboard', async (req, res) => {
+    try {
+        console.log('📊 Получение данных дашборда');
+        
+        // Получаем статистику из базы данных
+        const totalStudents = await db.get('SELECT COUNT(*) as count FROM student_profiles WHERE is_active = 1');
+        const activeSubscriptions = await db.get(`
+            SELECT COUNT(*) as count FROM student_profiles 
+            WHERE subscription_active = 1 AND is_active = 1
+        `);
+        const totalTeachers = await db.get('SELECT COUNT(*) as count FROM teachers WHERE is_active = 1');
+        
+        // Статистика по филиалам
+        const branchStats = await db.all(`
+            SELECT branch, COUNT(*) as count 
+            FROM student_profiles 
+            WHERE branch IS NOT NULL AND branch != '' AND is_active = 1
+            GROUP BY branch
+        `);
+        
+        // Новые ученики за месяц
+        const newStudents = await db.get(`
+            SELECT COUNT(*) as count FROM student_profiles 
+            WHERE created_at >= date('now', '-30 days') AND is_active = 1
+        `);
+        
+        // Истекающие абонементы
+        const expiringSubscriptions = await db.get(`
+            SELECT COUNT(*) as count FROM student_profiles 
+            WHERE expiration_date >= date('now') 
+            AND expiration_date <= date('now', '+30 days')
+            AND subscription_active = 1
+            AND is_active = 1
+        `);
+        
+        res.json({
+            success: true,
+            data: {
+                stats: {
+                    total_students: totalStudents?.count || 0,
+                    active_subscriptions: activeSubscriptions?.count || 0,
+                    total_teachers: totalTeachers?.count || 0,
+                    new_students_month: newStudents?.count || 0,
+                    expiring_subscriptions: expiringSubscriptions?.count || 0,
+                    branches: branchStats || []
+                },
+                recent_activity: [
+                    { type: 'new_student', name: 'Иванов Петр', time: '10:30', date: '2024-01-15' },
+                    { type: 'subscription_purchase', name: 'Сидорова Мария', time: '14:20', amount: '₽8,400' },
+                    { type: 'mailing_sent', name: 'Отмена занятия', recipients: 24, time: '09:15' },
+                    { type: 'teacher_added', name: 'Анна К.', time: '16:45' }
+                ]
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения данных дашборда:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения данных'
+        });
+    }
+});
+
+// Управление рассылками
+app.post('/api/admin/mailings', async (req, res) => {
+    try {
+        const mailingData = req.body;
+        
+        console.log(`📨 Создание рассылки: ${mailingData.type || mailingData.name}`);
+        
+        // Сохраняем рассылку в базу данных
+        const result = await db.run(`
+            INSERT INTO mailings (type, name, segment, branch, teacher, day, 
+                                 message, status, recipients_count, created_by, scheduled_for)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            mailingData.type,
+            mailingData.name,
+            mailingData.segment,
+            mailingData.branch,
+            mailingData.teacher,
+            mailingData.day,
+            mailingData.message,
+            'pending',
+            mailingData.recipients_estimated || 0,
+            mailingData.created_by || 1,
+            mailingData.scheduled_for || null
+        ]);
+        
+        res.json({
+            success: true,
+            message: 'Рассылка создана успешно',
+            data: {
+                mailing_id: result.lastID
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка создания рассылки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка создания рассылки'
+        });
+    }
+});
+
+// Получение списка рассылок
+app.get('/api/admin/mailings', async (req, res) => {
+    try {
+        const type = req.query.type; // 'service' или 'marketing'
+        
+        console.log(`📨 Получение рассылок типа: ${type || 'все'}`);
+        
+        let query = 'SELECT * FROM mailings WHERE 1=1';
+        const params = [];
+        
+        if (type === 'service') {
+            query += ' AND type IN ("cancellation", "replacement", "reschedule")';
+        } else if (type === 'marketing') {
+            query += ' AND type = "marketing"';
+        }
+        
+        query += ' ORDER BY created_at DESC LIMIT 50';
+        
+        const mailings = await db.all(query, params);
+        
+        res.json({
+            success: true,
+            data: {
+                mailings: mailings || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения рассылок:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения рассылок'
+        });
+    }
+});
+
+// Управление расписанием
+app.post('/api/admin/schedule', async (req, res) => {
+    try {
+        const scheduleData = req.body;
+        
+        console.log(`📅 Создание/изменение занятия: ${scheduleData.branch} - ${scheduleData.date}`);
+        
+        if (scheduleData.id) {
+            // Обновление существующего занятия
+            await db.run(`
+                UPDATE schedule SET 
+                    date = ?, time = ?, branch = ?, teacher_id = ?, 
+                    group_name = ?, age_group = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `, [
+                scheduleData.date,
+                scheduleData.time,
+                scheduleData.branch,
+                scheduleData.teacher_id,
+                scheduleData.group_name,
+                scheduleData.age_group,
+                scheduleData.status || 'active',
+                scheduleData.id
+            ]);
+        } else {
+            // Создание нового занятия
+            const result = await db.run(`
+                INSERT INTO schedule (date, time, branch, teacher_id, group_name, age_group, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                scheduleData.date,
+                scheduleData.time,
+                scheduleData.branch,
+                scheduleData.teacher_id,
+                scheduleData.group_name,
+                scheduleData.age_group,
+                scheduleData.status || 'active'
+            ]);
+            scheduleData.id = result.lastID;
+        }
+        
+        res.json({
+            success: true,
+            message: 'Расписание сохранено',
+            data: {
+                schedule_id: scheduleData.id
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка сохранения расписания:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка сохранения расписания'
+        });
+    }
+});
+
+// Получение расписания
+app.get('/api/admin/schedule', async (req, res) => {
+    try {
+        const { branch, date_from, date_to, teacher_id, status } = req.query;
+        
+        console.log(`📅 Получение расписания с фильтрами`);
+        
+        let query = `
+            SELECT s.*, t.name as teacher_name 
+            FROM schedule s
+            LEFT JOIN teachers t ON s.teacher_id = t.id
+            WHERE 1=1
+        `;
+        const params = [];
+        
+        if (branch && branch !== 'all') {
+            query += ' AND s.branch = ?';
+            params.push(branch);
+        }
+        
+        if (date_from) {
+            query += ' AND s.date >= ?';
+            params.push(date_from);
+        }
+        
+        if (date_to) {
+            query += ' AND s.date <= ?';
+            params.push(date_to);
+        }
+        
+        if (teacher_id) {
+            query += ' AND s.teacher_id = ?';
+            params.push(teacher_id);
+        }
+        
+        if (status) {
+            query += ' AND s.status = ?';
+            params.push(status);
+        }
+        
+        query += ' ORDER BY s.date, s.time LIMIT 100';
+        
+        const schedule = await db.all(query, params);
+        
+        res.json({
+            success: true,
+            data: {
+                schedule: schedule || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения расписания:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения расписания'
+        });
+    }
+});
+
+// Управление преподавателями
+app.post('/api/admin/teachers', async (req, res) => {
+    try {
+        const teacherData = req.body;
+        
+        console.log(`👨‍🏫 Сохранение преподавателя: ${teacherData.name}`);
+        
+        if (teacherData.id) {
+            // Обновление существующего преподавателя
+            await db.run(`
+                UPDATE teachers SET 
+                    name = ?, branch = ?, specialization = ?, 
+                    experience = ?, education = ?, description = ?,
+                    email = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `, [
+                teacherData.name,
+                teacherData.branch,
+                teacherData.specialization,
+                teacherData.experience,
+                teacherData.education,
+                teacherData.description,
+                teacherData.email,
+                teacherData.is_active || 1,
+                teacherData.id
+            ]);
+        } else {
+            // Создание нового преподавателя
+            const result = await db.run(`
+                INSERT INTO teachers (name, branch, specialization, experience, education, description, email)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [
+                teacherData.name,
+                teacherData.branch,
+                teacherData.specialization,
+                teacherData.experience,
+                teacherData.education,
+                teacherData.description,
+                teacherData.email
+            ]);
+            teacherData.id = result.lastID;
+        }
+        
+        res.json({
+            success: true,
+            message: 'Преподаватель сохранен',
+            data: {
+                teacher_id: teacherData.id
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка сохранения преподавателя:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка сохранения преподавателя'
+        });
+    }
+});
+
+// Получение списка преподавателей
+app.get('/api/admin/teachers', async (req, res) => {
+    try {
+        console.log('👨‍🏫 Получение списка преподавателей');
+        
+        const teachers = await db.all(`
+            SELECT * FROM teachers 
+            WHERE is_active = 1 
+            ORDER BY name
+        `);
+        
+        res.json({
+            success: true,
+            data: {
+                teachers: teachers || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения преподавателей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения преподавателей'
+        });
+    }
+});
+
+// Управление FAQ
+app.post('/api/admin/faq', async (req, res) => {
+    try {
+        const faqData = req.body;
+        
+        console.log(`❓ Сохранение FAQ: ${faqData.question.substring(0, 50)}...`);
+        
+        if (faqData.id) {
+            // Обновление существующего FAQ
+            await db.run(`
+                UPDATE faq SET 
+                    question = ?, answer = ?, category = ?, 
+                    display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `, [
+                faqData.question,
+                faqData.answer,
+                faqData.category,
+                faqData.display_order,
+                faqData.is_active || 1,
+                faqData.id
+            ]);
+        } else {
+            // Создание нового FAQ
+            const result = await db.run(`
+                INSERT INTO faq (question, answer, category, display_order, is_active)
+                VALUES (?, ?, ?, ?, ?)
+            `, [
+                faqData.question,
+                faqData.answer,
+                faqData.category,
+                faqData.display_order || 1,
+                faqData.is_active || 1
+            ]);
+            faqData.id = result.lastID;
+        }
+        
+        res.json({
+            success: true,
+            message: 'Вопрос сохранен',
+            data: {
+                faq_id: faqData.id
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка сохранения FAQ:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка сохранения FAQ'
+        });
+    }
+});
+
+// Получение FAQ
+app.get('/api/admin/faq', async (req, res) => {
+    try {
+        console.log('❓ Получение FAQ');
+        
+        const faq = await db.all(`
+            SELECT * FROM faq 
+            WHERE is_active = 1 
+            ORDER BY display_order, id
+        `);
+        
+        res.json({
+            success: true,
+            data: {
+                faq: faq || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения FAQ:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения FAQ'
+        });
+    }
+});
+
+// Управление новостями
+app.post('/api/admin/news', async (req, res) => {
+    try {
+        const newsData = req.body;
+        
+        console.log(`📰 Сохранение новости: ${newsData.title}`);
+        
+        if (newsData.id) {
+            // Обновление существующей новости
+            await db.run(`
+                UPDATE news SET 
+                    title = ?, content = ?, branch = ?, 
+                    publish_date = ?, is_published = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `, [
+                newsData.title,
+                newsData.content,
+                newsData.branch,
+                newsData.publish_date,
+                newsData.is_published || 0,
+                newsData.id
+            ]);
+        } else {
+            // Создание новой новости
+            const result = await db.run(`
+                INSERT INTO news (title, content, branch, publish_date, is_published)
+                VALUES (?, ?, ?, ?, ?)
+            `, [
+                newsData.title,
+                newsData.content,
+                newsData.branch,
+                newsData.publish_date || new Date().toISOString().split('T')[0],
+                newsData.is_published || 0
+            ]);
+            newsData.id = result.lastID;
+        }
+        
+        res.json({
+            success: true,
+            message: 'Новость сохранена',
+            data: {
+                news_id: newsData.id
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка сохранения новости:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка сохранения новости'
+        });
+    }
+});
+
+// Получение новостей
+app.get('/api/admin/news', async (req, res) => {
+    try {
+        console.log('📰 Получение новостей');
+        
+        const news = await db.all(`
+            SELECT * FROM news 
+            ORDER BY publish_date DESC 
+            LIMIT 50
+        `);
+        
+        res.json({
+            success: true,
+            data: {
+                news: news || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения новостей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения новостей'
+        });
+    }
+});
+
+// Получение логов системы
+app.get('/api/admin/logs', async (req, res) => {
+    try {
+        const { type, level, date_from, date_to } = req.query;
+        
+        console.log(`📝 Получение логов`);
+        
+        let query = 'SELECT * FROM system_logs WHERE 1=1';
+        const params = [];
+        
+        if (type) {
+            query += ' AND type = ?';
+            params.push(type);
+        }
+        
+        if (level) {
+            query += ' AND level = ?';
+            params.push(level);
+        }
+        
+        if (date_from) {
+            query += ' AND created_at >= ?';
+            params.push(date_from);
+        }
+        
+        if (date_to) {
+            query += ' AND created_at <= ?';
+            params.push(date_to);
+        }
+        
+        query += ' ORDER BY created_at DESC LIMIT 100';
+        
+        const logs = await db.all(query, params);
+        
+        res.json({
+            success: true,
+            data: {
+                logs: logs || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения логов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения логов'
+        });
+    }
+});
+
+// Отправка тестового сообщения
+app.post('/api/admin/mailings/test', async (req, res) => {
+    try {
+        const { message, type, admin_id } = req.body;
+        
+        console.log(`📧 Отправка тестового сообщения администратору: ${type}`);
+        
+        // Здесь будет логика отправки сообщения администратору
+        // Например, через Telegram бота или email
+        
+        // Записываем в логи
+        await db.run(`
+            INSERT INTO system_logs (type, level, message, user_id)
+            VALUES (?, ?, ?, ?)
+        `, [
+            'mailing',
+            'info',
+            `Тестовая рассылка отправлена администратору: ${type}`,
+            admin_id || 1
+        ]);
+        
+        res.json({
+            success: true,
+            message: 'Тестовое сообщение отправлено'
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка отправки тестового сообщения:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка отправки тестового сообщения'
+        });
+    }
+});
+
+// Проверка токена администратора (middleware)
+const verifyAdminToken = (req, res, next) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            error: 'Токен не предоставлен'
+        });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.admin = decoded;
+        next();
+    } catch (error) {
+        console.error('❌ Ошибка проверки токена администратора:', error.message);
+        return res.status(401).json({
+            success: false,
+            error: 'Недействительный токен'
+        });
+    }
+};
+
+// Применение middleware к админ маршрутам
+const adminRoutes = [
+    '/api/admin/dashboard',
+    '/api/admin/mailings',
+    '/api/admin/schedule',
+    '/api/admin/teachers',
+    '/api/admin/faq',
+    '/api/admin/news',
+    '/api/admin/logs',
+    '/api/admin/mailings/test'
+];
+
+adminRoutes.forEach(route => {
+    app.use(route, verifyAdminToken);
+});
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const startServer = async () => {
     try {
