@@ -56,21 +56,37 @@ app.use((req, res, next) => {
 
 // ==================== КЛАСС TELEGRAM БОТА ====================
 class TelegramBotService {
-    constructor() {
-        if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4') {
-            try {
-                this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
-                console.log('🤖 Telegram бот инициализирован (режим webhook)');
-            } catch (error) {
-                console.error('❌ Ошибка инициализации Telegram бота:', error.message);
-                this.bot = null;
-            }
-        } else {
-            console.log('⚠️ Telegram токен не указан или демо-токен, бот не запущен');
-            console.log('📝 Получите реальный токен: https://t.me/BotFather');
+  constructor() {
+    if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4') {
+        try {
+            this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+            console.log('🤖 Telegram бот инициализирован (режим polling)');
+            
+            // Настройка обработчиков
+            this.setupPolling();
+        } catch (error) {
+            console.error('❌ Ошибка инициализации Telegram бота:', error.message);
             this.bot = null;
         }
+    } else {
+        console.log('⚠️ Telegram токен не указан или демо-токен, бот не запущен');
+        console.log('📝 Получите реальный токен: https://t.me/BotFather');
+        this.bot = null;
     }
+}
+
+setupPolling() {
+    this.bot.onText(/\/start/, async (msg) => {
+        const chatId = msg.chat.id;
+        await this.handleStartCommand(chatId, msg.from);
+    });
+    
+    this.bot.onText(/^\d{10,11}$/, async (msg, match) => {
+        const chatId = msg.chat.id;
+        const phone = match[0];
+        await this.handlePhoneInput(chatId, phone);
+    });
+}
 
     // Обработка webhook сообщений
     async handleWebhookUpdate(update) {
@@ -3780,7 +3796,40 @@ app.post('/api/admin/schedule', verifyAdminToken, async (req, res) => {
         });
     }
 });
-
+// Добавьте в server.js после маршрутов
+app.get('/api/notifications', verifyToken, async (req, res) => {
+    try {
+        const phone = req.user?.phone;
+        
+        if (!phone) {
+            return res.json({
+                success: true,
+                data: {
+                    notifications: []
+                }
+            });
+        }
+        
+        // Получаем уведомления для пользователя
+        // Здесь можно добавить логику получения уведомлений из БД
+        
+        res.json({
+            success: true,
+            data: {
+                notifications: [] // Пока возвращаем пустой массив
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения уведомлений:', error.message);
+        res.json({
+            success: true,
+            data: {
+                notifications: []
+            }
+        });
+    }
+});
 // Получение расписания для админ-панели
 app.get('/api/admin/schedule', verifyAdminToken, async (req, res) => {
     try {
@@ -3840,7 +3889,69 @@ app.get('/api/admin/schedule', verifyAdminToken, async (req, res) => {
         });
     }
 });
+// Удаление преподавателя
+app.delete('/api/admin/teachers/:id', verifyAdminToken, async (req, res) => {
+    try {
+        const teacherId = req.params.id;
+        
+        console.log(`🗑️ Удаление преподавателя ID: ${teacherId}`);
+        
+        const result = await db.run(
+            'UPDATE teachers SET is_active = 0 WHERE id = ?',
+            [teacherId]
+        );
+        
+        if (result.changes > 0) {
+            res.json({
+                success: true,
+                message: 'Преподаватель удален (деактивирован)'
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Преподаватель не найден'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка удаления преподавателя:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка удаления преподавателя'
+        });
+    }
+});
 
+// Очистка логов
+app.post('/api/admin/logs/clear', verifyAdminToken, async (req, res) => {
+    try {
+        console.log('🧹 Очистка логов');
+        
+        await db.run('DELETE FROM system_logs WHERE created_at < date("now", "-30 days")');
+        
+        // Оставляем последние 1000 записей
+        await db.run(`
+            DELETE FROM system_logs 
+            WHERE id NOT IN (
+                SELECT id FROM system_logs 
+                ORDER BY created_at DESC 
+                LIMIT 1000
+            )
+        `);
+        
+        res.json({
+            success: true,
+            message: 'Старые логи очищены'
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка очистки логов:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка очистки логов'
+        });
+    }
+});
 // Управление преподавателями
 app.post('/api/admin/teachers', verifyAdminToken, async (req, res) => {
     try {
