@@ -3844,7 +3844,13 @@ app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     try {
         const mailingData = req.body;
         
-        console.log(`📨 Создание рассылки: ${mailingData.type || mailingData.name}`);
+        // ДОБАВЬТЕ ЭТОТ КОД ДЛЯ ОТЛАДКИ
+        console.log('📨 Получены данные рассылки:');
+        console.log('   Тип:', mailingData.type);
+        console.log('   Название:', mailingData.name);
+        console.log('   Филиал:', mailingData.branch);
+        console.log('   Сообщение:', mailingData.message?.substring(0, 100) + '...');
+        console.log('   Все данные:', JSON.stringify(mailingData, null, 2));
         
         // Сохраняем рассылку в базу данных
         const result = await db.run(`
