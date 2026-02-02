@@ -1,13 +1,14 @@
 {
   "name": "art-school-system",
-  "version": "2.1.0",
-  "description": "Система управления художественной школой с интеграцией amoCRM",
+  "version": "4.2.0",
+  "description": "Система управления художественной школой с интеграцией amoCRM и Telegram ботом",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "setup": "node setup.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "telegram-test": "node telegram-test.js"
   },
   "dependencies": {
     "express": "^4.21.2",
@@ -16,13 +17,14 @@
     "jsonwebtoken": "^9.0.2",
     "sqlite3": "^5.1.7",
     "sqlite": "^5.1.1",
-    "telegraf": "^4.16.3",
+    "node-telegram-bot-api": "^0.66.0",
     "dotenv": "^16.4.7",
     "express-rate-limit": "^7.5.0",
     "axios": "^1.7.9",
     "crypto": "^1.0.1",
     "path": "^0.12.7",
-    "fs": "^0.0.1-security"
+    "fs": "0.0.1-security",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
@@ -35,8 +37,18 @@
     "art-school",
     "amocrm",
     "education",
-    "schedule"
+    "schedule",
+    "crm",
+    "subscription-management"
   ],
-  "author": "Art Studio",
-  "license": "MIT"
+  "author": "Artistic Soul Studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/art-school-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/art-school-system/issues"
+  },
+  "homepage": "https://github.com/yourusername/art-school-system#readme"
 }
