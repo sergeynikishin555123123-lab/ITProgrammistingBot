@@ -2270,11 +2270,11 @@ formatDate: function(dateString) {
     // Кодируем branch для безопасной передачи в URL
     const encodedBranch = encodeURIComponent(branch);
     
-    fetch(`/api/schedule/student/${encodedBranch}`, {
-        headers: {
-            'Authorization': `Bearer ${this.config.token}`
-        }
-    })
+    fetch(`/api/schedule/${encodedBranch}`, {
+    headers: {
+        'Authorization': `Bearer ${this.config.token}`
+    }
+})
     .then(response => {
         if (!response.ok) {
             if (response.status === 404) {
@@ -2600,11 +2600,11 @@ formatDate: function(dateString) {
             
             this.showLoading('Загрузка новостей...');
             
-            fetch(`/api/news/student/${encodeURIComponent(branch)}`, {
-                headers: {
-                    'Authorization': `Bearer ${this.config.token}`
-                }
-            })
+           fetch(`/api/news/${encodeURIComponent(branch)}`, {
+    headers: {
+        'Authorization': `Bearer ${this.config.token}`
+    }
+})
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
