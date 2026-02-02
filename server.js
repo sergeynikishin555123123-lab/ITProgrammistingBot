@@ -26,7 +26,7 @@ const AMOCRM_SUBDOMAIN = AMOCRM_DOMAIN?.replace('.amocrm.ru', '') || '';
 const AMOCRM_ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;
 
 // Настройки Telegram бота
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4';
 
 // ==================== НАСТРОЙКА EXPRESS ====================
 app.set('trust proxy', 1);
@@ -57,7 +57,7 @@ app.use((req, res, next) => {
 // ==================== КЛАСС TELEGRAM БОТА ====================
 class TelegramBotService {
     constructor() {
-        if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== 8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4) {
+        if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4') {
             try {
                 this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
                 this.setupHandlers();
