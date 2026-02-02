@@ -2484,6 +2484,30 @@
             });
         },
 
+        formatServiceMailingMessage: function(mailingData) {
+    const typeNames = {
+        'cancellation': '❌ Отмена занятия',
+        'replacement': '🔄 Замена преподавателя', 
+        'reschedule': '📅 Перенос занятия'
+    };
+    
+    const typeName = typeNames[mailingData.type] || mailingData.type;
+    
+    let message = `<b>${typeName}</b>\n\n`;
+    
+    if (mailingData.teacher && mailingData.teacher !== '') {
+        message += `Преподаватель: ${mailingData.teacher}\n`;
+    }
+    
+    if (mailingData.day && mailingData.day !== '') {
+        message += `День: ${mailingData.day}\n`;
+    }
+    
+    message += `\n${mailingData.message}\n\n`;
+    message += `--\nArtistic Soul`;
+    
+    return message;
+}
         saveScheduleChange: function() {
             const changeData = {
                 date: document.getElementById('change-date').value,
