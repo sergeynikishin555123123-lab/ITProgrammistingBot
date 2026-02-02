@@ -7,22 +7,34 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
-        /* ==================== ОСНОВНЫЕ СТИЛИ ==================== */
+        /* ==================== ОСНОВНЫЕ СТИЛИ (синхронизировано с main) ==================== */
         :root {
-            --admin-dark: #1a237e;
-            --admin-medium: #283593;
-            --admin-light: #5c6bc0;
-            --admin-accent: #3949ab;
-            --danger: #e53935;
-            --success: #43a047;
-            --warning: #ffb300;
-            --info: #29b6f6;
-            --white: #ffffff;
-            --gray-light: #f5f5f5;
-            --gray-medium: #e0e0e0;
-            --gray-dark: #616161;
-            --text-dark: #212121;
-            --text-light: #757575;
+            --blue-primary: #0066FF;
+            --blue-dark: #0052CC;
+            --blue-light: #4D94FF;
+            --blue-bright: #3399FF;
+            --blue-pale: #E6F2FF;
+            --pink: #FF3366;
+            --white: #FFFFFF;
+            --gray-light: #F5F7FA;
+            --gray-medium: #E1E5EB;
+            --gray-dark: #7F8C8D;
+            --success: #28A745;
+            --error: #DC3545;
+            --warning: #FFC107;
+            --shadow: 0 4px 12px rgba(0, 102, 255, 0.15);
+        }
+
+        @font-face {
+            font-family: 'ArtisticSoul';
+            src: url('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2');
+            font-weight: 400;
+        }
+
+        @font-face {
+            font-family: 'ArtisticSoul';
+            src: url('https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmEU9fBBc4.woff2');
+            font-weight: 700;
         }
 
         * {
@@ -33,9 +45,9 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--gray-light);
-            color: var(--text-dark);
+            font-family: 'ArtisticSoul', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--white);
+            color: #333;
             line-height: 1.6;
             min-height: 100vh;
         }
@@ -47,16 +59,17 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
-            background: linear-gradient(135deg, var(--admin-dark) 0%, var(--admin-medium) 100%);
+            background: linear-gradient(135deg, var(--blue-pale) 0%, var(--white) 100%);
         }
 
         .login-container {
             background: var(--white);
-            border-radius: 12px;
-            padding: 40px;
-            width: 100%;
+            border-radius: 20px;
+            padding: 40px 30px;
+            box-shadow: var(--shadow);
+            border: 2px solid var(--blue-primary);
             max-width: 400px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 100%;
         }
 
         .login-logo {
@@ -64,16 +77,31 @@
             margin-bottom: 30px;
         }
 
+        .logo-image {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--blue-primary), var(--blue-bright));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0 auto 20px;
+        }
+
         .login-logo h1 {
-            color: var(--admin-dark);
-            font-size: 28px;
+            font-family: 'ArtisticSoul';
+            font-size: 2.2rem;
             font-weight: 700;
+            color: var(--blue-primary);
             margin-bottom: 5px;
         }
 
         .login-logo p {
-            color: var(--text-light);
-            font-size: 14px;
+            font-size: 1rem;
+            color: var(--gray-dark);
         }
 
         .login-form .form-group {
@@ -82,24 +110,28 @@
 
         .login-form label {
             display: block;
-            margin-bottom: 8px;
+            font-size: 0.9rem;
             font-weight: 600;
-            color: var(--text-dark);
-            font-size: 14px;
+            color: var(--blue-primary);
+            margin-bottom: 8px;
         }
 
         .login-form input {
             width: 100%;
-            padding: 12px 16px;
-            border: 2px solid var(--gray-medium);
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+            padding: 16px;
+            border: 2px solid var(--blue-primary);
+            border-radius: 12px;
+            font-size: 1.1rem;
+            color: #333;
+            background: var(--white);
+            font-family: 'ArtisticSoul', sans-serif;
+            transition: all 0.3s ease;
         }
 
         .login-form input:focus {
             outline: none;
-            border-color: var(--admin-light);
+            border-color: var(--pink);
+            box-shadow: 0 0 0 3px rgba(255, 51, 102, 0.2);
         }
 
         .btn {
@@ -107,25 +139,87 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 16px 30px;
+            border: 2px solid var(--blue-primary);
+            border-radius: 12px;
+            font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            width: 100%;
+            background: var(--blue-primary);
+            color: var(--white);
+            font-family: 'ArtisticSoul', sans-serif;
             text-decoration: none;
         }
 
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
         .btn-primary {
-            background: var(--admin-dark);
+            background: var(--blue-primary);
             color: var(--white);
-            width: 100%;
         }
 
         .btn-primary:hover {
-            background: var(--admin-medium);
-            transform: translateY(-2px);
+            background: var(--blue-dark);
+            border-color: var(--blue-dark);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--blue-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--blue-primary);
+            color: var(--white);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: var(--white);
+            border-color: var(--success);
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            border-color: #1e7e34;
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: var(--white);
+            border-color: var(--error);
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            border-color: #bd2130;
+        }
+
+        .btn-warning {
+            background: var(--warning);
+            color: #333;
+            border-color: var(--warning);
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            border-color: #d39e00;
+        }
+
+        .btn-pink {
+            background: var(--pink);
+            color: var(--white);
+            border-color: var(--pink);
+        }
+
+        .btn-pink:hover {
+            background: #ff1a53;
+            border-color: #ff1a53;
         }
 
         /* ==================== ОСНОВНАЯ СТРУКТУРА ==================== */
@@ -137,40 +231,43 @@
         /* САЙДБАР */
         .sidebar {
             width: 260px;
-            background: var(--admin-dark);
+            background: var(--blue-primary);
             color: var(--white);
             padding: 20px 0;
             position: fixed;
             height: 100vh;
             overflow-y: auto;
+            border-right: 2px solid var(--blue-dark);
         }
 
         .sidebar-header {
             padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
             margin-bottom: 20px;
         }
 
         .sidebar-logo {
-            font-size: 24px;
+            font-size: 1.5rem;
             font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 5px;
+            gap: 12px;
+            margin-bottom: 10px;
         }
 
         .sidebar-logo i {
-            color: var(--info);
+            color: var(--white);
+            font-size: 1.8rem;
         }
 
         .sidebar-role {
-            font-size: 12px;
-            color: var(--gray-medium);
-            padding: 4px 8px;
+            font-size: 0.8rem;
+            color: var(--blue-pale);
+            padding: 6px 12px;
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
+            border-radius: 20px;
             display: inline-block;
+            font-weight: 600;
         }
 
         .sidebar-menu {
@@ -186,28 +283,32 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 14px 20px;
-            color: var(--gray-medium);
+            padding: 16px 20px;
+            color: var(--blue-pale);
             text-decoration: none;
-            transition: all 0.3s;
-            font-size: 15px;
-            border-left: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            border-left: 4px solid transparent;
+            margin: 0 10px;
+            border-radius: 8px;
         }
 
         .sidebar-menu a:hover {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.1);
             color: var(--white);
+            transform: translateX(5px);
         }
 
         .sidebar-menu a.active {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             color: var(--white);
-            border-left-color: var(--info);
+            border-left-color: var(--pink);
         }
 
         .sidebar-menu i {
             width: 20px;
             text-align: center;
+            font-size: 1.2rem;
         }
 
         /* ОСНОВНОЙ КОНТЕНТ */
@@ -220,27 +321,28 @@
 
         /* ВЕРХНИЙ БАР */
         .top-bar {
-            background: var(--white);
+            background: var(--blue-primary);
             padding: 20px 30px;
-            border-bottom: 1px solid var(--gray-medium);
+            border-bottom: 2px solid var(--blue-dark);
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 2px 10px rgba(0, 102, 255, 0.2);
         }
 
         .page-title h2 {
-            font-size: 24px;
-            color: var(--admin-dark);
-            font-weight: 600;
+            font-size: 1.8rem;
+            color: var(--white);
+            font-weight: 700;
+            margin-bottom: 5px;
         }
 
         .page-title p {
-            color: var(--text-light);
-            font-size: 14px;
-            margin-top: 5px;
+            color: var(--blue-pale);
+            font-size: 0.9rem;
         }
 
         .user-menu {
@@ -256,31 +358,33 @@
         }
 
         .user-avatar {
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
-            background: var(--admin-light);
-            color: white;
+            background: var(--white);
+            color: var(--blue-primary);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 1.2rem;
+            border: 2px solid var(--white);
         }
 
         .logout-btn {
-            color: var(--danger);
-            cursor: pointer;
-            padding: 8px 16px;
-            border-radius: 6px;
-            border: 2px solid var(--danger);
-            background: transparent;
+            padding: 10px 20px;
+            background: var(--white);
+            color: var(--blue-primary);
+            border: 2px solid var(--white);
+            border-radius: 12px;
             font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
 
         .logout-btn:hover {
-            background: var(--danger);
-            color: white;
+            background: var(--blue-pale);
+            transform: translateY(-2px);
         }
 
         /* КОНТЕНТ */
@@ -291,11 +395,11 @@
         /* ==================== ФОРМЫ ==================== */
         .form-section {
             background: var(--white);
-            border-radius: 12px;
+            border-radius: 15px;
             padding: 30px;
             margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--gray-medium);
+            border: 2px solid var(--blue-primary);
+            box-shadow: var(--shadow);
         }
 
         .section-header {
@@ -303,16 +407,16 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--gray-light);
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--blue-pale);
         }
 
         .section-header h3 {
-            font-size: 20px;
-            color: var(--text-dark);
+            font-size: 1.5rem;
+            color: var(--blue-primary);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
         }
 
         .form-row {
@@ -330,43 +434,45 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: var(--text-dark);
-            font-size: 14px;
+            color: var(--blue-primary);
+            font-size: 0.9rem;
         }
 
         .form-group label.required::after {
             content: " *";
-            color: var(--danger);
+            color: var(--error);
         }
 
         .form-control {
             width: 100%;
-            padding: 12px 16px;
-            border: 2px solid var(--gray-medium);
-            border-radius: 8px;
-            font-size: 15px;
-            transition: border-color 0.3s;
+            padding: 16px;
+            border: 2px solid var(--blue-primary);
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: 'ArtisticSoul', sans-serif;
+            transition: all 0.3s ease;
+            background: var(--white);
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--admin-light);
+            border-color: var(--pink);
+            box-shadow: 0 0 0 3px rgba(255, 51, 102, 0.2);
         }
 
         .form-control.select {
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230066FF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat;
-            background-position: right 12px center;
+            background-position: right 16px center;
             background-size: 16px;
-            padding-right: 40px;
-            -webkit-appearance: none;
-            -moz-appearance: none;
+            padding-right: 50px;
             appearance: none;
         }
 
         .form-textarea {
             min-height: 120px;
             resize: vertical;
+            line-height: 1.5;
         }
 
         .checkbox-group, .radio-group {
@@ -378,31 +484,49 @@
         .checkbox-label, .radio-label {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            cursor: pointer;
+            padding: 8px 16px;
+            background: var(--blue-pale);
+            border-radius: 8px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-label:hover, .radio-label:hover {
+            border-color: var(--blue-primary);
+        }
+
+        .checkbox-label input, .radio-label input {
+            width: 18px;
+            height: 18px;
             cursor: pointer;
         }
 
         /* ==================== ТАБЛИЦЫ ==================== */
         .table-container {
             background: var(--white);
-            border-radius: 12px;
+            border-radius: 15px;
             overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--gray-medium);
+            border: 2px solid var(--blue-primary);
+            box-shadow: var(--shadow);
         }
 
         .table-header {
-            padding: 20px;
+            padding: 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--gray-light);
-            border-bottom: 1px solid var(--gray-medium);
+            background: var(--blue-pale);
+            border-bottom: 2px solid var(--blue-primary);
         }
 
         .table-header h3 {
-            font-size: 18px;
-            color: var(--text-dark);
+            font-size: 1.3rem;
+            color: var(--blue-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .table-actions {
@@ -410,42 +534,9 @@
             gap: 10px;
         }
 
-        .btn-secondary {
-            background: var(--white);
-            color: var(--admin-dark);
-            border: 2px solid var(--admin-dark);
-        }
-
-        .btn-secondary:hover {
-            background: var(--admin-dark);
-            color: var(--white);
-        }
-
-        .btn-success {
-            background: var(--success);
-            color: var(--white);
-        }
-
-        .btn-success:hover {
-            background: #2e7d32;
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: var(--white);
-        }
-
-        .btn-danger:hover {
-            background: #c62828;
-        }
-
-        .btn-warning {
-            background: var(--warning);
-            color: var(--text-dark);
-        }
-
-        .btn-warning:hover {
-            background: #ff8f00;
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9rem;
         }
 
         .table-responsive {
@@ -458,24 +549,28 @@
         }
 
         .data-table th {
-            background: var(--gray-light);
-            padding: 16px;
+            background: var(--blue-pale);
+            padding: 20px 16px;
             text-align: left;
             font-weight: 600;
-            color: var(--text-dark);
-            font-size: 14px;
-            border-bottom: 2px solid var(--gray-medium);
+            color: var(--blue-primary);
+            font-size: 0.9rem;
+            border-bottom: 2px solid var(--blue-primary);
             white-space: nowrap;
         }
 
         .data-table td {
             padding: 16px;
-            border-bottom: 1px solid var(--gray-medium);
-            font-size: 14px;
+            border-bottom: 2px solid var(--blue-pale);
+            font-size: 0.9rem;
         }
 
         .data-table tr:hover {
-            background: var(--gray-light);
+            background: var(--blue-pale);
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
         }
 
         .data-table .actions {
@@ -484,32 +579,33 @@
             flex-wrap: wrap;
         }
 
-        .data-table .btn-small {
-            padding: 6px 12px;
-            font-size: 13px;
-        }
-
         .badge {
             display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .badge.active {
-            background: #e8f5e9;
-            color: var(--success);
+            background: var(--success);
+            color: white;
         }
 
         .badge.inactive {
-            background: #ffebee;
-            color: var(--danger);
+            background: var(--error);
+            color: white;
         }
 
         .badge.pending {
-            background: #fff8e1;
-            color: var(--warning);
+            background: var(--warning);
+            color: #333;
+        }
+
+        .badge.info {
+            background: var(--blue-primary);
+            color: white;
         }
 
         /* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
@@ -523,61 +619,37 @@
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+            z-index: 2000;
             padding: 20px;
+            backdrop-filter: blur(5px);
         }
 
         .modal-overlay.active {
             display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .modal {
             background: var(--white);
-            border-radius: 12px;
+            border-radius: 20px;
             width: 100%;
             max-width: 600px;
             max-height: 90vh;
             overflow-y: auto;
-            animation: modalSlideIn 0.3s ease;
+            border: 2px solid var(--blue-primary);
+            box-shadow: var(--shadow);
+            animation: slideIn 0.3s ease;
         }
 
-        .modal-header {
-            padding: 24px;
-            border-bottom: 1px solid var(--gray-medium);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h3 {
-            font-size: 20px;
-            color: var(--text-dark);
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text-light);
-        }
-
-        .modal-body {
-            padding: 24px;
-        }
-
-        .modal-footer {
-            padding: 24px;
-            border-top: 1px solid var(--gray-medium);
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-
-        @keyframes modalSlideIn {
+        @keyframes slideIn {
             from {
                 opacity: 0;
-                transform: translateY(-30px);
+                transform: translateY(-20px);
             }
             to {
                 opacity: 1;
@@ -585,56 +657,107 @@
             }
         }
 
+        .modal-header {
+            padding: 25px;
+            border-bottom: 2px solid var(--blue-pale);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.5rem;
+            color: var(--blue-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--blue-primary);
+            transition: all 0.3s ease;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--blue-pale);
+            color: var(--blue-dark);
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .modal-footer {
+            padding: 25px;
+            border-top: 2px solid var(--blue-pale);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
         /* ==================== УВЕДОМЛЕНИЯ ==================== */
         .toast-container {
             position: fixed;
             top: 20px;
             right: 20px;
-            z-index: 9999;
+            z-index: 3000;
         }
 
         .toast {
             background: var(--white);
-            border-radius: 8px;
-            padding: 16px 20px;
+            border-radius: 12px;
+            padding: 20px;
             margin-bottom: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            border-left: 4px solid;
+            border: 2px solid;
+            box-shadow: var(--shadow);
             animation: toastSlideIn 0.3s ease;
             max-width: 400px;
+            min-width: 300px;
         }
 
         .toast.success {
-            border-left-color: var(--success);
+            border-color: var(--success);
         }
 
         .toast.error {
-            border-left-color: var(--danger);
+            border-color: var(--error);
         }
 
         .toast.warning {
-            border-left-color: var(--warning);
+            border-color: var(--warning);
         }
 
         .toast.info {
-            border-left-color: var(--info);
+            border-color: var(--blue-primary);
         }
 
         .toast-header {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
+            gap: 12px;
+            margin-bottom: 10px;
         }
 
         .toast-title {
             font-weight: 600;
-            font-size: 14px;
+            font-size: 1rem;
+            color: var(--blue-primary);
         }
 
         .toast-message {
-            font-size: 14px;
-            color: var(--text-dark);
+            font-size: 0.9rem;
+            color: #333;
+            line-height: 1.5;
         }
 
         @keyframes toastSlideIn {
@@ -652,8 +775,8 @@
         .spinner {
             width: 40px;
             height: 40px;
-            border: 3px solid var(--gray-medium);
-            border-top: 3px solid var(--admin-light);
+            border: 3px solid var(--blue-pale);
+            border-top: 3px solid var(--blue-primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -666,7 +789,7 @@
         /* ==================== ТАБЫ ==================== */
         .tabs {
             display: flex;
-            border-bottom: 2px solid var(--gray-medium);
+            border-bottom: 2px solid var(--blue-pale);
             margin-bottom: 25px;
             flex-wrap: wrap;
         }
@@ -675,20 +798,20 @@
             padding: 12px 24px;
             background: none;
             border: none;
-            font-size: 15px;
+            font-size: 1rem;
             font-weight: 600;
-            color: var(--text-light);
+            color: var(--gray-dark);
             cursor: pointer;
             position: relative;
-            transition: color 0.3s;
+            transition: all 0.3s ease;
         }
 
         .tab:hover {
-            color: var(--text-dark);
+            color: var(--blue-primary);
         }
 
         .tab.active {
-            color: var(--admin-dark);
+            color: var(--blue-primary);
         }
 
         .tab.active::after {
@@ -698,7 +821,7 @@
             left: 0;
             right: 0;
             height: 2px;
-            background: var(--admin-dark);
+            background: var(--blue-primary);
         }
 
         .tab-content {
@@ -707,6 +830,40 @@
 
         .tab-content.active {
             display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* ==================== КАРТОЧКИ СТАТИСТИКИ ==================== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid var(--blue-primary);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--gray-dark);
+            font-weight: 600;
         }
 
         /* ==================== АДАПТИВНОСТЬ ==================== */
@@ -724,10 +881,12 @@
             .sidebar-menu a {
                 justify-content: center;
                 padding: 15px;
+                margin: 0 5px;
             }
             
             .sidebar-menu i {
-                font-size: 18px;
+                font-size: 1.5rem;
+                width: auto;
             }
             
             .main-content {
@@ -756,7 +915,7 @@
             }
             
             .data-table {
-                font-size: 13px;
+                font-size: 0.8rem;
             }
             
             .data-table .actions {
@@ -764,28 +923,87 @@
             }
             
             .btn {
-                padding: 10px 15px;
-                font-size: 14px;
+                padding: 12px 20px;
+                font-size: 1rem;
+            }
+            
+            .btn-small {
+                padding: 6px 12px;
+                font-size: 0.8rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal {
+                padding: 0;
+            }
+            
+            .modal-header,
+            .modal-body,
+            .modal-footer {
+                padding: 20px;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                width: 100%;
+                text-align: left;
             }
         }
 
         /* ==================== УТИЛИТЫ ==================== */
         .d-none { display: none !important; }
         .d-flex { display: flex !important; }
+        .d-block { display: block !important; }
         .justify-between { justify-content: space-between; }
         .align-center { align-items: center; }
         .gap-10 { gap: 10px; }
         .gap-20 { gap: 20px; }
+        .mt-10 { margin-top: 10px; }
         .mt-20 { margin-top: 20px; }
+        .mt-30 { margin-top: 30px; }
+        .mb-10 { margin-bottom: 10px; }
         .mb-20 { margin-bottom: 20px; }
+        .mb-30 { margin-bottom: 30px; }
         .ml-auto { margin-left: auto; }
         .w-100 { width: 100%; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .flex-wrap { flex-wrap: wrap; }
+        
         .text-success { color: var(--success); }
-        .text-danger { color: var(--danger); }
+        .text-danger { color: var(--error); }
         .text-warning { color: var(--warning); }
-        .text-muted { color: var(--text-light); }
+        .text-info { color: var(--blue-primary); }
+        .text-muted { color: var(--gray-dark); }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray-dark);
+            border: 2px dashed var(--gray-medium);
+            border-radius: 15px;
+            background: var(--white);
+            margin: 20px 0;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            color: var(--blue-primary);
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -793,7 +1011,8 @@
     <div id="login-page" class="login-page">
         <div class="login-container">
             <div class="login-logo">
-                <h1><i class="fas fa-palette"></i> Artistic Soul</h1>
+                <div class="logo-image">AS</div>
+                <h1>Artistic Soul</h1>
                 <p>Административная панель</p>
             </div>
             
@@ -892,8 +1111,8 @@
                     <div class="user-info">
                         <div class="user-avatar" id="user-avatar">АД</div>
                         <div>
-                            <div id="user-name" style="font-weight: 600;">Администратор</div>
-                            <div id="user-email" style="font-size: 12px; color: var(--text-light);">admin@artschool.ru</div>
+                            <div id="user-name" style="font-weight: 600; color: white;">Администратор</div>
+                            <div id="user-email" style="font-size: 0.8rem; color: var(--blue-pale);">admin@artschool.ru</div>
                         </div>
                         <button class="logout-btn" id="logout-btn">
                             <i class="fas fa-sign-out-alt"></i> Выйти
@@ -914,9 +1133,11 @@
                             </button>
                         </div>
                         
-                        <div id="stats-container" class="text-center">
-                            <div class="spinner"></div>
-                            <p class="mt-20">Загрузка статистики...</p>
+                        <div id="stats-container">
+                            <div class="text-center">
+                                <div class="spinner"></div>
+                                <p class="mt-20">Загрузка статистики...</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -925,18 +1146,33 @@
                             <h3><i class="fas fa-bolt"></i> Быстрые действия</h3>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                            <button class="btn btn-primary" onclick="AdminApp.navigateTo('mailings')">
-                                <i class="fas fa-paper-plane"></i> Новая рассылка
+                        <div class="stats-grid">
+                            <button class="stat-card" onclick="AdminApp.navigateTo('mailings')">
+                                <div class="stat-value">
+                                    <i class="fas fa-paper-plane text-info"></i>
+                                </div>
+                                <div class="stat-label">Новая рассылка</div>
                             </button>
-                            <button class="btn btn-secondary" onclick="AdminApp.navigateTo('schedule')">
-                                <i class="fas fa-calendar-plus"></i> Добавить занятие
+                            
+                            <button class="stat-card" onclick="AdminApp.navigateTo('schedule')">
+                                <div class="stat-value">
+                                    <i class="fas fa-calendar-plus text-info"></i>
+                                </div>
+                                <div class="stat-label">Добавить занятие</div>
                             </button>
-                            <button class="btn btn-success" onclick="AdminApp.navigateTo('teachers')">
-                                <i class="fas fa-user-plus"></i> Добавить преподавателя
+                            
+                            <button class="stat-card" onclick="AdminApp.navigateTo('teachers')">
+                                <div class="stat-value">
+                                    <i class="fas fa-user-plus text-info"></i>
+                                </div>
+                                <div class="stat-label">Добавить преподавателя</div>
                             </button>
-                            <button class="btn btn-warning" onclick="AdminApp.showModal('schedule-change')">
-                                <i class="fas fa-exclamation-triangle"></i> Отмена занятия
+                            
+                            <button class="stat-card" onclick="AdminApp.showModal('schedule-change')">
+                                <div class="stat-value">
+                                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                                </div>
+                                <div class="stat-label">Отмена занятия</div>
                             </button>
                         </div>
                     </div>
@@ -978,9 +1214,11 @@
                                     </thead>
                                     <tbody id="service-mailings-table">
                                         <tr>
-                                            <td colspan="7" class="text-center" style="padding: 40px;">
-                                                <i class="fas fa-inbox" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                                                <p>Нет данных о рассылках</p>
+                                            <td colspan="7" class="text-center">
+                                                <div class="empty-state">
+                                                    <i class="fas fa-inbox"></i>
+                                                    <p>Нет данных о рассылках</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -1009,9 +1247,11 @@
                                     </thead>
                                     <tbody id="marketing-mailings-table">
                                         <tr>
-                                            <td colspan="6" class="text-center" style="padding: 40px;">
-                                                <i class="fas fa-inbox" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                                                <p>Нет данных о рассылках</p>
+                                            <td colspan="6" class="text-center">
+                                                <div class="empty-state">
+                                                    <i class="fas fa-inbox"></i>
+                                                    <p>Нет данных о рассылках</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -1041,9 +1281,11 @@
                                     </thead>
                                     <tbody id="templates-table">
                                         <tr>
-                                            <td colspan="4" class="text-center" style="padding: 40px;">
-                                                <i class="fas fa-inbox" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                                                <p>Нет сохраненных шаблонов</p>
+                                            <td colspan="4" class="text-center">
+                                                <div class="empty-state">
+                                                    <i class="fas fa-inbox"></i>
+                                                    <p>Нет сохраненных шаблонов</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -1058,7 +1300,7 @@
                     <div class="section-header justify-between align-center">
                         <h3><i class="fas fa-calendar-alt"></i> Управление расписанием</h3>
                         <div class="d-flex gap-10">
-                            <select id="schedule-branch-filter" class="form-control" style="width: auto;">
+                            <select id="schedule-branch-filter" class="form-control select" style="width: auto;">
                                 <option value="all">Все филиалы</option>
                                 <option value="Свиблово">Свиблово</option>
                                 <option value="Чертаново">Чертаново</option>
@@ -1069,7 +1311,7 @@
                         </div>
                     </div>
                     
-                    <div class="form-section">
+                    <div class="table-container">
                         <div class="table-responsive">
                             <table class="data-table">
                                 <thead>
@@ -1085,7 +1327,7 @@
                                 </thead>
                                 <tbody id="schedule-table">
                                     <tr>
-                                        <td colspan="7" class="text-center" style="padding: 40px;">
+                                        <td colspan="7" class="text-center">
                                             <div class="spinner"></div>
                                             <p class="mt-20">Загрузка расписания...</p>
                                         </td>
@@ -1119,9 +1361,9 @@
                                 </thead>
                                 <tbody id="teachers-table">
                                     <tr>
-                                        <td colspan="5" class="text-center" style="padding: 40px;">
+                                        <td colspan="5" class="text-center">
                                             <div class="spinner"></div>
-                                            <p class="mt-20">Загрузка списка преподавателей...</p>
+                                            <p class="mt-20">Загрузка преподавателей...</p>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1153,7 +1395,7 @@
                                 </thead>
                                 <tbody id="faq-table">
                                     <tr>
-                                        <td colspan="5" class="text-center" style="padding: 40px;">
+                                        <td colspan="5" class="text-center">
                                             <div class="spinner"></div>
                                             <p class="mt-20">Загрузка FAQ...</p>
                                         </td>
@@ -1188,7 +1430,7 @@
                                 </thead>
                                 <tbody id="news-table">
                                     <tr>
-                                        <td colspan="6" class="text-center" style="padding: 40px;">
+                                        <td colspan="6" class="text-center">
                                             <div class="spinner"></div>
                                             <p class="mt-20">Загрузка новостей...</p>
                                         </td>
@@ -1204,7 +1446,7 @@
                     <div class="section-header justify-between align-center">
                         <h3><i class="fas fa-history"></i> Логи системы</h3>
                         <div class="d-flex gap-10">
-                            <select id="log-level" class="form-control" style="width: auto;">
+                            <select id="log-level" class="form-control select" style="width: auto;">
                                 <option value="">Все уровни</option>
                                 <option value="info">Info</option>
                                 <option value="warning">Warning</option>
@@ -1229,7 +1471,7 @@
                                 </thead>
                                 <tbody id="logs-table">
                                     <tr>
-                                        <td colspan="4" class="text-center" style="padding: 40px;">
+                                        <td colspan="4" class="text-center">
                                             <div class="spinner"></div>
                                             <p class="mt-20">Загрузка логов...</p>
                                         </td>
@@ -1248,7 +1490,7 @@
                     
                     <div class="form-section">
                         <h3 class="mb-20">Статус подключения</h3>
-                        <div id="sync-status" class="mb-20">
+                        <div id="sync-status" class="mb-30">
                             <div class="spinner"></div>
                             <p>Проверка подключения к amoCRM...</p>
                         </div>
@@ -1271,11 +1513,11 @@
                                 <button class="btn btn-warning w-100" onclick="AdminApp.fullSync()">
                                     <i class="fas fa-redo"></i> Полная синхронизация
                                 </button>
-                                <small class="text-muted">Обновит все данные из amoCRM. Может занять несколько минут.</small>
+                                <small class="text-muted d-block mt-10">Обновит все данные из amoCRM. Может занять несколько минут.</small>
                             </div>
                         </div>
                         
-                        <div id="sync-results" class="mt-20"></div>
+                        <div id="sync-results" class="mt-30"></div>
                     </div>
                 </div>
             </div>
@@ -1347,7 +1589,7 @@
                     <div class="form-group">
                         <label class="required">Текст сообщения</label>
                         <textarea id="mailing-text" class="form-control form-textarea" placeholder="Введите текст сообщения..." rows="5"></textarea>
-                        <div class="text-muted" style="font-size: 12px; margin-top: 5px;">
+                        <div class="text-muted" style="font-size: 0.8rem; margin-top: 5px;">
                             Доступные переменные: {имя}, {филиал}, {день}, {время}, {преподаватель}
                         </div>
                     </div>
@@ -1536,7 +1778,7 @@
                 <button class="modal-close" onclick="AdminApp.hideModal('preview')">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="preview-content" style="background: var(--gray-light); padding: 20px; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <div id="preview-content" style="background: var(--blue-pale); padding: 20px; border-radius: 12px; font-family: 'ArtisticSoul', sans-serif;">
                     <!-- Предпросмотр загружается динамически -->
                 </div>
             </div>
@@ -1548,9 +1790,9 @@
     
     <!-- ЗАГРУЗКА -->
     <div id="loading-overlay" class="modal-overlay d-none">
-        <div class="text-center">
+        <div style="background: rgba(255, 255, 255, 0.95); padding: 40px; border-radius: 20px; border: 2px solid var(--blue-primary); text-align: center;">
             <div class="spinner"></div>
-            <div style="color: white; margin-top: 20px; font-size: 18px;" id="loading-text">Загрузка...</div>
+            <div style="color: var(--blue-primary); margin-top: 20px; font-size: 1.1rem; font-weight: 600;" id="loading-text">Загрузка...</div>
         </div>
     </div>
 
@@ -1580,7 +1822,6 @@
         initDatePickers: function() {
             flatpickr.localize(flatpickr.l10ns.ru);
             
-            // Инициализация всех date полей
             document.querySelectorAll('input[type="date"]').forEach(input => {
                 flatpickr(input, {
                     dateFormat: "Y-m-d",
@@ -1610,6 +1851,7 @@
                     this.showAdminPanel();
                     this.loadDashboardData();
                 } catch (e) {
+                    console.error('Ошибка парсинга данных пользователя:', e);
                     this.showLogin();
                 }
             } else {
@@ -1629,8 +1871,8 @@
             document.getElementById('admin-panel').classList.remove('d-none');
             
             if (this.config.currentUser) {
-                document.getElementById('user-name').textContent = this.config.currentUser.name;
-                document.getElementById('user-email').textContent = this.config.currentUser.email;
+                document.getElementById('user-name').textContent = this.config.currentUser.name || 'Администратор';
+                document.getElementById('user-email').textContent = this.config.currentUser.email || 'admin@artschool.ru';
                 document.getElementById('user-role').textContent = this.config.currentUser.role || 'Администратор';
                 
                 // Аватар с инициалами
@@ -1641,6 +1883,11 @@
 
         // ВХОД В СИСТЕМУ
         login: function(email, password) {
+            if (!email || !password) {
+                this.showToast('Заполните все поля', 'warning');
+                return;
+            }
+            
             this.showLoading('Выполняется вход...');
             
             fetch('/api/admin/login', {
@@ -1653,7 +1900,12 @@
                     password: password
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success && data.data) {
                     // Сохраняем токен и данные пользователя
@@ -1669,6 +1921,7 @@
                 }
             })
             .catch(error => {
+                console.error('Ошибка входа:', error);
                 this.showToast('Ошибка входа: ' + error.message, 'error');
             })
             .finally(() => {
@@ -1768,14 +2021,25 @@
 
         // ЗАГРУЗКА ДАННЫХ ДАШБОРДА
         loadDashboardData: function() {
-            this.showLoading('Загрузка статистики...');
+            const container = document.getElementById('stats-container');
+            container.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner"></div>
+                    <p class="mt-20">Загрузка статистики...</p>
+                </div>
+            `;
             
             fetch('/api/admin/dashboard', {
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     this.renderDashboard(data.data);
@@ -1784,16 +2048,14 @@
                 }
             })
             .catch(error => {
-                this.showToast('Ошибка загрузки статистики: ' + error.message, 'error');
-                document.getElementById('stats-container').innerHTML = `
+                console.error('Ошибка загрузки дашборда:', error);
+                container.innerHTML = `
                     <div class="text-center">
-                        <i class="fas fa-exclamation-circle" style="font-size: 48px; color: var(--danger); margin-bottom: 10px;"></i>
+                        <i class="fas fa-exclamation-circle" style="font-size: 48px; color: var(--error); margin-bottom: 10px;"></i>
                         <p>Ошибка загрузки данных</p>
+                        <p style="font-size: 0.8rem; color: var(--gray-dark);">${error.message}</p>
                     </div>
                 `;
-            })
-            .finally(() => {
-                this.hideLoading();
             });
         },
 
@@ -1801,43 +2063,65 @@
         renderDashboard: function(data) {
             const container = document.getElementById('stats-container');
             
+            if (!data || !data.stats) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-chart-line"></i>
+                        <p>Нет данных для отображения</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const stats = data.stats;
+            
             let html = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <div style="background: var(--white); padding: 20px; border-radius: 8px; border: 1px solid var(--gray-medium);">
-                        <div style="font-size: 32px; font-weight: 700; color: var(--admin-dark);">${data.stats.total_students || 0}</div>
-                        <div style="color: var(--text-light); font-size: 14px;">Всего учеников</div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--blue-primary);">
+                            ${stats.total_students || 0}
+                        </div>
+                        <div class="stat-label">Всего учеников</div>
                     </div>
                     
-                    <div style="background: var(--white); padding: 20px; border-radius: 8px; border: 1px solid var(--gray-medium);">
-                        <div style="font-size: 32px; font-weight: 700; color: var(--success);">${data.stats.active_subscriptions || 0}</div>
-                        <div style="color: var(--text-light); font-size: 14px;">Активных абонементов</div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--success);">
+                            ${stats.active_subscriptions || 0}
+                        </div>
+                        <div class="stat-label">Активных абонементов</div>
                     </div>
                     
-                    <div style="background: var(--white); padding: 20px; border-radius: 8px; border: 1px solid var(--gray-medium);">
-                        <div style="font-size: 32px; font-weight: 700; color: var(--warning);">${data.stats.new_students_month || 0}</div>
-                        <div style="color: var(--text-light); font-size: 14px;">Новых учеников (месяц)</div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--warning);">
+                            ${stats.new_students_month || 0}
+                        </div>
+                        <div class="stat-label">Новых учеников (месяц)</div>
                     </div>
                     
-                    <div style="background: var(--white); padding: 20px; border-radius: 8px; border: 1px solid var(--gray-medium);">
-                        <div style="font-size: 32px; font-weight: 700; color: var(--info);">${data.stats.expiring_subscriptions || 0}</div>
-                        <div style="color: var(--text-light); font-size: 14px;">Истекающих абонементов</div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--pink);">
+                            ${stats.expiring_subscriptions || 0}
+                        </div>
+                        <div class="stat-label">Истекающих абонементов</div>
                     </div>
                 </div>
             `;
             
             // Статистика по филиалам
-            if (data.stats.branches && data.stats.branches.length > 0) {
+            if (stats.branches && stats.branches.length > 0) {
                 html += `
                     <div style="margin-top: 30px;">
-                        <h4 style="margin-bottom: 15px;">По филиалам:</h4>
+                        <h4 style="color: var(--blue-primary); margin-bottom: 15px; font-size: 1.1rem;">
+                            <i class="fas fa-map-marker-alt"></i> По филиалам:
+                        </h4>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
                 `;
                 
-                data.stats.branches.forEach(branch => {
+                stats.branches.forEach(branch => {
                     html += `
-                        <div style="background: var(--white); padding: 15px; border-radius: 8px; border: 1px solid var(--gray-medium);">
-                            <div style="font-weight: 600;">${branch.branch}</div>
-                            <div style="font-size: 24px; font-weight: 700;">${branch.count}</div>
+                        <div style="background: var(--white); padding: 15px; border-radius: 8px; border: 2px solid var(--blue-primary);">
+                            <div style="font-weight: 600; color: var(--blue-primary);">${branch.branch || 'Филиал'}</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--blue-primary);">${branch.count || 0}</div>
                         </div>
                     `;
                 });
@@ -1850,6 +2134,7 @@
 
         // ОБНОВЛЕНИЕ СТАТИСТИКИ
         refreshStats: function() {
+            this.showToast('Обновление статистики...', 'info');
             this.loadDashboardData();
         },
 
@@ -1876,6 +2161,10 @@
             const serviceTable = document.getElementById('service-mailings-table');
             const marketingTable = document.getElementById('marketing-mailings-table');
             
+            if (!mailings || mailings.length === 0) {
+                return;
+            }
+            
             // Фильтрация по типам
             const serviceMailings = mailings.filter(m => 
                 ['cancellation', 'replacement', 'reschedule'].includes(m.type));
@@ -1888,7 +2177,7 @@
                         <td>${this.getMailingTypeName(mailing.type)}</td>
                         <td>${mailing.branch || 'Все'}</td>
                         <td>${mailing.teacher || 'Все'}</td>
-                        <td>${new Date(mailing.sent_at || mailing.created_at).toLocaleString('ru-RU')}</td>
+                        <td>${this.formatDateTime(mailing.sent_at || mailing.created_at)}</td>
                         <td>${mailing.recipients_count || 0}</td>
                         <td>
                             <span class="badge ${mailing.status === 'sent' ? 'active' : mailing.status === 'failed' ? 'inactive' : 'pending'}">
@@ -1896,10 +2185,10 @@
                             </span>
                         </td>
                         <td class="actions">
-                            <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing(${mailing.id})">
+                            <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing(${mailing.id})">
+                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -1913,7 +2202,7 @@
                     <tr>
                         <td>${mailing.name}</td>
                         <td>${this.getSegmentName(mailing.segment)}</td>
-                        <td>${new Date(mailing.sent_at || mailing.created_at).toLocaleString('ru-RU')}</td>
+                        <td>${this.formatDateTime(mailing.sent_at || mailing.created_at)}</td>
                         <td>${mailing.recipients_count || 0}</td>
                         <td>
                             <span class="badge ${mailing.status === 'sent' ? 'active' : mailing.status === 'failed' ? 'inactive' : 'pending'}">
@@ -1921,10 +2210,10 @@
                             </span>
                         </td>
                         <td class="actions">
-                            <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing(${mailing.id})">
+                            <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing(${mailing.id})">
+                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -1957,39 +2246,42 @@
         renderSchedule: function(schedule) {
             const table = document.getElementById('schedule-table');
             
-            if (schedule.length > 0) {
-                table.innerHTML = schedule.map(lesson => `
-                    <tr>
-                        <td>${new Date(lesson.date).toLocaleDateString('ru-RU')}</td>
-                        <td>${lesson.time}</td>
-                        <td>${lesson.branch}</td>
-                        <td>${lesson.group_name || '-'}</td>
-                        <td>${lesson.age_group || '-'}</td>
-                        <td>
-                            <span class="badge ${lesson.status === 'active' ? 'active' : lesson.status === 'cancelled' ? 'inactive' : 'pending'}">
-                                ${this.getLessonStatusName(lesson.status)}
-                            </span>
-                        </td>
-                        <td class="actions">
-                            <button class="btn btn-secondary btn-small" onclick="AdminApp.editLesson(${lesson.id})">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminApp.cancelLesson(${lesson.id})">
-                                <i class="fas fa-ban"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-            } else {
+            if (!schedule || schedule.length === 0) {
                 table.innerHTML = `
                     <tr>
-                        <td colspan="7" class="text-center" style="padding: 40px;">
-                            <i class="fas fa-calendar" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                            <p>Нет данных о расписании</p>
+                        <td colspan="7" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-calendar"></i>
+                                <p>Нет данных о расписании</p>
+                            </div>
                         </td>
                     </tr>
                 `;
+                return;
             }
+            
+            table.innerHTML = schedule.map(lesson => `
+                <tr>
+                    <td>${this.formatDate(lesson.date)}</td>
+                    <td>${lesson.time || '-'}</td>
+                    <td>${lesson.branch || '-'}</td>
+                    <td>${lesson.group_name || '-'}</td>
+                    <td>${lesson.age_group || '-'}</td>
+                    <td>
+                        <span class="badge ${lesson.status === 'active' ? 'active' : lesson.status === 'cancelled' ? 'inactive' : 'pending'}">
+                            ${this.getLessonStatusName(lesson.status)}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editLesson('${lesson.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminApp.cancelLesson('${lesson.id}')">
+                            <i class="fas fa-ban"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
         },
 
         // ЗАГРУЗКА ДАННЫХ ПРЕПОДАВАТЕЛЕЙ
@@ -2014,37 +2306,40 @@
         renderTeachers: function(teachers) {
             const table = document.getElementById('teachers-table');
             
-            if (teachers.length > 0) {
-                table.innerHTML = teachers.map(teacher => `
-                    <tr>
-                        <td>${teacher.name}</td>
-                        <td>${teacher.branch}</td>
-                        <td>${teacher.specialization || '-'}</td>
-                        <td>
-                            <span class="badge ${teacher.is_active === 1 ? 'active' : 'inactive'}">
-                                ${teacher.is_active === 1 ? 'Активен' : 'Неактивен'}
-                            </span>
-                        </td>
-                        <td class="actions">
-                            <button class="btn btn-secondary btn-small" onclick="AdminApp.editTeacher(${teacher.id})">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteTeacher(${teacher.id})">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-            } else {
+            if (!teachers || teachers.length === 0) {
                 table.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center" style="padding: 40px;">
-                            <i class="fas fa-users" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                            <p>Нет данных о преподавателях</p>
+                        <td colspan="5" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-users"></i>
+                                <p>Нет данных о преподавателях</p>
+                            </div>
                         </td>
                     </tr>
                 `;
+                return;
             }
+            
+            table.innerHTML = teachers.map(teacher => `
+                <tr>
+                    <td>${teacher.name || '-'}</td>
+                    <td>${teacher.branch || '-'}</td>
+                    <td>${teacher.specialization || '-'}</td>
+                    <td>
+                        <span class="badge ${teacher.is_active === 1 ? 'active' : 'inactive'}">
+                            ${teacher.is_active === 1 ? 'Активен' : 'Неактивен'}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editTeacher('${teacher.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteTeacher('${teacher.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
         },
 
         // ЗАГРУЗКА ДАННЫХ FAQ
@@ -2069,37 +2364,40 @@
         renderFaq: function(faq) {
             const table = document.getElementById('faq-table');
             
-            if (faq.length > 0) {
-                table.innerHTML = faq.map(item => `
-                    <tr>
-                        <td>${item.question}</td>
-                        <td>${item.answer.length > 100 ? item.answer.substring(0, 100) + '...' : item.answer}</td>
-                        <td>${this.getCategoryName(item.category)}</td>
-                        <td>
-                            <span class="badge ${item.is_active === 1 ? 'active' : 'inactive'}">
-                                ${item.is_active === 1 ? 'Активен' : 'Скрыт'}
-                            </span>
-                        </td>
-                        <td class="actions">
-                            <button class="btn btn-secondary btn-small" onclick="AdminApp.editFaq(${item.id})">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteFaq(${item.id})">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-            } else {
+            if (!faq || faq.length === 0) {
                 table.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center" style="padding: 40px;">
-                            <i class="fas fa-question-circle" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                            <p>Нет данных в FAQ</p>
+                        <td colspan="5" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-question-circle"></i>
+                                <p>Нет данных в FAQ</p>
+                            </div>
                         </td>
                     </tr>
                 `;
+                return;
             }
+            
+            table.innerHTML = faq.map(item => `
+                <tr>
+                    <td>${item.question || '-'}</td>
+                    <td>${(item.answer || '').length > 100 ? (item.answer || '').substring(0, 100) + '...' : item.answer || '-'}</td>
+                    <td>${this.getCategoryName(item.category)}</td>
+                    <td>
+                        <span class="badge ${item.is_active === 1 ? 'active' : 'inactive'}">
+                            ${item.is_active === 1 ? 'Активен' : 'Скрыт'}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editFaq('${item.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteFaq('${item.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
         },
 
         // ЗАГРУЗКА ДАННЫХ НОВОСТЕЙ
@@ -2124,38 +2422,41 @@
         renderNews: function(news) {
             const table = document.getElementById('news-table');
             
-            if (news.length > 0) {
-                table.innerHTML = news.map(item => `
-                    <tr>
-                        <td>${item.title}</td>
-                        <td>${item.content.length > 100 ? item.content.substring(0, 100) + '...' : item.content}</td>
-                        <td>${item.branch === 'all' ? 'Оба филиала' : item.branch}</td>
-                        <td>${new Date(item.publish_date).toLocaleDateString('ru-RU')}</td>
-                        <td>
-                            <span class="badge ${item.is_published === 1 ? 'active' : 'inactive'}">
-                                ${item.is_published === 1 ? 'Опубликовано' : 'Черновик'}
-                            </span>
-                        </td>
-                        <td class="actions">
-                            <button class="btn btn-secondary btn-small" onclick="AdminApp.editNews(${item.id})">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminApp.deleteNews(${item.id})">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-            } else {
+            if (!news || news.length === 0) {
                 table.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center" style="padding: 40px;">
-                            <i class="fas fa-newspaper" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                            <p>Нет данных о новостях</p>
+                        <td colspan="6" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-newspaper"></i>
+                                <p>Нет данных о новостях</p>
+                            </div>
                         </td>
                     </tr>
                 `;
+                return;
             }
+            
+            table.innerHTML = news.map(item => `
+                <tr>
+                    <td>${item.title || '-'}</td>
+                    <td>${(item.content || '').length > 100 ? (item.content || '').substring(0, 100) + '...' : item.content || '-'}</td>
+                    <td>${item.branch === 'all' ? 'Оба филиала' : item.branch || '-'}</td>
+                    <td>${this.formatDate(item.publish_date)}</td>
+                    <td>
+                        <span class="badge ${item.is_published === 1 ? 'active' : 'inactive'}">
+                            ${item.is_published === 1 ? 'Опубликовано' : 'Черновик'}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editNews('${item.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteNews('${item.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
         },
 
         // ЗАГРУЗКА ДАННЫХ ЛОГОВ
@@ -2186,64 +2487,68 @@
         renderLogs: function(logs) {
             const table = document.getElementById('logs-table');
             
-            if (logs.length > 0) {
-                table.innerHTML = logs.map(log => `
-                    <tr>
-                        <td>${new Date(log.created_at).toLocaleString('ru-RU')}</td>
-                        <td>
-                            <span class="badge ${log.level === 'error' ? 'inactive' : log.level === 'warning' ? 'pending' : 'active'}">
-                                ${log.level}
-                            </span>
-                        </td>
-                        <td>${log.message}</td>
-                        <td>${log.user_id || 'Система'}</td>
-                    </tr>
-                `).join('');
-            } else {
+            if (!logs || logs.length === 0) {
                 table.innerHTML = `
                     <tr>
-                        <td colspan="4" class="text-center" style="padding: 40px;">
-                            <i class="fas fa-history" style="font-size: 48px; color: var(--text-light); margin-bottom: 10px;"></i>
-                            <p>Нет данных в логах</p>
+                        <td colspan="4" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-history"></i>
+                                <p>Нет данных в логах</p>
+                            </div>
                         </td>
                     </tr>
                 `;
+                return;
             }
+            
+            table.innerHTML = logs.map(log => `
+                <tr>
+                    <td>${this.formatDateTime(log.created_at)}</td>
+                    <td>
+                        <span class="badge ${log.level === 'error' ? 'inactive' : log.level === 'warning' ? 'pending' : 'info'}">
+                            ${log.level || 'info'}
+                        </span>
+                    </td>
+                    <td>${log.message || '-'}</td>
+                    <td>${log.user_id || 'Система'}</td>
+                </tr>
+            `).join('');
         },
 
         // ЗАГРУЗКА ДАННЫХ СИНХРОНИЗАЦИИ
         loadSyncData: function() {
             const statusContainer = document.getElementById('sync-status');
             
-            // Проверка статуса amoCRM
+            // Проверка статуса подключения
             fetch('/api/status')
             .then(response => response.json())
             .then(data => {
                 if (data.amocrm_connected) {
                     statusContainer.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px; color: var(--success);">
-                            <i class="fas fa-check-circle" style="font-size: 24px;"></i>
+                        <div style="display: flex; align-items: center; gap: 15px; color: var(--success);">
+                            <i class="fas fa-check-circle" style="font-size: 2rem;"></i>
                             <div>
-                                <div style="font-weight: 600;">amoCRM подключен</div>
-                                <div style="font-size: 14px;">${data.amocrm_account || 'Аккаунт'}</div>
+                                <div style="font-weight: 700; font-size: 1.1rem;">amoCRM подключен</div>
+                                <div style="font-size: 0.9rem; color: var(--gray-dark);">${data.amocrm_account || 'Аккаунт'}</div>
                             </div>
                         </div>
                     `;
                 } else {
                     statusContainer.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px; color: var(--danger);">
-                            <i class="fas fa-times-circle" style="font-size: 24px;"></i>
+                        <div style="display: flex; align-items: center; gap: 15px; color: var(--error);">
+                            <i class="fas fa-times-circle" style="font-size: 2rem;"></i>
                             <div>
-                                <div style="font-weight: 600;">amoCRM не подключен</div>
-                                <div style="font-size: 14px;">${data.data_source}</div>
+                                <div style="font-weight: 700; font-size: 1.1rem;">amoCRM не подключен</div>
+                                <div style="font-size: 0.9rem; color: var(--gray-dark);">${data.data_source || 'Данные из локальной БД'}</div>
                             </div>
                         </div>
                     `;
                 }
             })
             .catch(error => {
+                console.error('Ошибка проверки подключения:', error);
                 statusContainer.innerHTML = `
-                    <div style="color: var(--danger);">
+                    <div style="color: var(--error);">
                         <i class="fas fa-exclamation-circle"></i> Ошибка проверки подключения
                     </div>
                 `;
@@ -2268,15 +2573,15 @@
                 
                 if (data.success) {
                     resultsContainer.innerHTML = `
-                        <div style="background: var(--success-light); padding: 15px; border-radius: 8px; border: 1px solid var(--success);">
-                            <div style="display: flex; align-items: center; gap: 10px; color: var(--success); margin-bottom: 10px;">
-                                <i class="fas fa-check-circle"></i>
-                                <span style="font-weight: 600;">Синхронизация завершена</span>
+                        <div style="background: var(--success); color: white; padding: 20px; border-radius: 12px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                                <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
+                                <div style="font-weight: 700; font-size: 1.1rem;">Синхронизация завершена</div>
                             </div>
-                            <div>${data.message}</div>
-                            <div style="margin-top: 10px; font-size: 14px;">
-                                <div>Найдено профилей: ${data.sync_details?.amocrm_profiles || 0}</div>
-                                <div>Сохранено в БД: ${data.sync_details?.saved_to_db || 0}</div>
+                            <div style="margin-bottom: 10px;">${data.message}</div>
+                            <div style="font-size: 0.9rem; opacity: 0.9;">
+                                Найдено профилей: ${data.sync_details?.amocrm_profiles || 0}<br>
+                                Сохранено в БД: ${data.sync_details?.saved_to_db || 0}
                             </div>
                         </div>
                     `;
@@ -2288,15 +2593,15 @@
             .catch(error => {
                 this.hideLoading();
                 resultsContainer.innerHTML = `
-                    <div style="background: #ffebee; padding: 15px; border-radius: 8px; border: 1px solid var(--danger);">
-                        <div style="display: flex; align-items: center; gap: 10px; color: var(--danger);">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <span style="font-weight: 600;">Ошибка синхронизации</span>
+                    <div style="background: var(--error); color: white; padding: 20px; border-radius: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <i class="fas fa-exclamation-circle" style="font-size: 1.5rem;"></i>
+                            <div style="font-weight: 700;">Ошибка синхронизации</div>
                         </div>
-                        <div>${error.message}</div>
+                        <div style="margin-top: 10px;">${error.message}</div>
                     </div>
                 `;
-                this.showToast('Ошибка синхронизации', 'error');
+                this.showToast('Ошибка синхронизации: ' + error.message, 'error');
             });
         },
 
@@ -2308,11 +2613,45 @@
             
             this.showLoading('Выполняется полная синхронизация...');
             
-            // В реальном приложении здесь будет API для полной синхронизации
-            setTimeout(() => {
+            // API запрос для полной синхронизации
+            fetch('/api/sync/all', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
                 this.hideLoading();
-                this.showToast('Полная синхронизация завершена', 'success');
-            }, 3000);
+                
+                if (data.success) {
+                    this.showToast('Полная синхронизация завершена', 'success');
+                    
+                    const resultsContainer = document.getElementById('sync-results');
+                    resultsContainer.innerHTML = `
+                        <div style="background: var(--success); color: white; padding: 20px; border-radius: 12px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                                <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
+                                <div style="font-weight: 700; font-size: 1.1rem;">Полная синхронизация завершена</div>
+                            </div>
+                            <div>${data.message}</div>
+                            ${data.sync_details ? `
+                            <div style="margin-top: 15px; font-size: 0.9rem; opacity: 0.9;">
+                                Обработано записей: ${data.sync_details.processed || 0}<br>
+                                Обновлено: ${data.sync_details.updated || 0}<br>
+                                Добавлено: ${data.sync_details.added || 0}
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.error || 'Ошибка синхронизации');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка синхронизации: ' + error.message, 'error');
+            });
         },
 
         // МОДАЛЬНЫЕ ОКНА
@@ -2357,12 +2696,14 @@
             // Создаем предпросмотр
             const previewContent = document.getElementById('preview-content');
             previewContent.innerHTML = `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">${title}:</div>
-                    <div style="font-size: 16px; line-height: 1.5; color: #333; margin-bottom: 15px;">
+                <div style="font-family: 'ArtisticSoul', sans-serif;">
+                    <div style="font-size: 0.9rem; color: var(--blue-primary); margin-bottom: 10px; font-weight: 600;">
+                        ${title || 'Сообщение'}:
+                    </div>
+                    <div style="font-size: 1rem; line-height: 1.6; color: #333; margin-bottom: 20px;">
                         ${text.replace(/\n/g, '<br>')}
                     </div>
-                    <div style="font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
+                    <div style="font-size: 0.8rem; color: var(--gray-dark); border-top: 2px solid rgba(0, 102, 255, 0.1); padding-top: 10px;">
                         Artistic Soul | Не отвечайте на это сообщение
                     </div>
                 </div>
@@ -2372,6 +2713,61 @@
         },
 
         sendTestMailing: function() {
+            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
+            const tabId = activeTab.getAttribute('data-tab');
+            
+            let mailingData = {};
+            
+            if (tabId === 'mailing-service') {
+                mailingData = {
+                    type: document.getElementById('mailing-type').value,
+                    branch: Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value).join(','),
+                    teacher: document.getElementById('mailing-teacher').value,
+                    day: document.getElementById('mailing-day').value,
+                    message: document.getElementById('mailing-text').value,
+                    test: true
+                };
+            } else {
+                mailingData = {
+                    type: 'marketing',
+                    name: document.getElementById('mailing-name').value,
+                    segment: document.getElementById('mailing-segment').value,
+                    message: document.getElementById('mailing-marketing-text').value,
+                    test: true
+                };
+            }
+            
+            if (!mailingData.message) {
+                this.showToast('Введите текст сообщения', 'warning');
+                return;
+            }
+            
+            this.showLoading('Отправка тестового сообщения...');
+            
+            fetch('/api/admin/mailings/test', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mailingData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideLoading();
+                if (data.success) {
+                    this.showToast('Тестовое сообщение отправлено администратору', 'success');
+                } else {
+                    throw new Error(data.error);
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка отправки: ' + error.message, 'error');
+            });
+        },
+
+        sendMailing: function() {
             const activeTab = document.querySelector('#modal-new-mailing .tab.active');
             const tabId = activeTab.getAttribute('data-tab');
             
@@ -2399,61 +2795,8 @@
                 return;
             }
             
-            this.showLoading('Отправка тестового сообщения...');
-            
-            fetch('/api/admin/mailings/test', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    ...mailingData,
-                    admin_id: this.config.currentUser.id
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                if (data.success) {
-                    this.showToast('Тестовое сообщение отправлено', 'success');
-                } else {
-                    throw new Error(data.error);
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка отправки: ' + error.message, 'error');
-            });
-        },
-
-        sendMailing: function() {
-            if (!confirm('Отправить рассылку всем получателям?')) {
+            if (!confirm(`Отправить рассылку всем получателям (${mailingData.branch || 'все филиалы'})?`)) {
                 return;
-            }
-            
-            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-            const tabId = activeTab.getAttribute('data-tab');
-            
-            let mailingData = {};
-            
-            if (tabId === 'mailing-service') {
-                mailingData = {
-                    type: document.getElementById('mailing-type').value,
-                    branch: Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value).join(','),
-                    teacher: document.getElementById('mailing-teacher').value,
-                    day: document.getElementById('mailing-day').value,
-                    message: document.getElementById('mailing-text').value,
-                    created_by: this.config.currentUser.id
-                };
-            } else {
-                mailingData = {
-                    type: 'marketing',
-                    name: document.getElementById('mailing-name').value,
-                    segment: document.getElementById('mailing-segment').value,
-                    message: document.getElementById('mailing-marketing-text').value,
-                    created_by: this.config.currentUser.id
-                };
             }
             
             this.showLoading('Отправка рассылки...');
@@ -2484,30 +2827,6 @@
             });
         },
 
-        formatServiceMailingMessage: function(mailingData) {
-    const typeNames = {
-        'cancellation': '❌ Отмена занятия',
-        'replacement': '🔄 Замена преподавателя', 
-        'reschedule': '📅 Перенос занятия'
-    };
-    
-    const typeName = typeNames[mailingData.type] || mailingData.type;
-    
-    let message = `<b>${typeName}</b>\n\n`;
-    
-    if (mailingData.teacher && mailingData.teacher !== '') {
-        message += `Преподаватель: ${mailingData.teacher}\n`;
-    }
-    
-    if (mailingData.day && mailingData.day !== '') {
-        message += `День: ${mailingData.day}\n`;
-    }
-    
-    message += `\n${mailingData.message}\n\n`;
-    message += `--\nArtistic Soul`;
-    
-    return message;
-}
         saveScheduleChange: function() {
             const changeData = {
                 date: document.getElementById('change-date').value,
@@ -2525,19 +2844,34 @@
             
             this.showLoading('Сохранение изменений...');
             
-            // В реальном приложении здесь будет API запрос
-            setTimeout(() => {
+            fetch('/api/admin/schedule/change', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(changeData)
+            })
+            .then(response => response.json())
+            .then(data => {
                 this.hideLoading();
                 this.hideModal('schedule-change');
                 
-                if (changeData.send_notification) {
-                    this.showToast('Изменения сохранены. Уведомление отправлено клиентам.', 'success');
+                if (data.success) {
+                    let message = 'Изменения сохранены';
+                    if (changeData.send_notification) {
+                        message += '. Уведомление отправлено клиентам.';
+                    }
+                    this.showToast(message, 'success');
+                    this.loadScheduleData();
                 } else {
-                    this.showToast('Изменения сохранены', 'success');
+                    throw new Error(data.error);
                 }
-                
-                this.loadScheduleData();
-            }, 1500);
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка сохранения: ' + error.message, 'error');
+            });
         },
 
         saveTeacher: function() {
@@ -2630,12 +2964,26 @@
             
             this.showLoading('Очистка логов...');
             
-            // В реальном приложении здесь будет API запрос
-            setTimeout(() => {
+            fetch('/api/admin/logs/clear', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
                 this.hideLoading();
-                this.showToast('Логи успешно очищены', 'success');
-                this.loadLogsData();
-            }, 1500);
+                if (data.success) {
+                    this.showToast('Логи успешно очищены', 'success');
+                    this.loadLogsData();
+                } else {
+                    throw new Error(data.error);
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка очистки: ' + error.message, 'error');
+            });
         },
 
         // УТИЛИТЫ
@@ -2653,7 +3001,8 @@
             const statuses = {
                 'pending': 'В ожидании',
                 'sent': 'Отправлено',
-                'failed': 'Ошибка'
+                'failed': 'Ошибка',
+                'draft': 'Черновик'
             };
             return statuses[status] || status;
         },
@@ -2665,7 +3014,8 @@
                 'expired': 'Истекшие абонементы',
                 'inactive': 'Неактивные',
                 'branch_sviblovo': 'Только Свиблово',
-                'branch_chertanovo': 'Только Чертаново'
+                'branch_chertanovo': 'Только Чертаново',
+                'all': 'Все пользователи'
             };
             return segments[segment] || segment;
         },
@@ -2674,7 +3024,8 @@
             const statuses = {
                 'active': 'Активно',
                 'cancelled': 'Отменено',
-                'rescheduled': 'Перенесено'
+                'rescheduled': 'Перенесено',
+                'completed': 'Завершено'
             };
             return statuses[status] || status;
         },
@@ -2684,19 +3035,55 @@
                 'general': 'Общие',
                 'subscription': 'Абонементы',
                 'schedule': 'Расписание',
-                'payment': 'Оплата'
+                'payment': 'Оплата',
+                'other': 'Другое'
             };
             return categories[category] || category;
+        },
+
+        formatDate: function(dateString) {
+            if (!dateString) return '-';
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ru-RU');
+            } catch (e) {
+                return dateString;
+            }
+        },
+
+        formatDateTime: function(dateString) {
+            if (!dateString) return '-';
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleString('ru-RU');
+            } catch (e) {
+                return dateString;
+            }
         },
 
         showToast: function(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
+            
+            const icons = {
+                'success': 'check-circle',
+                'error': 'exclamation-circle',
+                'warning': 'exclamation-triangle',
+                'info': 'info-circle'
+            };
+            
+            const titles = {
+                'success': 'Успешно',
+                'error': 'Ошибка',
+                'warning': 'Внимание',
+                'info': 'Информация'
+            };
+            
             toast.innerHTML = `
                 <div class="toast-header">
-                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
-                    <div class="toast-title">${type === 'success' ? 'Успешно' : type === 'error' ? 'Ошибка' : type === 'warning' ? 'Внимание' : 'Информация'}</div>
+                    <i class="fas fa-${icons[type] || 'info-circle'}"></i>
+                    <div class="toast-title">${titles[type] || 'Информация'}</div>
                 </div>
                 <div class="toast-message">${message}</div>
             `;
@@ -2720,7 +3107,7 @@
         },
 
         getInitials: function(name) {
-            if (!name) return 'АД';
+            if (!name || typeof name !== 'string') return 'АД';
             return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
         },
 
@@ -2805,61 +3192,135 @@
             });
         },
 
-        // СТАБЫ ДЛЯ ДЕЙСТВИЙ (будут реализованы в API)
+        // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ (заглушки для API)
         viewMailing: function(id) {
             this.showToast(`Просмотр рассылки #${id}`, 'info');
+            // Реализация просмотра рассылки
         },
 
         deleteMailing: function(id) {
             if (confirm(`Удалить рассылку #${id}?`)) {
-                this.showToast(`Рассылка #${id} удалена`, 'success');
+                fetch(`/api/admin/mailings/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.showToast(`Рассылка #${id} удалена`, 'success');
+                        this.loadMailingsData();
+                    } else {
+                        throw new Error(data.error);
+                    }
+                })
+                .catch(error => {
+                    this.showToast('Ошибка удаления: ' + error.message, 'error');
+                });
             }
         },
 
         editLesson: function(id) {
             this.showToast(`Редактирование занятия #${id}`, 'info');
+            // Реализация редактирования занятия
         },
 
         cancelLesson: function(id) {
             if (confirm(`Отменить занятие #${id}?`)) {
                 this.showToast(`Занятие #${id} отменено`, 'success');
+                // API запрос для отмены занятия
             }
         },
 
         editTeacher: function(id) {
             this.showToast(`Редактирование преподавателя #${id}`, 'info');
+            // Реализация редактирования преподавателя
         },
 
         deleteTeacher: function(id) {
             if (confirm(`Удалить преподавателя #${id}?`)) {
-                this.showToast(`Преподаватель #${id} удален`, 'success');
+                fetch(`/api/admin/teachers/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.showToast(`Преподаватель #${id} удален`, 'success');
+                        this.loadTeachersData();
+                    } else {
+                        throw new Error(data.error);
+                    }
+                })
+                .catch(error => {
+                    this.showToast('Ошибка удаления: ' + error.message, 'error');
+                });
             }
         },
 
         editFaq: function(id) {
             this.showToast(`Редактирование вопроса #${id}`, 'info');
+            // Реализация редактирования FAQ
         },
 
         deleteFaq: function(id) {
             if (confirm(`Удалить вопрос #${id}?`)) {
-                this.showToast(`Вопрос #${id} удален`, 'success');
+                fetch(`/api/admin/faq/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.showToast(`Вопрос #${id} удален`, 'success');
+                        this.loadFaqData();
+                    } else {
+                        throw new Error(data.error);
+                    }
+                })
+                .catch(error => {
+                    this.showToast('Ошибка удаления: ' + error.message, 'error');
+                });
             }
         },
 
         editNews: function(id) {
             this.showToast(`Редактирование новости #${id}`, 'info');
+            // Реализация редактирования новости
         },
 
         deleteNews: function(id) {
             if (confirm(`Удалить новость #${id}?`)) {
-                this.showToast(`Новость #${id} удалена`, 'success');
+                fetch(`/api/admin/news/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.showToast(`Новость #${id} удалена`, 'success');
+                        this.loadNewsData();
+                    } else {
+                        throw new Error(data.error);
+                    }
+                })
+                .catch(error => {
+                    this.showToast('Ошибка удаления: ' + error.message, 'error');
+                });
             }
         }
     };
 
     // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Админ-панель загружена');
+        console.log('🚀 Админ-панель Artistic Soul загружена');
         AdminApp.init();
     });
     
