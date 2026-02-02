@@ -274,68 +274,109 @@ class TelegramBotService {
         return phone;
     }
 
-    // Отправка уведомления пользователям филиала
-    async sendNotificationToBranch(branch, message, excludeChatIds = []) {
-        if (!this.bot) {
-            console.log('⚠️ Telegram бот не доступен для отправки уведомлений');
+   async sendNotificationToBranch(branch, message, excludeChatIds = []) {
+    console.log(`\n🚀 ОТПРАВКА УВЕДОМЛЕНИЯ ДЛЯ ФИЛИАЛА: "${branch}"`);
+    
+    if (!this.bot) {
+        console.log('❌ Telegram бот не доступен');
+        return 0;
+    }
+    
+    try {
+        // 1. Получаем chat_id пользователей
+        let users = [];
+        
+        if (branch === 'all') {
+            // Все активные пользователи
+            users = await db.all(`
+                SELECT DISTINCT chat_id 
+                FROM telegram_users 
+                WHERE is_active = 1
+                AND chat_id NOT IN (${excludeChatIds.map(() => '?').join(',')})
+            `, excludeChatIds);
+        } else {
+            // Пользователи конкретного филиала
+            users = await db.all(`
+                SELECT DISTINCT tu.chat_id 
+                FROM telegram_users tu
+                LEFT JOIN student_profiles sp ON tu.username = sp.phone_number
+                WHERE tu.is_active = 1
+                AND (sp.branch = ? OR sp.branch LIKE ? OR ? = 'all')
+                AND tu.chat_id NOT IN (${excludeChatIds.map(() => '?').join(',')})
+            `, [branch, `%${branch}%`, branch, ...excludeChatIds]);
+        }
+        
+        console.log(`👥 Найдено пользователей для отправки: ${users.length}`);
+        
+        if (users.length === 0) {
+            console.log('⚠️  Нет пользователей для отправки. Возможные причины:');
+            console.log('   • Пользователи не отправили /start боту');
+            console.log('   • В таблице telegram_users нет записей');
+            console.log('   • Все пользователи неактивны (is_active = 0)');
             return 0;
         }
         
-        try {
-            console.log(`📨 Отправка уведомления для филиала "${branch}"`);
-            
-            // Находим chat_id пользователей по филиалу
-            const users = await db.all(`
-                SELECT DISTINCT tu.chat_id 
-                FROM telegram_users tu
-                JOIN student_profiles sp ON tu.username = sp.phone_number
-                WHERE sp.branch = ? AND tu.is_active = 1
-                AND tu.chat_id NOT IN (${excludeChatIds.map(() => '?').join(',')})
-            `, [branch, ...excludeChatIds]);
-            
-            console.log(`👥 Найдено пользователей для рассылки: ${users.length}`);
-            
-            let sentCount = 0;
-            let failedCount = 0;
-            
-            for (const user of users) {
-                try {
-                    await this.bot.sendMessage(user.chat_id, 
-                        `📢 *Уведомление от Школы рисования*\n\n` +
-                        `${message}\n\n` +
-                        `_Не отвечайте на это сообщение_`,
-                        { parse_mode: 'Markdown' }
-                    );
-                    
-                    sentCount++;
-                    console.log(`✅ Отправлено chat_id ${user.chat_id}`);
-                    
-                    // Задержка между отправками (50 мс)
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
-                } catch (error) {
-                    failedCount++;
-                    console.error(`❌ Ошибка отправки в chat_id ${user.chat_id}:`, error.message);
-                    
-                    // Если пользователь заблокировал бота, деактивируем его
-                    if (error.response?.statusCode === 403) {
-                        await db.run(
-                            'UPDATE telegram_users SET is_active = 0 WHERE chat_id = ?',
-                            [user.chat_id]
-                        );
-                        console.log(`👤 Пользователь ${user.chat_id} деактивирован (заблокировал бота)`);
+        // 2. Отправляем сообщения
+        let sentCount = 0;
+        let failedCount = 0;
+        const failedUsers = [];
+        
+        for (const user of users) {
+            try {
+                await this.bot.sendMessage(
+                    user.chat_id,
+                    `📢 *Уведомление от Школы рисования*\n\n` +
+                    `${message}\n\n` +
+                    `_Не отвечайте на это сообщение_`,
+                    { 
+                        parse_mode: 'Markdown',
+                        disable_web_page_preview: true 
                     }
+                );
+                
+                sentCount++;
+                
+                // Задержка между отправками (100 мс)
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+            } catch (error) {
+                failedCount++;
+                failedUsers.push({
+                    chat_id: user.chat_id,
+                    error: error.message
+                });
+                
+                console.error(`❌ Ошибка отправки в chat_id ${user.chat_id}:`, error.message);
+                
+                // Если пользователь заблокировал бота (403) или чат не найден
+                if (error.response?.statusCode === 403 || error.response?.statusCode === 400) {
+                    await db.run(
+                        'UPDATE telegram_users SET is_active = 0 WHERE chat_id = ?',
+                        [user.chat_id]
+                    );
+                    console.log(`   👤 Пользователь ${user.chat_id} деактивирован`);
                 }
             }
-            
-            console.log(`📊 Итог рассылки: отправлено ${sentCount}, не отправлено ${failedCount}`);
-            return sentCount;
-            
-        } catch (error) {
-            console.error('❌ Ошибка отправки уведомлений:', error);
-            return 0;
         }
+        
+        console.log(`📊 ИТОГ РАССЫЛКИ:`);
+        console.log(`   ✅ Успешно отправлено: ${sentCount}`);
+        console.log(`   ❌ Не отправлено: ${failedCount}`);
+        
+        if (failedUsers.length > 0) {
+            console.log('   🐛 Ошибки отправки:');
+            failedUsers.slice(0, 5).forEach(fu => {
+                console.log(`      chat_id ${fu.chat_id}: ${fu.error}`);
+            });
+        }
+        
+        return sentCount;
+        
+    } catch (error) {
+        console.error('❌ Общая ошибка отправки уведомлений:', error);
+        return 0;
     }
+}
 }
 
 // ==================== УЛУЧШЕННЫЙ КЛАСС AMOCRM ====================
