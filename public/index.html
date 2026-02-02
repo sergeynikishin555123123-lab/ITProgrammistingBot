@@ -1562,7 +1562,8 @@
                 'Свиблово': '+7 (999) 123-45-67',
                 'Чертаново': '+7 (999) 987-65-43',
                 'all': '+7 (999) 111-22-33'
-            }
+            },
+            notificationInterval: null
         },
 
         // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
@@ -1700,8 +1701,8 @@
                     this.navigateToPage('home');
                     this.loadHomePage();
                     
-                    // Подключаем WebSocket для уведомлений
-                    this.setupWebSocket();
+                    // Подключаем уведомления через polling
+                    this.setupNotifications();
                 } else {
                     throw new Error(data.error || 'Не удалось получить данные');
                 }
@@ -1715,6 +1716,55 @@
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти';
             });
+        },
+
+        // НАСТРОЙКА УВЕДОМЛЕНИЙ (POLLING)
+        setupNotifications: function() {
+            const phone = this.config.currentUser?.phone_number;
+            if (!phone) return;
+            
+            console.log('🔔 Настройка уведомлений (polling)...');
+            
+            // Функция проверки уведомлений
+            const checkNotifications = () => {
+                if (!this.config.token || !this.config.currentProfile) return;
+                
+                fetch('/api/notifications', {
+                    headers: {
+                        'Authorization': `Bearer ${this.config.token}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.data.notifications) {
+                        data.data.notifications.forEach(notification => {
+                            this.showNotification(notification.message, 'info');
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Ошибка получения уведомлений:', error);
+                });
+            };
+            
+            // Проверяем каждые 30 секунд
+            this.config.notificationInterval = setInterval(checkNotifications, 30000);
+            
+            // Первая проверка
+            checkNotifications();
+        },
+
+        // ОЧИСТКА ИНТЕРВАЛА УВЕДОМЛЕНИЙ
+        clearNotificationInterval: function() {
+            if (this.config.notificationInterval) {
+                clearInterval(this.config.notificationInterval);
+                this.config.notificationInterval = null;
+            }
         },
 
         // ОБНОВЛЕНИЕ ИНФОРМАЦИИ ПОЛЬЗОВАТЕЛЯ
@@ -1976,7 +2026,7 @@
                 </div>
             `;
             
-            // Попробуем загрузить данные из API
+            // Загружаем данные из API
             this.loadSubscriptionFromAPI();
         },
 
@@ -2188,15 +2238,7 @@
             branchBadge.textContent = `Филиал: ${branch}`;
             branchBadge.style.display = 'inline-block';
             
-            // Показываем загрузку
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="spinner"></div>
-                    <p>Загрузка расписания для филиала "${branch}"...</p>
-                </div>
-            `;
-            
-            // Пытаемся загрузить расписание из API
+            // Загружаем расписание из API
             this.loadScheduleFromAPI(branch);
         },
 
@@ -2204,63 +2246,39 @@
         loadScheduleFromAPI: function(branch) {
             const container = document.getElementById('scheduleContainer');
             
-            // В реальном приложении здесь будет fetch к API
-            // fetch(`/api/schedule/${encodeURIComponent(branch)}`)
-            //     .then(response => response.json())
-            //     .then(data => {
-            //         if (data.success && data.data.schedule) {
-            //             this.renderSchedule(data.data.schedule);
-            //         } else {
-            //             throw new Error(data.error || 'Ошибка загрузки расписания');
-            //         }
-            //     })
+            this.showLoading('Загрузка расписания...');
             
-            // Для демонстрации используем тестовые данные
-            setTimeout(() => {
-                const schedule = this.generateSampleSchedule();
-                this.renderSchedule(schedule);
-            }, 500);
-        },
-
-        // ГЕНЕРАЦИЯ ТЕСТОВОГО РАСПИСАНИЯ
-        generateSampleSchedule: function() {
-            const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-            const times = ['10:00-11:30', '12:00-13:30', '14:00-15:30', '16:00-17:30', '18:00-19:30'];
-            const teachers = ['Анна К.', 'Мария П.', 'Иван С.', 'Елена В.'];
-            const statuses = [
-                { type: 'normal', text: 'По расписанию' },
-                { type: 'cancelled', text: 'Отменено' },
-                { type: 'replacement', text: 'Замена преподавателя' },
-                { type: 'rescheduled', text: 'Перенесено' }
-            ];
-            
-            const schedule = [];
-            
-            days.forEach(day => {
-                const daySchedule = {
-                    day: day,
-                    lessons: []
-                };
-                
-                // 1-3 занятия в день
-                const lessonCount = Math.floor(Math.random() * 3) + 1;
-                for (let i = 0; i < lessonCount; i++) {
-                    const statusIndex = Math.floor(Math.random() * statuses.length);
-                    const status = statuses[statusIndex];
-                    
-                    daySchedule.lessons.push({
-                        time: times[Math.floor(Math.random() * times.length)],
-                        teacher: teachers[Math.floor(Math.random() * teachers.length)],
-                        status: status,
-                        group: `Группа ${Math.floor(Math.random() * 5) + 1}`,
-                        ageGroup: `${Math.floor(Math.random() * 3) + 6}-${Math.floor(Math.random() * 3) + 9} лет`
-                    });
+            fetch(`/api/schedule/student/${encodeURIComponent(branch)}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
                 }
-                
-                schedule.push(daySchedule);
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.schedule) {
+                    this.renderSchedule(data.data.schedule);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки расписания');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки расписания:', error);
+                this.showNotification('Ошибка загрузки расписания', 'error');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar"></i>
+                        <p>Расписание пока не составлено</p>
+                    </div>
+                `;
+            })
+            .finally(() => {
+                this.hideLoading();
             });
-            
-            return schedule;
         },
 
         // РЕНДЕРИНГ РАСПИСАНИЯ
@@ -2351,15 +2369,7 @@
             branchBadge.textContent = `Филиал: ${branch}`;
             branchBadge.style.display = 'inline-block';
             
-            // Показываем загрузку
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="spinner"></div>
-                    <p>Загрузка преподавателей для филиала "${branch}"...</p>
-                </div>
-            `;
-            
-            // Загружаем преподавателей для филиала
+            // Загружаем преподавателей из API
             this.loadTeachersFromAPI(branch);
         },
 
@@ -2367,74 +2377,39 @@
         loadTeachersFromAPI: function(branch) {
             const container = document.getElementById('teachersContainer');
             
-            // В реальном приложении здесь будет fetch к API
-            // fetch(`/api/teachers/${encodeURIComponent(branch)}`)
-            //     .then(response => response.json())
-            //     .then(data => {
-            //         if (data.success && data.data.teachers) {
-            //             this.renderTeachers(data.data.teachers);
-            //         } else {
-            //             throw new Error(data.error || 'Ошибка загрузки преподавателей');
-            //         }
-            //     })
+            this.showLoading('Загрузка преподавателей...');
             
-            // Для демонстрации используем тестовые данные
-            setTimeout(() => {
-                const teachers = this.generateSampleTeachers();
-                // Фильтруем по филиалу
-                const filteredTeachers = teachers.filter(teacher => 
-                    teacher.branch === branch || teacher.branch === 'Оба филиала'
-                );
-                this.renderTeachers(filteredTeachers);
-            }, 500);
-        },
-
-        // ГЕНЕРАЦИЯ ТЕСТОВЫХ ПРЕПОДАВАТЕЛЕЙ
-        generateSampleTeachers: function() {
-            return [
-                {
-                    name: 'Анна К.',
-                    branch: 'Свиблово',
-                    specialization: 'Акварель, графика',
-                    experience: 8,
-                    description: 'Выпускница МГАХИ им. Сурикова. Провела 5 персональных выставок.'
-                },
-                {
-                    name: 'Мария П.',
-                    branch: 'Свиблово',
-                    specialization: 'Масляная живопись',
-                    experience: 12,
-                    description: 'Член Союза художников России. Участник международных выставок.'
-                },
-                {
-                    name: 'Иван С.',
-                    branch: 'Чертаново',
-                    specialization: 'Скетчинг, иллюстрация',
-                    experience: 6,
-                    description: 'Художник-иллюстратор, сотрудничает с издательствами.'
-                },
-                {
-                    name: 'Елена В.',
-                    branch: 'Чертаново',
-                    specialization: 'Детское творчество',
-                    experience: 10,
-                    description: 'Педагог высшей категории. Автор методик для детей.'
-                },
-                {
-                    name: 'Дмитрий Л.',
-                    branch: 'Оба филиала',
-                    specialization: 'Скульптура, керамика',
-                    experience: 15,
-                    description: 'Лауреат международных конкурсов. Работы в музеях Европы.'
-                },
-                {
-                    name: 'Ольга М.',
-                    branch: 'Свиблово',
-                    specialization: 'История искусств',
-                    experience: 20,
-                    description: 'Кандидат искусствоведения. Автор научных публикаций.'
+            fetch(`/api/teachers/student/${encodeURIComponent(branch)}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
                 }
-            ];
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.teachers) {
+                    this.renderTeachers(data.data.teachers);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки преподавателей');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки преподавателей:', error);
+                this.showNotification('Ошибка загрузки преподавателей', 'error');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <p>В вашем филиале преподаватели не найдены</p>
+                    </div>
+                `;
+            })
+            .finally(() => {
+                this.hideLoading();
+            });
         },
 
         // РЕНДЕРИНГ ПРЕПОДАВАТЕЛЕЙ
@@ -2475,39 +2450,39 @@
         loadFaqPage: function() {
             const container = document.getElementById('faqContainer');
             
-            // Показываем тестовые FAQ
-            const faq = this.generateSampleFaq();
-            this.renderFaq(faq);
-        },
-
-        // ГЕНЕРАЦИЯ ТЕСТОВЫХ FAQ
-        generateSampleFaq: function() {
-            return [
-                {
-                    question: 'Как продлить абонемент?',
-                    answer: 'Для продления абонемента свяжитесь с администратором через раздел "Контакты". Вам будет предложено несколько вариантов продления с учетом остатка занятий.'
-                },
-                {
-                    question: 'Что делать, если нужно пропустить занятие?',
-                    answer: 'Если вы знаете о пропуске заранее, сообщите администратору. В некоторых случаях возможен перенос занятия или использование отработки.'
-                },
-                {
-                    question: 'Можно ли заморозить абонемент?',
-                    answer: 'Да, абонемент можно заморозить на срок до 2 недель в случае болезни или отъезда. Для этого обратитесь к администратору.'
-                },
-                {
-                    question: 'Как узнать остаток занятий?',
-                    answer: 'Текущий остаток занятий отображается в разделе "Абонемент". Там же указана дата окончания действия абонемента.'
-                },
-                {
-                    question: 'Что входит в стоимость абонемента?',
-                    answer: 'В стоимость включены все необходимые материалы для занятий: краски, кисти, бумага, холсты (для масляной живописи). Специальные материалы оплачиваются отдельно.'
-                },
-                {
-                    question: 'Можно ли посещать занятия в другом филиале?',
-                    answer: 'Да, по предварительной договоренности с администратором вы можете посещать занятия в другом филиале при наличии свободных мест в группе.'
+            this.showLoading('Загрузка FAQ...');
+            
+            fetch('/api/faq/student', {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
                 }
-            ];
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.faq) {
+                    this.renderFaq(data.data.faq);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки FAQ');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки FAQ:', error);
+                this.showNotification('Ошибка загрузки FAQ', 'error');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-question-circle"></i>
+                        <p>Вопросы пока не добавлены</p>
+                    </div>
+                `;
+            })
+            .finally(() => {
+                this.hideLoading();
+            });
         },
 
         // РЕНДЕРИНГ FAQ
@@ -2582,15 +2557,7 @@
             branchBadge.textContent = `Филиал: ${branch}`;
             branchBadge.style.display = 'inline-block';
             
-            // Показываем загрузку
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="spinner"></div>
-                    <p>Загрузка новостей для филиала "${branch}"...</p>
-                </div>
-            `;
-            
-            // Загружаем новости для филиала
+            // Загружаем новости из API
             this.loadNewsFromAPI(branch);
         },
 
@@ -2598,81 +2565,39 @@
         loadNewsFromAPI: function(branch) {
             const container = document.getElementById('newsContainer');
             
-            // В реальном приложении здесь будет fetch к API
-            // fetch(`/api/news/${encodeURIComponent(branch)}`)
-            //     .then(response => response.json())
-            //     .then(data => {
-            //         if (data.success && data.data.news) {
-            //             this.renderNews(data.data.news);
-            //         } else {
-            //             throw new Error(data.error || 'Ошибка загрузки новостей');
-            //         }
-            //     })
+            this.showLoading('Загрузка новостей...');
             
-            // Для демонстрации используем тестовые данные
-            setTimeout(() => {
-                const news = this.generateSampleNews();
-                // Фильтруем по филиалу
-                const filteredNews = news.filter(item => 
-                    item.branch === branch || item.branch === 'both'
-                );
-                this.renderNews(filteredNews);
-            }, 500);
-        },
-
-        // ГЕНЕРАЦИЯ ТЕСТОВЫХ НОВОСТЕЙ
-        generateSampleNews: function() {
-            const today = new Date();
-            const formatDate = (daysAgo) => {
-                const date = new Date(today);
-                date.setDate(date.getDate() - daysAgo);
-                return date.toLocaleDateString('ru-RU');
-            };
-            
-            return [
-                {
-                    title: 'Новый курс: "Скетчинг для начинающих"',
-                    content: 'Приглашаем на новый курс по скетчингу! Научимся быстро зарисовывать идеи, работать с перспективой и композицией. Курс рассчитан на 8 занятий.',
-                    date: formatDate(2),
-                    branch: 'both',
-                    category: 'events'
-                },
-                {
-                    title: 'Выставка работ наших учеников',
-                    content: 'В галерее "Арт-пространство" открыта выставка работ учеников нашей студии. Все желающие могут посетить выставку до 30 декабря.',
-                    date: formatDate(5),
-                    branch: 'Свиблово',
-                    category: 'events'
-                },
-                {
-                    title: 'Акция: Приведи друга - получи скидку!',
-                    content: 'Приводите друзей в нашу студию и получайте скидку 20% на следующий абонемент! Акция действует до конца месяца.',
-                    date: formatDate(7),
-                    branch: 'both',
-                    category: 'sales'
-                },
-                {
-                    title: 'Мастер-класс по акварели',
-                    content: 'Приглашаем на мастер-класс "Зимний пейзаж акварелью". Все материалы предоставляются. Предварительная запись обязательна.',
-                    date: formatDate(10),
-                    branch: 'Чертаново',
-                    category: 'masterclass'
-                },
-                {
-                    title: 'Изменение в расписании',
-                    content: 'Обратите внимание: с 1 декабря изменится время занятий в группе "Живопись маслом" по субботам.',
-                    date: formatDate(12),
-                    branch: 'Свиблово',
-                    category: 'news'
-                },
-                {
-                    title: 'Новый преподаватель',
-                    content: 'В нашей студии начинает работать новый преподаватель - Дмитрий Л., специалист по скульптуре и керамике.',
-                    date: formatDate(15),
-                    branch: 'both',
-                    category: 'news'
+            fetch(`/api/news/student/${encodeURIComponent(branch)}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
                 }
-            ];
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.data && data.data.news) {
+                    this.renderNews(data.data.news);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки новостей');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки новостей:', error);
+                this.showNotification('Ошибка загрузки новостей', 'error');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-newspaper"></i>
+                        <p>Новостей для вашего филиала пока нет</p>
+                    </div>
+                `;
+            })
+            .finally(() => {
+                this.hideLoading();
+            });
         },
 
         // РЕНДЕРИНГ НОВОСТЕЙ
@@ -2717,15 +2642,42 @@
         contactAdmin: function(subject) {
             const message = `Здравствуйте!\n\nПрошу связаться со мной по вопросу: ${subject || 'Вопрос по абонементу'}\n\nУченик: ${this.config.currentProfile?.student_name || ''}\nФилиал: ${this.config.currentProfile?.branch || ''}\n\nСпасибо!`;
             
-            this.showNotification('📧 Сообщение подготовлено. В реальном приложении здесь будет отправка в Telegram или email.', 'success');
+            // Отправка сообщения администратору через API
+            this.showLoading('Отправка сообщения...');
             
-            // В реальном приложении здесь будет отправка сообщения
-            console.log('Сообщение для администратора:', message);
-            
-            // Показать модальное окно с сообщением (для демонстрации)
-            if (confirm('Сообщение для администратора:\n\n' + message + '\n\nОтправить?')) {
-                this.showNotification('✅ Сообщение отправлено администратору', 'success');
-            }
+            fetch('/api/contact/admin', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    subject: subject,
+                    message: message,
+                    student_name: this.config.currentProfile?.student_name || '',
+                    branch: this.config.currentProfile?.branch || ''
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    this.showNotification('✅ Сообщение отправлено администратору', 'success');
+                } else {
+                    throw new Error(data.error || 'Ошибка отправки сообщения');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка отправки сообщения:', error);
+                this.showNotification('Ошибка отправки сообщения: ' + error.message, 'error');
+            })
+            .finally(() => {
+                this.hideLoading();
+            });
         },
 
         // ЗВОНОК АДМИНИСТРАТОРУ
@@ -2738,17 +2690,15 @@
             }
             
             if (confirm(`Позвонить администратору?\n\n${branch || 'Общий'}: ${phone}\n\nНажмите OK для звонка`)) {
-                // В реальном приложении здесь будет инициация звонка
-                this.showNotification(`📞 Инициирован звонок на номер: ${phone}`, 'success');
-                
-                // Для демонстрации просто показываем номер
-                alert(`Номер для звонка: ${phone}\n\nВ реальном приложении будет произведен звонок.`);
+                // Инициируем звонок через tel: ссылку
+                window.location.href = `tel:${phone.replace(/\D/g, '')}`;
             }
         },
 
         // ВЫХОД ИЗ СИСТЕМЫ
         logout: function() {
             if (confirm('Вы уверены, что хотите выйти?')) {
+                this.clearNotificationInterval();
                 this.clearSession();
                 this.showAuthPage();
                 this.showNotification('Вы успешно вышли из системы', 'success');
@@ -2759,50 +2709,6 @@
         // СКРЫТЬ МЕНЮ ПОЛЬЗОВАТЕЛЯ
         hideProfileMenu: function() {
             document.getElementById('userMenu').classList.add('d-none');
-        },
-
-        // НАСТРОЙКА WEB SOCKET
-        setupWebSocket: function() {
-            const phone = this.config.currentUser?.phone_number;
-            if (!phone) return;
-            
-            // Определяем URL WebSocket (поддержка HTTPS/HTTP)
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}`;
-            
-            const ws = new WebSocket(wsUrl);
-            
-            ws.onopen = () => {
-                console.log('🔗 WebSocket подключен');
-                ws.send(JSON.stringify({
-                    type: 'register',
-                    phone: phone
-                }));
-            };
-            
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'notification') {
-                        this.showNotification(data.data.message, 'info');
-                    }
-                } catch (error) {
-                    console.error('❌ Ошибка обработки WebSocket сообщения:', error);
-                }
-            };
-            
-            ws.onclose = () => {
-                console.log('🔗 WebSocket отключен');
-                // Пытаемся переподключиться через 5 секунд
-                setTimeout(() => this.setupWebSocket(), 5000);
-            };
-            
-            ws.onerror = (error) => {
-                console.error('❌ WebSocket ошибка:', error);
-            };
-            
-            this.ws = ws;
         },
 
         // УВЕДОМЛЕНИЯ
