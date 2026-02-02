@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>Artistic Soul | Личный кабинет</title>
+    <title>БАНЯ | Личный кабинет</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* ==================== ОСНОВНЫЕ СТИЛИ ==================== */
@@ -25,13 +25,13 @@
         }
 
         @font-face {
-            font-family: 'ArtisticSoul';
+            font-family: 'BanyaFont';
             src: url('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2');
             font-weight: 400;
         }
 
         @font-face {
-            font-family: 'ArtisticSoul';
+            font-family: 'BanyaFont';
             src: url('https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmEU9fBBc4.woff2');
             font-weight: 700;
         }
@@ -44,13 +44,11 @@
         }
 
         body {
-            font-family: 'ArtisticSoul', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'BanyaFont', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--white);
             color: #333;
             line-height: 1.6;
             min-height: 100vh;
-            padding: 0;
-            margin: 0;
         }
 
         /* ==================== СТРАНИЦА АВТОРИЗАЦИИ ==================== */
@@ -83,9 +81,7 @@
             height: 100px;
             border-radius: 50%;
             object-fit: cover;
-            margin-bottom: 20px;
             border: 3px solid var(--blue-primary);
-            background: linear-gradient(45deg, var(--blue-primary), var(--blue-bright));
             display: flex;
             align-items: center;
             justify-content: center;
@@ -93,10 +89,11 @@
             font-size: 2rem;
             font-weight: bold;
             margin: 0 auto 20px;
+            background: linear-gradient(45deg, var(--blue-primary), var(--blue-bright));
         }
 
         .auth-logo-text {
-            font-family: 'ArtisticSoul';
+            font-family: 'BanyaFont';
             font-size: 2.2rem;
             font-weight: 700;
             color: var(--blue-primary);
@@ -138,7 +135,6 @@
             font-size: 1.1rem;
             color: #333;
             background: var(--white);
-            font-family: 'ArtisticSoul', sans-serif;
             transition: all 0.3s ease;
         }
 
@@ -164,7 +160,6 @@
             margin-bottom: 15px;
             background: var(--blue-primary);
             color: var(--white);
-            font-family: 'ArtisticSoul', sans-serif;
             text-decoration: none;
         }
 
@@ -247,7 +242,7 @@
         }
 
         .logo-text {
-            font-family: 'ArtisticSoul';
+            font-family: 'BanyaFont';
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--white);
@@ -420,11 +415,6 @@
             color: white;
         }
 
-        .status-pending {
-            background: var(--warning);
-            color: white;
-        }
-
         /* ГЛАВНАЯ СТРАНИЦА */
         .welcome-card {
             background: linear-gradient(135deg, var(--blue-primary), var(--blue-bright));
@@ -534,25 +524,6 @@
         }
 
         /* СТРАНИЦА РАСПИСАНИЯ */
-        .schedule-filter {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .filter-select {
-            flex: 1;
-            min-width: 150px;
-            padding: 12px;
-            border: 2px solid var(--blue-primary);
-            border-radius: 12px;
-            background: var(--white);
-            color: var(--blue-primary);
-            font-family: 'ArtisticSoul', sans-serif;
-            font-size: 1rem;
-        }
-
         .schedule-day {
             background: var(--white);
             border-radius: 15px;
@@ -581,14 +552,6 @@
         .lesson-item.cancelled {
             border-left-color: var(--error);
             opacity: 0.7;
-        }
-
-        .lesson-item.replacement {
-            border-left-color: var(--warning);
-        }
-
-        .lesson-item.rescheduled {
-            border-left-color: var(--pink);
         }
 
         .lesson-time {
@@ -623,16 +586,6 @@
 
         .status-cancelled {
             background: var(--error);
-            color: white;
-        }
-
-        .status-replacement {
-            background: var(--warning);
-            color: white;
-        }
-
-        .status-rescheduled {
-            background: var(--pink);
             color: white;
         }
 
@@ -1234,9 +1187,9 @@
     <div id="auth-page">
         <div class="auth-container">
             <div class="auth-logo">
-                <div class="logo-image">AS</div>
-                <div class="auth-logo-text">Artistic Soul</div>
-                <div class="auth-subtitle">Художественная студия</div>
+                <div class="logo-image" id="authLogo">Б</div>
+                <div class="auth-logo-text">БАНЯ</div>
+                <div class="auth-subtitle">Школа рисования</div>
             </div>
             
             <h2 class="auth-title">Вход в личный кабинет</h2>
@@ -1266,16 +1219,16 @@
         <!-- ВЕРХНИЙ БАР -->
         <nav class="top-bar">
             <div style="display: flex; align-items: center;">
-                <div class="logo-small">AS</div>
-                <div class="logo-text">Artistic Soul</div>
+                <div class="logo-small" id="headerLogo">Б</div>
+                <div class="logo-text">БАНЯ</div>
             </div>
             
-            <div class="user-avatar" id="userAvatar" onclick="ArtApp.showProfileMenu()">
+            <div class="user-avatar" id="userAvatar" onclick="BanyaApp.showProfileMenu()">
                 <i class="fas fa-user"></i>
             </div>
         </nav>
         
-        <!-- ВЫБОР УЧЕНИКА (ПОКАЗЫВАЕТСЯ ПРИ НЕСКОЛЬКИХ УЧЕНИКАХ) -->
+        <!-- ВЫБОР УЧЕНИКА -->
         <div id="studentSelector" class="student-selector d-none">
             <div class="selector-title">
                 <i class="fas fa-users"></i>
@@ -1299,7 +1252,7 @@
                 </div>
                 
                 <div class="quick-cards">
-                    <div class="quick-card" onclick="ArtApp.navigateTo('subscription')">
+                    <div class="quick-card" onclick="BanyaApp.navigateTo('subscription')">
                         <div class="quick-card-icon">
                             <i class="fas fa-ticket-alt"></i>
                         </div>
@@ -1307,7 +1260,7 @@
                         <div class="quick-card-desc">Остаток занятий и срок действия</div>
                     </div>
                     
-                    <div class="quick-card" onclick="ArtApp.navigateTo('schedule')">
+                    <div class="quick-card" onclick="BanyaApp.navigateTo('schedule')">
                         <div class="quick-card-icon">
                             <i class="fas fa-calendar-alt"></i>
                         </div>
@@ -1315,7 +1268,7 @@
                         <div class="quick-card-desc">Ваши занятия на неделю</div>
                     </div>
                     
-                    <div class="quick-card" onclick="ArtApp.navigateTo('teachers')">
+                    <div class="quick-card" onclick="BanyaApp.navigateTo('teachers')">
                         <div class="quick-card-icon">
                             <i class="fas fa-chalkboard-teacher"></i>
                         </div>
@@ -1323,7 +1276,7 @@
                         <div class="quick-card-desc">Наши педагоги и их регалии</div>
                     </div>
                     
-                    <div class="quick-card" onclick="ArtApp.navigateTo('news')">
+                    <div class="quick-card" onclick="BanyaApp.navigateTo('news')">
                         <div class="quick-card-icon">
                             <i class="fas fa-newspaper"></i>
                         </div>
@@ -1337,7 +1290,7 @@
                         <i class="fas fa-fire"></i> Быстрый доступ
                     </h3>
                     
-                    <div class="card" onclick="ArtApp.navigateTo('faq')">
+                    <div class="card" onclick="BanyaApp.navigateTo('faq')">
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <div style="width: 50px; height: 50px; background: var(--blue-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                                 <i class="fas fa-question-circle"></i>
@@ -1349,7 +1302,7 @@
                         </div>
                     </div>
                     
-                    <div class="card" onclick="ArtApp.navigateTo('contact')">
+                    <div class="card" onclick="BanyaApp.navigateTo('contact')">
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <div style="width: 50px; height: 50px; background: var(--blue-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                                 <i class="fas fa-headset"></i>
@@ -1366,7 +1319,7 @@
             <!-- РАСПИСАНИЕ -->
             <section id="schedulePage" class="page-section">
                 <div class="page-header">
-                    <div class="back-button" onclick="ArtApp.navigateTo('home')">
+                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
                         <i class="fas fa-arrow-left"></i> Назад
                     </div>
                     <h2 class="page-title">Расписание</h2>
@@ -1384,11 +1337,11 @@
             <!-- АБОНЕМЕНТ -->
             <section id="subscriptionPage" class="page-section">
                 <div class="page-header">
-                    <div class="back-button" onclick="ArtApp.navigateTo('home')">
+                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
                         <i class="fas fa-arrow-left"></i> Назад
                     </div>
                     <h2 class="page-title">Мой абонемент</h2>
-                    <button class="btn btn-secondary" onclick="ArtApp.refreshSubscription()" style="width: auto; padding: 10px 20px;">
+                    <button class="btn btn-secondary" onclick="BanyaApp.refreshSubscription()" style="width: auto; padding: 10px 20px;">
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
@@ -1398,7 +1351,7 @@
                 </div>
                 
                 <div class="mt-30">
-                    <button class="btn btn-pink w-100" onclick="ArtApp.contactAdmin('Продлить абонемент')">
+                    <button class="btn btn-pink w-100" onclick="BanyaApp.contactAdmin('Продлить абонемент')">
                         <i class="fas fa-credit-card"></i>
                         Продлить абонемент
                     </button>
@@ -1408,7 +1361,7 @@
             <!-- ПРЕПОДАВАТЕЛИ -->
             <section id="teachersPage" class="page-section">
                 <div class="page-header">
-                    <div class="back-button" onclick="ArtApp.navigateTo('home')">
+                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
                         <i class="fas fa-arrow-left"></i> Назад
                     </div>
                     <h2 class="page-title">Преподаватели</h2>
@@ -1426,7 +1379,7 @@
             <!-- FAQ -->
             <section id="faqPage" class="page-section">
                 <div class="page-header">
-                    <div class="back-button" onclick="ArtApp.navigateTo('home')">
+                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
                         <i class="fas fa-arrow-left"></i> Назад
                     </div>
                     <h2 class="page-title">Частые вопросы</h2>
@@ -1440,7 +1393,7 @@
             <!-- НОВОСТИ -->
             <section id="newsPage" class="page-section">
                 <div class="page-header">
-                    <div class="back-button" onclick="ArtApp.navigateTo('home')">
+                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
                         <i class="fas fa-arrow-left"></i> Назад
                     </div>
                     <h2 class="page-title">Новости школы</h2>
@@ -1458,7 +1411,7 @@
             <!-- КОНТАКТЫ -->
             <section id="contactPage" class="page-section">
                 <div class="page-header">
-                    <div class="back-button" onclick="ArtApp.navigateTo('home')">
+                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
                         <i class="fas fa-arrow-left"></i> Назад
                     </div>
                     <h2 class="page-title">Связаться с нами</h2>
@@ -1473,7 +1426,7 @@
                         <div class="contact-info">
                             Ответим на ваши вопросы, поможем с продлением абонемента
                         </div>
-                        <button class="btn btn-primary w-100" onclick="ArtApp.contactAdmin('Вопрос по абонементу')">
+                        <button class="btn btn-primary w-100" onclick="BanyaApp.contactAdmin('Вопрос по абонементу')">
                             <i class="fas fa-paper-plane"></i> Написать сообщение
                         </button>
                     </div>
@@ -1490,7 +1443,7 @@
                             Пн-Пт: 9:00-20:00<br>
                             Сб-Вс: 10:00-18:00
                         </div>
-                        <button class="btn btn-secondary w-100" onclick="ArtApp.callAdmin()">
+                        <button class="btn btn-secondary w-100" onclick="BanyaApp.callAdmin()">
                             <i class="fas fa-phone"></i> Позвонить
                         </button>
                     </div>
@@ -1500,23 +1453,23 @@
         
         <!-- НИЖНЯЯ НАВИГАЦИЯ -->
         <nav class="bottom-nav" id="bottomNav">
-            <a href="#" class="nav-item active" data-page="home" onclick="ArtApp.navigateTo('home')">
+            <a href="#" class="nav-item active" data-page="home" onclick="BanyaApp.navigateTo('home')">
                 <i class="fas fa-home"></i>
                 <span>Главная</span>
             </a>
-            <a href="#" class="nav-item" data-page="schedule" onclick="ArtApp.navigateTo('schedule')">
+            <a href="#" class="nav-item" data-page="schedule" onclick="BanyaApp.navigateTo('schedule')">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Расписание</span>
             </a>
-            <a href="#" class="nav-item" data-page="subscription" onclick="ArtApp.navigateTo('subscription')">
+            <a href="#" class="nav-item" data-page="subscription" onclick="BanyaApp.navigateTo('subscription')">
                 <i class="fas fa-ticket-alt"></i>
                 <span>Абонемент</span>
             </a>
-            <a href="#" class="nav-item" data-page="teachers" onclick="ArtApp.navigateTo('teachers')">
+            <a href="#" class="nav-item" data-page="teachers" onclick="BanyaApp.navigateTo('teachers')">
                 <i class="fas fa-chalkboard-teacher"></i>
                 <span>Преподаватели</span>
             </a>
-            <a href="#" class="nav-item" data-page="contact" onclick="ArtApp.navigateTo('contact')">
+            <a href="#" class="nav-item" data-page="contact" onclick="BanyaApp.navigateTo('contact')">
                 <i class="fas fa-headset"></i>
                 <span>Контакты</span>
             </a>
@@ -1533,13 +1486,13 @@
             <div style="font-size: 0.9rem; color: var(--gray-dark);" id="userMenuPhone">Загрузка...</div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button class="btn btn-secondary" onclick="ArtApp.navigateTo('home')">
+            <button class="btn btn-secondary" onclick="BanyaApp.navigateTo('home')">
                 <i class="fas fa-home"></i> Главная
             </button>
-            <button class="btn btn-secondary" onclick="ArtApp.showStudentsSelector()">
+            <button class="btn btn-secondary" onclick="BanyaApp.showStudentsSelector()">
                 <i class="fas fa-users"></i> Сменить ученика
             </button>
-            <button class="btn btn-secondary" style="border-color: var(--error); color: var(--error);" onclick="ArtApp.logout()">
+            <button class="btn btn-secondary" style="border-color: var(--error); color: var(--error);" onclick="BanyaApp.logout()">
                 <i class="fas fa-sign-out-alt"></i> Выйти
             </button>
         </div>
@@ -1549,7 +1502,7 @@
     <div id="notificationContainer"></div>
 
     <script>
-    const ArtApp = {
+    const BanyaApp = {
         config: {
             API_BASE_URL: window.location.origin,
             currentUser: null,
@@ -1568,32 +1521,13 @@
 
         // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
         init: function() {
-            console.log('🎨 Инициализация приложения Artistic Soul...');
+            console.log('🎨 Инициализация приложения БАНЯ...');
             this.setupEventListeners();
+            this.loadAppLogo();
             this.loadSession();
             this.checkAuthState();
         },
-formatDate: function(dateString) {
-    if (!dateString) return '';
-    
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear();
-        
-        // Возвращаем день недели + дату
-        const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-        const dayName = days[date.getDay()];
-        
-        return `${dayName}, ${day}.${month}.${year}`;
-    } catch (error) {
-        console.error('Ошибка форматирования даты:', error);
-        return dateString;
-    }
-},
+
         // ПРОВЕРКА СОСТОЯНИЯ АВТОРИЗАЦИИ
         checkAuthState: function() {
             if (this.config.token && this.config.currentUser) {
@@ -1626,7 +1560,6 @@ formatDate: function(dateString) {
         showProfileMenu: function() {
             const menu = document.getElementById('userMenu');
             if (menu.classList.contains('d-none')) {
-                // Обновляем информацию в меню
                 if (this.config.currentProfile) {
                     document.getElementById('userMenuName').textContent = this.config.currentProfile.student_name;
                     document.getElementById('userMenuPhone').textContent = this.config.currentProfile.phone_number;
@@ -1644,7 +1577,6 @@ formatDate: function(dateString) {
             
             let phone = phoneInput.value.replace(/\D/g, '');
             
-            // Проверка формата телефона
             if (!phone || phone.length < 10) {
                 this.showNotification('Введите корректный номер телефона (минимум 10 цифр)', 'error');
                 return;
@@ -1656,15 +1588,12 @@ formatDate: function(dateString) {
             loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
             this.showLoading('Выполняется вход...');
             
-            // Авторизация через API
             fetch('/api/auth/phone', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ 
-                    phone: phone
-                })
+                body: JSON.stringify({ phone: phone })
             })
             .then(response => {
                 if (!response.ok) {
@@ -1686,7 +1615,6 @@ formatDate: function(dateString) {
                     this.config.profiles = data.data.profiles;
                     this.config.currentProfile = this.config.profiles[0];
                     
-                    // Формируем данные абонемента
                     this.config.subscriptionData = {
                         student: {
                             name: this.config.currentProfile.student_name,
@@ -1721,7 +1649,6 @@ formatDate: function(dateString) {
                     this.navigateToPage('home');
                     this.loadHomePage();
                     
-                    // Подключаем уведомления через polling
                     this.setupNotifications();
                 } else {
                     throw new Error(data.error || 'Не удалось получить данные');
@@ -1738,17 +1665,13 @@ formatDate: function(dateString) {
             });
         },
 
-        // НАСТРОЙКА УВЕДОМЛЕНИЙ (POLLING)
+        // НАСТРОЙКА УВЕДОМЛЕНИЙ
         setupNotifications: function() {
-            const phone = this.config.currentUser?.phone_number;
-            if (!phone) return;
+            if (!this.config.token || !this.config.currentProfile) return;
             
-            console.log('🔔 Настройка уведомлений (polling)...');
+            console.log('🔔 Настройка уведомлений...');
             
-            // Функция проверки уведомлений
             const checkNotifications = () => {
-                if (!this.config.token || !this.config.currentProfile) return;
-                
                 fetch('/api/notifications', {
                     headers: {
                         'Authorization': `Bearer ${this.config.token}`
@@ -1772,18 +1695,47 @@ formatDate: function(dateString) {
                 });
             };
             
-            // Проверяем каждые 30 секунд
             this.config.notificationInterval = setInterval(checkNotifications, 30000);
-            
-            // Первая проверка
             checkNotifications();
         },
 
-        // ОЧИСТКА ИНТЕРВАЛА УВЕДОМЛЕНИЙ
-        clearNotificationInterval: function() {
-            if (this.config.notificationInterval) {
-                clearInterval(this.config.notificationInterval);
-                this.config.notificationInterval = null;
+        // ЗАГРУЗКА ЛОГОТИПА
+        loadAppLogo: function() {
+            fetch('/api/logo?' + Date.now())
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    this.updateLogoInUI(data.data);
+                }
+            })
+            .catch(error => {
+                console.log('⚠️ Используется стандартный логотип');
+            });
+        },
+
+        updateLogoInUI: function(logoData) {
+            const authLogo = document.getElementById('authLogo');
+            const headerLogo = document.getElementById('headerLogo');
+            const logoTexts = document.querySelectorAll('.logo-text, .auth-logo-text');
+            
+            if (logoData.logo && logoData.logo.startsWith('data:image')) {
+                const logoImg = `<img src="${logoData.logo}" alt="${logoData.name || 'БАНЯ'}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+                
+                if (authLogo) {
+                    authLogo.innerHTML = logoImg;
+                    authLogo.style.background = 'none';
+                }
+                
+                if (headerLogo) {
+                    headerLogo.innerHTML = logoImg;
+                    headerLogo.style.background = 'none';
+                }
+            }
+            
+            if (logoData.name) {
+                logoTexts.forEach(el => {
+                    el.textContent = logoData.name;
+                });
             }
         },
 
@@ -1814,7 +1766,6 @@ formatDate: function(dateString) {
             
             document.getElementById('studentDetailsInfo').innerHTML = studentInfo;
             
-            // Обновляем контактную информацию
             this.updateContactInfo();
         },
 
@@ -1917,7 +1868,6 @@ formatDate: function(dateString) {
             
             this.config.currentProfile = profile;
             
-            // Формируем данные абонемента
             this.config.subscriptionData = {
                 student: {
                     name: profile.student_name,
@@ -1953,7 +1903,6 @@ formatDate: function(dateString) {
             this.showNotification(`Выбран ученик: ${profile.student_name}`, 'success');
             this.saveSession();
             
-            // Обновляем текущую страницу
             this.loadPageData(this.config.currentPage);
         },
 
@@ -1965,12 +1914,10 @@ formatDate: function(dateString) {
         navigateToPage: function(pageName) {
             console.log(`📍 Навигация на страницу: ${pageName}`);
             
-            // Скрываем все страницы
             document.querySelectorAll('.page-section').forEach(page => {
                 page.classList.remove('active');
             });
             
-            // Обновляем навигацию
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
                 if (item.getAttribute('data-page') === pageName) {
@@ -1978,16 +1925,12 @@ formatDate: function(dateString) {
                 }
             });
             
-            // Скрываем меню пользователя
             this.hideProfileMenu();
             
-            // Показываем нужную страницу
             const pageElement = document.getElementById(`${pageName}Page`);
             if (pageElement) {
                 pageElement.classList.add('active');
                 this.config.currentPage = pageName;
-                
-                // Загружаем данные для страницы
                 this.loadPageData(pageName);
             }
         },
@@ -2038,7 +1981,6 @@ formatDate: function(dateString) {
                 return;
             }
             
-            // Если данных нет, показываем загрузку
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="spinner"></div>
@@ -2046,7 +1988,6 @@ formatDate: function(dateString) {
                 </div>
             `;
             
-            // Загружаем данные из API
             this.loadSubscriptionFromAPI();
         },
 
@@ -2072,14 +2013,12 @@ formatDate: function(dateString) {
             })
             .then(data => {
                 if (data.success && data.data && data.data.profiles) {
-                    // Найдем текущий профиль в обновленных данных
                     const currentProfileName = this.config.currentProfile.student_name;
                     const updatedProfile = data.data.profiles.find(p => p.student_name === currentProfileName);
                     
                     if (updatedProfile) {
                         this.config.currentProfile = updatedProfile;
                         
-                        // Обновляем subscriptionData
                         this.config.subscriptionData = {
                             student: {
                                 name: updatedProfile.student_name,
@@ -2254,178 +2193,171 @@ formatDate: function(dateString) {
                 return;
             }
             
-            // Показываем бейдж филиала
             branchBadge.textContent = `Филиал: ${branch}`;
             branchBadge.style.display = 'inline-block';
             
-            // Загружаем расписание из API
             this.loadScheduleFromAPI(branch);
         },
 
-     // ЗАГРУЗКА РАСПИСАНИЯ ИЗ API
-loadScheduleFromAPI: function(branch) {
-    const container = document.getElementById('scheduleContainer');
-    
-    console.log(`📅 Загрузка расписания для филиала: ${branch}`);
-    
-    this.showLoading('Загрузка расписания...');
-    
-    // Кодируем branch для безопасной передачи в URL
-    const encodedBranch = encodeURIComponent(branch);
-    
-    fetch(`/api/schedule/${encodedBranch}`, {
-        headers: {
-            'Authorization': `Bearer ${this.config.token}`
-        }
-    })
-    .then(response => {
-        console.log('📊 Ответ сервера:', response.status);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('📊 Данные расписания получены:', data);
-        
-        if (data.success && data.data && data.data.schedule) {
-            // ВАЖНО: передаем массив schedule, а не объект
-            this.renderSchedule(data.data.schedule);
-        } else {
-            throw new Error(data.error || 'Ошибка загрузки расписания');
-        }
-    })
-    .catch(error => {
-        console.error('❌ Ошибка загрузки расписания:', error);
-        this.showNotification('Ошибка загрузки расписания', 'error');
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-calendar-times"></i>
-                <p>Не удалось загрузить расписание</p>
-                <p style="font-size: 0.9rem; margin-top: 10px;">${error.message}</p>
-                <button class="btn btn-secondary mt-20" onclick="ArtApp.loadPageData('schedule')">
-                    <i class="fas fa-redo"></i> Попробовать снова
-                </button>
-            </div>
-        `;
-    })
-    .finally(() => {
-        this.hideLoading();
-    });
-},
-     // РЕНДЕРИНГ РАСПИСАНИЯ
-renderSchedule: function(scheduleData) {
-    const container = document.getElementById('scheduleContainer');
-    
-    console.log('📊 Данные для рендеринга:', scheduleData);
-    
-    if (!scheduleData || !Array.isArray(scheduleData) || scheduleData.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-calendar"></i>
-                <p>Расписание пока не составлено</p>
-                <p style="font-size: 0.9rem; margin-top: 10px;">Занятий на ближайшие дни не запланировано</p>
-                <button class="btn btn-secondary mt-20" onclick="location.reload()">
-                    <i class="fas fa-sync-alt"></i> Обновить
-                </button>
-            </div>
-        `;
-        return;
-    }
-    
-    // Группируем по дням
-    const scheduleByDay = {};
-    
-    scheduleData.forEach(lesson => {
-        const date = lesson.date || '';
-        const dayName = this.formatDateForSchedule(date);
-        
-        if (!scheduleByDay[dayName]) {
-            scheduleByDay[dayName] = [];
-        }
-        
-        scheduleByDay[dayName].push({
-            id: lesson.id,
-            time: lesson.time || 'Время не указано',
-            teacher: lesson.teacher_name || 'Преподаватель не указан',
-            group: lesson.group_name || '',
-            ageGroup: lesson.age_group || '',
-            status: {
-                type: lesson.status === 'cancelled' ? 'cancelled' : 'normal',
-                text: lesson.status === 'cancelled' ? 'Отменено' : 'Запланировано'
-            }
-        });
-    });
-    
-    // Сортируем дни
-    const sortedDays = Object.keys(scheduleByDay).sort((a, b) => {
-        return new Date(a.split(', ')[1] || a) - new Date(b.split(', ')[1] || b);
-    });
-    
-    let html = '';
-    
-    sortedDays.forEach(day => {
-        html += `
-            <div class="schedule-day">
-                <div class="day-header">${day}</div>
-        `;
-        
-        scheduleByDay[day].forEach(lesson => {
-            html += `
-                <div class="lesson-item ${lesson.status.type}">
-                    <div class="lesson-time">${lesson.time}</div>
-                    <div class="lesson-details">
-                        <div class="lesson-teacher">
-                            <i class="fas fa-chalkboard-teacher"></i> ${lesson.teacher}
-                        </div>
-                        <div class="lesson-status status-${lesson.status.type}">
-                            ${lesson.status.text}
-                        </div>
+        // ЗАГРУЗКА РАСПИСАНИЯ ИЗ API
+        loadScheduleFromAPI: function(branch) {
+            const container = document.getElementById('scheduleContainer');
+            
+            console.log(`📅 Загрузка расписания для филиала: ${branch}`);
+            
+            this.showLoading('Загрузка расписания...');
+            
+            const encodedBranch = encodeURIComponent(branch);
+            
+            fetch(`/api/schedule/${encodedBranch}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
+                }
+            })
+            .then(response => {
+                console.log('📊 Ответ сервера:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('📊 Данные расписания получены:', data);
+                
+                if (data.success && data.data && data.data.schedule) {
+                    this.renderSchedule(data.data.schedule);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки расписания');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки расписания:', error);
+                this.showNotification('Ошибка загрузки расписания', 'error');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-times"></i>
+                        <p>Не удалось загрузить расписание</p>
+                        <p style="font-size: 0.9rem; margin-top: 10px;">${error.message}</p>
+                        <button class="btn btn-secondary mt-20" onclick="BanyaApp.loadPageData('schedule')">
+                            <i class="fas fa-redo"></i> Попробовать снова
+                        </button>
                     </div>
-                    <div style="font-size: 0.9rem; color: var(--gray-dark);">
-                        ${lesson.group} ${lesson.group && lesson.ageGroup ? '•' : ''} ${lesson.ageGroup || ''}
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += `</div>`;
-    });
-    
-    container.innerHTML = html;
-    
-    // Добавляем сообщение если есть занятия
-    if (sortedDays.length > 0) {
-        container.innerHTML += `
-            <div class="mt-20 text-center">
-                <p style="color: var(--gray-dark); font-size: 0.9rem;">
-                    <i class="fas fa-info-circle"></i>
-                    Всего занятий: ${scheduleData.length}
-                </p>
-            </div>
-        `;
-    }
-},
+                `;
+            })
+            .finally(() => {
+                this.hideLoading();
+            });
+        },
 
-// Добавьте эту функцию для форматирования даты
-formatDateForSchedule: function(dateString) {
-    if (!dateString) return 'Дата не указана';
-    
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        
-        const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-        const dayName = days[date.getDay()];
-        
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        
-        return `${dayName}, ${day}.${month}`;
-    } catch (error) {
-        return dateString;
-    }
-},
+        // РЕНДЕРИНГ РАСПИСАНИЯ
+        renderSchedule: function(scheduleData) {
+            const container = document.getElementById('scheduleContainer');
+            
+            console.log('📊 Данные для рендеринга:', scheduleData);
+            
+            if (!scheduleData || !Array.isArray(scheduleData) || scheduleData.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar"></i>
+                        <p>Расписание пока не составлено</p>
+                        <p style="font-size: 0.9rem; margin-top: 10px;">Занятий на ближайшие дни не запланировано</p>
+                        <button class="btn btn-secondary mt-20" onclick="location.reload()">
+                            <i class="fas fa-sync-alt"></i> Обновить
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            const scheduleByDay = {};
+            
+            scheduleData.forEach(lesson => {
+                const date = lesson.date || '';
+                const dayName = this.formatDateForSchedule(date);
+                
+                if (!scheduleByDay[dayName]) {
+                    scheduleByDay[dayName] = [];
+                }
+                
+                scheduleByDay[dayName].push({
+                    id: lesson.id,
+                    time: lesson.time || 'Время не указано',
+                    teacher: lesson.teacher_name || 'Преподаватель не указан',
+                    group: lesson.group_name || '',
+                    ageGroup: lesson.age_group || '',
+                    status: {
+                        type: lesson.status === 'cancelled' ? 'cancelled' : 'normal',
+                        text: lesson.status === 'cancelled' ? 'Отменено' : 'Запланировано'
+                    }
+                });
+            });
+            
+            const sortedDays = Object.keys(scheduleByDay).sort((a, b) => {
+                return new Date(a.split(', ')[1] || a) - new Date(b.split(', ')[1] || b);
+            });
+            
+            let html = '';
+            
+            sortedDays.forEach(day => {
+                html += `
+                    <div class="schedule-day">
+                        <div class="day-header">${day}</div>
+                `;
+                
+                scheduleByDay[day].forEach(lesson => {
+                    html += `
+                        <div class="lesson-item ${lesson.status.type}">
+                            <div class="lesson-time">${lesson.time}</div>
+                            <div class="lesson-details">
+                                <div class="lesson-teacher">
+                                    <i class="fas fa-chalkboard-teacher"></i> ${lesson.teacher}
+                                </div>
+                                <div class="lesson-status status-${lesson.status.type}">
+                                    ${lesson.status.text}
+                                </div>
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--gray-dark);">
+                                ${lesson.group} ${lesson.group && lesson.ageGroup ? '•' : ''} ${lesson.ageGroup || ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            });
+            
+            container.innerHTML = html;
+            
+            if (sortedDays.length > 0) {
+                container.innerHTML += `
+                    <div class="mt-20 text-center">
+                        <p style="color: var(--gray-dark); font-size: 0.9rem;">
+                            <i class="fas fa-info-circle"></i>
+                            Всего занятий: ${scheduleData.length}
+                        </p>
+                    </div>
+                `;
+            }
+        },
+
+        formatDateForSchedule: function(dateString) {
+            if (!dateString) return 'Дата не указана';
+            
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return dateString;
+                
+                const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+                const dayName = days[date.getDay()];
+                
+                const day = date.getDate().toString().padStart(2, '0');
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                
+                return `${dayName}, ${day}.${month}`;
+            } catch (error) {
+                return dateString;
+            }
+        },
 
         // ЗАГРУЗКА СТРАНИЦЫ ПРЕПОДАВАТЕЛЕЙ
         loadTeachersPage: function() {
@@ -2456,11 +2388,9 @@ formatDateForSchedule: function(dateString) {
                 return;
             }
             
-            // Показываем бейдж филиала
             branchBadge.textContent = `Филиал: ${branch}`;
             branchBadge.style.display = 'inline-block';
             
-            // Загружаем преподавателей из API
             this.loadTeachersFromAPI(branch);
         },
 
@@ -2595,7 +2525,7 @@ formatDateForSchedule: function(dateString) {
             faq.forEach((item, index) => {
                 html += `
                     <div class="faq-item" id="faq-${index}">
-                        <div class="faq-question" onclick="ArtApp.toggleFaq(${index})">
+                        <div class="faq-question" onclick="BanyaApp.toggleFaq(${index})">
                             ${item.question}
                             <i class="fas fa-chevron-down"></i>
                         </div>
@@ -2644,11 +2574,9 @@ formatDateForSchedule: function(dateString) {
                 return;
             }
             
-            // Показываем бейдж филиала
             branchBadge.textContent = `Филиал: ${branch}`;
             branchBadge.style.display = 'inline-block';
             
-            // Загружаем новости из API
             this.loadNewsFromAPI(branch);
         },
 
@@ -2658,11 +2586,11 @@ formatDateForSchedule: function(dateString) {
             
             this.showLoading('Загрузка новостей...');
             
-           fetch(`/api/news/${encodeURIComponent(branch)}`, {
-    headers: {
-        'Authorization': `Bearer ${this.config.token}`
-    }
-})
+            fetch(`/api/news/${encodeURIComponent(branch)}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
+                }
+            })
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2733,7 +2661,6 @@ formatDateForSchedule: function(dateString) {
         contactAdmin: function(subject) {
             const message = `Здравствуйте!\n\nПрошу связаться со мной по вопросу: ${subject || 'Вопрос по абонементу'}\n\nУченик: ${this.config.currentProfile?.student_name || ''}\nФилиал: ${this.config.currentProfile?.branch || ''}\n\nСпасибо!`;
             
-            // Отправка сообщения администратору через API
             this.showLoading('Отправка сообщения...');
             
             fetch('/api/contact/admin', {
@@ -2781,7 +2708,6 @@ formatDateForSchedule: function(dateString) {
             }
             
             if (confirm(`Позвонить администратору?\n\n${branch || 'Общий'}: ${phone}\n\nНажмите OK для звонка`)) {
-                // Инициируем звонок через tel: ссылку
                 window.location.href = `tel:${phone.replace(/\D/g, '')}`;
             }
         },
@@ -2800,6 +2726,14 @@ formatDateForSchedule: function(dateString) {
         // СКРЫТЬ МЕНЮ ПОЛЬЗОВАТЕЛЯ
         hideProfileMenu: function() {
             document.getElementById('userMenu').classList.add('d-none');
+        },
+
+        // ОЧИСТКА ИНТЕРВАЛА УВЕДОМЛЕНИЙ
+        clearNotificationInterval: function() {
+            if (this.config.notificationInterval) {
+                clearInterval(this.config.notificationInterval);
+                this.config.notificationInterval = null;
+            }
         },
 
         // УВЕДОМЛЕНИЯ
@@ -2850,7 +2784,7 @@ formatDateForSchedule: function(dateString) {
                     subscriptionData: this.config.subscriptionData,
                     timestamp: Date.now()
                 };
-                localStorage.setItem('artSchoolSession', JSON.stringify(sessionData));
+                localStorage.setItem('banyaSchoolSession', JSON.stringify(sessionData));
                 console.log('💾 Сессия сохранена');
             } catch (error) {
                 console.error('Ошибка сохранения сессии:', error);
@@ -2859,7 +2793,7 @@ formatDateForSchedule: function(dateString) {
 
         loadSession: function() {
             try {
-                const saved = localStorage.getItem('artSchoolSession');
+                const saved = localStorage.getItem('banyaSchoolSession');
                 if (saved) {
                     const sessionData = JSON.parse(saved);
                     
@@ -2885,7 +2819,7 @@ formatDateForSchedule: function(dateString) {
         },
 
         clearSession: function() {
-            localStorage.removeItem('artSchoolSession');
+            localStorage.removeItem('banyaSchoolSession');
             this.config.token = null;
             this.config.currentUser = null;
             this.config.currentProfile = null;
@@ -2930,7 +2864,6 @@ formatDateForSchedule: function(dateString) {
         setupEventListeners: function() {
             const self = this;
             
-            // Форматирование номера телефона
             const phoneInput = document.getElementById('phoneNumber');
             if (phoneInput) {
                 phoneInput.addEventListener('input', function(e) {
@@ -2940,7 +2873,6 @@ formatDateForSchedule: function(dateString) {
                         value = value.substring(0, 11);
                     }
                     
-                    // Форматирование: 7 999 123-45-67
                     if (value.length > 0) {
                         let formatted = '';
                         if (value.length > 0) formatted = value.substring(0, 1);
@@ -2960,7 +2892,6 @@ formatDateForSchedule: function(dateString) {
                 });
             }
             
-            // Кнопка входа по телефону
             const loginBtn = document.getElementById('loginBtn');
             if (loginBtn) {
                 loginBtn.addEventListener('click', (e) => {
@@ -2969,7 +2900,6 @@ formatDateForSchedule: function(dateString) {
                 });
             }
             
-            // Закрытие меню пользователя при клике вне его
             document.addEventListener('click', (e) => {
                 const userMenu = document.getElementById('userMenu');
                 const userAvatar = document.getElementById('userAvatar');
@@ -2986,11 +2916,11 @@ formatDateForSchedule: function(dateString) {
     // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
     document.addEventListener('DOMContentLoaded', function() {
         console.log('🚀 Приложение загружено, запуск...');
-        ArtApp.init();
+        BanyaApp.init();
     });
 
     // ДОСТУП К ГЛОБАЛЬНОМУ ОБЪЕКТУ
-    window.ArtApp = ArtApp;
+    window.BanyaApp = BanyaApp;
     </script>
 </body>
 </html>
