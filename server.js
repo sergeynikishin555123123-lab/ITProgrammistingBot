@@ -2561,6 +2561,60 @@ const createTables = async () => {
 };
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+// Функция для подсчета получателей рассылки
+async function getMailingRecipientsCount(mailing) {
+    try {
+        let query = '';
+        let params = [];
+        
+        if (mailing.type === 'telegram_notification') {
+            // Для Telegram уведомлений по филиалу
+            if (mailing.branch && mailing.branch !== 'all') {
+                query = `
+                    SELECT COUNT(DISTINCT tu.chat_id) as count
+                    FROM telegram_users tu
+                    JOIN student_profiles sp ON tu.username = sp.phone_number
+                    WHERE sp.branch = ? AND tu.is_active = 1
+                `;
+                params = [mailing.branch];
+            } else {
+                query = 'SELECT COUNT(*) as count FROM telegram_users WHERE is_active = 1';
+            }
+        } else if (mailing.segment) {
+            // Для сегментированных рассылок
+            const segment = mailing.segment;
+            query = 'SELECT COUNT(*) as count FROM student_profiles WHERE is_active = 1';
+            
+            if (segment === 'active') {
+                query += ' AND subscription_active = 1';
+            } else if (segment === 'expiring') {
+                query += ' AND subscription_active = 1 AND expiration_date IS NOT NULL AND expiration_date <= date("now", "+30 days")';
+            } else if (segment === 'expired') {
+                query += ' AND subscription_active = 0';
+            } else if (segment === 'inactive') {
+                query += ' AND last_visit_date IS NULL OR last_visit_date < date("now", "-30 days")';
+            } else if (segment === 'branch_sviblovo') {
+                query += ' AND branch = "Свиблово"';
+            } else if (segment === 'branch_chertanovo') {
+                query += ' AND branch = "Чертаново"';
+            }
+        }
+        
+        if (query) {
+            const result = await db.get(query, params);
+            return {
+                total: result?.count || 0,
+                estimated: mailing.recipients_count || 0
+            };
+        }
+        
+        return { total: 0, estimated: mailing.recipients_count || 0 };
+        
+    } catch (error) {
+        console.error('❌ Ошибка подсчета получателей:', error.message);
+        return { total: 0, estimated: mailing.recipients_count || 0 };
+    }
+}
 
 async function saveProfilesToDatabase(profiles) {
     try {
@@ -3828,7 +3882,7 @@ app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Получение списка рассылок
+// Получение списка рассылок (с исправлениями)
 app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     try {
         const type = req.query.type; // 'service' или 'marketing'
@@ -3839,7 +3893,7 @@ app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
         const params = [];
         
         if (type === 'service') {
-            query += ' AND type IN ("cancellation", "replacement", "reschedule")';
+            query += ' AND type IN ("cancellation", "replacement", "reschedule", "telegram_notification")';
         } else if (type === 'marketing') {
             query += ' AND type = "marketing"';
         }
@@ -3848,10 +3902,23 @@ app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
         
         const mailings = await db.all(query, params);
         
+        // Добавляем данные о получателях
+        const mailingsWithStats = await Promise.all(
+            mailings.map(async (mailing) => {
+                // Получаем количество получателей
+                const recipients = await this.getMailingRecipientsCount(mailing);
+                return {
+                    ...mailing,
+                    recipients_count: recipients.total || 0,
+                    estimated_count: recipients.estimated || 0
+                };
+            })
+        );
+        
         res.json({
             success: true,
             data: {
-                mailings: mailings || []
+                mailings: mailingsWithStats || []
             }
         });
         
@@ -3864,6 +3931,268 @@ app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     }
 });
 
+
+// Создание рассылки (улучшенная версия)
+app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
+    try {
+        const mailingData = req.body;
+        
+        console.log(`📨 Создание рассылки: ${mailingData.type || mailingData.name}`);
+        
+        // Подсчитываем количество получателей
+        let recipientsCount = 0;
+        
+        if (mailingData.type === 'telegram_notification' && telegramBot.bot) {
+            // Для Telegram уведомлений
+            if (mailingData.branch && mailingData.branch !== 'all') {
+                const result = await db.get(`
+                    SELECT COUNT(DISTINCT tu.chat_id) as count
+                    FROM telegram_users tu
+                    JOIN student_profiles sp ON tu.username = sp.phone_number
+                    WHERE sp.branch = ? AND tu.is_active = 1
+                `, [mailingData.branch]);
+                recipientsCount = result?.count || 0;
+            } else {
+                const result = await db.get('SELECT COUNT(*) as count FROM telegram_users WHERE is_active = 1');
+                recipientsCount = result?.count || 0;
+            }
+        } else if (mailingData.segment) {
+            // Для сегментированных рассылок
+            recipientsCount = 100; // Примерное значение, нужно реализовать точный подсчет
+        }
+        
+        // Сохраняем рассылку в базу данных
+        const result = await db.run(`
+            INSERT INTO mailings (type, name, segment, branch, teacher, day, 
+                                 message, status, recipients_count, created_by, scheduled_for)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            mailingData.type,
+            mailingData.name || `Рассылка ${new Date().toLocaleDateString()}`,
+            mailingData.segment,
+            mailingData.branch,
+            mailingData.teacher,
+            mailingData.day,
+            mailingData.message,
+            'pending', // Статус: pending, sending, sent, failed
+            recipientsCount,
+            req.admin.admin_id || 1,
+            mailingData.scheduled_for || null
+        ]);
+        
+        const mailingId = result.lastID;
+        
+        // Если это Telegram уведомление и указан филиал, отправляем сразу
+        if (mailingData.type === 'telegram_notification' && telegramBot.bot && mailingData.branch) {
+            try {
+                // Обновляем статус на "отправляется"
+                await db.run('UPDATE mailings SET status = ? WHERE id = ?', ['sending', mailingId]);
+                
+                // Отправляем уведомление
+                const sentCount = await telegramBot.sendNotificationToBranch(
+                    mailingData.branch,
+                    mailingData.message
+                );
+                
+                // Обновляем статус и количество отправленных
+                await db.run(
+                    'UPDATE mailings SET status = ?, sent_count = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?',
+                    ['sent', sentCount, mailingId]
+                );
+                
+                console.log(`✅ Telegram рассылка #${mailingId} отправлена (${sentCount} получателей)`);
+                
+            } catch (sendError) {
+                console.error('❌ Ошибка отправки Telegram рассылки:', sendError);
+                await db.run('UPDATE mailings SET status = ?, failed_count = ? WHERE id = ?', 
+                    ['failed', recipientsCount, mailingId]);
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Рассылка создана успешно',
+            data: {
+                mailing_id: mailingId,
+                recipients_count: recipientsCount
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка создания рассылки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка создания рассылки'
+        });
+    }
+});
+
+// Удаление рассылки
+app.delete('/api/admin/mailings/:id', verifyAdminToken, async (req, res) => {
+    try {
+        const mailingId = req.params.id;
+        
+        console.log(`🗑️ Удаление рассылки ID: ${mailingId}`);
+        
+        // Проверяем существование рассылки
+        const mailing = await db.get('SELECT * FROM mailings WHERE id = ?', [mailingId]);
+        
+        if (!mailing) {
+            return res.status(404).json({
+                success: false,
+                error: 'Рассылка не найдена'
+            });
+        }
+        
+        // Нельзя удалять отправленные рассылки
+        if (mailing.status === 'sent' || mailing.status === 'sending') {
+            return res.status(400).json({
+                success: false,
+                error: 'Нельзя удалять отправленные или отправляющиеся рассылки'
+            });
+        }
+        
+        // Удаляем рассылку
+        const result = await db.run('DELETE FROM mailings WHERE id = ?', [mailingId]);
+        
+        if (result.changes > 0) {
+            // Логируем удаление
+            await db.run(`
+                INSERT INTO system_logs (type, level, message, user_id)
+                VALUES (?, ?, ?, ?)
+            `, [
+                'mailing',
+                'info',
+                `Рассылка #${mailingId} удалена`,
+                req.admin.admin_id || 1
+            ]);
+            
+            res.json({
+                success: true,
+                message: 'Рассылка удалена'
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Рассылка не найдена'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка удаления рассылки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка удаления рассылки'
+        });
+    }
+});
+
+// Просмотр деталей рассылки
+app.get('/api/admin/mailings/:id', verifyAdminToken, async (req, res) => {
+    try {
+        const mailingId = req.params.id;
+        
+        console.log(`👁️ Просмотр рассылки ID: ${mailingId}`);
+        
+        const mailing = await db.get('SELECT * FROM mailings WHERE id = ?', [mailingId]);
+        
+        if (!mailing) {
+            return res.status(404).json({
+                success: false,
+                error: 'Рассылка не найдена'
+            });
+        }
+        
+        // Получаем статистику по получателям
+        let recipientsInfo = {};
+        if (mailing.branch) {
+            const result = await db.all(`
+                SELECT sp.student_name, sp.phone_number, sp.subscription_status
+                FROM student_profiles sp
+                JOIN telegram_users tu ON tu.username = sp.phone_number
+                WHERE sp.branch = ? AND tu.is_active = 1
+                LIMIT 10
+            `, [mailing.branch]);
+            recipientsInfo = {
+                sample: result,
+                total: mailing.recipients_count || 0
+            };
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                mailing: mailing,
+                recipients: recipientsInfo,
+                stats: {
+                    delivery_rate: mailing.recipients_count > 0 
+                        ? Math.round((mailing.sent_count / mailing.recipients_count) * 100)
+                        : 0
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения рассылки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения рассылки'
+        });
+    }
+});
+
+// Отправка тестового сообщения
+app.post('/api/admin/mailings/test', verifyAdminToken, async (req, res) => {
+    try {
+        const { message, admin_id } = req.body;
+        
+        console.log(`📧 Отправка тестового сообщения администратору`);
+        
+        // Получаем chat_id администратора из таблицы telegram_users
+        const adminUser = await db.get(`
+            SELECT chat_id FROM telegram_users 
+            WHERE username = ? OR first_name LIKE '%админ%' 
+            ORDER BY id DESC LIMIT 1
+        `, ['admin']);
+        
+        if (adminUser && adminUser.chat_id && telegramBot.bot) {
+            try {
+                await telegramBot.bot.sendMessage(adminUser.chat_id, 
+                    `📋 *Тестовое сообщение от администратора*\n\n` +
+                    `${message}\n\n` +
+                    `_Это тестовое сообщение для проверки бота_`,
+                    { parse_mode: 'Markdown' }
+                );
+                
+                console.log(`✅ Тестовое сообщение отправлено администратору (chat_id: ${adminUser.chat_id})`);
+                
+                res.json({
+                    success: true,
+                    message: 'Тестовое сообщение отправлено'
+                });
+                
+            } catch (botError) {
+                console.error('❌ Ошибка отправки тестового сообщения:', botError.message);
+                res.status(500).json({
+                    success: false,
+                    error: 'Ошибка отправки тестового сообщения'
+                });
+            }
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Не найден chat_id администратора или бот не настроен'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка отправки тестового сообщения:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка отправки тестового сообщения'
+        });
+    }
+});
 // Управление расписанием
 app.post('/api/admin/schedule', verifyAdminToken, async (req, res) => {
     try {
