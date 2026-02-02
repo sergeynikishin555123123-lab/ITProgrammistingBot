@@ -2884,7 +2884,6 @@ app.get('/api/profile', verifyToken, async (req, res) => {
     }
 });
 
-// Получение расписания для фронтенда
 app.get('/api/schedule/student/:branch', async (req, res) => {
     try {
         const { branch } = req.params;
@@ -2904,6 +2903,7 @@ app.get('/api/schedule/student/:branch', async (req, res) => {
             query += ` AND s.date >= ? AND s.date <= date(?, '+7 days')`;
             params.push(week_start, week_start);
         } else {
+            // Показываем занятия на 2 недели вперед
             query += ` AND s.date >= date('now', '-1 day') 
                        AND s.date <= date('now', '+14 days')`;
         }
@@ -2912,21 +2912,57 @@ app.get('/api/schedule/student/:branch', async (req, res) => {
         
         const schedule = await db.all(query, params);
         
-        // Группируем по дням
+        // Группируем по дням для удобного отображения
         const scheduleByDay = {};
         schedule.forEach(lesson => {
             const date = lesson.date;
             if (!scheduleByDay[date]) {
                 scheduleByDay[date] = [];
             }
-            scheduleByDay[date].push(lesson);
+            
+            // Определяем статус для отображения
+            let statusText = 'Запланировано';
+            let statusType = 'normal';
+            
+            if (lesson.status === 'cancelled') {
+                statusText = 'Отменено';
+                statusType = 'cancelled';
+            } else if (lesson.status === 'rescheduled') {
+                statusText = 'Перенесено';
+                statusType = 'rescheduled';
+            } else if (lesson.status === 'replacement') {
+                statusText = 'Замена преподавателя';
+                statusType = 'replacement';
+            }
+            
+            scheduleByDay[date].push({
+                id: lesson.id,
+                time: lesson.time,
+                teacher: lesson.teacher_name || 'Преподаватель не указан',
+                teacher_photo: lesson.teacher_photo,
+                group: lesson.group_name || '',
+                ageGroup: lesson.age_group || '',
+                status: {
+                    text: statusText,
+                    type: statusType
+                },
+                notes: lesson.notes || ''
+            });
         });
+        
+        // Преобразуем объект в массив для фронтенда
+        const scheduleArray = Object.entries(scheduleByDay).map(([date, lessons]) => ({
+            day: formatDateForDisplay(date),
+            date: date,
+            lessons: lessons
+        }));
         
         res.json({
             success: true,
             data: {
-                schedule: scheduleByDay,
-                branch: branch
+                schedule: scheduleArray,
+                branch: branch,
+                total_lessons: schedule.length
             }
         });
         
