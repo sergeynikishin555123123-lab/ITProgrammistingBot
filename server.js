@@ -3865,43 +3865,153 @@ app.get('/api/admin/dashboard', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Управление рассылками
 app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     try {
         const mailingData = req.body;
+        const adminId = req.admin?.admin_id || 1;
         
-        // ДОБАВЬТЕ ЭТОТ КОД ДЛЯ ОТЛАДКИ
         console.log('📨 Получены данные рассылки:');
         console.log('   Тип:', mailingData.type);
         console.log('   Название:', mailingData.name);
         console.log('   Филиал:', mailingData.branch);
         console.log('   Сообщение:', mailingData.message?.substring(0, 100) + '...');
-        console.log('   Все данные:', JSON.stringify(mailingData, null, 2));
+        
+        // Проверяем обязательные поля
+        if (!mailingData.message || mailingData.message.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                error: 'Введите текст сообщения'
+            });
+        }
+        
+        // Подсчитываем количество получателей
+        let recipientsCount = 0;
+        
+        if (mailingData.type === 'telegram_notification') {
+            // Для Telegram уведомлений по филиалу
+            if (mailingData.branch && mailingData.branch !== 'all') {
+                // Разделяем филиалы если их несколько
+                const branches = mailingData.branch.split(',');
+                let totalCount = 0;
+                
+                for (const branch of branches) {
+                    const trimmedBranch = branch.trim();
+                    const result = await db.get(`
+                        SELECT COUNT(DISTINCT tu.chat_id) as count
+                        FROM telegram_users tu
+                        JOIN student_profiles sp ON tu.username = sp.phone_number
+                        WHERE sp.branch LIKE ? AND tu.is_active = 1
+                    `, [`%${trimmedBranch}%`]);
+                    totalCount += result?.count || 0;
+                }
+                recipientsCount = totalCount;
+            } else {
+                const result = await db.get('SELECT COUNT(*) as count FROM telegram_users WHERE is_active = 1');
+                recipientsCount = result?.count || 0;
+            }
+        } else if (mailingData.segment) {
+            // Для сегментированных рассылок - упрощенный подсчет
+            recipientsCount = 50; // Примерное значение
+        }
+        
+        console.log(`👥 Получателей: ${recipientsCount}`);
         
         // Сохраняем рассылку в базу данных
         const result = await db.run(`
-            INSERT INTO mailings (type, name, segment, branch, teacher, day, 
-                                 message, status, recipients_count, created_by, scheduled_for)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO mailings 
+            (type, name, segment, branch, teacher, day, message, status, recipients_count, created_by) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-            mailingData.type,
-            mailingData.name,
-            mailingData.segment,
-            mailingData.branch,
-            mailingData.teacher,
-            mailingData.day,
+            mailingData.type || 'telegram_notification',
+            mailingData.name || `Рассылка ${new Date().toLocaleString()}`,
+            mailingData.segment || '',
+            mailingData.branch || '',
+            mailingData.teacher || '',
+            mailingData.day || '',
             mailingData.message,
-            'pending',
-            mailingData.recipients_estimated || 0,
-            mailingData.created_by || 1,
-            mailingData.scheduled_for || null
+            'pending', // Статус будет изменен после отправки
+            recipientsCount,
+            adminId
+        ]);
+        
+        const mailingId = result.lastID;
+        
+        console.log(`✅ Рассылка создана ID: ${mailingId}`);
+        
+        // НЕМЕДЛЕННО отправляем Telegram уведомление
+        if (mailingData.type === 'telegram_notification' && telegramBot.bot) {
+            try {
+                console.log(`🚀 Начинаем отправку Telegram рассылки #${mailingId}...`);
+                
+                // Обновляем статус на "отправляется"
+                await db.run('UPDATE mailings SET status = ? WHERE id = ?', ['sending', mailingId]);
+                
+                // Отправляем уведомление
+                let sentCount = 0;
+                const branches = mailingData.branch ? mailingData.branch.split(',').map(b => b.trim()) : [];
+                
+                for (const branch of branches) {
+                    if (branch) {
+                        const count = await telegramBot.sendNotificationToBranch(branch, mailingData.message);
+                        sentCount += count;
+                        console.log(`   📤 Филиал "${branch}": отправлено ${count}`);
+                    }
+                }
+                
+                // Если не указаны филиалы, отправляем всем
+                if (branches.length === 0 || branches[0] === '') {
+                    sentCount = await telegramBot.sendNotificationToBranch('all', mailingData.message);
+                }
+                
+                // Обновляем статус и количество отправленных
+                await db.run(
+                    'UPDATE mailings SET status = ?, sent_count = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?',
+                    ['sent', sentCount, mailingId]
+                );
+                
+                console.log(`✅ Telegram рассылка #${mailingId} отправлена! Отправлено: ${sentCount}`);
+                
+            } catch (sendError) {
+                console.error('❌ Ошибка отправки Telegram рассылки:', sendError.message);
+                await db.run(
+                    'UPDATE mailings SET status = ?, failed_count = ? WHERE id = ?', 
+                    ['failed', recipientsCount, mailingId]
+                );
+                
+                // Записываем ошибку в логи
+                await db.run(`
+                    INSERT INTO system_logs (type, level, message, user_id)
+                    VALUES (?, ?, ?, ?)
+                `, [
+                    'mailing',
+                    'error',
+                    `Ошибка отправки рассылки #${mailingId}: ${sendError.message}`,
+                    adminId
+                ]);
+            }
+        } else if (mailingData.type === 'marketing') {
+            // Для маркетинговых рассылок пока просто сохраняем
+            console.log(`📧 Маркетинговая рассылка #${mailingId} сохранена для ручной отправки`);
+        }
+        
+        // Логируем создание рассылки
+        await db.run(`
+            INSERT INTO system_logs (type, level, message, user_id)
+            VALUES (?, ?, ?, ?)
+        `, [
+            'mailing',
+            'info',
+            `Создана рассылка #${mailingId}: "${mailingData.name}" (получателей: ${recipientsCount})`,
+            adminId
         ]);
         
         res.json({
             success: true,
-            message: 'Рассылка создана успешно',
+            message: 'Рассылка создана и отправлена',
             data: {
-                mailing_id: result.lastID
+                mailing_id: mailingId,
+                recipients_count: recipientsCount,
+                status: 'sent'
             }
         });
         
@@ -3909,7 +4019,8 @@ app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
         console.error('❌ Ошибка создания рассылки:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка создания рассылки'
+            error: 'Ошибка создания рассылки',
+            details: error.message
         });
     }
 });
@@ -3957,97 +4068,76 @@ app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Создание рассылки (улучшенная версия)
-app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
+// Принудительная отправка рассылки
+app.post('/api/admin/mailings/:id/send', verifyAdminToken, async (req, res) => {
     try {
-        const mailingData = req.body;
+        const mailingId = req.params.id;
+        const adminId = req.admin?.admin_id || 1;
         
-        console.log(`📨 Создание рассылки: ${mailingData.type || mailingData.name}`);
+        console.log(`🚀 Принудительная отправка рассылки #${mailingId}`);
         
-        // Подсчитываем количество получателей
-        let recipientsCount = 0;
+        // Получаем данные рассылки
+        const mailing = await db.get('SELECT * FROM mailings WHERE id = ?', [mailingId]);
         
-        if (mailingData.type === 'telegram_notification' && telegramBot.bot) {
-            // Для Telegram уведомлений
-            if (mailingData.branch && mailingData.branch !== 'all') {
-                const result = await db.get(`
-                    SELECT COUNT(DISTINCT tu.chat_id) as count
-                    FROM telegram_users tu
-                    JOIN student_profiles sp ON tu.username = sp.phone_number
-                    WHERE sp.branch = ? AND tu.is_active = 1
-                `, [mailingData.branch]);
-                recipientsCount = result?.count || 0;
-            } else {
-                const result = await db.get('SELECT COUNT(*) as count FROM telegram_users WHERE is_active = 1');
-                recipientsCount = result?.count || 0;
-            }
-        } else if (mailingData.segment) {
-            // Для сегментированных рассылок
-            recipientsCount = 100; // Примерное значение, нужно реализовать точный подсчет
+        if (!mailing) {
+            return res.status(404).json({
+                success: false,
+                error: 'Рассылка не найдена'
+            });
         }
         
-        // Сохраняем рассылку в базу данных
-        const result = await db.run(`
-            INSERT INTO mailings (type, name, segment, branch, teacher, day, 
-                                 message, status, recipients_count, created_by, scheduled_for)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            mailingData.type,
-            mailingData.name || `Рассылка ${new Date().toLocaleDateString()}`,
-            mailingData.segment,
-            mailingData.branch,
-            mailingData.teacher,
-            mailingData.day,
-            mailingData.message,
-            'pending', // Статус: pending, sending, sent, failed
-            recipientsCount,
-            req.admin.admin_id || 1,
-            mailingData.scheduled_for || null
-        ]);
-        
-        const mailingId = result.lastID;
-        
-        // Если это Telegram уведомление и указан филиал, отправляем сразу
-        if (mailingData.type === 'telegram_notification' && telegramBot.bot && mailingData.branch) {
-            try {
-                // Обновляем статус на "отправляется"
-                await db.run('UPDATE mailings SET status = ? WHERE id = ?', ['sending', mailingId]);
-                
-                // Отправляем уведомление
-                const sentCount = await telegramBot.sendNotificationToBranch(
-                    mailingData.branch,
-                    mailingData.message
-                );
-                
-                // Обновляем статус и количество отправленных
-                await db.run(
-                    'UPDATE mailings SET status = ?, sent_count = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?',
-                    ['sent', sentCount, mailingId]
-                );
-                
-                console.log(`✅ Telegram рассылка #${mailingId} отправлена (${sentCount} получателей)`);
-                
-            } catch (sendError) {
-                console.error('❌ Ошибка отправки Telegram рассылки:', sendError);
-                await db.run('UPDATE mailings SET status = ?, failed_count = ? WHERE id = ?', 
-                    ['failed', recipientsCount, mailingId]);
-            }
+        if (mailing.status === 'sent') {
+            return res.status(400).json({
+                success: false,
+                error: 'Рассылка уже отправлена'
+            });
         }
         
-        res.json({
-            success: true,
-            message: 'Рассылка создана успешно',
-            data: {
-                mailing_id: mailingId,
-                recipients_count: recipientsCount
+        // Отправляем через Telegram бота
+        if (mailing.type === 'telegram_notification' && telegramBot.bot && mailing.branch) {
+            // Обновляем статус
+            await db.run('UPDATE mailings SET status = ? WHERE id = ?', ['sending', mailingId]);
+            
+            // Отправляем
+            let sentCount = 0;
+            const branches = mailing.branch ? mailing.branch.split(',').map(b => b.trim()) : [];
+            
+            for (const branch of branches) {
+                if (branch) {
+                    const count = await telegramBot.sendNotificationToBranch(branch, mailing.message);
+                    sentCount += count;
+                    console.log(`   📤 Филиал "${branch}": отправлено ${count}`);
+                }
             }
-        });
+            
+            // Обновляем статус
+            await db.run(
+                'UPDATE mailings SET status = ?, sent_count = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?',
+                ['sent', sentCount, mailingId]
+            );
+            
+            console.log(`✅ Рассылка #${mailingId} отправлена вручную! Отправлено: ${sentCount}`);
+            
+            res.json({
+                success: true,
+                message: `Рассылка отправлена (${sentCount} получателей)`,
+                data: {
+                    sent_count: sentCount
+                }
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: 'Невозможно отправить этот тип рассылки'
+            });
+        }
         
     } catch (error) {
-        console.error('❌ Ошибка создания рассылки:', error.message);
+        console.error('❌ Ошибка отправки рассылки:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка создания рассылки'
+            error: 'Ошибка отправки рассылки',
+            details: error.message
         });
     }
 });
