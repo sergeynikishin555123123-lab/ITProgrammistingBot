@@ -2281,60 +2281,75 @@
             });
         },
 
-        // РЕНДЕРИНГ РАСПИСАНИЯ
-        renderSchedule: function(schedule) {
-            const container = document.getElementById('scheduleContainer');
-            
-            if (!schedule || schedule.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-calendar"></i>
-                        <p>Расписание пока не составлено</p>
+       renderSchedule: function(scheduleData) {
+    const container = document.getElementById('scheduleContainer');
+    
+    if (!scheduleData || !scheduleData.schedule || Object.keys(scheduleData.schedule).length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-calendar"></i>
+                <p>Расписание пока не составлено</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    const schedule = scheduleData.schedule;
+    
+    // Преобразуем объект в массив
+    const scheduleArray = Object.entries(schedule).map(([date, lessons]) => ({
+        date,
+        day: this.formatDate(date),
+        lessons: Array.isArray(lessons) ? lessons : []
+    }));
+    
+    scheduleArray.forEach(daySchedule => {
+        html += `
+            <div class="schedule-day">
+                <div class="day-header">${daySchedule.day}</div>
+        `;
+        
+        if (daySchedule.lessons.length === 0) {
+            html += `
+                <div style="text-align: center; padding: 20px; color: var(--gray-dark);">
+                    <i class="fas fa-coffee"></i> Занятий нет
+                </div>
+            `;
+        } else {
+            daySchedule.lessons.forEach(lesson => {
+                let statusClass = 'normal';
+                if (lesson.status === 'cancelled') statusClass = 'cancelled';
+                else if (lesson.status === 'replacement') statusClass = 'replacement';
+                else if (lesson.status === 'rescheduled') statusClass = 'rescheduled';
+                
+                html += `
+                    <div class="lesson-item ${statusClass}">
+                        <div class="lesson-time">${lesson.time || ''}</div>
+                        <div class="lesson-details">
+                            <div class="lesson-teacher">
+                                <i class="fas fa-chalkboard-teacher"></i> ${lesson.teacher_name || 'Преподаватель не указан'}
+                            </div>
+                            <div class="lesson-status status-${statusClass}">
+                                ${lesson.status === 'active' ? 'Запланировано' : 
+                                  lesson.status === 'cancelled' ? 'Отменено' :
+                                  lesson.status === 'replacement' ? 'Замена' :
+                                  lesson.status === 'rescheduled' ? 'Перенесено' : 'Запланировано'}
+                            </div>
+                        </div>
+                        <div style="font-size: 0.9rem; color: var(--gray-dark);">
+                            ${lesson.group_name || ''} ${lesson.age_group ? '• ' + lesson.age_group : ''}
+                        </div>
                     </div>
                 `;
-                return;
-            }
-            
-            let html = '';
-            
-            schedule.forEach(daySchedule => {
-                html += `
-                    <div class="schedule-day">
-                        <div class="day-header">${daySchedule.day}</div>
-                `;
-                
-                if (daySchedule.lessons.length === 0) {
-                    html += `
-                        <div style="text-align: center; padding: 20px; color: var(--gray-dark);">
-                            <i class="fas fa-coffee"></i> Занятий нет
-                        </div>
-                    `;
-                } else {
-                    daySchedule.lessons.forEach(lesson => {
-                        html += `
-                            <div class="lesson-item ${lesson.status.type}">
-                                <div class="lesson-time">${lesson.time}</div>
-                                <div class="lesson-details">
-                                    <div class="lesson-teacher">
-                                        <i class="fas fa-chalkboard-teacher"></i> ${lesson.teacher}
-                                    </div>
-                                    <div class="lesson-status status-${lesson.status.type}">
-                                        ${lesson.status.text}
-                                    </div>
-                                </div>
-                                <div style="font-size: 0.9rem; color: var(--gray-dark);">
-                                    ${lesson.group} • ${lesson.ageGroup}
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-                
-                html += `</div>`;
             });
-            
-            container.innerHTML = html;
-        },
+        }
+        
+        html += `</div>`;
+    });
+    
+    container.innerHTML = html;
+},
 
         // ЗАГРУЗКА СТРАНИЦЫ ПРЕПОДАВАТЕЛЕЙ
         loadTeachersPage: function() {
