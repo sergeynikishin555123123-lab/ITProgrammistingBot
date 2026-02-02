@@ -57,7 +57,7 @@ app.use((req, res, next) => {
 // ==================== КЛАСС TELEGRAM БОТА ====================
 class TelegramBotService {
     constructor() {
-        if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== 'YOUR_TELEGRAM_BOT_TOKEN') {
+        if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== 8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4) {
             try {
                 this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
                 this.setupHandlers();
@@ -82,7 +82,7 @@ class TelegramBotService {
                 await this.saveTelegramUser(chatId, msg.from);
                 
                 this.bot.sendMessage(chatId, 
-                    `🎨 Добро пожаловать в Artistic Soul!\n\n` +
+                    `🎨 Добро пожаловать в Школу рисования Баня!\n\n` +
                     `Чтобы войти в личный кабинет, перейдите по ссылке:\n` +
                     `${DOMAIN}\n\n` +
                     `Или введите ваш номер телефона (только цифры):`
