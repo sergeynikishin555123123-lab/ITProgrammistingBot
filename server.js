@@ -56,136 +56,222 @@ app.use((req, res, next) => {
 
 // ==================== КЛАСС TELEGRAM БОТА ====================
 class TelegramBotService {
-  constructor() {
-    if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4') {
+    constructor() {
+        this.setupBot();
+    }
+
+    setupBot() {
+        if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === 'your_telegram_bot_token') {
+            console.log('⚠️ Telegram токен не настроен');
+            this.bot = null;
+            return;
+        }
+
         try {
-            this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
-            console.log('🤖 Telegram бот инициализирован (режим polling)');
+            console.log(`🤖 Запуск Telegram бота с токеном: ${TELEGRAM_BOT_TOKEN.substring(0, 10)}...`);
             
-            // Настройка обработчиков
-            this.setupPolling();
+            // Простой polling режим
+            this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+            
+            console.log('✅ Telegram бот запущен в режиме polling');
+            
+            // Настраиваем обработчики
+            this.setupHandlers();
+            
         } catch (error) {
-            console.error('❌ Ошибка инициализации Telegram бота:', error.message);
+            console.error('❌ Ошибка запуска бота:', error.message);
             this.bot = null;
         }
-    } else {
-        console.log('⚠️ Telegram токен не указан или демо-токен, бот не запущен');
-        console.log('📝 Получите реальный токен: https://t.me/BotFather');
-        this.bot = null;
     }
-}
 
-setupPolling() {
-    this.bot.onText(/\/start/, async (msg) => {
-        const chatId = msg.chat.id;
-        await this.handleStartCommand(chatId, msg.from);
-    });
-    
-    this.bot.onText(/^\d{10,11}$/, async (msg, match) => {
-        const chatId = msg.chat.id;
-        const phone = match[0];
-        await this.handlePhoneInput(chatId, phone);
-    });
-}
-
-    // Обработка webhook сообщений
-    async handleWebhookUpdate(update) {
+    setupHandlers() {
         if (!this.bot) return;
-        
-        if (update.message) {
-            const chatId = update.message.chat.id;
-            const text = update.message.text;
+
+        // Команда /start
+        this.bot.onText(/\/start/, async (msg) => {
+            const chatId = msg.chat.id;
+            const user = msg.from;
             
-            if (text === '/start') {
-                await this.handleStartCommand(chatId, update.message.from);
-            } else if (/^\d{10,11}$/.test(text.replace(/\D/g, ''))) {
-                // Обработка телефона через существующий метод
-                const phone = text.replace(/\D/g, '');
+            console.log(`👤 /start от ${user.first_name} (chat_id: ${chatId})`);
+            
+            // Сохраняем пользователя
+            await this.saveTelegramUser(chatId, user);
+            
+            // Отправляем приветственное сообщение с кнопкой
+            await this.bot.sendMessage(chatId, 
+                `🎨 *Добро пожаловать в Школу рисования Баня!*\n\n` +
+                `Для входа в личный кабинет нажмите кнопку ниже:`,
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📱 Открыть личный кабинет',
+                                    web_app: { url: DOMAIN }
+                                }
+                            ],
+                            [
+                                {
+                                    text: '📞 Отправить номер телефона',
+                                    callback_data: 'send_phone'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            );
+        });
+
+        // Обработка callback кнопок
+        this.bot.on('callback_query', async (callbackQuery) => {
+            const chatId = callbackQuery.message.chat.id;
+            const data = callbackQuery.data;
+            
+            if (data === 'send_phone') {
+                await this.bot.sendMessage(chatId,
+                    `📱 *Отправьте номер телефона*\n\n` +
+                    `Введите ваш номер телефона в формате:\n` +
+                    `*79991234567*\n\n` +
+                    `Бот проверит ваш абонемент и отправит данные.`,
+                    { parse_mode: 'Markdown' }
+                );
+            }
+            
+            // Подтверждаем callback
+            await this.bot.answerCallbackQuery(callbackQuery.id);
+        });
+
+        // Обработка номеров телефона
+        this.bot.on('message', async (msg) => {
+            if (!msg.text || msg.text.startsWith('/')) return;
+            
+            const chatId = msg.chat.id;
+            const text = msg.text;
+            const cleanText = text.replace(/\D/g, '');
+            
+            // Если сообщение похоже на телефон (10-11 цифр)
+            if (cleanText.length >= 10 && cleanText.length <= 11) {
+                console.log(`📱 Получен телефон от ${chatId}: ${cleanText}`);
+                
+                // Форматируем телефон
+                let phone = cleanText;
+                if (phone.length === 10) {
+                    phone = '7' + phone; // Добавляем 7 для российских номеров
+                } else if (phone.startsWith('8')) {
+                    phone = '7' + phone.substring(1); // Меняем 8 на 7
+                }
+                
                 await this.handlePhoneInput(chatId, phone);
             }
-        }
-    }
+        });
 
-    async handleStartCommand(chatId, userInfo) {
-        try {
-            // Сохраняем chat_id пользователя
-            await this.saveTelegramUser(chatId, userInfo);
-            
-            await this.bot.sendMessage(chatId, 
-                `🎨 Добро пожаловать в Школу рисования Баня!\n\n` +
-                `Для входа в личный кабинет перейдите по ссылке:\n` +
-                `${DOMAIN}\n\n` +
-                `Введите ваш номер телефона в формате 79991234567:`
-            );
-        } catch (error) {
-            console.error('Ошибка обработки /start:', error);
-            await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
-        }
+        // Обработка ошибок
+        this.bot.on('polling_error', (error) => {
+            console.error('❌ Ошибка polling Telegram:', error.message);
+        });
+
+        console.log('✅ Обработчики команд установлены');
     }
 
     async saveTelegramUser(chatId, userInfo) {
         try {
             await db.run(`
-                INSERT OR REPLACE INTO telegram_users (chat_id, username, first_name, last_name, language_code, is_active, last_activity)
+                INSERT OR REPLACE INTO telegram_users 
+                (chat_id, username, first_name, last_name, language_code, is_active, last_activity)
                 VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
             `, [
                 chatId,
-                userInfo.username,
-                userInfo.first_name,
-                userInfo.last_name,
-                userInfo.language_code
+                userInfo.username || null,
+                userInfo.first_name || null,
+                userInfo.last_name || null,
+                userInfo.language_code || null
             ]);
+            
+            console.log(`✅ Пользователь сохранен: ${userInfo.first_name} (chat_id: ${chatId})`);
+            
         } catch (error) {
-            console.error('Ошибка сохранения пользователя Telegram:', error);
+            console.error('❌ Ошибка сохранения пользователя:', error.message);
         }
     }
 
     async handlePhoneInput(chatId, phone) {
         try {
-            await this.bot.sendMessage(chatId, `🔍 Ищу профили для телефона: ${formatPhoneNumber(phone)}...`);
+            await this.bot.sendMessage(chatId, `🔍 *Ищу профили для телефона:* ${this.formatPhoneNumber(phone)}...`, 
+                { parse_mode: 'Markdown' });
             
-            // Форматируем телефон
-            const formattedPhone = formatPhoneNumber(phone);
-            
-            // Ищем профили
+            // Ищем профили в базе данных
             const cleanPhone = phone.replace(/\D/g, '');
-            const profiles = await db.all(
-                `SELECT student_name, branch, subscription_status, total_classes, 
-                        subscription_active, remaining_classes
-                 FROM student_profiles 
-                 WHERE phone_number LIKE ? AND is_active = 1
-                 ORDER BY subscription_active DESC
-                 LIMIT 5`,
-                [`%${cleanPhone.slice(-10)}%`]
-            );
+            const profiles = await db.all(`
+                SELECT student_name, branch, subscription_status, total_classes, 
+                       subscription_active, remaining_classes
+                FROM student_profiles 
+                WHERE phone_number LIKE ? AND is_active = 1
+                ORDER BY subscription_active DESC
+                LIMIT 5
+            `, [`%${cleanPhone.slice(-10)}%`]);
             
             if (profiles.length === 0) {
                 await this.bot.sendMessage(chatId,
-                    `❌ Профили не найдены для телефона: ${formattedPhone}\n\n` +
-                    `Если вы считаете, что это ошибка, обратитесь к администратору.`
+                    `❌ *Профили не найдены*\n\n` +
+                    `Для телефона: ${this.formatPhoneNumber(phone)}\n\n` +
+                    `Если вы считаете, что это ошибка:\n` +
+                    `1. Проверьте правильность номера\n` +
+                    `2. Обратитесь к администратору\n` +
+                    `3. Перейдите в личный кабинет:`,
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: {
+                            inline_keyboard: [[
+                                {
+                                    text: '📱 Открыть личный кабинет',
+                                    web_app: { url: DOMAIN }
+                                }
+                            ]]
+                        }
+                    }
                 );
                 return;
             }
             
-            // Отправляем найденные профили
-            let message = `📋 Найдено профилей: ${profiles.length}\n\n`;
+            // Формируем сообщение с найденными профилями
+            let message = `📋 *Найдено профилей: ${profiles.length}*\n\n`;
             
             profiles.forEach((profile, index) => {
-                message += `${index + 1}. ${profile.student_name}\n`;
-                message += `   📍 Филиал: ${profile.branch || 'Не указан'}\n`;
-                message += `   🎫 Абонемент: ${profile.subscription_status}\n`;
-                message += `   📊 Занятий: ${profile.total_classes} (осталось: ${profile.remaining_classes})\n`;
-                message += `   🔵 Статус: ${profile.subscription_active === 1 ? '✅ Активен' : '❌ Не активен'}\n\n`;
+                message += `*${index + 1}. ${profile.student_name}*\n`;
+                message += `📍 Филиал: ${profile.branch || 'Не указан'}\n`;
+                message += `🎫 Абонемент: ${profile.subscription_status}\n`;
+                message += `📊 Занятий: ${profile.total_classes} (осталось: ${profile.remaining_classes})\n`;
+                message += `🔵 Статус: ${profile.subscription_active === 1 ? '✅ Активен' : '❌ Не активен'}\n\n`;
             });
             
-            message += `Для входа в личный кабинет перейдите по ссылке:\n${DOMAIN}`;
+            message += `Для входа в личный кабинет и получения полной информации:`;
             
-            await this.bot.sendMessage(chatId, message);
+            await this.bot.sendMessage(chatId, message, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[
+                        {
+                            text: '📱 Открыть личный кабинет',
+                            web_app: { url: DOMAIN }
+                        }
+                    ]]
+                }
+            });
             
         } catch (error) {
-            console.error('Ошибка обработки телефона в Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Произошла ошибка при поиске профилей.');
+            console.error('❌ Ошибка обработки телефона:', error);
+            await this.bot.sendMessage(chatId, 
+                '❌ Произошла ошибка при поиске профилей. Попробуйте позже.');
         }
+    }
+
+    formatPhoneNumber(phone) {
+        const clean = phone.replace(/\D/g, '');
+        if (clean.length === 11) {
+            return `+7 (${clean.substring(1, 4)}) ${clean.substring(4, 7)}-${clean.substring(7, 9)}-${clean.substring(9, 11)}`;
+        }
+        return phone;
     }
 
     // Отправка уведомления пользователям филиала
@@ -196,6 +282,8 @@ setupPolling() {
         }
         
         try {
+            console.log(`📨 Отправка уведомления для филиала "${branch}"`);
+            
             // Находим chat_id пользователей по филиалу
             const users = await db.all(`
                 SELECT DISTINCT tu.chat_id 
@@ -205,19 +293,29 @@ setupPolling() {
                 AND tu.chat_id NOT IN (${excludeChatIds.map(() => '?').join(',')})
             `, [branch, ...excludeChatIds]);
             
+            console.log(`👥 Найдено пользователей для рассылки: ${users.length}`);
+            
             let sentCount = 0;
+            let failedCount = 0;
             
             for (const user of users) {
                 try {
-                    await this.bot.sendMessage(user.chat_id, message, {
-                        parse_mode: 'HTML'
-                    });
-                    sentCount++;
+                    await this.bot.sendMessage(user.chat_id, 
+                        `📢 *Уведомление от Школы рисования*\n\n` +
+                        `${message}\n\n` +
+                        `_Не отвечайте на это сообщение_`,
+                        { parse_mode: 'Markdown' }
+                    );
                     
-                    // Задержка между отправками (100 мс)
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    sentCount++;
+                    console.log(`✅ Отправлено chat_id ${user.chat_id}`);
+                    
+                    // Задержка между отправками (50 мс)
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
                 } catch (error) {
-                    console.error(`Ошибка отправки в chat_id ${user.chat_id}:`, error.message);
+                    failedCount++;
+                    console.error(`❌ Ошибка отправки в chat_id ${user.chat_id}:`, error.message);
                     
                     // Если пользователь заблокировал бота, деактивируем его
                     if (error.response?.statusCode === 403) {
@@ -225,41 +323,17 @@ setupPolling() {
                             'UPDATE telegram_users SET is_active = 0 WHERE chat_id = ?',
                             [user.chat_id]
                         );
+                        console.log(`👤 Пользователь ${user.chat_id} деактивирован (заблокировал бота)`);
                     }
                 }
             }
             
-            console.log(`📨 Отправлено уведомлений для филиала "${branch}": ${sentCount}/${users.length}`);
+            console.log(`📊 Итог рассылки: отправлено ${sentCount}, не отправлено ${failedCount}`);
             return sentCount;
             
         } catch (error) {
-            console.error('Ошибка отправки уведомлений:', error);
+            console.error('❌ Ошибка отправки уведомлений:', error);
             return 0;
-        }
-    }
-
-    // Отправка уведомления конкретному пользователю
-    async sendNotificationToUser(phone, message) {
-        if (!this.bot) return false;
-        
-        try {
-            // Находим chat_id по телефону
-            const user = await db.get(`
-                SELECT tu.chat_id 
-                FROM telegram_users tu
-                WHERE tu.username = ? AND tu.is_active = 1
-            `, [phone]);
-            
-            if (user) {
-                await this.bot.sendMessage(user.chat_id, message, {
-                    parse_mode: 'HTML'
-                });
-                return true;
-            }
-            return false;
-        } catch (error) {
-            console.error('Ошибка отправки уведомления пользователю:', error);
-            return false;
         }
     }
 }
@@ -3185,33 +3259,48 @@ app.get('/api/faq', async (req, res) => {
 
 // ==================== API ДЛЯ ОТПРАВКИ TELEGRAM УВЕДОМЛЕНИЙ ====================
 
-// Отправка уведомления через Telegram
+// Отправка уведомления через Telegram (для админки)
 app.post('/api/admin/send-telegram-notification', verifyAdminToken, async (req, res) => {
     try {
         const { branch, message, type, admin_id } = req.body;
         
-        console.log(`📨 Отправка Telegram уведомления для филиала: ${branch}`);
+        console.log(`📨 Запрос на отправку уведомления для филиала: ${branch}`);
         
         if (!telegramBot || !telegramBot.bot) {
-            return res.json({
+            return res.status(400).json({
                 success: false,
                 error: 'Telegram бот не настроен'
             });
         }
         
-        let sentCount = 0;
-        
-        // Отправляем уведомление через сервис Telegram бота
-        if (telegramBot.sendNotificationToBranch) {
-            sentCount = await telegramBot.sendNotificationToBranch(branch, message);
+        // Проверяем наличие сообщения
+        if (!message || message.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                error: 'Введите текст сообщения'
+            });
         }
+        
+        // Проверяем филиал
+        if (!branch || branch.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                error: 'Выберите филиал'
+            });
+        }
+        
+        this.showLoading('Отправка уведомлений...');
+        
+        // Отправляем уведомление
+        const sentCount = await telegramBot.sendNotificationToBranch(branch, message);
         
         // Сохраняем в историю рассылок
         await db.run(`
-            INSERT INTO mailings (type, branch, message, status, sent_count, created_by, sent_at)
-            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO mailings (type, name, branch, message, status, sent_count, created_by, sent_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `, [
             type || 'telegram_notification',
+            `Уведомление для ${branch}`,
             branch,
             message,
             'sent',
