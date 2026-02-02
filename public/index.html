@@ -8,18 +8,20 @@
     <style>
         /* ==================== ОСНОВНЫЕ СТИЛИ ==================== */
         :root {
-            --blue-dark: #2C3E50;
-            --blue-medium: #3498DB;
-            --blue-light: #85C1E9;
-            --pink: #FF6B8B;
+            --blue-primary: #0066FF;
+            --blue-dark: #0052CC;
+            --blue-light: #4D94FF;
+            --blue-bright: #3399FF;
+            --blue-pale: #E6F2FF;
+            --pink: #FF3366;
             --white: #FFFFFF;
             --gray-light: #F5F7FA;
-            --gray-medium: #ECF0F1;
+            --gray-medium: #E1E5EB;
             --gray-dark: #7F8C8D;
-            --success: #2ECC71;
-            --error: #E74C3C;
-            --warning: #F39C12;
-            --shadow: 0 4px 6px rgba(44, 62, 80, 0.1);
+            --success: #28A745;
+            --error: #DC3545;
+            --warning: #FFC107;
+            --shadow: 0 4px 12px rgba(0, 102, 255, 0.15);
         }
 
         @font-face {
@@ -43,8 +45,8 @@
 
         body {
             font-family: 'ArtisticSoul', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, var(--white) 0%, var(--gray-light) 100%);
-            color: var(--blue-dark);
+            background: var(--white);
+            color: #333;
             line-height: 1.6;
             min-height: 100vh;
             padding: 0;
@@ -58,17 +60,17 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
-            background: var(--white);
+            background: linear-gradient(135deg, var(--blue-pale) 0%, var(--white) 100%);
         }
 
         .auth-container {
             max-width: 400px;
             width: 100%;
             background: var(--white);
-            border-radius: 15px;
+            border-radius: 20px;
             padding: 40px 30px;
             box-shadow: var(--shadow);
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
         }
 
         .auth-logo {
@@ -82,8 +84,8 @@
             border-radius: 50%;
             object-fit: cover;
             margin-bottom: 20px;
-            border: 3px solid var(--blue-dark);
-            background: linear-gradient(45deg, var(--blue-dark), var(--blue-medium));
+            border: 3px solid var(--blue-primary);
+            background: linear-gradient(45deg, var(--blue-primary), var(--blue-bright));
             display: flex;
             align-items: center;
             justify-content: center;
@@ -95,11 +97,10 @@
 
         .auth-logo-text {
             font-family: 'ArtisticSoul';
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 700;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 5px;
-            letter-spacing: -0.5px;
         }
 
         .auth-subtitle {
@@ -112,7 +113,7 @@
         .auth-title {
             font-size: 1.8rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             text-align: center;
             margin-bottom: 20px;
         }
@@ -125,17 +126,17 @@
             display: block;
             font-size: 0.9rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 8px;
         }
 
         .phone-input {
             width: 100%;
             padding: 16px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             border-radius: 12px;
             font-size: 1.1rem;
-            color: var(--blue-dark);
+            color: #333;
             background: var(--white);
             font-family: 'ArtisticSoul', sans-serif;
             transition: all 0.3s ease;
@@ -144,7 +145,7 @@
         .phone-input:focus {
             outline: none;
             border-color: var(--pink);
-            box-shadow: 0 0 0 3px rgba(255, 107, 139, 0.2);
+            box-shadow: 0 0 0 3px rgba(255, 51, 102, 0.2);
         }
 
         .btn {
@@ -153,7 +154,7 @@
             justify-content: center;
             gap: 10px;
             padding: 16px 30px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             border-radius: 12px;
             font-size: 1.1rem;
             font-weight: 600;
@@ -161,7 +162,7 @@
             transition: all 0.3s ease;
             width: 100%;
             margin-bottom: 15px;
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: var(--white);
             font-family: 'ArtisticSoul', sans-serif;
             text-decoration: none;
@@ -173,22 +174,22 @@
         }
 
         .btn-primary {
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: var(--white);
         }
 
         .btn-primary:hover {
-            background: var(--blue-medium);
-            border-color: var(--blue-medium);
+            background: var(--blue-dark);
+            border-color: var(--blue-dark);
         }
 
         .btn-secondary {
             background: var(--white);
-            color: var(--blue-dark);
+            color: var(--blue-primary);
         }
 
         .btn-secondary:hover {
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: var(--white);
         }
 
@@ -199,8 +200,8 @@
         }
 
         .btn-pink:hover {
-            background: #ff4d7a;
-            border-color: #ff4d7a;
+            background: #ff1a53;
+            border-color: #ff1a53;
         }
 
         .auth-footer {
@@ -221,27 +222,26 @@
 
         /* ВЕРХНИЙ БАР */
         .top-bar {
-            background: var(--white);
+            background: var(--blue-primary);
             padding: 15px 20px;
-            border-bottom: 2px solid var(--blue-dark);
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
             z-index: 1000;
-            box-shadow: 0 2px 10px rgba(44, 62, 80, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 102, 255, 0.2);
         }
 
         .logo-small {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: linear-gradient(45deg, var(--blue-dark), var(--blue-medium));
+            background: var(--white);
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: var(--blue-primary);
             font-weight: bold;
             font-size: 1.2rem;
         }
@@ -250,7 +250,7 @@
             font-family: 'ArtisticSoul';
             font-size: 1.5rem;
             font-weight: 700;
-            color: var(--blue-dark);
+            color: var(--white);
             margin-left: 10px;
         }
 
@@ -258,8 +258,8 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: var(--blue-dark);
-            color: var(--white);
+            background: var(--white);
+            color: var(--blue-primary);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -275,12 +275,12 @@
             right: 0;
             height: 70px;
             background: var(--white);
-            border-top: 2px solid var(--blue-dark);
+            border-top: 2px solid var(--blue-primary);
             display: flex;
             justify-content: space-around;
             align-items: center;
             z-index: 1000;
-            box-shadow: 0 -2px 10px rgba(44, 62, 80, 0.1);
+            box-shadow: 0 -2px 10px rgba(0, 102, 255, 0.1);
         }
 
         .nav-item {
@@ -298,8 +298,8 @@
         }
 
         .nav-item.active {
-            color: var(--blue-dark);
-            background: var(--gray-light);
+            color: var(--blue-primary);
+            background: var(--blue-pale);
             transform: translateY(-5px);
         }
 
@@ -319,7 +319,7 @@
             padding: 20px;
             padding-bottom: 90px;
             overflow-y: auto;
-            background: linear-gradient(135deg, var(--white) 0%, var(--gray-light) 100%);
+            background: var(--white);
         }
 
         /* ВЫБОР УЧЕНИКА */
@@ -328,14 +328,14 @@
             border-radius: 15px;
             padding: 20px;
             margin-bottom: 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             box-shadow: var(--shadow);
         }
 
         .selector-title {
             font-size: 1.2rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 15px;
             display: flex;
             align-items: center;
@@ -347,9 +347,9 @@
             align-items: center;
             justify-content: space-between;
             padding: 15px;
-            background: var(--gray-light);
+            background: var(--blue-pale);
             border-radius: 12px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             margin-bottom: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -361,7 +361,7 @@
         }
 
         .student-item.active {
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: var(--white);
         }
 
@@ -375,7 +375,7 @@
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: var(--white);
             display: flex;
             align-items: center;
@@ -396,11 +396,11 @@
 
         .student-branch {
             font-size: 0.9rem;
-            color: var(--gray-dark);
+            color: var(--blue-dark);
         }
 
         .student-item.active .student-branch {
-            color: var(--gray-light);
+            color: var(--blue-pale);
         }
 
         .student-status {
@@ -427,7 +427,7 @@
 
         /* ГЛАВНАЯ СТРАНИЦА */
         .welcome-card {
-            background: linear-gradient(135deg, var(--blue-dark), var(--blue-medium));
+            background: linear-gradient(135deg, var(--blue-primary), var(--blue-bright));
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 20px;
@@ -449,7 +449,7 @@
 
         .student-details-info {
             font-size: 0.9rem;
-            opacity: 0.8;
+            opacity: 0.9;
             line-height: 1.4;
         }
 
@@ -465,7 +465,7 @@
             background: var(--white);
             border-radius: 15px;
             padding: 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
@@ -482,7 +482,7 @@
         .quick-card-icon {
             width: 50px;
             height: 50px;
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -495,7 +495,7 @@
         .quick-card-title {
             font-size: 1rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 5px;
         }
 
@@ -512,7 +512,7 @@
         .section-title {
             font-size: 1.4rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 15px;
             display: flex;
             align-items: center;
@@ -528,7 +528,7 @@
             background: var(--white);
             border-radius: 15px;
             padding: 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             margin-bottom: 15px;
             box-shadow: var(--shadow);
         }
@@ -545,10 +545,10 @@
             flex: 1;
             min-width: 150px;
             padding: 12px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             border-radius: 12px;
             background: var(--white);
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             font-family: 'ArtisticSoul', sans-serif;
             font-size: 1rem;
         }
@@ -558,13 +558,13 @@
             border-radius: 15px;
             padding: 20px;
             margin-bottom: 15px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
         }
 
         .day-header {
             font-size: 1.2rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 15px;
             padding-bottom: 10px;
             border-bottom: 2px solid var(--gray-medium);
@@ -572,10 +572,10 @@
 
         .lesson-item {
             padding: 15px;
-            background: var(--gray-light);
+            background: var(--blue-pale);
             border-radius: 12px;
             margin-bottom: 10px;
-            border-left: 4px solid var(--blue-dark);
+            border-left: 4px solid var(--blue-primary);
         }
 
         .lesson-item.cancelled {
@@ -593,7 +593,7 @@
 
         .lesson-time {
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 5px;
         }
 
@@ -606,7 +606,7 @@
 
         .lesson-teacher {
             font-size: 0.9rem;
-            color: var(--gray-dark);
+            color: var(--blue-dark);
         }
 
         .lesson-status {
@@ -638,7 +638,7 @@
 
         /* СТРАНИЦА АБОНЕМЕНТА */
         .subscription-card {
-            background: linear-gradient(135deg, var(--blue-dark), var(--blue-medium));
+            background: linear-gradient(135deg, var(--blue-primary), var(--blue-bright));
             border-radius: 15px;
             padding: 25px;
             color: white;
@@ -671,7 +671,7 @@
         }
 
         .stat-item {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 12px;
             padding: 15px;
             text-align: center;
@@ -711,7 +711,7 @@
         }
 
         .date-item {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 12px;
             padding: 15px;
         }
@@ -732,7 +732,7 @@
             border-radius: 15px;
             padding: 20px;
             margin-top: 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
         }
 
         .visit-item {
@@ -749,7 +749,7 @@
 
         .visit-date {
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
         }
 
         .visit-time {
@@ -768,7 +768,7 @@
             background: var(--white);
             border-radius: 15px;
             padding: 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             text-align: center;
             transition: all 0.3s ease;
         }
@@ -782,7 +782,7 @@
             width: 80px;
             height: 80px;
             border-radius: 50%;
-            background: linear-gradient(45deg, var(--blue-dark), var(--blue-medium));
+            background: linear-gradient(45deg, var(--blue-primary), var(--blue-bright));
             margin: 0 auto 15px;
             display: flex;
             align-items: center;
@@ -795,19 +795,19 @@
         .teacher-name {
             font-size: 1.1rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 5px;
         }
 
         .teacher-branch {
             font-size: 0.8rem;
-            color: var(--gray-dark);
+            color: var(--blue-dark);
             margin-bottom: 10px;
         }
 
         .teacher-specialization {
             font-size: 0.9rem;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             font-style: italic;
         }
 
@@ -815,7 +815,7 @@
         .faq-list {
             background: var(--white);
             border-radius: 15px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             overflow: hidden;
         }
 
@@ -832,7 +832,7 @@
             padding: 20px;
             font-size: 1.1rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -842,7 +842,7 @@
         }
 
         .faq-question:hover {
-            background: var(--gray-light);
+            background: var(--blue-pale);
         }
 
         .faq-question i {
@@ -858,7 +858,7 @@
             max-height: 0;
             overflow: hidden;
             transition: all 0.3s ease;
-            background: var(--gray-light);
+            background: var(--blue-pale);
             font-size: 1rem;
             line-height: 1.6;
         }
@@ -879,7 +879,7 @@
             background: var(--white);
             border-radius: 15px;
             padding: 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             transition: all 0.3s ease;
         }
 
@@ -897,13 +897,13 @@
         .news-title {
             font-size: 1.2rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 10px;
         }
 
         .news-content {
             font-size: 1rem;
-            color: var(--blue-dark);
+            color: #333;
             line-height: 1.6;
         }
 
@@ -925,14 +925,14 @@
             background: var(--white);
             border-radius: 15px;
             padding: 25px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             text-align: center;
         }
 
         .contact-icon {
             width: 60px;
             height: 60px;
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -945,13 +945,13 @@
         .contact-title {
             font-size: 1.3rem;
             font-weight: 600;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             margin-bottom: 10px;
         }
 
         .contact-info {
             font-size: 1rem;
-            color: var(--blue-dark);
+            color: #333;
             margin-bottom: 20px;
             line-height: 1.6;
         }
@@ -971,7 +971,7 @@
             background: var(--white);
             border-radius: 12px;
             padding: 15px 20px;
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             animation: slideIn 0.3s ease;
             max-width: 90%;
             width: 350px;
@@ -997,8 +997,8 @@
         .spinner {
             width: 40px;
             height: 40px;
-            border: 3px solid var(--gray-medium);
-            border-top: 3px solid var(--blue-dark);
+            border: 3px solid var(--blue-pale);
+            border-top: 3px solid var(--blue-primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto;
@@ -1067,12 +1067,10 @@
                 grid-template-columns: 1fr;
             }
             
-            .schedule-filter {
+            .top-bar {
                 flex-direction: column;
-            }
-            
-            .filter-select {
-                width: 100%;
+                gap: 10px;
+                padding: 15px;
             }
         }
 
@@ -1109,7 +1107,7 @@
 
         .empty-state i {
             font-size: 3rem;
-            color: var(--gray-medium);
+            color: var(--blue-primary);
             margin-bottom: 15px;
         }
 
@@ -1141,7 +1139,7 @@
         }
 
         .badge-primary {
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: white;
         }
 
@@ -1172,9 +1170,9 @@
             gap: 10px;
             padding: 10px 20px;
             background: var(--white);
-            border: 2px solid var(--blue-dark);
+            border: 2px solid var(--blue-primary);
             border-radius: 12px;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             font-weight: 600;
             cursor: pointer;
             text-decoration: none;
@@ -1183,7 +1181,7 @@
         }
 
         .back-button:hover {
-            background: var(--blue-dark);
+            background: var(--blue-primary);
             color: white;
             transform: translateX(-5px);
         }
@@ -1199,21 +1197,8 @@
         .page-title {
             font-size: 1.8rem;
             font-weight: 700;
-            color: var(--blue-dark);
+            color: var(--blue-primary);
             flex: 1;
-        }
-
-        /* ФИЛЬТРЫ */
-        .filters-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .filter-item {
-            flex: 1;
-            min-width: 150px;
         }
 
         /* СКРЫТЫЕ ЭЛЕМЕНТЫ */
@@ -1224,6 +1209,17 @@
 
         .page-section.active {
             display: block;
+        }
+
+        /* СЕТКА ФИЛЬТРОВ */
+        .branch-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--blue-primary);
+            color: white;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -1304,7 +1300,7 @@
                 
                 <div class="quick-cards">
                     <div class="quick-card" onclick="ArtApp.navigateTo('subscription')">
-                        <div class="quick-card-icon" style="background: var(--blue-dark);">
+                        <div class="quick-card-icon">
                             <i class="fas fa-ticket-alt"></i>
                         </div>
                         <div class="quick-card-title">Абонемент</div>
@@ -1312,7 +1308,7 @@
                     </div>
                     
                     <div class="quick-card" onclick="ArtApp.navigateTo('schedule')">
-                        <div class="quick-card-icon" style="background: var(--pink);">
+                        <div class="quick-card-icon">
                             <i class="fas fa-calendar-alt"></i>
                         </div>
                         <div class="quick-card-title">Расписание</div>
@@ -1320,7 +1316,7 @@
                     </div>
                     
                     <div class="quick-card" onclick="ArtApp.navigateTo('teachers')">
-                        <div class="quick-card-icon" style="background: var(--blue-dark);">
+                        <div class="quick-card-icon">
                             <i class="fas fa-chalkboard-teacher"></i>
                         </div>
                         <div class="quick-card-title">Преподаватели</div>
@@ -1328,7 +1324,7 @@
                     </div>
                     
                     <div class="quick-card" onclick="ArtApp.navigateTo('news')">
-                        <div class="quick-card-icon" style="background: var(--pink);">
+                        <div class="quick-card-icon">
                             <i class="fas fa-newspaper"></i>
                         </div>
                         <div class="quick-card-title">Новости</div>
@@ -1343,11 +1339,11 @@
                     
                     <div class="card" onclick="ArtApp.navigateTo('faq')">
                         <div style="display: flex; align-items: center; gap: 15px;">
-                            <div style="width: 50px; height: 50px; background: var(--blue-dark); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
+                            <div style="width: 50px; height: 50px; background: var(--blue-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                                 <i class="fas fa-question-circle"></i>
                             </div>
                             <div>
-                                <div style="font-weight: 600; color: var(--blue-dark); margin-bottom: 5px;">Частые вопросы</div>
+                                <div style="font-weight: 600; color: var(--blue-primary); margin-bottom: 5px;">Частые вопросы</div>
                                 <div style="font-size: 0.9rem; color: var(--gray-dark);">Ответы на популярные вопросы</div>
                             </div>
                         </div>
@@ -1355,11 +1351,11 @@
                     
                     <div class="card" onclick="ArtApp.navigateTo('contact')">
                         <div style="display: flex; align-items: center; gap: 15px;">
-                            <div style="width: 50px; height: 50px; background: var(--pink); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
+                            <div style="width: 50px; height: 50px; background: var(--blue-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
                                 <i class="fas fa-headset"></i>
                             </div>
                             <div>
-                                <div style="font-weight: 600; color: var(--blue-dark); margin-bottom: 5px;">Связаться с администратором</div>
+                                <div style="font-weight: 600; color: var(--blue-primary); margin-bottom: 5px;">Связаться с администратором</div>
                                 <div style="font-size: 0.9rem; color: var(--gray-dark);">Задать вопрос или продлить абонемент</div>
                             </div>
                         </div>
@@ -1376,18 +1372,8 @@
                     <h2 class="page-title">Расписание</h2>
                 </div>
                 
-                <div class="filters-row">
-                    <select class="filter-select" id="scheduleBranchFilter">
-                        <option value="all">Все филиалы</option>
-                        <option value="Свиблово">Свиблово</option>
-                        <option value="Чертаново">Чертаново</option>
-                    </select>
-                    
-                    <select class="filter-select" id="scheduleWeekFilter">
-                        <option value="current">Текущая неделя</option>
-                        <option value="next">Следующая неделя</option>
-                        <option value="all">Все занятия</option>
-                    </select>
+                <div id="branchBadge" style="display: none;" class="branch-badge">
+                    <!-- Филиал будет показан здесь -->
                 </div>
                 
                 <div id="scheduleContainer">
@@ -1428,12 +1414,8 @@
                     <h2 class="page-title">Преподаватели</h2>
                 </div>
                 
-                <div class="filters-row">
-                    <select class="filter-select" id="teachersBranchFilter">
-                        <option value="all">Все филиалы</option>
-                        <option value="Свиблово">Свиблово</option>
-                        <option value="Чертаново">Чертаново</option>
-                    </select>
+                <div id="branchBadgeTeachers" style="display: none;" class="branch-badge">
+                    <!-- Филиал будет показан здесь -->
                 </div>
                 
                 <div class="teachers-grid" id="teachersContainer">
@@ -1464,21 +1446,8 @@
                     <h2 class="page-title">Новости школы</h2>
                 </div>
                 
-                <div class="filters-row">
-                    <select class="filter-select" id="newsBranchFilter">
-                        <option value="all">Все филиалы</option>
-                        <option value="Свиблово">Свиблово</option>
-                        <option value="Чертаново">Чертаново</option>
-                        <option value="both">Оба филиала</option>
-                    </select>
-                    
-                    <select class="filter-select" id="newsCategoryFilter">
-                        <option value="all">Все категории</option>
-                        <option value="news">Новости</option>
-                        <option value="events">Мероприятия</option>
-                        <option value="sales">Акции</option>
-                        <option value="masterclass">Мастер-классы</option>
-                    </select>
+                <div id="branchBadgeNews" style="display: none;" class="branch-badge">
+                    <!-- Филиал будет показан здесь -->
                 </div>
                 
                 <div class="news-list" id="newsContainer">
@@ -1555,8 +1524,8 @@
     </div>
     
     <!-- МЕНЮ ПОЛЬЗОВАТЕЛЯ -->
-    <div id="userMenu" class="d-none" style="position: fixed; top: 70px; right: 20px; background: var(--white); border: 2px solid var(--blue-dark); border-radius: 12px; padding: 20px; width: 250px; z-index: 2000; box-shadow: var(--shadow);">
-        <div style="font-weight: 600; color: var(--blue-dark); margin-bottom: 15px;">
+    <div id="userMenu" class="d-none" style="position: fixed; top: 70px; right: 20px; background: var(--white); border: 2px solid var(--blue-primary); border-radius: 12px; padding: 20px; width: 250px; z-index: 2000; box-shadow: var(--shadow);">
+        <div style="font-weight: 600; color: var(--blue-primary); margin-bottom: 15px;">
             <i class="fas fa-user-circle"></i> Аккаунт
         </div>
         <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 2px solid var(--gray-medium);">
@@ -1730,6 +1699,9 @@
                     this.showNotification('✅ Вход выполнен успешно!', 'success');
                     this.navigateToPage('home');
                     this.loadHomePage();
+                    
+                    // Подключаем WebSocket для уведомлений
+                    this.setupWebSocket();
                 } else {
                     throw new Error(data.error || 'Не удалось получить данные');
                 }
@@ -2165,7 +2137,7 @@
                 
                 ${used > 0 ? `
                 <div class="visits-list">
-                    <h3 style="color: var(--blue-dark); margin-bottom: 15px; font-size: 1.2rem;">
+                    <h3 style="color: var(--blue-primary); margin-bottom: 15px; font-size: 1.2rem;">
                         <i class="fas fa-history"></i> История посещений
                     </h3>
                     <div style="text-align: center; padding: 20px; color: var(--gray-dark);">
@@ -2186,6 +2158,7 @@
         // ЗАГРУЗКА СТРАНИЦЫ РАСПИСАНИЯ
         loadSchedulePage: function() {
             const container = document.getElementById('scheduleContainer');
+            const branchBadge = document.getElementById('branchBadge');
             
             if (!this.config.currentProfile) {
                 container.innerHTML = `
@@ -2194,12 +2167,59 @@
                         <p>Нет активного профиля</p>
                     </div>
                 `;
+                branchBadge.style.display = 'none';
                 return;
             }
             
-            // Показываем расписание (в реальном приложении данные будут из API)
-            const schedule = this.generateSampleSchedule();
-            this.renderSchedule(schedule);
+            const branch = this.config.currentProfile.branch;
+            
+            if (!branch) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <p>Филиал не указан в профиле</p>
+                    </div>
+                `;
+                branchBadge.style.display = 'none';
+                return;
+            }
+            
+            // Показываем бейдж филиала
+            branchBadge.textContent = `Филиал: ${branch}`;
+            branchBadge.style.display = 'inline-block';
+            
+            // Показываем загрузку
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="spinner"></div>
+                    <p>Загрузка расписания для филиала "${branch}"...</p>
+                </div>
+            `;
+            
+            // Пытаемся загрузить расписание из API
+            this.loadScheduleFromAPI(branch);
+        },
+
+        // ЗАГРУЗКА РАСПИСАНИЯ ИЗ API
+        loadScheduleFromAPI: function(branch) {
+            const container = document.getElementById('scheduleContainer');
+            
+            // В реальном приложении здесь будет fetch к API
+            // fetch(`/api/schedule/${encodeURIComponent(branch)}`)
+            //     .then(response => response.json())
+            //     .then(data => {
+            //         if (data.success && data.data.schedule) {
+            //             this.renderSchedule(data.data.schedule);
+            //         } else {
+            //             throw new Error(data.error || 'Ошибка загрузки расписания');
+            //         }
+            //     })
+            
+            // Для демонстрации используем тестовые данные
+            setTimeout(() => {
+                const schedule = this.generateSampleSchedule();
+                this.renderSchedule(schedule);
+            }, 500);
         },
 
         // ГЕНЕРАЦИЯ ТЕСТОВОГО РАСПИСАНИЯ
@@ -2301,10 +2321,72 @@
         // ЗАГРУЗКА СТРАНИЦЫ ПРЕПОДАВАТЕЛЕЙ
         loadTeachersPage: function() {
             const container = document.getElementById('teachersContainer');
+            const branchBadge = document.getElementById('branchBadgeTeachers');
             
-            // Показываем тестовых преподавателей (в реальном приложении данные будут из API)
-            const teachers = this.generateSampleTeachers();
-            this.renderTeachers(teachers);
+            if (!this.config.currentProfile) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Нет активного профиля</p>
+                    </div>
+                `;
+                branchBadge.style.display = 'none';
+                return;
+            }
+            
+            const branch = this.config.currentProfile.branch;
+            
+            if (!branch) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <p>Филиал не указан в профиле</p>
+                    </div>
+                `;
+                branchBadge.style.display = 'none';
+                return;
+            }
+            
+            // Показываем бейдж филиала
+            branchBadge.textContent = `Филиал: ${branch}`;
+            branchBadge.style.display = 'inline-block';
+            
+            // Показываем загрузку
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="spinner"></div>
+                    <p>Загрузка преподавателей для филиала "${branch}"...</p>
+                </div>
+            `;
+            
+            // Загружаем преподавателей для филиала
+            this.loadTeachersFromAPI(branch);
+        },
+
+        // ЗАГРУЗКА ПРЕПОДАВАТЕЛЕЙ ИЗ API
+        loadTeachersFromAPI: function(branch) {
+            const container = document.getElementById('teachersContainer');
+            
+            // В реальном приложении здесь будет fetch к API
+            // fetch(`/api/teachers/${encodeURIComponent(branch)}`)
+            //     .then(response => response.json())
+            //     .then(data => {
+            //         if (data.success && data.data.teachers) {
+            //             this.renderTeachers(data.data.teachers);
+            //         } else {
+            //             throw new Error(data.error || 'Ошибка загрузки преподавателей');
+            //         }
+            //     })
+            
+            // Для демонстрации используем тестовые данные
+            setTimeout(() => {
+                const teachers = this.generateSampleTeachers();
+                // Фильтруем по филиалу
+                const filteredTeachers = teachers.filter(teacher => 
+                    teacher.branch === branch || teacher.branch === 'Оба филиала'
+                );
+                this.renderTeachers(filteredTeachers);
+            }, 500);
         },
 
         // ГЕНЕРАЦИЯ ТЕСТОВЫХ ПРЕПОДАВАТЕЛЕЙ
@@ -2363,27 +2445,7 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-users"></i>
-                        <p>Преподаватели не найдены</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Фильтрация по филиалу
-            const branchFilter = document.getElementById('teachersBranchFilter').value;
-            let filteredTeachers = teachers;
-            
-            if (branchFilter !== 'all') {
-                filteredTeachers = teachers.filter(teacher => 
-                    teacher.branch === branchFilter || teacher.branch === 'Оба филиала'
-                );
-            }
-            
-            if (filteredTeachers.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-users"></i>
-                        <p>В выбранном филиале преподаватели не найдены</p>
+                        <p>В вашем филиале преподаватели не найдены</p>
                     </div>
                 `;
                 return;
@@ -2391,14 +2453,13 @@
             
             let html = '';
             
-            filteredTeachers.forEach(teacher => {
+            teachers.forEach(teacher => {
                 html += `
                     <div class="teacher-card">
                         <div class="teacher-photo">
                             ${this.getInitials(teacher.name)}
                         </div>
                         <div class="teacher-name">${teacher.name}</div>
-                        <div class="teacher-branch">${teacher.branch}</div>
                         <div class="teacher-specialization">${teacher.specialization}</div>
                         <div style="margin-top: 10px; font-size: 0.8rem; color: var(--gray-dark);">
                             <i class="fas fa-award"></i> Стаж: ${teacher.experience} лет
@@ -2414,7 +2475,7 @@
         loadFaqPage: function() {
             const container = document.getElementById('faqContainer');
             
-            // Показываем тестовые FAQ (в реальном приложении данные будут из API)
+            // Показываем тестовые FAQ
             const faq = this.generateSampleFaq();
             this.renderFaq(faq);
         },
@@ -2491,10 +2552,72 @@
         // ЗАГРУЗКА СТРАНИЦЫ НОВОСТЕЙ
         loadNewsPage: function() {
             const container = document.getElementById('newsContainer');
+            const branchBadge = document.getElementById('branchBadgeNews');
             
-            // Показываем тестовые новости (в реальном приложении данные будут из API)
-            const news = this.generateSampleNews();
-            this.renderNews(news);
+            if (!this.config.currentProfile) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Нет активного профиля</p>
+                    </div>
+                `;
+                branchBadge.style.display = 'none';
+                return;
+            }
+            
+            const branch = this.config.currentProfile.branch;
+            
+            if (!branch) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <p>Филиал не указан в профиле</p>
+                    </div>
+                `;
+                branchBadge.style.display = 'none';
+                return;
+            }
+            
+            // Показываем бейдж филиала
+            branchBadge.textContent = `Филиал: ${branch}`;
+            branchBadge.style.display = 'inline-block';
+            
+            // Показываем загрузку
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="spinner"></div>
+                    <p>Загрузка новостей для филиала "${branch}"...</p>
+                </div>
+            `;
+            
+            // Загружаем новости для филиала
+            this.loadNewsFromAPI(branch);
+        },
+
+        // ЗАГРУЗКА НОВОСТЕЙ ИЗ API
+        loadNewsFromAPI: function(branch) {
+            const container = document.getElementById('newsContainer');
+            
+            // В реальном приложении здесь будет fetch к API
+            // fetch(`/api/news/${encodeURIComponent(branch)}`)
+            //     .then(response => response.json())
+            //     .then(data => {
+            //         if (data.success && data.data.news) {
+            //             this.renderNews(data.data.news);
+            //         } else {
+            //             throw new Error(data.error || 'Ошибка загрузки новостей');
+            //         }
+            //     })
+            
+            // Для демонстрации используем тестовые данные
+            setTimeout(() => {
+                const news = this.generateSampleNews();
+                // Фильтруем по филиалу
+                const filteredNews = news.filter(item => 
+                    item.branch === branch || item.branch === 'both'
+                );
+                this.renderNews(filteredNews);
+            }, 500);
         },
 
         // ГЕНЕРАЦИЯ ТЕСТОВЫХ НОВОСТЕЙ
@@ -2560,35 +2683,7 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-newspaper"></i>
-                        <p>Новости пока не добавлены</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Фильтрация по филиалу и категории
-            const branchFilter = document.getElementById('newsBranchFilter').value;
-            const categoryFilter = document.getElementById('newsCategoryFilter').value;
-            
-            let filteredNews = news;
-            
-            if (branchFilter !== 'all') {
-                filteredNews = filteredNews.filter(item => 
-                    item.branch === branchFilter || item.branch === 'both'
-                );
-            }
-            
-            if (categoryFilter !== 'all') {
-                filteredNews = filteredNews.filter(item => 
-                    item.category === categoryFilter
-                );
-            }
-            
-            if (filteredNews.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-filter"></i>
-                        <p>Нет новостей по выбранным фильтрам</p>
+                        <p>Новостей для вашего филиала пока нет</p>
                     </div>
                 `;
                 return;
@@ -2596,12 +2691,11 @@
             
             let html = '';
             
-            filteredNews.forEach(item => {
+            news.forEach(item => {
                 html += `
                     <div class="news-item">
                         <div class="news-date">
                             <i class="far fa-calendar"></i> ${item.date}
-                            <span class="badge badge-primary" style="margin-left: 10px;">${item.branch === 'both' ? 'Оба филиала' : item.branch}</span>
                         </div>
                         <div class="news-title">${item.title}</div>
                         <div class="news-content news-content-short">
@@ -2665,6 +2759,50 @@
         // СКРЫТЬ МЕНЮ ПОЛЬЗОВАТЕЛЯ
         hideProfileMenu: function() {
             document.getElementById('userMenu').classList.add('d-none');
+        },
+
+        // НАСТРОЙКА WEB SOCKET
+        setupWebSocket: function() {
+            const phone = this.config.currentUser?.phone_number;
+            if (!phone) return;
+            
+            // Определяем URL WebSocket (поддержка HTTPS/HTTP)
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}`;
+            
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('🔗 WebSocket подключен');
+                ws.send(JSON.stringify({
+                    type: 'register',
+                    phone: phone
+                }));
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'notification') {
+                        this.showNotification(data.data.message, 'info');
+                    }
+                } catch (error) {
+                    console.error('❌ Ошибка обработки WebSocket сообщения:', error);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('🔗 WebSocket отключен');
+                // Пытаемся переподключиться через 5 секунд
+                setTimeout(() => this.setupWebSocket(), 5000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket ошибка:', error);
+            };
+            
+            this.ws = ws;
         },
 
         // УВЕДОМЛЕНИЯ
@@ -2834,50 +2972,15 @@
                 });
             }
             
-            // Фильтры преподавателей
-            const teachersFilter = document.getElementById('teachersBranchFilter');
-            if (teachersFilter) {
-                teachersFilter.addEventListener('change', () => {
-                    self.loadTeachersPage();
-                });
-            }
-            
-            // Фильтры новостей
-            const newsBranchFilter = document.getElementById('newsBranchFilter');
-            const newsCategoryFilter = document.getElementById('newsCategoryFilter');
-            
-            if (newsBranchFilter) {
-                newsBranchFilter.addEventListener('change', () => {
-                    self.loadNewsPage();
-                });
-            }
-            
-            if (newsCategoryFilter) {
-                newsCategoryFilter.addEventListener('change', () => {
-                    self.loadNewsPage();
-                });
-            }
-            
             // Закрытие меню пользователя при клике вне его
             document.addEventListener('click', (e) => {
                 const userMenu = document.getElementById('userMenu');
                 const userAvatar = document.getElementById('userAvatar');
                 
-                if (!userMenu.classList.contains('d-none') && 
+                if (userMenu && !userMenu.classList.contains('d-none') && 
                     !userMenu.contains(e.target) && 
-                    !userAvatar.contains(e.target)) {
+                    userAvatar && !userAvatar.contains(e.target)) {
                     userMenu.classList.add('d-none');
-                }
-            });
-            
-            // Обработка фильтров расписания
-            const scheduleFilters = ['scheduleBranchFilter', 'scheduleWeekFilter'];
-            scheduleFilters.forEach(filterId => {
-                const filter = document.getElementById(filterId);
-                if (filter) {
-                    filter.addEventListener('change', () => {
-                        self.loadSchedulePage();
-                    });
                 }
             });
         }
