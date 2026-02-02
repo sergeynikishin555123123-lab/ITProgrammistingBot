@@ -2658,90 +2658,7 @@ hideModal: function(modalId) {
         document.body.style.overflow = '';
     }
 },
-// Отправка рассылки
-sendMailing: function() {
-    const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-    const tabId = activeTab.getAttribute('data-tab');
-    
-    let mailingData = {};
-    
-    if (tabId === 'mailing-service') {
-        const type = document.getElementById('mailing-type').value;
-        if (!type) {
-            this.showToast('Выберите тип уведомления', 'warning');
-            return;
-        }
-        
-        const branches = Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value);
-        if (branches.length === 0) {
-            this.showToast('Выберите хотя бы один филиал', 'warning');
-            return;
-        }
-        
-        mailingData = {
-            type: 'telegram_notification',
-            name: `Уведомление: ${this.getMailingTypeName(type)}`,
-            branch: branches.join(','),
-            teacher: document.getElementById('mailing-teacher').value,
-            day: document.getElementById('mailing-day').value,
-            message: document.getElementById('mailing-text').value
-        };
-        
-        if (!mailingData.message) {
-            this.showToast('Введите текст сообщения', 'warning');
-            return;
-        }
-        
-    } else {
-        mailingData = {
-            type: 'marketing',
-            name: document.getElementById('mailing-name').value,
-            segment: document.getElementById('mailing-segment').value,
-            message: document.getElementById('mailing-marketing-text').value
-        };
-        
-        if (!mailingData.name || !mailingData.message) {
-            this.showToast('Заполните название и текст рассылки', 'warning');
-            return;
-        }
-        
-        if (!mailingData.segment) {
-            this.showToast('Выберите сегмент получателей', 'warning');
-            return;
-        }
-    }
-    
-    if (!confirm(`Отправить рассылку "${mailingData.name}"?`)) {
-        return;
-    }
-    
-    this.showLoading('Создание и отправка рассылки...');
-    
-    fetch('/api/admin/mailings', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(mailingData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        this.hideLoading();
-        this.hideModal('new-mailing');
-        
-        if (data.success) {
-            this.showToast(`Рассылка создана! Получателей: ${data.data.recipients_count || 0}`, 'success');
-            this.loadMailingsData();
-        } else {
-            throw new Error(data.error);
-        }
-    })
-    .catch(error => {
-        this.hideLoading();
-        this.showToast('Ошибка отправки: ' + error.message, 'error');
-    });
-},
+
         // ЗАГРУЗКА ДАННЫХ РАСПИСАНИЯ
         loadScheduleData: function() {
             const branch = document.getElementById('schedule-branch-filter').value;
@@ -3294,64 +3211,94 @@ sendMailing: function() {
         },
 
         sendMailing: function() {
-            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-            const tabId = activeTab.getAttribute('data-tab');
-            
-            let mailingData = {};
-            
-            if (tabId === 'mailing-service') {
-                mailingData = {
-                    type: document.getElementById('mailing-type').value,
-                    branch: Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value).join(','),
-                    teacher: document.getElementById('mailing-teacher').value,
-                    day: document.getElementById('mailing-day').value,
-                    message: document.getElementById('mailing-text').value
-                };
-            } else {
-                mailingData = {
-                    type: 'marketing',
-                    name: document.getElementById('mailing-name').value,
-                    segment: document.getElementById('mailing-segment').value,
-                    message: document.getElementById('mailing-marketing-text').value
-                };
-            }
-            
-            if (!mailingData.message) {
-                this.showToast('Введите текст сообщения', 'warning');
-                return;
-            }
-            
-            if (!confirm(`Отправить рассылку всем получателям (${mailingData.branch || 'все филиалы'})?`)) {
-                return;
-            }
-            
-            this.showLoading('Отправка рассылки...');
-            
-            fetch('/api/admin/mailings', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(mailingData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                this.hideModal('new-mailing');
-                
-                if (data.success) {
-                    this.showToast('Рассылка создана и отправлена', 'success');
-                    this.loadMailingsData();
-                } else {
-                    throw new Error(data.error);
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка отправки: ' + error.message, 'error');
-            });
+    const activeTab = document.querySelector('#modal-new-mailing .tab.active');
+    const tabId = activeTab.getAttribute('data-tab');
+    
+    let mailingData = {};
+    
+    if (tabId === 'mailing-service') {
+        // Собираем данные для сервисной рассылки
+        const type = document.getElementById('mailing-type').value;
+        if (!type) {
+            this.showToast('Выберите тип уведомления', 'warning');
+            return;
+        }
+        
+        const branches = Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value);
+        if (branches.length === 0) {
+            this.showToast('Выберите хотя бы один филиал', 'warning');
+            return;
+        }
+        
+        mailingData = {
+            type: 'telegram_notification', // ВАЖНО: отправляем именно это значение
+            name: `Уведомление: ${this.getMailingTypeName(type)}`,
+            branch: branches.join(','),
+            teacher: document.getElementById('mailing-teacher').value || '',
+            day: document.getElementById('mailing-day').value || '',
+            message: document.getElementById('mailing-text').value
+        };
+        
+        if (!mailingData.message) {
+            this.showToast('Введите текст сообщения', 'warning');
+            return;
+        }
+        
+    } else {
+        // Собираем данные для рекламной рассылки
+        mailingData = {
+            type: 'marketing',
+            name: document.getElementById('mailing-name').value,
+            segment: document.getElementById('mailing-segment').value,
+            message: document.getElementById('mailing-marketing-text').value
+        };
+        
+        if (!mailingData.name || !mailingData.message) {
+            this.showToast('Заполните название и текст рассылки', 'warning');
+            return;
+        }
+        
+        if (!mailingData.segment) {
+            this.showToast('Выберите сегмент получателей', 'warning');
+            return;
+        }
+    }
+    
+    // Логируем данные для отладки
+    console.log('📤 Отправка данных рассылки:', mailingData);
+    
+    if (!confirm(`Отправить рассылку "${mailingData.name}"?`)) {
+        return;
+    }
+    
+    this.showLoading('Создание и отправка рассылки...');
+    
+    fetch('/api/admin/mailings', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+            'Content-Type': 'application/json'
         },
+        body: JSON.stringify(mailingData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        this.hideLoading();
+        this.hideModal('new-mailing');
+        
+        if (data.success) {
+            this.showToast(`Рассылка создана! Получателей: ${data.data.recipients_count || 0}`, 'success');
+            this.loadMailingsData(); // Обновляем список рассылок
+        } else {
+            throw new Error(data.error || 'Неизвестная ошибка');
+        }
+    })
+    .catch(error => {
+        this.hideLoading();
+        console.error('❌ Ошибка отправки:', error);
+        this.showToast('Ошибка отправки: ' + error.message, 'error');
+    });
+},
 
         saveScheduleChange: function() {
             const changeData = {
