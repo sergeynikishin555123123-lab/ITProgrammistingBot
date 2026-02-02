@@ -1770,6 +1770,73 @@
         </div>
     </div>
     
+    <!-- Новое занятие -->
+    <div id="modal-new-class" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-calendar-plus"></i> Добавить занятие</h3>
+                <button class="modal-close" onclick="AdminApp.hideModal('new-class')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="required">Дата</label>
+                        <input type="date" id="class-date" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="required">Время</label>
+                        <input type="time" id="class-time" class="form-control">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="required">Филиал</label>
+                        <select id="class-branch" class="form-control select">
+                            <option value="Свиблово">Свиблово</option>
+                            <option value="Чертаново">Чертаново</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Преподаватель</label>
+                        <select id="class-teacher" class="form-control select">
+                            <option value="">Выберите преподавателя</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Группа</label>
+                        <input type="text" id="class-group" class="form-control" placeholder="Например: Группа 1">
+                    </div>
+                    <div class="form-group">
+                        <label>Возрастная группа</label>
+                        <select id="class-age-group" class="form-control select">
+                            <option value="">Выберите возраст</option>
+                            <option value="6-8 лет">6-8 лет</option>
+                            <option value="8-10 лет">8-10 лет</option>
+                            <option value="10-13 лет">10-13 лет</option>
+                            <option value="13+ лет">13+ лет</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Статус</label>
+                    <select id="class-status" class="form-control select">
+                        <option value="active">Активно</option>
+                        <option value="cancelled">Отменено</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="AdminApp.hideModal('new-class')">Отмена</button>
+                <button class="btn btn-success" onclick="AdminApp.saveClass()">Добавить занятие</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- ПРЕДПРОСМОТР РАССЫЛКИ -->
     <div id="modal-preview" class="modal-overlay">
         <div class="modal" style="max-width: 400px;">
@@ -1837,6 +1904,88 @@
                     time_24hr: true,
                     locale: "ru"
                 });
+            });
+        },
+
+        // Получение преподавателей для select
+        loadTeachersForSelect: function() {
+            fetch('/api/admin/teachers', {
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.teachers) {
+                    const select = document.getElementById('mailing-teacher');
+                    const classSelect = document.getElementById('class-teacher');
+                    
+                    if (select) {
+                        select.innerHTML = '<option value="">Все преподаватели</option>';
+                        data.data.teachers.forEach(teacher => {
+                            if (teacher.is_active === 1) {
+                                select.innerHTML += `<option value="${teacher.name}">${teacher.name}</option>`;
+                            }
+                        });
+                    }
+                    
+                    if (classSelect) {
+                        classSelect.innerHTML = '<option value="">Выберите преподавателя</option>';
+                        data.data.teachers.forEach(teacher => {
+                            if (teacher.is_active === 1) {
+                                classSelect.innerHTML += `<option value="${teacher.id}">${teacher.name}</option>`;
+                            }
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки преподавателей:', error);
+            });
+        },
+
+        // Сохранение занятия
+        saveClass: function() {
+            const classData = {
+                date: document.getElementById('class-date').value,
+                time: document.getElementById('class-time').value,
+                branch: document.getElementById('class-branch').value,
+                teacher_id: document.getElementById('class-teacher').value,
+                group_name: document.getElementById('class-group').value,
+                age_group: document.getElementById('class-age-group').value,
+                status: document.getElementById('class-status').value
+            };
+            
+            if (!classData.date || !classData.time || !classData.branch) {
+                this.showToast('Заполните обязательные поля', 'warning');
+                return;
+            }
+            
+            this.showLoading('Сохранение занятия...');
+            
+            fetch('/api/admin/schedule', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(classData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideLoading();
+                this.hideModal('new-class');
+                
+                if (data.success) {
+                    this.showToast('Занятие успешно добавлено', 'success');
+                    this.loadScheduleData();
+                } else {
+                    throw new Error(data.error);
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка сохранения: ' + error.message, 'error');
             });
         },
 
@@ -2660,6 +2809,12 @@
             if (modal) {
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
+                
+                // Дополнительные действия для конкретных модалок
+                if (modalId === 'new-class') {
+                    this.loadTeachersForSelect();
+                    this.initDatePickers(); // Переинициализируем календари
+                }
             }
         },
 
