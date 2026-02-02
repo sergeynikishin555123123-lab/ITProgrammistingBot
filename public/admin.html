@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+public/admin.html - <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -1095,6 +1095,12 @@
                         <span>Синхронизация</span>
                     </a>
                 </li>
+                <li>
+                    <a href="#settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Настройки</span>
+                    </a>
+                </li>
             </ul>
         </aside>
         
@@ -1518,6 +1524,115 @@
                         </div>
                         
                         <div id="sync-results" class="mt-30"></div>
+                    </div>
+                </div>
+                
+                <!-- Настройки -->
+                <div id="settings-page" class="page-content d-none">
+                    <div class="section-header justify-between align-center">
+                        <h3><i class="fas fa-cog"></i> Настройки системы</h3>
+                        <button class="btn btn-primary" onclick="AdminApp.saveSettings()">
+                            <i class="fas fa-save"></i> Сохранить все
+                        </button>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3 class="mb-20"><i class="fas fa-paint-brush"></i> Внешний вид</h3>
+                        
+                        <!-- Загрузка логотипа -->
+                        <div class="form-group">
+                            <label>Логотип школы</label>
+                            <div style="margin-bottom: 20px;">
+                                <div id="logo-preview" style="width: 150px; height: 150px; border: 2px dashed var(--blue-primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--blue-pale); margin-bottom: 15px;">
+                                    <div id="logo-placeholder" style="text-align: center;">
+                                        <i class="fas fa-image" style="font-size: 3rem; color: var(--blue-primary);"></i>
+                                        <p style="margin-top: 10px; color: var(--gray-dark);">Логотип</p>
+                                    </div>
+                                    <img id="logo-preview-img" src="" alt="" style="max-width: 100%; max-height: 100%; display: none;">
+                                </div>
+                                
+                                <input type="file" id="logo-upload" accept="image/*" style="display: none;" 
+                                       onchange="AdminApp.handleLogoUpload(event)">
+                                
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn btn-secondary" onclick="document.getElementById('logo-upload').click()">
+                                        <i class="fas fa-upload"></i> Загрузить
+                                    </button>
+                                    <button class="btn btn-danger" onclick="AdminApp.removeLogo()" id="remove-logo-btn" style="display: none;">
+                                        <i class="fas fa-trash"></i> Удалить
+                                    </button>
+                                </div>
+                                
+                                <div style="font-size: 0.8rem; color: var(--gray-dark); margin-top: 10px;">
+                                    Рекомендуемый размер: 200×200px. Форматы: PNG, JPG, SVG
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Название школы -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Название школы</label>
+                                <input type="text" id="school-name" class="form-control" value="БАНЯ" 
+                                       placeholder="Введите название школы">
+                            </div>
+                            <div class="form-group">
+                                <label>Слоган/подзаголовок</label>
+                                <input type="text" id="school-subtitle" class="form-control" 
+                                       placeholder="Художественная школа" value="Художественная школа">
+                            </div>
+                        </div>
+                        
+                        <!-- Цвета -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Основной цвет</label>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="color" id="primary-color" class="form-control" style="width: 60px; padding: 0;" 
+                                           value="#ff6b35">
+                                    <input type="text" id="primary-color-hex" class="form-control" value="#ff6b35" 
+                                           style="flex: 1;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Цвет кнопок</label>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="color" id="button-color" class="form-control" style="width: 60px; padding: 0;" 
+                                           value="#0066FF">
+                                    <input type="text" id="button-color-hex" class="form-control" value="#0066FF" 
+                                           style="flex: 1;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3 class="mb-20"><i class="fas fa-phone"></i> Контактная информация</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Телефон (Свиблово)</label>
+                                <input type="text" id="phone-sviblovo" class="form-control" 
+                                       value="+7 (999) 123-45-67" placeholder="+7 (999) 123-45-67">
+                            </div>
+                            <div class="form-group">
+                                <label>Телефон (Чертаново)</label>
+                                <input type="text" id="phone-chertanovo" class="form-control" 
+                                       value="+7 (999) 987-65-43" placeholder="+7 (999) 987-65-43">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Общий телефон</label>
+                            <input type="text" id="phone-general" class="form-control" 
+                                   value="+7 (999) 111-22-33" placeholder="+7 (999) 111-22-33">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="email-contact" class="form-control" 
+                                   value="info@bania-school.ru" placeholder="info@school.ru">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2130,7 +2245,8 @@
                 'faq': { title: 'FAQ', subtitle: 'Часто задаваемые вопросы' },
                 'news': { title: 'Новости', subtitle: 'Управление новостями' },
                 'logs': { title: 'Логи', subtitle: 'История событий системы' },
-                'sync': { title: 'Синхронизация', subtitle: 'Синхронизация с amoCRM' }
+                'sync': { title: 'Синхронизация', subtitle: 'Синхронизация с amoCRM' },
+                'settings': { title: 'Настройки', subtitle: 'Настройки системы' }
             };
             
             const titleData = titles[pageId] || { title: 'Страница', subtitle: '' };
@@ -2164,6 +2280,9 @@
                     break;
                 case 'sync':
                     this.loadSyncData();
+                    break;
+                case 'settings':
+                    this.loadSettingsPage();
                     break;
             }
         },
@@ -2287,388 +2406,388 @@
             this.loadDashboardData();
         },
 
-      // Загрузка данных рассылок (обновленная)
-loadMailingsData: function() {
-    this.showLoading('Загрузка рассылок...');
-    
-    // Загружаем сервисные рассылки
-    fetch('/api/admin/mailings?type=service', {
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            this.renderServiceMailings(data.data.mailings);
-        } else {
-            throw new Error(data.error || 'Ошибка загрузки рассылок');
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка загрузки сервисных рассылок:', error);
-        document.getElementById('service-mailings-table').innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center">
-                    <div style="color: var(--error); padding: 20px;">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <p>Ошибка загрузки: ${error.message}</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-    
-    // Загружаем рекламные рассылки
-    fetch('/api/admin/mailings?type=marketing', {
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            this.renderMarketingMailings(data.data.mailings);
-            this.hideLoading();
-        } else {
-            throw new Error(data.error || 'Ошибка загрузки рассылок');
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка загрузки рекламных рассылок:', error);
-        document.getElementById('marketing-mailings-table').innerHTML = `
-            <tr>
-                <td colspan="6" class="text-center">
-                    <div style="color: var(--error); padding: 20px;">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <p>Ошибка загрузки: ${error.message}</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        this.hideLoading();
-    });
-},
+        // Загрузка данных рассылок
+        loadMailingsData: function() {
+            this.showLoading('Загрузка рассылок...');
+            
+            // Загружаем сервисные рассылки
+            fetch('/api/admin/mailings?type=service', {
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.renderServiceMailings(data.data.mailings);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки рассылок');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки сервисных рассылок:', error);
+                document.getElementById('service-mailings-table').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <div style="color: var(--error); padding: 20px;">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <p>Ошибка загрузки: ${error.message}</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            // Загружаем рекламные рассылки
+            fetch('/api/admin/mailings?type=marketing', {
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.renderMarketingMailings(data.data.mailings);
+                    this.hideLoading();
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки рассылок');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки рекламных рассылок:', error);
+                document.getElementById('marketing-mailings-table').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            <div style="color: var(--error); padding: 20px;">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <p>Ошибка загрузки: ${error.message}</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                this.hideLoading();
+            });
+        },
 
-// В функции renderServiceMailings в admin.html
-renderServiceMailings: function(mailings) {
-    const table = document.getElementById('service-mailings-table');
-    
-    if (!mailings || mailings.length === 0) {
-        table.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center">
-                    <div class="empty-state">
-                        <i class="fas fa-inbox"></i>
-                        <p>Нет сервисных рассылок</p>
-                        <button class="btn btn-primary mt-10" onclick="AdminApp.showModal('new-mailing')">
-                            <i class="fas fa-plus"></i> Создать первую рассылку
+        // Рендеринг сервисных рассылок
+        renderServiceMailings: function(mailings) {
+            const table = document.getElementById('service-mailings-table');
+            
+            if (!mailings || mailings.length === 0) {
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>Нет сервисных рассылок</p>
+                                <button class="btn btn-primary mt-10" onclick="AdminApp.showModal('new-mailing')">
+                                    <i class="fas fa-plus"></i> Создать первую рассылку
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            table.innerHTML = mailings.map(mailing => `
+                <tr>
+                    <td>
+                        <div style="font-weight: 600;">${this.getMailingTypeName(mailing.type)}</div>
+                        <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.name || 'Без названия'}</div>
+                    </td>
+                    <td>${mailing.branch || 'Все филиалы'}</td>
+                    <td>${mailing.teacher || 'Все'}</td>
+                    <td>
+                        <div>${this.formatDateTime(mailing.created_at)}</div>
+                        ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
+                    </td>
+                    <td>
+                        <div>${mailing.recipients_count || 0} чел.</div>
+                        ${mailing.sent_count > 0 ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
+                    </td>
+                    <td>
+                        <span class="badge ${this.getMailingStatusClass(mailing.status)}">
+                            ${this.getMailingStatusText(mailing.status)}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
+                            <i class="fas fa-eye"></i> Детали
                         </button>
+                        
+                        ${mailing.status === 'pending' || mailing.status === 'failed' ? `
+                        <button class="btn btn-success btn-small" onclick="AdminApp.sendMailingNow('${mailing.id}')" 
+                                title="Отправить сейчас">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                        ` : ''}
+                        
+                        ${mailing.status === 'pending' ? `
+                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')"
+                                title="Удалить">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        ` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        },
+
+        // Рендеринг рекламных рассылок
+        renderMarketingMailings: function(mailings) {
+            const table = document.getElementById('marketing-mailings-table');
+            
+            if (!mailings || mailings.length === 0) {
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>Нет рекламных рассылок</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            table.innerHTML = mailings.map(mailing => `
+                <tr>
+                    <td>
+                        <div style="font-weight: 600;">${mailing.name || 'Без названия'}</div>
+                        <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.type === 'marketing' ? 'Рекламная' : 'Уведомление'}</div>
+                    </td>
+                    <td>${this.getSegmentName(mailing.segment)}</td>
+                    <td>
+                        <div>${this.formatDateTime(mailing.created_at)}</div>
+                        ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
+                    </td>
+                    <td>
+                        <div>${mailing.recipients_count || 0} чел.</div>
+                        ${mailing.sent_count !== undefined ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
+                    </td>
+                    <td>
+                        <span class="badge ${this.getMailingStatusClass(mailing.status)}">
+                            ${this.getMailingStatusText(mailing.status)}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
+                            <i class="fas fa-eye"></i> Детали
+                        </button>
+                        ${mailing.status === 'pending' ? `
+                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        ` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        },
+
+        // Получение класса статуса для бейджа
+        getMailingStatusClass: function(status) {
+            switch(status) {
+                case 'sent': return 'active';
+                case 'sending': return 'pending';
+                case 'failed': return 'inactive';
+                case 'pending': return 'info';
+                default: return 'info';
+            }
+        },
+
+        // Получение текста статуса
+        getMailingStatusText: function(status) {
+            switch(status) {
+                case 'sent': return 'Отправлено';
+                case 'sending': return 'Отправляется';
+                case 'failed': return 'Ошибка';
+                case 'pending': return 'В ожидании';
+                default: return status;
+            }
+        },
+
+        // Просмотр деталей рассылки
+        viewMailing: function(id) {
+            this.showLoading('Загрузка деталей рассылки...');
+            
+            fetch(`/api/admin/mailings/${id}`, {
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideLoading();
+                if (data.success) {
+                    this.showMailingDetails(data.data);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка загрузки: ' + error.message, 'error');
+            });
+        },
+
+        // Показ деталей рассылки в модальном окне
+        showMailingDetails: function(mailingData) {
+            const mailing = mailingData.mailing;
+            
+            // Создаем модальное окно для показа деталей
+            const modalId = 'mailing-details-modal';
+            let modal = document.getElementById(modalId);
+            
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `
+                    <div class="modal" style="max-width: 700px;">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-info-circle"></i> Детали рассылки</h3>
+                            <button class="modal-close" onclick="AdminApp.hideModal('${modalId}')">&times;</button>
+                        </div>
+                        <div class="modal-body" id="${modalId}-content">
+                            <!-- Контент загружается динамически -->
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary" onclick="AdminApp.hideModal('${modalId}')">Закрыть</button>
+                        </div>
                     </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    table.innerHTML = mailings.map(mailing => `
-        <tr>
-            <td>
-                <div style="font-weight: 600;">${this.getMailingTypeName(mailing.type)}</div>
-                <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.name || 'Без названия'}</div>
-            </td>
-            <td>${mailing.branch || 'Все филиалы'}</td>
-            <td>${mailing.teacher || 'Все'}</td>
-            <td>
-                <div>${this.formatDateTime(mailing.created_at)}</div>
-                ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
-            </td>
-            <td>
-                <div>${mailing.recipients_count || 0} чел.</div>
-                ${mailing.sent_count > 0 ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
-            </td>
-            <td>
-                <span class="badge ${this.getMailingStatusClass(mailing.status)}">
-                    ${this.getMailingStatusText(mailing.status)}
-                </span>
-            </td>
-            <td class="actions">
-                <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
-                    <i class="fas fa-eye"></i> Детали
-                </button>
-                
-                ${mailing.status === 'pending' || mailing.status === 'failed' ? `
-                <button class="btn btn-success btn-small" onclick="AdminApp.sendMailingNow('${mailing.id}')" 
-                        title="Отправить сейчас">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-                ` : ''}
-                
-                ${mailing.status === 'pending' ? `
-                <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')"
-                        title="Удалить">
-                    <i class="fas fa-trash"></i>
-                </button>
-                ` : ''}
-            </td>
-        </tr>
-    `).join('');
-},
-
-// Рендеринг рекламных рассылок
-renderMarketingMailings: function(mailings) {
-    const table = document.getElementById('marketing-mailings-table');
-    
-    if (!mailings || mailings.length === 0) {
-        table.innerHTML = `
-            <tr>
-                <td colspan="6" class="text-center">
-                    <div class="empty-state">
-                        <i class="fas fa-inbox"></i>
-                        <p>Нет рекламных рассылок</p>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            // Заполняем контент
+            const content = document.getElementById(`${modalId}-content`);
+            content.innerHTML = `
+                <div style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                        <div>
+                            <div style="font-weight: 600; color: var(--blue-primary); font-size: 1.1rem;">
+                                ${mailing.name || this.getMailingTypeName(mailing.type)}
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--gray-dark);">
+                                Создана: ${this.formatDateTime(mailing.created_at)}
+                            </div>
+                        </div>
+                        <div>
+                            <span class="badge ${this.getMailingStatusClass(mailing.status)}">
+                                ${this.getMailingStatusText(mailing.status)}
+                            </span>
+                        </div>
                     </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    table.innerHTML = mailings.map(mailing => `
-        <tr>
-            <td>
-                <div style="font-weight: 600;">${mailing.name || 'Без названия'}</div>
-                <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.type === 'marketing' ? 'Рекламная' : 'Уведомление'}</div>
-            </td>
-            <td>${this.getSegmentName(mailing.segment)}</td>
-            <td>
-                <div>${this.formatDateTime(mailing.created_at)}</div>
-                ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
-            </td>
-            <td>
-                <div>${mailing.recipients_count || 0} чел.</div>
-                ${mailing.sent_count !== undefined ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
-            </td>
-            <td>
-                <span class="badge ${this.getMailingStatusClass(mailing.status)}">
-                    ${this.getMailingStatusText(mailing.status)}
-                </span>
-            </td>
-            <td class="actions">
-                <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
-                    <i class="fas fa-eye"></i> Детали
-                </button>
-                ${mailing.status === 'pending' ? `
-                <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
-                    <i class="fas fa-trash"></i>
-                </button>
-                ` : ''}
-            </td>
-        </tr>
-    `).join('');
-},
-
-// Получение класса статуса для бейджа
-getMailingStatusClass: function(status) {
-    switch(status) {
-        case 'sent': return 'active';
-        case 'sending': return 'pending';
-        case 'failed': return 'inactive';
-        case 'pending': return 'info';
-        default: return 'info';
-    }
-},
-
-// Получение текста статуса
-getMailingStatusText: function(status) {
-    switch(status) {
-        case 'sent': return 'Отправлено';
-        case 'sending': return 'Отправляется';
-        case 'failed': return 'Ошибка';
-        case 'pending': return 'В ожидании';
-        default: return status;
-    }
-},
-
-// Просмотр деталей рассылки
-viewMailing: function(id) {
-    this.showLoading('Загрузка деталей рассылки...');
-    
-    fetch(`/api/admin/mailings/${id}`, {
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        this.hideLoading();
-        if (data.success) {
-            this.showMailingDetails(data.data);
-        } else {
-            throw new Error(data.error || 'Ошибка загрузки');
-        }
-    })
-    .catch(error => {
-        this.hideLoading();
-        this.showToast('Ошибка загрузки: ' + error.message, 'error');
-    });
-},
-
-// Показ деталей рассылки в модальном окне
-showMailingDetails: function(mailingData) {
-    const mailing = mailingData.mailing;
-    
-    // Создаем модальное окно для показа деталей
-    const modalId = 'mailing-details-modal';
-    let modal = document.getElementById(modalId);
-    
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = modalId;
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal" style="max-width: 700px;">
-                <div class="modal-header">
-                    <h3><i class="fas fa-info-circle"></i> Детали рассылки</h3>
-                    <button class="modal-close" onclick="AdminApp.hideModal('${modalId}')">&times;</button>
-                </div>
-                <div class="modal-body" id="${modalId}-content">
-                    <!-- Контент загружается динамически -->
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-primary" onclick="AdminApp.hideModal('${modalId}')">Закрыть</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-    
-    // Заполняем контент
-    const content = document.getElementById(`${modalId}-content`);
-    content.innerHTML = `
-        <div style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                <div>
-                    <div style="font-weight: 600; color: var(--blue-primary); font-size: 1.1rem;">
-                        ${mailing.name || this.getMailingTypeName(mailing.type)}
+                    
+                    <div style="background: var(--blue-pale); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <div style="font-weight: 600; margin-bottom: 8px; color: var(--blue-primary);">Текст сообщения:</div>
+                        <div style="white-space: pre-wrap;">${mailing.message || 'Текст отсутствует'}</div>
                     </div>
-                    <div style="font-size: 0.9rem; color: var(--gray-dark);">
-                        Создана: ${this.formatDateTime(mailing.created_at)}
+                    
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Тип:</div>
+                            <div>${this.getMailingTypeName(mailing.type)}</div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Филиал:</div>
+                            <div>${mailing.branch || 'Все филиалы'}</div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Получатели:</div>
+                            <div>${mailing.recipients_count || 0} человек</div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Отправлено:</div>
+                            <div>${mailing.sent_count || 0} из ${mailing.recipients_count || 0}</div>
+                        </div>
                     </div>
+                    
+                    ${mailing.sent_at ? `
+                    <div style="background: var(--success); color: white; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                        <i class="fas fa-check-circle"></i> Отправлено: ${this.formatDateTime(mailing.sent_at)}
+                    </div>
+                    ` : ''}
+                    
+                    ${mailing.status === 'failed' ? `
+                    <div style="background: var(--error); color: white; padding: 10px; border-radius: 8px;">
+                        <i class="fas fa-exclamation-circle"></i> Рассылка завершилась с ошибкой
+                    </div>
+                    ` : ''}
+                    
+                    ${mailingData.recipients?.sample?.length > 0 ? `
+                    <div style="margin-top: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 10px; color: var(--blue-primary);">Пример получателей:</div>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Ученик</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Телефон</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${mailingData.recipients.sample.map(recipient => `
+                                        <tr>
+                                            <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.student_name || '-'}</td>
+                                            <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.phone_number || '-'}</td>
+                                            <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.subscription_status || '-'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
-                <div>
-                    <span class="badge ${this.getMailingStatusClass(mailing.status)}">
-                        ${this.getMailingStatusText(mailing.status)}
-                    </span>
-                </div>
-            </div>
+            `;
             
-            <div style="background: var(--blue-pale); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <div style="font-weight: 600; margin-bottom: 8px; color: var(--blue-primary);">Текст сообщения:</div>
-                <div style="white-space: pre-wrap;">${mailing.message || 'Текст отсутствует'}</div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
-                <div>
-                    <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Тип:</div>
-                    <div>${this.getMailingTypeName(mailing.type)}</div>
-                </div>
-                <div>
-                    <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Филиал:</div>
-                    <div>${mailing.branch || 'Все филиалы'}</div>
-                </div>
-                <div>
-                    <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Получатели:</div>
-                    <div>${mailing.recipients_count || 0} человек</div>
-                </div>
-                <div>
-                    <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Отправлено:</div>
-                    <div>${mailing.sent_count || 0} из ${mailing.recipients_count || 0}</div>
-                </div>
-            </div>
-            
-            ${mailing.sent_at ? `
-            <div style="background: var(--success); color: white; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-                <i class="fas fa-check-circle"></i> Отправлено: ${this.formatDateTime(mailing.sent_at)}
-            </div>
-            ` : ''}
-            
-            ${mailing.status === 'failed' ? `
-            <div style="background: var(--error); color: white; padding: 10px; border-radius: 8px;">
-                <i class="fas fa-exclamation-circle"></i> Рассылка завершилась с ошибкой
-            </div>
-            ` : ''}
-            
-            ${mailingData.recipients?.sample?.length > 0 ? `
-            <div style="margin-top: 20px;">
-                <div style="font-weight: 600; margin-bottom: 10px; color: var(--blue-primary);">Пример получателей:</div>
-                <div style="max-height: 200px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr>
-                                <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Ученик</th>
-                                <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Телефон</th>
-                                <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Статус</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${mailingData.recipients.sample.map(recipient => `
-                                <tr>
-                                    <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.student_name || '-'}</td>
-                                    <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.phone_number || '-'}</td>
-                                    <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.subscription_status || '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            ` : ''}
-        </div>
-    `;
-    
-    // Показываем модальное окно
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
-},
+            // Показываем модальное окно
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        },
 
-// Удаление рассылки
-deleteMailing: function(id) {
-    if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) {
-        return;
-    }
-    
-    this.showLoading('Удаление рассылки...');
-    
-    fetch(`/api/admin/mailings/${id}`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        this.hideLoading();
-        if (data.success) {
-            this.showToast('Рассылка удалена', 'success');
-            this.loadMailingsData(); // Обновляем список
-        } else {
-            throw new Error(data.error || 'Ошибка удаления');
-        }
-    })
-    .catch(error => {
-        this.hideLoading();
-        this.showToast('Ошибка удаления: ' + error.message, 'error');
-    });
-},
+        // Удаление рассылки
+        deleteMailing: function(id) {
+            if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) {
+                return;
+            }
+            
+            this.showLoading('Удаление рассылки...');
+            
+            fetch(`/api/admin/mailings/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideLoading();
+                if (data.success) {
+                    this.showToast('Рассылка удалена', 'success');
+                    this.loadMailingsData(); // Обновляем список
+                } else {
+                    throw new Error(data.error || 'Ошибка удаления');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка удаления: ' + error.message, 'error');
+            });
+        },
 
-// Скрытие модального окна
-hideModal: function(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-},
+        // Скрытие модального окна
+        hideModal: function(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        },
 
         // ЗАГРУЗКА ДАННЫХ РАСПИСАНИЯ
         loadScheduleData: function() {
@@ -3102,6 +3221,178 @@ hideModal: function(modalId) {
             });
         },
 
+        // ==================== УПРАВЛЕНИЕ НАСТРОЙКАМИ ====================
+
+        // Загрузка страницы настроек
+        loadSettingsPage: function() {
+            this.showLoading('Загрузка настроек...');
+            
+            fetch('/api/admin/settings', {
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideLoading();
+                if (data.success) {
+                    this.renderSettings(data.data.settings);
+                } else {
+                    throw new Error(data.error || 'Ошибка загрузки');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                this.showToast('Ошибка загрузки настроек: ' + error.message, 'error');
+            });
+        },
+
+        // Рендеринг настроек
+        renderSettings: function(settings) {
+            const settingsMap = {};
+            settings.forEach(s => {
+                settingsMap[s.setting_key] = s.setting_value;
+            });
+            
+            // Заполняем поля
+            document.getElementById('school-name').value = settingsMap['school_name'] || 'БАНЯ';
+            document.getElementById('school-subtitle').value = settingsMap['school_subtitle'] || 'Художественная школа';
+            document.getElementById('primary-color').value = settingsMap['primary_color'] || '#ff6b35';
+            document.getElementById('primary-color-hex').value = settingsMap['primary_color'] || '#ff6b35';
+            document.getElementById('button-color').value = settingsMap['button_color'] || '#0066FF';
+            document.getElementById('button-color-hex').value = settingsMap['button_color'] || '#0066FF';
+            
+            // Логотип
+            const logo = settingsMap['logo_image'];
+            this.updateLogoPreview(logo);
+            
+            // Контакты
+            document.getElementById('phone-sviblovo').value = settingsMap['phone_sviblovo'] || '+7 (999) 123-45-67';
+            document.getElementById('phone-chertanovo').value = settingsMap['phone_chertanovo'] || '+7 (999) 987-65-43';
+            document.getElementById('phone-general').value = settingsMap['phone_general'] || '+7 (999) 111-22-33';
+            document.getElementById('email-contact').value = settingsMap['email'] || 'info@bania-school.ru';
+        },
+
+        // Обновление превью логотипа
+        updateLogoPreview: function(logoData) {
+            const previewImg = document.getElementById('logo-preview-img');
+            const placeholder = document.getElementById('logo-placeholder');
+            const removeBtn = document.getElementById('remove-logo-btn');
+            
+            if (logoData && logoData.trim() !== '') {
+                // Если это data URL
+                if (logoData.startsWith('data:image')) {
+                    previewImg.src = logoData;
+                } else {
+                    previewImg.src = 'data:image/png;base64,' + logoData;
+                }
+                
+                previewImg.style.display = 'block';
+                placeholder.style.display = 'none';
+                removeBtn.style.display = 'inline-block';
+            } else {
+                previewImg.style.display = 'none';
+                placeholder.style.display = 'block';
+                removeBtn.style.display = 'none';
+            }
+        },
+
+        // Загрузка логотипа
+        handleLogoUpload: function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Проверка размера (макс 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                this.showToast('Файл слишком большой (макс 2MB)', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const base64 = e.target.result;
+                this.updateLogoPreview(base64);
+                this.showToast('Логотип загружен', 'success');
+            };
+            
+            reader.onerror = () => {
+                this.showToast('Ошибка чтения файла', 'error');
+            };
+            
+            reader.readAsDataURL(file);
+        },
+
+        // Удаление логотипа
+        removeLogo: function() {
+            if (!confirm('Удалить логотип?')) return;
+            
+            document.getElementById('logo-upload').value = '';
+            this.updateLogoPreview('');
+            this.showToast('Логотип удален', 'success');
+        },
+
+        // Сохранение всех настроек
+        saveSettings: function() {
+            this.showLoading('Сохранение настроек...');
+            
+            const settings = [
+                { key: 'school_name', value: document.getElementById('school-name').value, type: 'text' },
+                { key: 'school_subtitle', value: document.getElementById('school-subtitle').value, type: 'text' },
+                { key: 'primary_color', value: document.getElementById('primary-color-hex').value, type: 'color' },
+                { key: 'button_color', value: document.getElementById('button-color-hex').value, type: 'color' },
+                { key: 'phone_sviblovo', value: document.getElementById('phone-sviblovo').value, type: 'text' },
+                { key: 'phone_chertanovo', value: document.getElementById('phone-chertanovo').value, type: 'text' },
+                { key: 'phone_general', value: document.getElementById('phone-general').value, type: 'text' },
+                { key: 'email', value: document.getElementById('email-contact').value, type: 'text' }
+            ];
+            
+            // Добавляем логотип если есть
+            const previewImg = document.getElementById('logo-preview-img');
+            if (previewImg.src && previewImg.style.display !== 'none') {
+                settings.push({
+                    key: 'logo_image',
+                    value: previewImg.src,
+                    type: 'image'
+                });
+            }
+            
+            // Отправляем настройки по одной
+            const savePromises = settings.map(setting => 
+                fetch('/api/admin/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(setting)
+                })
+            );
+            
+            Promise.all(savePromises)
+            .then(responses => Promise.all(responses.map(r => r.json())))
+            .then(results => {
+                this.hideLoading();
+                const allSuccess = results.every(r => r.success);
+                
+                if (allSuccess) {
+                    this.showToast('Все настройки сохранены!', 'success');
+                    
+                    // Принудительно обновляем кэш в приложении
+                    fetch('/api/logo?refresh=' + Date.now())
+                    .then(() => console.log('✅ Логотип обновлен'));
+                    
+                } else {
+                    throw new Error('Не все настройки сохранены');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                console.error('❌ Ошибка сохранения настроек:', error);
+                this.showToast('Ошибка сохранения настроек', 'error');
+            });
+        },
+
         // МОДАЛЬНЫЕ ОКНА
         showModal: function(modalId) {
             const modal = document.getElementById(`modal-${modalId}`);
@@ -3222,94 +3513,94 @@ hideModal: function(modalId) {
         },
 
         sendMailing: function() {
-    const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-    const tabId = activeTab.getAttribute('data-tab');
-    
-    let mailingData = {};
-    
-    if (tabId === 'mailing-service') {
-        // Собираем данные для сервисной рассылки
-        const type = document.getElementById('mailing-type').value;
-        if (!type) {
-            this.showToast('Выберите тип уведомления', 'warning');
-            return;
-        }
-        
-        const branches = Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value);
-        if (branches.length === 0) {
-            this.showToast('Выберите хотя бы один филиал', 'warning');
-            return;
-        }
-        
-        mailingData = {
-            type: 'telegram_notification', // ВАЖНО: отправляем именно это значение
-            name: `Уведомление: ${this.getMailingTypeName(type)}`,
-            branch: branches.join(','),
-            teacher: document.getElementById('mailing-teacher').value || '',
-            day: document.getElementById('mailing-day').value || '',
-            message: document.getElementById('mailing-text').value
-        };
-        
-        if (!mailingData.message) {
-            this.showToast('Введите текст сообщения', 'warning');
-            return;
-        }
-        
-    } else {
-        // Собираем данные для рекламной рассылки
-        mailingData = {
-            type: 'marketing',
-            name: document.getElementById('mailing-name').value,
-            segment: document.getElementById('mailing-segment').value,
-            message: document.getElementById('mailing-marketing-text').value
-        };
-        
-        if (!mailingData.name || !mailingData.message) {
-            this.showToast('Заполните название и текст рассылки', 'warning');
-            return;
-        }
-        
-        if (!mailingData.segment) {
-            this.showToast('Выберите сегмент получателей', 'warning');
-            return;
-        }
-    }
-    
-    // Логируем данные для отладки
-    console.log('📤 Отправка данных рассылки:', mailingData);
-    
-    if (!confirm(`Отправить рассылку "${mailingData.name}"?`)) {
-        return;
-    }
-    
-    this.showLoading('Создание и отправка рассылки...');
-    
-    fetch('/api/admin/mailings', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-            'Content-Type': 'application/json'
+            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
+            const tabId = activeTab.getAttribute('data-tab');
+            
+            let mailingData = {};
+            
+            if (tabId === 'mailing-service') {
+                // Собираем данные для сервисной рассылки
+                const type = document.getElementById('mailing-type').value;
+                if (!type) {
+                    this.showToast('Выберите тип уведомления', 'warning');
+                    return;
+                }
+                
+                const branches = Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value);
+                if (branches.length === 0) {
+                    this.showToast('Выберите хотя бы один филиал', 'warning');
+                    return;
+                }
+                
+                mailingData = {
+                    type: 'telegram_notification', // ВАЖНО: отправляем именно это значение
+                    name: `Уведомление: ${this.getMailingTypeName(type)}`,
+                    branch: branches.join(','),
+                    teacher: document.getElementById('mailing-teacher').value || '',
+                    day: document.getElementById('mailing-day').value || '',
+                    message: document.getElementById('mailing-text').value
+                };
+                
+                if (!mailingData.message) {
+                    this.showToast('Введите текст сообщения', 'warning');
+                    return;
+                }
+                
+            } else {
+                // Собираем данные для рекламной рассылки
+                mailingData = {
+                    type: 'marketing',
+                    name: document.getElementById('mailing-name').value,
+                    segment: document.getElementById('mailing-segment').value,
+                    message: document.getElementById('mailing-marketing-text').value
+                };
+                
+                if (!mailingData.name || !mailingData.message) {
+                    this.showToast('Заполните название и текст рассылки', 'warning');
+                    return;
+                }
+                
+                if (!mailingData.segment) {
+                    this.showToast('Выберите сегмент получателей', 'warning');
+                    return;
+                }
+            }
+            
+            // Логируем данные для отладки
+            console.log('📤 Отправка данных рассылки:', mailingData);
+            
+            if (!confirm(`Отправить рассылку "${mailingData.name}"?`)) {
+                return;
+            }
+            
+            this.showLoading('Создание и отправка рассылки...');
+            
+            fetch('/api/admin/mailings', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mailingData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideLoading();
+                this.hideModal('new-mailing');
+                
+                if (data.success) {
+                    this.showToast(`Рассылка создана! Получателей: ${data.data.recipients_count || 0}`, 'success');
+                    this.loadMailingsData(); // Обновляем список рассылок
+                } else {
+                    throw new Error(data.error || 'Неизвестная ошибка');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                console.error('❌ Ошибка отправки:', error);
+                this.showToast('Ошибка отправки: ' + error.message, 'error');
+            });
         },
-        body: JSON.stringify(mailingData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        this.hideLoading();
-        this.hideModal('new-mailing');
-        
-        if (data.success) {
-            this.showToast(`Рассылка создана! Получателей: ${data.data.recipients_count || 0}`, 'success');
-            this.loadMailingsData(); // Обновляем список рассылок
-        } else {
-            throw new Error(data.error || 'Неизвестная ошибка');
-        }
-    })
-    .catch(error => {
-        this.hideLoading();
-        console.error('❌ Ошибка отправки:', error);
-        this.showToast('Ошибка отправки: ' + error.message, 'error');
-    });
-},
 
         saveScheduleChange: function() {
             const changeData = {
@@ -3470,83 +3761,47 @@ hideModal: function(modalId) {
             });
         },
 
-// ==================== УПРАВЛЕНИЕ РАССЫЛКАМИ ====================
+        // ==================== УПРАВЛЕНИЕ РАССЫЛКАМИ ====================
 
-// Принудительная отправка рассылки
-sendMailingNow: function(mailingId) {
-    if (!confirm('Отправить эту рассылку сейчас?')) {
-        return;
-    }
-    
-    this.showLoading('Отправка рассылки...');
-    
-    fetch(`/api/admin/mailings/${mailingId}/send`, {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        this.hideLoading();
-        if (data.success) {
-            this.showToast(`✅ Рассылка отправлена! Отправлено: ${data.data?.sent_count || 0} получателей`, 'success');
-            // Обновляем список рассылок
-            this.loadMailingsData();
-        } else {
-            throw new Error(data.error || 'Неизвестная ошибка отправки');
-        }
-    })
-    .catch(error => {
-        this.hideLoading();
-        console.error('❌ Ошибка отправки рассылки:', error);
-        this.showToast('❌ Ошибка отправки: ' + error.message, 'error');
-    });
-},
+        // Принудительная отправка рассылки
+        sendMailingNow: function(mailingId) {
+            if (!confirm('Отправить эту рассылку сейчас?')) {
+                return;
+            }
+            
+            this.showLoading('Отправка рассылки...');
+            
+            fetch(`/api/admin/mailings/${mailingId}/send`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                this.hideLoading();
+                if (data.success) {
+                    this.showToast(`✅ Рассылка отправлена! Отправлено: ${data.data?.sent_count || 0} получателей`, 'success');
+                    // Обновляем список рассылок
+                    this.loadMailingsData();
+                } else {
+                    throw new Error(data.error || 'Неизвестная ошибка отправки');
+                }
+            })
+            .catch(error => {
+                this.hideLoading();
+                console.error('❌ Ошибка отправки рассылки:', error);
+                this.showToast('❌ Ошибка отправки: ' + error.message, 'error');
+            });
+        },
 
-// Удаление рассылки (улучшенная версия)
-deleteMailing: function(id) {
-    if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) {
-        return;
-    }
-    
-    this.showLoading('Удаление рассылки...');
-    
-    fetch(`/api/admin/mailings/${id}`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        this.hideLoading();
-        if (data.success) {
-            this.showToast('✅ Рассылка удалена', 'success');
-            this.loadMailingsData();
-        } else {
-            throw new Error(data.error || 'Ошибка удаления');
-        }
-    })
-    .catch(error => {
-        this.hideLoading();
-        console.error('❌ Ошибка удаления рассылки:', error);
-        this.showToast('❌ Ошибка удаления: ' + error.message, 'error');
-    });
-},
-
-// ==================== УТИЛИТЫ ====================
-getMailingTypeName: function(type) {
+        // ==================== УТИЛИТЫ ====================
+        getMailingTypeName: function(type) {
             const types = {
                 'cancellation': 'Отмена занятия',
                 'replacement': 'Замена преподавателя',
@@ -3755,29 +4010,6 @@ getMailingTypeName: function(type) {
         viewMailing: function(id) {
             this.showToast(`Просмотр рассылки #${id}`, 'info');
             // Реализация просмотра рассылки
-        },
-
-        deleteMailing: function(id) {
-            if (confirm(`Удалить рассылку #${id}?`)) {
-                fetch(`/api/admin/mailings/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.showToast(`Рассылка #${id} удалена`, 'success');
-                        this.loadMailingsData();
-                    } else {
-                        throw new Error(data.error);
-                    }
-                })
-                .catch(error => {
-                    this.showToast('Ошибка удаления: ' + error.message, 'error');
-                });
-            }
         },
 
         editLesson: function(id) {
