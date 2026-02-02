@@ -3193,7 +3193,7 @@ app.get('/api/faq/student', async (req, res) => {
     }
 });
 
-// Получение расписания по филиалу (старый маршрут для совместимости)
+// Найти обработчик GET /api/schedule/:branch (около строки 900)
 app.get('/api/schedule/:branch', async (req, res) => {
     try {
         const branch = req.params.branch;
@@ -3205,14 +3205,39 @@ app.get('/api/schedule/:branch', async (req, res) => {
             FROM schedule s
             LEFT JOIN teachers t ON s.teacher_id = t.id
             WHERE s.branch = ? AND s.status = 'active'
-            AND s.date >= date('now', '-7 days')
+            AND s.date >= date('now', '-1 day')
             ORDER BY s.date, s.time
+            LIMIT 20
         `, [branch]);
+        
+        console.log(`📊 Найдено занятий: ${schedule.length}`);
+        
+        // ОТЛАДКА: выведем что нашли
+        if (schedule.length > 0) {
+            schedule.forEach(lesson => {
+                console.log(`   📆 ${lesson.date} ${lesson.time}: ${lesson.group_name || 'Группа'} (${lesson.age_group || 'Без возраста'})`);
+            });
+        }
+        
+        // Преобразуем в формат для фронтенда
+        const formattedSchedule = schedule.map(lesson => ({
+            id: lesson.id,
+            date: lesson.date,
+            time: lesson.time,
+            branch: lesson.branch,
+            group_name: lesson.group_name || 'Группа',
+            age_group: lesson.age_group || '',
+            status: lesson.status,
+            teacher_name: lesson.teacher_name || 'Преподаватель не указан',
+            teacher_id: lesson.teacher_id
+        }));
         
         res.json({
             success: true,
             data: {
-                schedule: schedule || []
+                schedule: formattedSchedule,
+                branch: branch,
+                total_lessons: schedule.length
             }
         });
         
@@ -3220,7 +3245,8 @@ app.get('/api/schedule/:branch', async (req, res) => {
         console.error('❌ Ошибка получения расписания:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения расписания'
+            error: 'Ошибка получения расписания',
+            details: error.message
         });
     }
 });
@@ -3888,7 +3914,7 @@ app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Получение списка рассылок (с исправлениями)
+// В обработчике GET /api/admin/mailings (около строки 1860)
 app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
     try {
         const type = req.query.type; // 'service' или 'marketing'
@@ -3908,18 +3934,11 @@ app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
         
         const mailings = await db.all(query, params);
         
-        // Добавляем данные о получателях
-        const mailingsWithStats = await Promise.all(
-            mailings.map(async (mailing) => {
-                // Получаем количество получателей
-                const recipients = await this.getMailingRecipientsCount(mailing);
-                return {
-                    ...mailing,
-                    recipients_count: recipients.total || 0,
-                    estimated_count: recipients.estimated || 0
-                };
-            })
-        );
+        // УПРОЩАЕМ: убираем подсчет получателей пока
+        const mailingsWithStats = mailings.map(mailing => ({
+            ...mailing,
+            recipients_count: mailing.recipients_count || 0
+        }));
         
         res.json({
             success: true,
@@ -3932,11 +3951,11 @@ app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
         console.error('❌ Ошибка получения рассылок:', error.message);
         res.status(500).json({
             success: false,
-            error: 'Ошибка получения рассылок'
+            error: 'Ошибка получения рассылок',
+            details: error.message
         });
     }
 });
-
 
 // Создание рассылки (улучшенная версия)
 app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
