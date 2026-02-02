@@ -1,4 +1,4 @@
-// server.js - ОКОНЧАТЕЛЬНАЯ ВЕРСИЯ (без демо-данных, с Telegram ботом)
+// server.js - ОКОНЧАТЕЛЬНАЯ ВЕРСИЯ (без демо-данных, с Telegram ботом и улучшенным API)
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -59,56 +59,52 @@ class TelegramBotService {
     constructor() {
         if (TELEGRAM_BOT_TOKEN && TELEGRAM_BOT_TOKEN !== '8425388642:AAFpXOa7lYdGYmimJvxyDg2PXyLjlxYrSq4') {
             try {
-                this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
-                this.setupHandlers();
-                console.log('🤖 Telegram бот запущен');
+                this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
+                console.log('🤖 Telegram бот инициализирован (режим webhook)');
             } catch (error) {
-                console.error('❌ Ошибка запуска Telegram бота:', error.message);
+                console.error('❌ Ошибка инициализации Telegram бота:', error.message);
                 this.bot = null;
             }
         } else {
-            console.log('⚠️ Telegram токен не указан, бот не запущен');
+            console.log('⚠️ Telegram токен не указан или демо-токен, бот не запущен');
+            console.log('📝 Получите реальный токен: https://t.me/BotFather');
             this.bot = null;
         }
     }
 
-    setupHandlers() {
-        // Команда /start
-        this.bot.onText(/\/start/, async (msg) => {
-            const chatId = msg.chat.id;
+    // Обработка webhook сообщений
+    async handleWebhookUpdate(update) {
+        if (!this.bot) return;
+        
+        if (update.message) {
+            const chatId = update.message.chat.id;
+            const text = update.message.text;
             
-            try {
-                // Сохраняем chat_id пользователя
-                await this.saveTelegramUser(chatId, msg.from);
-                
-                this.bot.sendMessage(chatId, 
-                    `🎨 Добро пожаловать в Школу рисования Баня!\n\n` +
-                    `Чтобы войти в личный кабинет, перейдите по ссылке:\n` +
-                    `${DOMAIN}\n\n` +
-                    `Или введите ваш номер телефона (только цифры):`
-                );
-            } catch (error) {
-                console.error('Ошибка обработки /start:', error);
-                this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
+            if (text === '/start') {
+                await this.handleStartCommand(chatId, update.message.from);
+            } else if (/^\d{10,11}$/.test(text.replace(/\D/g, ''))) {
+                // Обработка телефона через существующий метод
+                const phone = text.replace(/\D/g, '');
+                await this.handlePhoneInput(chatId, phone);
             }
-        });
+        }
+    }
 
-        // Обработка номера телефона
-        this.bot.on('message', async (msg) => {
-            const chatId = msg.chat.id;
-            const text = msg.text;
+    async handleStartCommand(chatId, userInfo) {
+        try {
+            // Сохраняем chat_id пользователя
+            await this.saveTelegramUser(chatId, userInfo);
             
-            // Пропускаем команды
-            if (text.startsWith('/')) return;
-            
-            // Проверяем, похоже ли на телефон (только цифры, 10-11 символов)
-            const cleanText = text.replace(/\D/g, '');
-            if (cleanText.length >= 10 && cleanText.length <= 11) {
-                await this.handlePhoneInput(chatId, cleanText);
-            }
-        });
-
-        console.log('✅ Обработчики Telegram бота установлены');
+            await this.bot.sendMessage(chatId, 
+                `🎨 Добро пожаловать в Школу рисования Баня!\n\n` +
+                `Для входа в личный кабинет перейдите по ссылке:\n` +
+                `${DOMAIN}\n\n` +
+                `Введите ваш номер телефона в формате 79991234567:`
+            );
+        } catch (error) {
+            console.error('Ошибка обработки /start:', error);
+            await this.bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
+        }
     }
 
     async saveTelegramUser(chatId, userInfo) {
@@ -130,7 +126,7 @@ class TelegramBotService {
 
     async handlePhoneInput(chatId, phone) {
         try {
-            this.bot.sendMessage(chatId, `🔍 Ищу профили для телефона: ${phone}...`);
+            await this.bot.sendMessage(chatId, `🔍 Ищу профили для телефона: ${formatPhoneNumber(phone)}...`);
             
             // Форматируем телефон
             const formattedPhone = formatPhoneNumber(phone);
@@ -148,7 +144,7 @@ class TelegramBotService {
             );
             
             if (profiles.length === 0) {
-                this.bot.sendMessage(chatId,
+                await this.bot.sendMessage(chatId,
                     `❌ Профили не найдены для телефона: ${formattedPhone}\n\n` +
                     `Если вы считаете, что это ошибка, обратитесь к администратору.`
                 );
@@ -168,11 +164,11 @@ class TelegramBotService {
             
             message += `Для входа в личный кабинет перейдите по ссылке:\n${DOMAIN}`;
             
-            this.bot.sendMessage(chatId, message);
+            await this.bot.sendMessage(chatId, message);
             
         } catch (error) {
             console.error('Ошибка обработки телефона в Telegram:', error);
-            this.bot.sendMessage(chatId, 'Произошла ошибка при поиске профилей.');
+            await this.bot.sendMessage(chatId, 'Произошла ошибка при поиске профилей.');
         }
     }
 
@@ -1674,7 +1670,7 @@ class AmoCrmService {
                 }
             }
             
-            console.log(`\n📊 Сделок с абонементами: ${subscriptionLeads.length}`);
+            console.log(`📊 Сделок с абонементами: ${subscriptionLeads.length}`);
             
             if (subscriptionLeads.length === 0) {
                 return null;
@@ -2623,6 +2619,30 @@ function formatPhoneNumber(phone) {
     }
 }
 
+// Middleware для проверки токена пользователя
+function verifyToken(req, res, next) {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            error: 'Токен не предоставлен'
+        });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        console.error('❌ Ошибка проверки токена:', error.message);
+        return res.status(401).json({
+            success: false,
+            error: 'Недействительный токен'
+        });
+    }
+}
+
 // ==================== API МАРШРУТЫ ====================
 
 app.get('/api/status', (req, res) => {
@@ -2805,9 +2825,195 @@ app.post('/api/auth/phone', async (req, res) => {
     }
 });
 
-// ==================== ПУБЛИЧНЫЕ API ДЛЯ ФРОНТЕНДА ====================
+// ==================== API ДЛЯ ФРОНТЕНДА (ОБНОВЛЕННЫЕ) ====================
 
-// Получение расписания по филиалу
+// Получение профиля пользователя
+app.get('/api/profile', verifyToken, async (req, res) => {
+    try {
+        const { student_name } = req.query;
+        
+        if (!student_name) {
+            return res.status(400).json({
+                success: false,
+                error: 'Не указано имя ученика'
+            });
+        }
+        
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE student_name = ? AND is_active = 1`,
+            [student_name]
+        );
+        
+        if (!profile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                profile: profile
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения профиля:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения профиля'
+        });
+    }
+});
+
+// Получение расписания для фронтенда
+app.get('/api/schedule/student/:branch', async (req, res) => {
+    try {
+        const { branch } = req.params;
+        const { week_start } = req.query;
+        
+        console.log(`📅 Расписание для филиала: ${branch}`);
+        
+        let query = `
+            SELECT s.*, t.name as teacher_name, t.photo_url as teacher_photo
+            FROM schedule s
+            LEFT JOIN teachers t ON s.teacher_id = t.id
+            WHERE s.branch = ? AND s.status = 'active'
+        `;
+        const params = [branch];
+        
+        if (week_start) {
+            query += ` AND s.date >= ? AND s.date <= date(?, '+7 days')`;
+            params.push(week_start, week_start);
+        } else {
+            query += ` AND s.date >= date('now', '-1 day') 
+                       AND s.date <= date('now', '+14 days')`;
+        }
+        
+        query += ` ORDER BY s.date, s.time`;
+        
+        const schedule = await db.all(query, params);
+        
+        // Группируем по дням
+        const scheduleByDay = {};
+        schedule.forEach(lesson => {
+            const date = lesson.date;
+            if (!scheduleByDay[date]) {
+                scheduleByDay[date] = [];
+            }
+            scheduleByDay[date].push(lesson);
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                schedule: scheduleByDay,
+                branch: branch
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения расписания:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения расписания'
+        });
+    }
+});
+
+// Получение преподавателей для фронтенда
+app.get('/api/teachers/student/:branch', async (req, res) => {
+    try {
+        const { branch } = req.params;
+        
+        console.log(`👨‍🏫 Преподаватели для филиала: ${branch}`);
+        
+        const teachers = await db.all(`
+            SELECT id, name, photo_url, specialization, experience, description
+            FROM teachers 
+            WHERE (branch = ? OR branch = 'both') AND is_active = 1
+            ORDER BY name
+        `, [branch]);
+        
+        res.json({
+            success: true,
+            data: {
+                teachers: teachers || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения преподавателей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения преподавателей'
+        });
+    }
+});
+
+// Получение новостей для фронтенда
+app.get('/api/news/student/:branch', async (req, res) => {
+    try {
+        const { branch } = req.params;
+        
+        console.log(`📰 Новости для филиала: ${branch}`);
+        
+        const news = await db.all(`
+            SELECT id, title, content, image_url, publish_date
+            FROM news 
+            WHERE (branch = ? OR branch = 'all') AND is_published = 1
+            ORDER BY publish_date DESC 
+            LIMIT 10
+        `, [branch]);
+        
+        res.json({
+            success: true,
+            data: {
+                news: news || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения новостей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения новостей'
+        });
+    }
+});
+
+// Получение FAQ для фронтенда
+app.get('/api/faq/student', async (req, res) => {
+    try {
+        console.log('❓ FAQ для студента');
+        
+        const faq = await db.all(`
+            SELECT id, question, answer, category
+            FROM faq 
+            WHERE is_active = 1 
+            ORDER BY display_order, id
+            LIMIT 20
+        `);
+        
+        res.json({
+            success: true,
+            data: {
+                faq: faq || []
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения FAQ:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения FAQ'
+        });
+    }
+});
+
+// Получение расписания по филиалу (старый маршрут для совместимости)
 app.get('/api/schedule/:branch', async (req, res) => {
     try {
         const branch = req.params.branch;
@@ -2839,7 +3045,7 @@ app.get('/api/schedule/:branch', async (req, res) => {
     }
 });
 
-// Получение преподавателей по филиалу
+// Получение преподавателей по филиалу (старый маршрут для совместимости)
 app.get('/api/teachers/:branch', async (req, res) => {
     try {
         const branch = req.params.branch;
@@ -2868,7 +3074,7 @@ app.get('/api/teachers/:branch', async (req, res) => {
     }
 });
 
-// Получение новостей по филиалу
+// Получение новостей по филиалу (старый маршрут для совместимости)
 app.get('/api/news/:branch', async (req, res) => {
     try {
         const branch = req.params.branch;
@@ -2898,7 +3104,7 @@ app.get('/api/news/:branch', async (req, res) => {
     }
 });
 
-// Получение FAQ
+// Получение FAQ (старый маршрут для совместимости)
 app.get('/api/faq', async (req, res) => {
     try {
         console.log('❓ Получение FAQ');
@@ -2986,6 +3192,74 @@ app.post('/api/admin/send-telegram-notification', verifyAdminToken, async (req, 
         res.status(500).json({
             success: false,
             error: 'Ошибка отправки уведомления'
+        });
+    }
+});
+
+// ==================== WEBHOOK ДЛЯ TELEGRAM ====================
+
+// Webhook для Telegram (вместо polling)
+app.post('/api/telegram-webhook', async (req, res) => {
+    try {
+        const update = req.body;
+        
+        if (!telegramBot || !telegramBot.bot) {
+            return res.status(200).json({ status: 'bot_not_configured' });
+        }
+        
+        // Обрабатываем update
+        if (update.message) {
+            const chatId = update.message.chat.id;
+            const text = update.message.text;
+            
+            if (text === '/start') {
+                await telegramBot.bot.sendMessage(chatId, 
+                    `🎨 Добро пожаловать в Школу рисования!\n\n` +
+                    `Для входа в личный кабинет перейдите по ссылке:\n` +
+                    `${DOMAIN}\n\n` +
+                    `Введите ваш номер телефона в формате 79991234567:`
+                );
+            } else if (/^\d{10,11}$/.test(text.replace(/\D/g, ''))) {
+                // Обработка телефона через существующий метод
+                const phone = text.replace(/\D/g, '');
+                await telegramBot.handlePhoneInput(chatId, phone);
+            }
+        }
+        
+        res.status(200).json({ status: 'ok' });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обработки webhook Telegram:', error);
+        res.status(500).json({ status: 'error', error: error.message });
+    }
+});
+
+// Настройка webhook
+app.get('/api/setup-telegram-webhook', async (req, res) => {
+    try {
+        if (!telegramBot || !telegramBot.bot) {
+            return res.json({
+                success: false,
+                error: 'Telegram бот не настроен'
+            });
+        }
+        
+        const webhookUrl = `${DOMAIN}/api/telegram-webhook`;
+        await telegramBot.bot.setWebHook(webhookUrl);
+        
+        console.log(`✅ Telegram webhook установлен: ${webhookUrl}`);
+        
+        res.json({
+            success: true,
+            message: 'Webhook установлен',
+            webhook_url: webhookUrl
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка установки webhook:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка установки webhook'
         });
     }
 });
@@ -3267,6 +3541,30 @@ app.post('/api/admin/login', async (req, res) => {
     }
 });
 
+// Проверка токена администратора (middleware)
+function verifyAdminToken(req, res, next) {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            error: 'Токен не предоставлен'
+        });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.admin = decoded;
+        next();
+    } catch (error) {
+        console.error('❌ Ошибка проверки токена администратора:', error.message);
+        return res.status(401).json({
+            success: false,
+            error: 'Недействительный токен'
+        });
+    }
+}
+
 // Маршрут для админ-панели
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
@@ -3483,7 +3781,7 @@ app.post('/api/admin/schedule', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Получение расписания
+// Получение расписания для админ-панели
 app.get('/api/admin/schedule', verifyAdminToken, async (req, res) => {
     try {
         const { branch, date_from, date_to, teacher_id, status } = req.query;
@@ -3603,7 +3901,7 @@ app.post('/api/admin/teachers', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Получение списка преподавателей
+// Получение списка преподавателей для админ-панели
 app.get('/api/admin/teachers', verifyAdminToken, async (req, res) => {
     try {
         console.log('👨‍🏫 Получение списка преподавателей');
@@ -3684,7 +3982,7 @@ app.post('/api/admin/faq', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Получение FAQ
+// Получение FAQ для админ-панели
 app.get('/api/admin/faq', verifyAdminToken, async (req, res) => {
     try {
         console.log('❓ Получение FAQ');
@@ -3765,7 +4063,7 @@ app.post('/api/admin/news', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Получение новостей
+// Получение новостей для админ-панели
 app.get('/api/admin/news', verifyAdminToken, async (req, res) => {
     try {
         console.log('📰 Получение новостей');
@@ -3877,30 +4175,6 @@ app.post('/api/admin/mailings/test', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Проверка токена администратора (middleware)
-function verifyAdminToken(req, res, next) {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-        return res.status(401).json({
-            success: false,
-            error: 'Токен не предоставлен'
-        });
-    }
-    
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.admin = decoded;
-        next();
-    } catch (error) {
-        console.error('❌ Ошибка проверки токена администратора:', error.message);
-        return res.status(401).json({
-            success: false,
-            error: 'Недействительный токен'
-        });
-    }
-}
-
 // ==================== ЗАПУСК СЕРВЕРА ====================
 const startServer = async () => {
     try {
@@ -3910,6 +4184,7 @@ const startServer = async () => {
         console.log('✨ БЕЗ ДЕМО-ДАННЫХ');
         console.log('✨ ИНТЕГРАЦИЯ TELEGRAM БОТА');
         console.log('✨ API ДЛЯ ФРОНТЕНДА ПО ФИЛИАЛАМ');
+        console.log('✨ WEBHOOK ДЛЯ TELEGRAM БОТА');
         console.log('='.repeat(100));
         
         await initDatabase();
@@ -3940,11 +4215,12 @@ const startServer = async () => {
             console.log('='.repeat(50));
             console.log(`📊 Статус: GET http://localhost:${PORT}/api/status`);
             console.log(`🔐 Авторизация: POST http://localhost:${PORT}/api/auth/phone`);
-            console.log(`📅 Расписание: GET http://localhost:${PORT}/api/schedule/{branch}`);
-            console.log(`👨‍🏫 Преподаватели: GET http://localhost:${PORT}/api/teachers/{branch}`);
-            console.log(`📰 Новости: GET http://localhost:${PORT}/api/news/{branch}`);
-            console.log(`❓ FAQ: GET http://localhost:${PORT}/api/faq`);
+            console.log(`📅 Расписание (новое): GET http://localhost:${PORT}/api/schedule/student/{branch}`);
+            console.log(`👨‍🏫 Преподаватели (новое): GET http://localhost:${PORT}/api/teachers/student/{branch}`);
+            console.log(`📰 Новости (новое): GET http://localhost:${PORT}/api/news/student/{branch}`);
+            console.log(`❓ FAQ (новое): GET http://localhost:${PORT}/api/faq/student`);
             console.log(`🔄 Синхронизация: GET http://localhost:${PORT}/api/sync/{phone}`);
+            console.log(`🤖 Telegram Webhook: POST http://localhost:${PORT}/api/telegram-webhook`);
             console.log('');
             console.log('🔧 АДМИН ПАНЕЛЬ:');
             console.log('─'.repeat(50));
