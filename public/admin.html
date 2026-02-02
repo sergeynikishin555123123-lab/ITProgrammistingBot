@@ -2350,7 +2350,7 @@ loadMailingsData: function() {
     });
 },
 
-// Рендеринг сервисных рассылок
+// В функции renderServiceMailings в admin.html
 renderServiceMailings: function(mailings) {
     const table = document.getElementById('service-mailings-table');
     
@@ -2361,6 +2361,9 @@ renderServiceMailings: function(mailings) {
                     <div class="empty-state">
                         <i class="fas fa-inbox"></i>
                         <p>Нет сервисных рассылок</p>
+                        <button class="btn btn-primary mt-10" onclick="AdminApp.showModal('new-mailing')">
+                            <i class="fas fa-plus"></i> Создать первую рассылку
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -2372,7 +2375,7 @@ renderServiceMailings: function(mailings) {
         <tr>
             <td>
                 <div style="font-weight: 600;">${this.getMailingTypeName(mailing.type)}</div>
-                ${mailing.name ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.name}</div>` : ''}
+                <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.name || 'Без названия'}</div>
             </td>
             <td>${mailing.branch || 'Все филиалы'}</td>
             <td>${mailing.teacher || 'Все'}</td>
@@ -2382,7 +2385,7 @@ renderServiceMailings: function(mailings) {
             </td>
             <td>
                 <div>${mailing.recipients_count || 0} чел.</div>
-                ${mailing.sent_count !== undefined ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
+                ${mailing.sent_count > 0 ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
             </td>
             <td>
                 <span class="badge ${this.getMailingStatusClass(mailing.status)}">
@@ -2393,8 +2396,17 @@ renderServiceMailings: function(mailings) {
                 <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
                     <i class="fas fa-eye"></i> Детали
                 </button>
+                
+                ${mailing.status === 'pending' || mailing.status === 'failed' ? `
+                <button class="btn btn-success btn-small" onclick="AdminApp.sendMailingNow('${mailing.id}')" 
+                        title="Отправить сейчас">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+                ` : ''}
+                
                 ${mailing.status === 'pending' ? `
-                <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
+                <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')"
+                        title="Удалить">
                     <i class="fas fa-trash"></i>
                 </button>
                 ` : ''}
@@ -2638,8 +2650,7 @@ deleteMailing: function(id) {
         this.hideLoading();
         if (data.success) {
             this.showToast('Рассылка удалена', 'success');
-            // Обновляем список рассылок
-            this.loadMailingsData();
+            this.loadMailingsData(); // Обновляем список
         } else {
             throw new Error(data.error || 'Ошибка удаления');
         }
@@ -3459,8 +3470,83 @@ hideModal: function(modalId) {
             });
         },
 
-        // УТИЛИТЫ
-        getMailingTypeName: function(type) {
+// ==================== УПРАВЛЕНИЕ РАССЫЛКАМИ ====================
+
+// Принудительная отправка рассылки
+sendMailingNow: function(mailingId) {
+    if (!confirm('Отправить эту рассылку сейчас?')) {
+        return;
+    }
+    
+    this.showLoading('Отправка рассылки...');
+    
+    fetch(`/api/admin/mailings/${mailingId}/send`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        this.hideLoading();
+        if (data.success) {
+            this.showToast(`✅ Рассылка отправлена! Отправлено: ${data.data?.sent_count || 0} получателей`, 'success');
+            // Обновляем список рассылок
+            this.loadMailingsData();
+        } else {
+            throw new Error(data.error || 'Неизвестная ошибка отправки');
+        }
+    })
+    .catch(error => {
+        this.hideLoading();
+        console.error('❌ Ошибка отправки рассылки:', error);
+        this.showToast('❌ Ошибка отправки: ' + error.message, 'error');
+    });
+},
+
+// Удаление рассылки (улучшенная версия)
+deleteMailing: function(id) {
+    if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) {
+        return;
+    }
+    
+    this.showLoading('Удаление рассылки...');
+    
+    fetch(`/api/admin/mailings/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        this.hideLoading();
+        if (data.success) {
+            this.showToast('✅ Рассылка удалена', 'success');
+            this.loadMailingsData();
+        } else {
+            throw new Error(data.error || 'Ошибка удаления');
+        }
+    })
+    .catch(error => {
+        this.hideLoading();
+        console.error('❌ Ошибка удаления рассылки:', error);
+        this.showToast('❌ Ошибка удаления: ' + error.message, 'error');
+    });
+},
+
+// ==================== УТИЛИТЫ ====================
+getMailingTypeName: function(type) {
             const types = {
                 'cancellation': 'Отмена занятия',
                 'replacement': 'Замена преподавателя',
