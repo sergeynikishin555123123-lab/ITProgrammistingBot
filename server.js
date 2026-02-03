@@ -2802,7 +2802,124 @@ async function saveProfilesToDatabase(profiles) {
         return 0;
     }
 }
+// ==================== ДИАГНОСТИЧЕСКИЕ ФУНКЦИИ ====================
 
+// Функция для получения рекомендаций по полям с датами
+function getDateFieldRecommendations(summary) {
+    const recommendations = [];
+    
+    if (summary.has_dates.activation_date === 0) {
+        recommendations.push({
+            level: 'warning',
+            message: 'В сделках не найдены поля с датами активации абонемента',
+            suggestion: 'Проверьте заполнение поля "Дата активации абонемента:" (ID: 851565) в сделках'
+        });
+    }
+    
+    if (summary.has_dates.expiration_date === 0) {
+        recommendations.push({
+            level: 'warning',
+            message: 'В сделках не найдены поля с датами окончания абонемента',
+            suggestion: 'Проверьте заполнение поля "Окончание абонемента:" (ID: 850255) в сделках'
+        });
+    }
+    
+    if (summary.has_dates.last_visit_date === 0) {
+        recommendations.push({
+            level: 'info',
+            message: 'В сделках не найдены поля с датами последнего визита',
+            suggestion: 'Даты последнего визита могут храниться в полях дат занятий или отдельном поле'
+        });
+    }
+    
+    if (summary.active_subscriptions > 0 && summary.has_dates.activation_date < summary.active_subscriptions) {
+        recommendations.push({
+            level: 'warning',
+            message: `Только ${summary.has_dates.activation_date} из ${summary.active_subscriptions} активных абонементов имеют дату активации`,
+            suggestion: 'Обновите даты активации для всех активных абонементов'
+        });
+    }
+    
+    if (recommendations.length === 0) {
+        recommendations.push({
+            level: 'success',
+            message: 'Даты корректно заполнены в системе',
+            suggestion: 'Продолжайте текущую практику заполнения полей с датами'
+        });
+    }
+    
+    return recommendations;
+}
+
+// Функция для анализа форматов дат
+function analyzeDateFormats(dateFields) {
+    const formats = {
+        timestamp: 0,
+        iso: 0,
+        dd_mm_yyyy: 0,
+        unknown: 0
+    };
+    
+    for (const [fieldId, fieldInfo] of Object.entries(dateFields)) {
+        const rawValue = fieldInfo.raw_value.toString();
+        
+        if (/^\d{9,10}$/.test(rawValue)) {
+            formats.timestamp++;
+        } else if (/^\d{4}-\d{2}-\d{2}/.test(rawValue)) {
+            formats.iso++;
+        } else if (/^\d{1,2}\.\d{1,2}\.\d{4}/.test(rawValue)) {
+            formats.dd_mm_yyyy++;
+        } else {
+            formats.unknown++;
+        }
+    }
+    
+    return formats;
+}
+
+// Функция рекомендаций по парсингу дат
+function getDateParsingRecommendations(dateString, results, additionalTests) {
+    const recommendations = [];
+    
+    const successfulParsers = results.filter(r => r.is_valid).map(r => r.parser);
+    
+    if (successfulParsers.length === 0) {
+        recommendations.push({
+            level: 'error',
+            message: 'Не удалось распарсить дату ни одним методом',
+            suggestion: 'Проверьте формат данных в amoCRM'
+        });
+    } else if (successfulParsers.length > 1) {
+        recommendations.push({
+            level: 'warning',
+            message: `Дата распарсена ${successfulParsers.length} методами`,
+            suggestion: `Используйте метод: ${successfulParsers[0]}`
+        });
+    } else {
+        recommendations.push({
+            level: 'success',
+            message: `Дата успешно распарсена методом: ${successfulParsers[0]}`,
+            suggestion: 'Продолжайте использовать текущий метод парсинга'
+        });
+    }
+    
+    // Специфичные рекомендации
+    if (/^\d{9,10}$/.test(dateString)) {
+        recommendations.push({
+            level: 'info',
+            message: 'Дата похожа на timestamp (секунды)',
+            suggestion: 'Используйте new Date(timestamp * 1000)'
+        });
+    } else if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(dateString)) {
+        recommendations.push({
+            level: 'info',
+            message: 'Дата в формате DD.MM.YYYY',
+            suggestion: 'Преобразуйте в YYYY-MM-DD'
+        });
+    }
+    
+    return recommendations;
+}
 // Добавить вспомогательную функцию
 function formatDateForDisplay(dateStr) {
     if (!dateStr) return '';
@@ -4517,7 +4634,536 @@ app.post('/api/admin/mailings/test', verifyAdminToken, async (req, res) => {
         });
     }
 });
+// ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ АНАЛИЗА ДАТ В AMOCRM
+app.get('/api/debug/amocrm-dates/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        console.log(`🔍 ДИАГНОСТИКА ДАТ AMOCRM ДЛЯ ТЕЛЕФОНА: ${formattedPhone}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // 1. Поиск контактов
+        const contacts = await amoCrmService.searchContactsByPhone(formattedPhone);
+        console.log(`📊 Найдено контактов: ${contacts.length}`);
+        
+        if (contacts.length === 0) {
+            return res.json({
+                success: false,
+                error: 'Контакты не найдены'
+            });
+        }
+        
+        const diagnosticResults = [];
+        
+        // 2. Анализ каждого контакта
+        for (const contact of contacts) {
+            console.log(`\n👤 Анализ контакта: ${contact.name} (ID: ${contact.id})`);
+            
+            const contactInfo = await amoCrmService.getFullContactInfo(contact.id);
+            
+            // 3. Получение всех сделок контакта
+            const leads = await amoCrmService.getContactLeads(contact.id);
+            console.log(`📄 Найдено сделок: ${leads.length}`);
+            
+            const contactDiagnostic = {
+                contact_id: contact.id,
+                contact_name: contact.name,
+                leads_count: leads.length,
+                leads: []
+            };
+            
+            // 4. Детальный анализ каждой сделки
+            for (const lead of leads) {
+                console.log(`\n📊 АНАЛИЗ СДЕЛКИ ${lead.id}: "${lead.name}"`);
+                console.log(`   Статус ID: ${lead.status_id}`);
+                console.log(`   Создана: ${lead.created_at}`);
+                console.log(`   Обновлена: ${lead.updated_at}`);
+                
+                const leadDiagnostic = {
+                    lead_id: lead.id,
+                    lead_name: lead.name,
+                    status_id: lead.status_id,
+                    created_at: lead.created_at,
+                    updated_at: lead.updated_at,
+                    price: lead.price,
+                    fields: {},
+                    date_fields: {}
+                };
+                
+                // 5. Анализ всех кастомных полей сделки
+                if (lead.custom_fields_values) {
+                    console.log(`   📋 Кастомные поля (${lead.custom_fields_values.length}):`);
+                    
+                    for (const field of lead.custom_fields_values) {
+                        const fieldId = field.field_id;
+                        const fieldValue = amoCrmService.getFieldValue(field);
+                        
+                        if (!fieldValue) continue;
+                        
+                        const fieldName = amoCrmService.getFieldNameById(fieldId);
+                        const displayValue = amoCrmService.getFieldDisplayValue(fieldId, fieldValue);
+                        
+                        leadDiagnostic.fields[fieldId] = {
+                            name: fieldName,
+                            raw_value: fieldValue,
+                            display_value: displayValue,
+                            values: field.values || []
+                        };
+                        
+                        // Отдельно сохраняем поля с датами
+                        if (fieldId === amoCrmService.FIELD_IDS.LEAD.ACTIVATION_DATE ||
+                            fieldId === amoCrmService.FIELD_IDS.LEAD.EXPIRATION_DATE ||
+                            fieldId === amoCrmService.FIELD_IDS.LEAD.LAST_VISIT_DATE ||
+                            fieldId === amoCrmService.FIELD_IDS.LEAD.PURCHASE_DATE) {
+                            
+                            const parsedDate = amoCrmService.parseDate(fieldValue);
+                            
+                            leadDiagnostic.date_fields[fieldId] = {
+                                name: fieldName,
+                                raw_value: fieldValue,
+                                parsed_date: parsedDate,
+                                is_valid: !isNaN(new Date(parsedDate).getTime())
+                            };
+                            
+                            console.log(`   📅 ${fieldName} (${fieldId}):`);
+                            console.log(`      Сырое значение: ${fieldValue}`);
+                            console.log(`      Разобранная дата: ${parsedDate}`);
+                            console.log(`      Валидная дата: ${!isNaN(new Date(parsedDate).getTime())}`);
+                        }
+                        
+                        // Анализ полей занятий
+                        if (fieldId === amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES ||
+                            fieldId === amoCrmService.FIELD_IDS.LEAD.USED_CLASSES) {
+                            
+                            console.log(`   🎫 ${fieldName} (${fieldId}):`);
+                            console.log(`      Значение: ${fieldValue}`);
+                            console.log(`      Отображение: ${displayValue}`);
+                        }
+                        
+                        // Анализ чекбоксов посещений
+                        if (fieldId >= 884899 && fieldId <= 892895) {
+                            // Это чекбокс занятия
+                            if (fieldValue === 'true' || fieldValue === '1') {
+                                console.log(`   ✅ Посещение (поле ${fieldId}): отмечено`);
+                            }
+                        }
+                        
+                        // Анализ дат занятий
+                        if (fieldId >= 884931 && fieldId <= 892897) {
+                            // Это дата занятия
+                            if (fieldValue) {
+                                const parsedDate = amoCrmService.parseDate(fieldValue);
+                                console.log(`   📅 Дата занятия (поле ${fieldId}): ${parsedDate}`);
+                            }
+                        }
+                    }
+                }
+                
+                // 6. Извлекаем информацию об абонементе
+                const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+                
+                leadDiagnostic.subscription = {
+                    has_subscription: subscriptionInfo.hasSubscription,
+                    total_classes: subscriptionInfo.totalClasses,
+                    used_classes: subscriptionInfo.usedClasses,
+                    remaining_classes: subscriptionInfo.remainingClasses,
+                    subscription_type: subscriptionInfo.subscriptionType,
+                    subscription_active: subscriptionInfo.subscriptionActive,
+                    activation_date: subscriptionInfo.activationDate,
+                    expiration_date: subscriptionInfo.expirationDate,
+                    last_visit_date: subscriptionInfo.lastVisitDate,
+                    purchase_date: subscriptionInfo.purchaseDate,
+                    freeze_status: subscriptionInfo.freezeStatus,
+                    branch: subscriptionInfo.branch,
+                    subscription_status: subscriptionInfo.subscriptionStatus,
+                    subscription_badge: subscriptionInfo.subscriptionBadge
+                };
+                
+                console.log(`\n   🎯 ИНФОРМАЦИЯ ОБ АБОНЕМЕНТЕ:`);
+                console.log(`      Есть абонемент: ${subscriptionInfo.hasSubscription}`);
+                console.log(`      Всего занятий: ${subscriptionInfo.totalClasses}`);
+                console.log(`      Использовано: ${subscriptionInfo.usedClasses}`);
+                console.log(`      Осталось: ${subscriptionInfo.remainingClasses}`);
+                console.log(`      Дата активации: ${subscriptionInfo.activationDate}`);
+                console.log(`      Дата окончания: ${subscriptionInfo.expirationDate}`);
+                console.log(`      Дата последнего визита: ${subscriptionInfo.lastVisitDate}`);
+                console.log(`      Дата покупки: ${subscriptionInfo.purchaseDate}`);
+                console.log(`      Статус: ${subscriptionInfo.subscriptionStatus}`);
+                console.log(`      Активен: ${subscriptionInfo.subscriptionActive}`);
+                
+                contactDiagnostic.leads.push(leadDiagnostic);
+            }
+            
+            diagnosticResults.push(contactDiagnostic);
+        }
+        
+        // 7. Анализ полей контакта
+        console.log(`\n👤 АНАЛИЗ ПОЛЕЙ КОНТАКТА:`);
+        const contactFieldsAnalysis = [];
+        
+        for (const contact of contacts) {
+            const fullContact = await amoCrmService.getFullContactInfo(contact.id);
+            
+            if (fullContact?.custom_fields_values) {
+                const contactAnalysis = {
+                    contact_id: contact.id,
+                    contact_name: contact.name,
+                    date_fields: {}
+                };
+                
+                for (const field of fullContact.custom_fields_values) {
+                    const fieldId = field.field_id;
+                    const fieldValue = amoCrmService.getFieldValue(field);
+                    
+                    // Проверяем поля с датами в контакте
+                    if (fieldId === amoCrmService.FIELD_IDS.CONTACT.LAST_VISIT ||
+                        fieldId === amoCrmService.FIELD_IDS.CONTACT.LAST_SUB_ACTIVATION ||
+                        fieldId === amoCrmService.FIELD_IDS.CONTACT.PARENT_BIRTHDAY ||
+                        fieldId === amoCrmService.FIELD_IDS.CONTACT.CHILD_1_BIRTHDAY ||
+                        fieldId === amoCrmService.FIELD_IDS.CONTACT.CHILD_2_BIRTHDAY ||
+                        fieldId === amoCrmService.FIELD_IDS.CONTACT.CHILD_3_BIRTHDAY) {
+                        
+                        const fieldName = amoCrmService.getFieldNameById(fieldId);
+                        const parsedDate = amoCrmService.parseDate(fieldValue);
+                        
+                        contactAnalysis.date_fields[fieldId] = {
+                            name: fieldName,
+                            raw_value: fieldValue,
+                            parsed_date: parsedDate,
+                            is_valid: !isNaN(new Date(parsedDate).getTime())
+                        };
+                        
+                        console.log(`   📅 ${fieldName} (${fieldId}):`);
+                        console.log(`      Сырое значение: ${fieldValue}`);
+                        console.log(`      Разобранная дата: ${parsedDate}`);
+                    }
+                }
+                
+                contactFieldsAnalysis.push(contactAnalysis);
+            }
+        }
+        
+        // 8. Формируем итоговый отчет
+        const summary = {
+            total_contacts: contacts.length,
+            total_leads: diagnosticResults.reduce((sum, contact) => sum + contact.leads_count, 0),
+            active_subscriptions: 0,
+            has_dates: {
+                activation_date: 0,
+                expiration_date: 0,
+                last_visit_date: 0,
+                purchase_date: 0
+            }
+        };
+        
+        // Подсчет статистики
+        for (const contact of diagnosticResults) {
+            for (const lead of contact.leads) {
+                if (lead.subscription.has_subscription) {
+                    if (lead.subscription.activation_date) summary.has_dates.activation_date++;
+                    if (lead.subscription.expiration_date) summary.has_dates.expiration_date++;
+                    if (lead.subscription.last_visit_date) summary.has_dates.last_visit_date++;
+                    if (lead.subscription.purchase_date) summary.has_dates.purchase_date++;
+                    
+                    if (lead.subscription.subscription_active) {
+                        summary.active_subscriptions++;
+                    }
+                }
+            }
+        }
+        
+        res.json({
+            success: true,
+            diagnostic: {
+                phone: formattedPhone,
+                search_time: new Date().toISOString(),
+                summary: summary,
+                contacts: diagnosticResults,
+                contact_fields_analysis: contactFieldsAnalysis,
+                field_mappings: {
+                    LEAD: {
+                        ACTIVATION_DATE: {
+                            id: amoCrmService.FIELD_IDS.LEAD.ACTIVATION_DATE,
+                            name: amoCrmService.getFieldNameById(amoCrmService.FIELD_IDS.LEAD.ACTIVATION_DATE)
+                        },
+                        EXPIRATION_DATE: {
+                            id: amoCrmService.FIELD_IDS.LEAD.EXPIRATION_DATE,
+                            name: amoCrmService.getFieldNameById(amoCrmService.FIELD_IDS.LEAD.EXPIRATION_DATE)
+                        },
+                        LAST_VISIT_DATE: {
+                            id: amoCrmService.FIELD_IDS.LEAD.LAST_VISIT_DATE,
+                            name: amoCrmService.getFieldNameById(amoCrmService.FIELD_IDS.LEAD.LAST_VISIT_DATE)
+                        },
+                        PURCHASE_DATE: {
+                            id: amoCrmService.FIELD_IDS.LEAD.PURCHASE_DATE,
+                            name: amoCrmService.getFieldNameById(amoCrmService.FIELD_IDS.LEAD.PURCHASE_DATE)
+                        }
+                    },
+                    CONTACT: {
+                        LAST_VISIT: {
+                            id: amoCrmService.FIELD_IDS.CONTACT.LAST_VISIT,
+                            name: amoCrmService.getFieldNameById(amoCrmService.FIELD_IDS.CONTACT.LAST_VISIT)
+                        },
+                        LAST_SUB_ACTIVATION: {
+                            id: amoCrmService.FIELD_IDS.CONTACT.LAST_SUB_ACTIVATION,
+                            name: amoCrmService.getFieldNameById(amoCrmService.FIELD_IDS.CONTACT.LAST_SUB_ACTIVATION)
+                        }
+                    }
+                },
+                recommendations: getDateFieldRecommendations(summary)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики',
+            details: error.message,
+            stack: error.stack
+        });
+    }
+});
 
+// МАРШРУТ ДЛЯ АНАЛИЗА КОНКРЕТНОЙ СДЕЛКИ
+app.get('/api/debug/lead/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`🔍 ДЕТАЛЬНЫЙ АНАЛИЗ СДЕЛКИ ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        // Получаем сделку
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.json({
+                success: false,
+                error: 'Сделка не найдена'
+            });
+        }
+        
+        console.log(`📄 Сделка: "${lead.name}" (ID: ${lead.id})`);
+        console.log(`   Статус: ${lead.status_id}`);
+        console.log(`   Цена: ${lead.price}`);
+        console.log(`   Создана: ${lead.created_at}`);
+        console.log(`   Обновлена: ${lead.updated_at}`);
+        
+        const analysis = {
+            lead_id: lead.id,
+            lead_name: lead.name,
+            status_id: lead.status_id,
+            created_at: lead.created_at,
+            updated_at: lead.updated_at,
+            price: lead.price,
+            pipeline_id: lead.pipeline_id,
+            fields_by_category: {
+                subscription: {},
+                dates: {},
+                classes: {},
+                other: {}
+            },
+            raw_custom_fields: [],
+            subscription_info: null
+        };
+        
+        // Анализ кастомных полей
+        if (lead.custom_fields_values) {
+            console.log(`📋 Кастомные поля (${lead.custom_fields_values.length}):`);
+            
+            for (const field of lead.custom_fields_values) {
+                const fieldId = field.field_id;
+                const fieldValue = amoCrmService.getFieldValue(field);
+                
+                if (!fieldValue) continue;
+                
+                const fieldName = amoCrmService.getFieldNameById(fieldId);
+                const displayValue = amoCrmService.getFieldDisplayValue(fieldId, fieldValue);
+                
+                const fieldInfo = {
+                    field_id: fieldId,
+                    field_name: fieldName,
+                    raw_value: fieldValue,
+                    display_value: displayValue,
+                    values: field.values || []
+                };
+                
+                analysis.raw_custom_fields.push(fieldInfo);
+                
+                // Категоризация полей
+                if (fieldId === amoCrmService.FIELD_IDS.LEAD.TOTAL_CLASSES ||
+                    fieldId === amoCrmService.FIELD_IDS.LEAD.USED_CLASSES ||
+                    fieldId === amoCrmService.FIELD_IDS.LEAD.USED_CLASSES_NUM ||
+                    fieldId === amoCrmService.FIELD_IDS.LEAD.REMAINING_CLASSES) {
+                    
+                    analysis.fields_by_category.subscription[fieldId] = fieldInfo;
+                    console.log(`   🎫 ${fieldName}: ${fieldValue} -> ${displayValue}`);
+                }
+                else if (fieldId === amoCrmService.FIELD_IDS.LEAD.ACTIVATION_DATE ||
+                         fieldId === amoCrmService.FIELD_IDS.LEAD.EXPIRATION_DATE ||
+                         fieldId === amoCrmService.FIELD_IDS.LEAD.LAST_VISIT_DATE ||
+                         fieldId === amoCrmService.FIELD_IDS.LEAD.PURCHASE_DATE) {
+                    
+                    const parsedDate = amoCrmService.parseDate(fieldValue);
+                    fieldInfo.parsed_date = parsedDate;
+                    fieldInfo.is_valid_date = !isNaN(new Date(parsedDate).getTime());
+                    
+                    analysis.fields_by_category.dates[fieldId] = fieldInfo;
+                    console.log(`   📅 ${fieldName}: ${fieldValue} -> ${parsedDate} (валидно: ${fieldInfo.is_valid_date})`);
+                }
+                else if ((fieldId >= 884899 && fieldId <= 892895) || // Чекбоксы занятий
+                         (fieldId >= 884931 && fieldId <= 892897)) { // Даты занятий
+                    
+                    if (fieldId >= 884899 && fieldId <= 892895) {
+                        // Чекбокс занятия
+                        if (fieldValue === 'true' || fieldValue === '1') {
+                            analysis.fields_by_category.classes[fieldId] = fieldInfo;
+                            console.log(`   ✅ Посещение ${fieldId}: отмечено`);
+                        }
+                    } else {
+                        // Дата занятия
+                        const parsedDate = amoCrmService.parseDate(fieldValue);
+                        if (parsedDate) {
+                            fieldInfo.parsed_date = parsedDate;
+                            analysis.fields_by_category.classes[fieldId] = fieldInfo;
+                            console.log(`   📅 Дата занятия ${fieldId}: ${parsedDate}`);
+                        }
+                    }
+                }
+                else {
+                    analysis.fields_by_category.other[fieldId] = fieldInfo;
+                }
+            }
+        }
+        
+        // Извлекаем информацию об абонементе
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        analysis.subscription_info = subscriptionInfo;
+        
+        console.log(`\n🎯 ИНФОРМАЦИЯ ОБ АБОНЕМЕНТЕ:`);
+        console.log(JSON.stringify(subscriptionInfo, null, 2));
+        
+        // Анализ форматов дат
+        const dateFormats = analyzeDateFormats(analysis.fields_by_category.dates);
+        
+        res.json({
+            success: true,
+            analysis: analysis,
+            summary: {
+                has_subscription: subscriptionInfo.hasSubscription,
+                subscription_active: subscriptionInfo.subscriptionActive,
+                dates_present: {
+                    activation: !!subscriptionInfo.activationDate,
+                    expiration: !!subscriptionInfo.expirationDate,
+                    last_visit: !!subscriptionInfo.lastVisitDate,
+                    purchase: !!subscriptionInfo.purchaseDate
+                },
+                classes: {
+                    total: subscriptionInfo.totalClasses,
+                    used: subscriptionInfo.usedClasses,
+                    remaining: subscriptionInfo.remainingClasses
+                },
+                date_formats: dateFormats
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка анализа сделки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка анализа сделки',
+            details: error.message
+        });
+    }
+});
+
+// МАРШРУТ ДЛЯ ТЕСТИРОВАНИЯ ПАРСИНГА ДАТ
+app.get('/api/debug/parse-date/:dateString', (req, res) => {
+    try {
+        const dateString = req.params.dateString;
+        console.log(`🧪 Тестирование парсинга даты: "${dateString}"`);
+        
+        const testCases = [
+            { input: dateString, parser: 'amoCrmService.parseDate' },
+            { input: dateString, parser: 'Date.parse' },
+            { input: dateString, parser: 'new Date()' }
+        ];
+        
+        const results = testCases.map(test => {
+            let result;
+            try {
+                if (test.parser === 'amoCrmService.parseDate') {
+                    result = amoCrmService.parseDate(test.input);
+                } else if (test.parser === 'Date.parse') {
+                    result = new Date(Date.parse(test.input)).toISOString();
+                } else {
+                    result = new Date(test.input).toISOString();
+                }
+            } catch (error) {
+                result = `Ошибка: ${error.message}`;
+            }
+            
+            return {
+                parser: test.parser,
+                result: result,
+                is_valid: !result.includes('Ошибка') && !isNaN(new Date(result).getTime())
+            };
+        });
+        
+        // Дополнительные тесты
+        const additionalTests = [];
+        
+        // Тест timestamp (секунды)
+        if (/^\d{9,10}$/.test(dateString)) {
+            const timestamp = parseInt(dateString);
+            const dateFromSeconds = new Date(timestamp * 1000);
+            const dateFromMilliseconds = new Date(timestamp);
+            
+            additionalTests.push({
+                parser: 'timestamp (секунды)',
+                result: dateFromSeconds.toISOString(),
+                is_valid: !isNaN(dateFromSeconds.getTime())
+            });
+            
+            additionalTests.push({
+                parser: 'timestamp (миллисекунды)',
+                result: dateFromMilliseconds.toISOString(),
+                is_valid: !isNaN(dateFromMilliseconds.getTime())
+            });
+        }
+        
+        res.json({
+            success: true,
+            original_date: dateString,
+            length: dateString.length,
+            is_numeric: /^\d+$/.test(dateString),
+            results: results,
+            additional_tests: additionalTests,
+            recommendations: getDateParsingRecommendations(dateString, results, additionalTests)
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка тестирования даты:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка тестирования даты',
+            details: error.message
+        });
+    }
+});
 // ==================== ДРУГИЕ АДМИН API ====================
 
 // Управление расписанием
