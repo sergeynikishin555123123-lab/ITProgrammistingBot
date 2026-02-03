@@ -4762,7 +4762,189 @@ app.get('/api/sync/:phone', async (req, res) => {
         });
     }
 });
-
+app.get('/api/visits/fixed/:phone', verifyToken, async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`🎯 ИСПРАВЛЕННАЯ история посещений для: ${phone}`);
+        
+        // 1. Получаем профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        
+        let visits = [];
+        
+        // 2. Если есть lead_data, парсим и используем нашу новую логику
+        if (profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                console.log(`📊 Данные сделки из БД`);
+                
+                // РУЧНАЯ ЛОГИКА извлечения посещений (простая и понятная)
+                const visitData = {};
+                
+                // Собираем чекбоксы
+                leadData.custom_fields_values?.forEach(field => {
+                    const fieldId = field.field_id;
+                    let value = null;
+                    
+                    if (field.values && field.values.length > 0) {
+                        value = field.values[0].value !== undefined ? 
+                               field.values[0].value : 
+                               field.values[0].enum_id;
+                    }
+                    
+                    // Чекбоксы занятий
+                    if (fieldId >= 884899 && fieldId <= 892895 && value) {
+                        const lessonNum = getLessonNumberFromFieldId(fieldId);
+                        const isChecked = value === true || value === 'true' || value === 1 || value === '1';
+                        
+                        if (isChecked && lessonNum > 0) {
+                            visitData[lessonNum] = visitData[lessonNum] || {};
+                            visitData[lessonNum].attended = true;
+                            console.log(`   ✅ Реальное занятие ${lessonNum}`);
+                        }
+                    }
+                    
+                    // Даты занятий
+                    if (fieldId >= 884931 && fieldId <= 892897 && value) {
+                        const lessonNum = getLessonNumberFromFieldId(fieldId);
+                        if (lessonNum > 0) {
+                            visitData[lessonNum] = visitData[lessonNum] || {};
+                            visitData[lessonNum].date = amoCrmService.parseDate(value);
+                        }
+                    }
+                });
+                
+                // Формируем реальные посещения
+                for (let i = 1; i <= 24; i++) {
+                    if (visitData[i] && visitData[i].attended) {
+                        visits.push({
+                            lesson_number: i,
+                            attended: true,
+                            date: visitData[i].date || null,
+                            has_date: !!visitData[i].date,
+                            source: 'real',
+                            estimated: !visitData[i].date
+                        });
+                    }
+                }
+                
+                console.log(`✅ Реальных посещений: ${visits.length}`);
+                
+                // 3. ДОБАВЛЯЕМ РАСЧЕТНЫЕ ПОСЕЩЕНИЯ ДО 14
+                if (profile.used_classes > visits.length) {
+                    console.log(`📊 Добавляем расчетные: ${profile.used_classes - visits.length} занятий`);
+                    
+                    // Используем дату активации или последнего посещения
+                    let baseDate = profile.activation_date || profile.last_visit_date;
+                    if (!baseDate) {
+                        baseDate = new Date().toISOString().split('T')[0];
+                    }
+                    
+                    const baseDateObj = new Date(baseDate);
+                    
+                    for (let i = visits.length + 1; i <= profile.used_classes && i <= 24; i++) {
+                        const visitDate = new Date(baseDateObj);
+                        visitDate.setDate(baseDateObj.getDate() - ((profile.used_classes - i) * 7));
+                        
+                        visits.push({
+                            lesson_number: i,
+                            date: visitDate.toISOString().split('T')[0],
+                            attended: true,
+                            has_date: true,
+                            source: 'estimated',
+                            estimated: true
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ Ошибка парсинга:', error.message);
+            }
+        }
+        
+        // 4. Если все еще мало, создаем на основе used_classes
+        if (visits.length === 0 && profile.used_classes > 0) {
+            console.log(`📊 Создаем все ${profile.used_classes} занятий с нуля`);
+            
+            let baseDate = profile.activation_date || profile.last_visit_date;
+            if (!baseDate) {
+                baseDate = new Date().toISOString().split('T')[0];
+            }
+            
+            const baseDateObj = new Date(baseDate);
+            
+            for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                const visitDate = new Date(baseDateObj);
+                visitDate.setDate(baseDateObj.getDate() - ((profile.used_classes - i) * 7));
+                
+                visits.push({
+                    lesson_number: i,
+                    date: visitDate.toISOString().split('T')[0],
+                    attended: true,
+                    has_date: true,
+                    source: 'full_estimated',
+                    estimated: true
+                });
+            }
+        }
+        
+        // 5. Обогащаем данными
+        const enrichedVisits = visits.map(visit => ({
+            ...visit,
+            student_name: profile.student_name,
+            branch: profile.branch,
+            teacher_name: profile.teacher_name || 'Преподаватель не указан',
+            age_group: profile.age_group || '',
+            group_name: profile.course || 'Основная группа',
+            formatted_date: visit.date ? formatDateForDisplay(visit.date) : 'Дата не указана',
+            time: '18:00'
+        }));
+        
+        // 6. Сортируем по номеру занятия
+        enrichedVisits.sort((a, b) => b.lesson_number - a.lesson_number);
+        
+        console.log(`🎯 Итого показываем: ${enrichedVisits.length} посещений`);
+        
+        res.json({
+            success: true,
+            data: {
+                student_name: profile.student_name,
+                visits: enrichedVisits,
+                total_visits: enrichedVisits.length,
+                has_real_data: enrichedVisits.some(v => !v.estimated),
+                summary: {
+                    real: enrichedVisits.filter(v => !v.estimated).length,
+                    estimated: enrichedVisits.filter(v => v.estimated).length,
+                    total: enrichedVisits.length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка исправленной истории:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения истории'
+        });
+    }
+});
 // ==================== ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ ИСТОРИИ ПОСЕЩЕНИЙ ====================
 
 app.get('/api/debug/visits/:phone', async (req, res) => {
