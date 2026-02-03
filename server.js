@@ -382,62 +382,27 @@ class TelegramBotService {
 // ==================== ПРАВИЛЬНЫЙ МАППИНГ ДЛЯ ВАШЕГО AMOCRM ====================
 
 function getLessonNumberFromFieldId(fieldId) {
-    // Правильный маппинг для вашего amoCRM
-    const mapping = {
-        // Чекбоксы посещений
-        884899: 1,  // CLASS_1
-        884901: 2,  // CLASS_2
-        884903: 3,  // CLASS_3
-        884905: 4,  // CLASS_4
-        884907: 5,  // CLASS_5
-        884909: 6,  // CLASS_6
-        884911: 7,  // CLASS_7
-        884913: 8,  // CLASS_8
-        884915: 9,  // CLASS_9
-        884917: 10, // CLASS_10
-        884919: 11, // CLASS_11
-        884921: 12, // CLASS_12
-        884923: 13, // CLASS_13
-        884925: 14, // CLASS_14
-        884927: 15, // CLASS_15
-        884929: 16, // CLASS_16
-        892867: 17, // CLASS_17
-        892871: 18, // CLASS_18
-        892875: 19, // CLASS_19
-        892879: 20, // CLASS_20
-        892883: 21, // CLASS_21
-        892887: 22, // CLASS_22
-        892893: 23, // CLASS_23
-        892895: 24, // CLASS_24
-        
-        // Даты посещений
-        884931: 1,  // CLASS_DATE_1
-        884933: 2,  // CLASS_DATE_2
-        884935: 3,  // CLASS_DATE_3
-        884937: 4,  // CLASS_DATE_4
-        884939: 5,  // CLASS_DATE_5
-        884941: 6,  // CLASS_DATE_6
-        884943: 7,  // CLASS_DATE_7
-        884945: 8,  // CLASS_DATE_8
-        884953: 9,  // CLASS_DATE_9
-        884955: 10, // CLASS_DATE_10
-        884951: 11, // CLASS_DATE_11
-        884957: 12, // CLASS_DATE_12
-        884959: 13, // CLASS_DATE_13
-        884961: 14, // CLASS_DATE_14
-        884963: 15, // CLASS_DATE_15
-        884965: 16, // CLASS_DATE_16
-        892869: 17, // CLASS_DATE_17
-        892873: 18, // CLASS_DATE_18
-        892877: 19, // CLASS_DATE_19
-        892881: 20, // CLASS_DATE_20
-        892885: 21, // CLASS_DATE_21
-        892889: 22, // CLASS_DATE_22
-        892891: 23, // CLASS_DATE_23
-        892897: 24  // CLASS_DATE_24
+    // Маппинг для чекбоксов
+    const checkboxMapping = {
+        884899: 1, 884901: 2, 884903: 3, 884905: 4,
+        884907: 5, 884909: 6, 884911: 7, 884913: 8,
+        884915: 9, 884917: 10, 884919: 11, 884921: 12,
+        884923: 13, 884925: 14, 884927: 15, 884929: 16,
+        892867: 17, 892871: 18, 892875: 19, 892879: 20,
+        892883: 21, 892887: 22, 892893: 23, 892895: 24
     };
     
-    return mapping[fieldId] || 0;
+    // Маппинг для дат
+    const dateMapping = {
+        884931: 1, 884933: 2, 884935: 3, 884937: 4,
+        884939: 5, 884941: 6, 884943: 7, 884945: 8,
+        884953: 9, 884955: 10, 884951: 11, 884957: 12,
+        884959: 13, 884961: 14, 884963: 15, 884965: 16,
+        892869: 17, 892873: 18, 892877: 19, 892881: 20,
+        892885: 21, 892889: 22, 892891: 23, 892897: 24
+    };
+    
+    return checkboxMapping[fieldId] || dateMapping[fieldId] || 0;
 }
 
 function isVisitCheckboxField(fieldId) {
@@ -1423,93 +1388,136 @@ class AmoCrmService {
         return null;
     }
 
-    extractRealVisitsData(lead) {
-        console.log(`🔍 Извлечение данных о посещениях из сделки ${lead.id}`);
-        
-        const visits = [];
-        const checkboxes = {};
-        const dates = {};
-        
-        if (!lead.custom_fields_values) {
-            return visits;
-        }
-        
-        // 1. Собираем данные из полей
-        lead.custom_fields_values.forEach(field => {
-            const fieldId = field.field_id;
-            const fieldValue = this.getFieldValue(field);
-            
-            if (!fieldValue) return;
-            
-            const visitInfo = this.getVisitFieldInfo(fieldId);
-            
-            if (visitInfo) {
-                if (visitInfo.type === 'checkbox') {
-                    // Чекбокс посещения
-                    const isChecked = fieldValue === 'true' || 
-                                     fieldValue === '1' || 
-                                     fieldValue === true || 
-                                     fieldValue === 1 ||
-                                     fieldValue === 'да';
-                    
-                    if (isChecked) {
-                        checkboxes[visitInfo.lesson_number] = true;
-                        console.log(`   ✅ Занятие ${visitInfo.lesson_number}: отмечено как посещенное`);
-                    }
-                } 
-                else if (visitInfo.type === 'date') {
-                    // Дата посещения
-                    if (fieldValue && fieldValue !== '0') {
-                        const parsedDate = this.parseDate(fieldValue);
-                        dates[visitInfo.lesson_number] = parsedDate;
-                        console.log(`   📅 Занятие ${visitInfo.lesson_number}: дата ${parsedDate}`);
-                    }
-                }
-            }
-        });
-        
-        // 2. Объединяем данные
-        for (let lessonNumber = 1; lessonNumber <= 24; lessonNumber++) {
-            if (checkboxes[lessonNumber] || dates[lessonNumber]) {
-                const visit = {
-                    lesson_number: lessonNumber,
-                    attended: !!checkboxes[lessonNumber],
-                    date: dates[lessonNumber] || null,
-                    has_date: !!dates[lessonNumber],
-                    source: 'amocrm',
-                    raw_data: {
-                        checkbox_id: this.getCheckboxFieldId(lessonNumber),
-                        date_id: this.getDateFieldId(lessonNumber)
-                    }
-                };
-                
-                visits.push(visit);
-            }
-        }
-        
-        // 3. Если нет структурированных данных, используем счетчик
-        if (visits.length === 0) {
-            const usedClasses = this.getUsedClassesFromLead(lead);
-            if (usedClasses > 0) {
-                console.log(`   📊 Используем счетчик: ${usedClasses} занятий`);
-                
-                for (let i = 1; i <= usedClasses; i++) {
-                    visits.push({
-                        lesson_number: i,
-                        attended: true,
-                        date: null,
-                        has_date: false,
-                        source: 'estimated_from_counter',
-                        estimated: true
-                    });
-                }
-            }
-        }
-        
-        console.log(`   ✅ Всего извлечено посещений: ${visits.length}`);
-        
+   extractRealVisitsData(lead) {
+    console.log(`🔍 Извлечение данных о посещениях из сделки ${lead.id || 'unknown'}`);
+    
+    const visits = [];
+    
+    if (!lead.custom_fields_values) {
+        console.log('⚠️  Нет кастомных полей в сделке');
         return visits;
     }
+    
+    // Собираем данные о посещениях
+    const visitData = {};
+    
+    lead.custom_fields_values.forEach(field => {
+        const fieldId = field.field_id;
+        let fieldValue = null;
+        
+        // Получаем значение поля
+        if (field.values && field.values.length > 0) {
+            // Приоритет: value, потом enum_id
+            fieldValue = field.values[0].value !== undefined ? 
+                        field.values[0].value : 
+                        field.values[0].enum_id;
+        }
+        
+        if (!fieldValue && fieldValue !== false && fieldValue !== 0) {
+            return;
+        }
+        
+        // Проверяем, является ли поле чекбоксом посещения (1-24 занятия)
+        if (fieldId >= 884899 && fieldId <= 892895) {
+            const lessonNumber = getLessonNumberFromFieldId(fieldId);
+            
+            // Проверяем разные форматы значения
+            const isChecked = 
+                fieldValue === true || 
+                fieldValue === 'true' ||
+                fieldValue === 1 ||
+                fieldValue === '1' ||
+                fieldValue === 'да' ||
+                fieldValue === 'Да';
+            
+            if (isChecked) {
+                if (!visitData[lessonNumber]) {
+                    visitData[lessonNumber] = {};
+                }
+                visitData[lessonNumber].attended = true;
+                console.log(`   ✅ Занятие ${lessonNumber}: отмечено как посещенное`);
+            }
+        }
+        
+        // Проверяем, является ли поле датой занятия (1-24 занятия)
+        if (fieldId >= 884931 && fieldId <= 892897) {
+            const lessonNumber = getLessonNumberFromFieldId(fieldId);
+            const dateValue = this.parseDate(fieldValue);
+            
+            if (dateValue && dateValue !== 'Invalid Date') {
+                if (!visitData[lessonNumber]) {
+                    visitData[lessonNumber] = {};
+                }
+                visitData[lessonNumber].date = dateValue;
+                console.log(`   📅 Занятие ${lessonNumber}: дата ${dateValue}`);
+            }
+        }
+    });
+    
+    // Формируем массив посещений
+    for (let lessonNumber = 1; lessonNumber <= 24; lessonNumber++) {
+        if (visitData[lessonNumber] && visitData[lessonNumber].attended) {
+            const visit = {
+                lesson_number: lessonNumber,
+                attended: true,
+                date: visitData[lessonNumber].date || null,
+                has_date: !!visitData[lessonNumber].date,
+                source: 'amocrm_real',
+                estimated: !visitData[lessonNumber].date
+            };
+            
+            visits.push(visit);
+        }
+    }
+    
+    console.log(`   ✅ Всего извлечено посещений: ${visits.length}`);
+    
+    // Если нет структурированных данных, используем счетчик
+    if (visits.length === 0) {
+        const usedClasses = this.getUsedClassesFromLead(lead);
+        console.log(`   📊 Используем счетчик: ${usedClasses} занятий`);
+        
+        if (usedClasses > 0) {
+            // Пытаемся найти дату активации для отсчета
+            let baseDate = null;
+            
+            // Ищем дату активации в сделке
+            lead.custom_fields_values.forEach(field => {
+                if (field.field_id === this.FIELD_IDS.LEAD.ACTIVATION_DATE) {
+                    const dateValue = this.getFieldValue(field);
+                    if (dateValue) {
+                        baseDate = this.parseDate(dateValue);
+                        console.log(`   📅 Найдена дата активации для отсчета: ${baseDate}`);
+                    }
+                }
+            });
+            
+            // Если нет даты активации, используем текущую дату
+            if (!baseDate) {
+                baseDate = new Date().toISOString().split('T')[0];
+                console.log(`   📅 Используем текущую дату для отсчета: ${baseDate}`);
+            }
+            
+            const baseDateObj = new Date(baseDate);
+            
+            for (let i = 1; i <= usedClasses && i <= 24; i++) {
+                const visitDate = new Date(baseDateObj);
+                visitDate.setDate(baseDateObj.getDate() + ((i - 1) * 7)); // Каждые 7 дней
+                
+                visits.push({
+                    lesson_number: i,
+                    date: visitDate.toISOString().split('T')[0],
+                    attended: true,
+                    has_date: true,
+                    source: 'estimated_from_counter',
+                    estimated: true
+                });
+            }
+        }
+    }
+    
+    return visits;
+}
 
     getCheckboxFieldId(lessonNumber) {
         const mapping = {
@@ -3371,7 +3379,7 @@ app.get('/api/visits/real/:phone', verifyToken, async (req, res) => {
         const phone = req.params.phone;
         const cleanPhone = phone.replace(/\D/g, '');
         
-        console.log(`📊 Получение реальной истории посещений для: ${phone}`);
+        console.log(`📊 Получение истории посещений для: ${phone}`);
         
         // Находим профиль
         const profile = await db.get(
@@ -3390,57 +3398,113 @@ app.get('/api/visits/real/:phone', verifyToken, async (req, res) => {
         }
         
         console.log(`👤 Профиль: ${profile.student_name}`);
-        console.log(`🎫 Использовано занятий: ${profile.used_classes || 0}`);
+        console.log(`🎫 Занятий: ${profile.used_classes}/${profile.total_classes}`);
         
         let visits = [];
         
-        // 1. Пытаемся извлечь из lead_data
+        // 1. Извлекаем реальные посещения из lead_data
         if (profile.lead_data && profile.lead_data !== '{}') {
             try {
                 const leadData = JSON.parse(profile.lead_data);
+                console.log(`📄 Извлекаем данные из сделки...`);
+                
                 visits = amoCrmService.extractRealVisitsData(leadData);
                 
-                console.log(`✅ Извлечено из lead_data: ${visits.length} посещений`);
+                console.log(`✅ Извлечено реальных посещений: ${visits.length}`);
+                
+                // Если реальных посещений меньше, чем used_classes, добавляем расчетные
+                if (visits.length < profile.used_classes) {
+                    console.log(`📊 Добавляем расчетные посещения...`);
+                    
+                    const usedClasses = profile.used_classes || 0;
+                    const existingLessons = visits.map(v => v.lesson_number);
+                    
+                    // Ищем дату для отсчета
+                    let baseDate = null;
+                    
+                    // Пытаемся найти дату активации
+                    if (profile.activation_date) {
+                        baseDate = new Date(profile.activation_date);
+                    } else if (visits.length > 0 && visits[0].date) {
+                        // Используем дату последнего реального посещения
+                        baseDate = new Date(visits[0].date);
+                    } else {
+                        // Используем текущую дату
+                        baseDate = new Date();
+                    }
+                    
+                    // Добавляем недостающие занятия
+                    for (let i = 1; i <= usedClasses && i <= 24; i++) {
+                        if (!existingLessons.includes(i)) {
+                            const visitDate = new Date(baseDate);
+                            // Распределяем занятия по неделям
+                            visitDate.setDate(baseDate.getDate() - ((usedClasses - i) * 7));
+                            
+                            visits.push({
+                                lesson_number: i,
+                                date: visitDate.toISOString().split('T')[0],
+                                attended: true,
+                                has_date: true,
+                                source: 'estimated_complement',
+                                estimated: true
+                            });
+                        }
+                    }
+                }
+                
             } catch (error) {
                 console.error('❌ Ошибка парсинга lead_data:', error.message);
             }
         }
         
-        // 2. Если нет данных в lead_data, но есть счетчик
+        // 2. Если все еще нет данных, создаем на основе used_classes
         if (visits.length === 0 && profile.used_classes > 0) {
-            console.log(`📊 Создаем историю на основе счетчика: ${profile.used_classes} занятий`);
+            console.log(`📊 Создаем полную историю на основе счетчика: ${profile.used_classes} занятий`);
             
-            const today = new Date();
+            let baseDate = new Date();
+            
+            // Пытаемся использовать дату активации
+            if (profile.activation_date) {
+                baseDate = new Date(profile.activation_date);
+                console.log(`   📅 Используем дату активации: ${profile.activation_date}`);
+            } else if (profile.last_visit_date) {
+                baseDate = new Date(profile.last_visit_date);
+                console.log(`   📅 Используем дату последнего визита: ${profile.last_visit_date}`);
+            }
+            
             for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
-                const visitDate = new Date(today);
-                visitDate.setDate(today.getDate() - (i * 7));
+                const visitDate = new Date(baseDate);
+                // Распределяем занятия по неделям от даты активации
+                visitDate.setDate(baseDate.getDate() + ((i - 1) * 7));
                 
                 visits.push({
                     lesson_number: i,
                     date: visitDate.toISOString().split('T')[0],
                     attended: true,
                     has_date: true,
-                    source: 'estimated',
+                    source: 'estimated_full',
                     estimated: true
                 });
             }
         }
         
-        // 3. Обогащаем данными из БД
+        // 3. Сортируем по номеру занятия
+        visits.sort((a, b) => a.lesson_number - b.lesson_number);
+        
+        // 4. Обогащаем данными для отображения
         const enrichedVisits = visits.map(visit => ({
             ...visit,
             student_name: profile.student_name,
             branch: profile.branch,
-            teacher_name: profile.teacher_name,
-            formatted_date: visit.date ? formatDateForDisplay(visit.date) : null
+            teacher_name: profile.teacher_name || 'Преподаватель не указан',
+            age_group: profile.age_group || '',
+            group_name: profile.course || 'Основная группа',
+            formatted_date: visit.date ? formatDateForDisplay(visit.date) : 'Дата не указана',
+            time: '18:00', // Дефолтное время
+            estimated: visit.estimated || false
         }));
         
-        // Сортируем по дате (новые сначала)
-        enrichedVisits.sort((a, b) => {
-            const dateA = new Date(a.date || 0);
-            const dateB = new Date(b.date || 0);
-            return dateB - dateA;
-        });
+        console.log(`📊 Итого посещений: ${enrichedVisits.length}`);
         
         res.json({
             success: true,
@@ -3456,15 +3520,15 @@ app.get('/api/visits/real/:phone', verifyToken, async (req, res) => {
                 total_visits: enrichedVisits.length,
                 has_real_data: enrichedVisits.some(v => !v.estimated),
                 summary: {
-                    with_dates: enrichedVisits.filter(v => v.has_date).length,
-                    without_dates: enrichedVisits.filter(v => !v.has_date).length,
-                    estimated: enrichedVisits.filter(v => v.estimated).length
+                    real_visits: enrichedVisits.filter(v => !v.estimated).length,
+                    estimated_visits: enrichedVisits.filter(v => v.estimated).length,
+                    total: enrichedVisits.length
                 }
             }
         });
         
     } catch (error) {
-        console.error('❌ Ошибка получения реальной истории:', error.message);
+        console.error('❌ Ошибка получения истории посещений:', error.message);
         res.status(500).json({
             success: false,
             error: 'Ошибка получения истории посещений'
@@ -5411,7 +5475,125 @@ app.get('/api/debug/amocrm-dates/:phone', async (req, res) => {
         });
     }
 });
-
+// В server.js добавьте:
+app.get('/api/debug/visits-detailed/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ПОСЕЩЕНИЙ ДЛЯ: ${phone}`);
+        
+        // Получаем профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({ success: false, error: 'Профиль не найден' });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        console.log(`📊 Занятий: ${profile.used_classes}/${profile.total_classes}`);
+        console.log(`📅 Даты активации: ${profile.activation_date}`);
+        console.log(`📅 Последний визит: ${profile.last_visit_date}`);
+        console.log(`📅 Окончание: ${profile.expiration_date}`);
+        
+        const result = {
+            profile_info: {
+                name: profile.student_name,
+                used_classes: profile.used_classes,
+                total_classes: profile.total_classes,
+                activation_date: profile.activation_date,
+                last_visit_date: profile.last_visit_date,
+                expiration_date: profile.expiration_date
+            },
+            lead_data_analysis: null,
+            visits_found: []
+        };
+        
+        // Анализ lead_data
+        if (profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                console.log(`📄 Lead ID: ${leadData.id || 'НЕТ'}`);
+                console.log(`📄 Название сделки: ${leadData.name || 'НЕТ'}`);
+                
+                result.lead_data_info = {
+                    lead_id: leadData.id,
+                    lead_name: leadData.name,
+                    custom_fields_count: leadData.custom_fields_values?.length || 0
+                };
+                
+                // Поиск полей с посещениями
+                if (leadData.custom_fields_values) {
+                    const visitFields = {};
+                    
+                    leadData.custom_fields_values.forEach(field => {
+                        const fieldId = field.field_id;
+                        const value = field.values?.[0]?.value || field.values?.[0]?.enum_id;
+                        
+                        // Чекбоксы занятий (1-24)
+                        if (fieldId >= 884899 && fieldId <= 892895) {
+                            const lessonNum = getLessonNumberFromFieldId(fieldId);
+                            const isChecked = value === 'true' || value === '1' || value === true || value === 1;
+                            
+                            if (isChecked) {
+                                visitFields[lessonNum] = visitFields[lessonNum] || {};
+                                visitFields[lessonNum].attended = true;
+                                console.log(`✅ Занятие ${lessonNum}: отмечено как посещенное`);
+                            }
+                        }
+                        
+                        // Даты занятий (1-24)
+                        if (fieldId >= 884931 && fieldId <= 892897) {
+                            const lessonNum = getLessonNumberFromFieldId(fieldId);
+                            if (value && value !== '0') {
+                                visitFields[lessonNum] = visitFields[lessonNum] || {};
+                                visitFields[lessonNum].date = amoCrmService.parseDate(value);
+                                console.log(`📅 Занятие ${lessonNum}: дата ${visitFields[lessonNum].date}`);
+                            }
+                        }
+                    });
+                    
+                    // Формируем список посещений
+                    for (let i = 1; i <= 24; i++) {
+                        if (visitFields[i]) {
+                            result.visits_found.push({
+                                lesson_number: i,
+                                attended: visitFields[i].attended || false,
+                                date: visitFields[i].date || null,
+                                has_date: !!visitFields[i].date
+                            });
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                console.error(`❌ Ошибка парсинга lead_data: ${error.message}`);
+            }
+        } else {
+            console.log(`❌ Нет lead_data в профиле`);
+        }
+        
+        console.log(`📊 Найдено посещений в lead_data: ${result.visits_found.length}`);
+        
+        res.json({
+            success: true,
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики'
+        });
+    }
+});
 // МАРШРУТ ДЛЯ АНАЛИЗА КОНКРЕТНОЙ СДЕЛКИ
 app.get('/api/debug/lead/:leadId', async (req, res) => {
     try {
