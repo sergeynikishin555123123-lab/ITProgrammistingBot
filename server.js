@@ -1083,7 +1083,7 @@ class AmoCrmService {
         }
     }
 
- parseDate: function(value) {
+parseDate: function(value) {
     if (!value) return null;
     
     try {
@@ -1131,7 +1131,7 @@ class AmoCrmService {
         console.error(`❌ Ошибка парсинга даты "${value}":`, error.message);
         return value;
     }
-}
+},
 
     parseNumeric(value) {
         if (!value) return 0;
