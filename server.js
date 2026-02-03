@@ -6106,6 +6106,59 @@ app.get('/api/debug/visits-detailed/:phone', async (req, res) => {
         });
     }
 });
+// Добавь в server.js где-то после других маршрутов
+app.get('/api/debug/profile/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`🔍 Проверка профиля для: ${phone}`);
+        
+        const profile = await db.get(
+            `SELECT student_name, used_classes, total_classes, 
+                    activation_date, last_visit_date, expiration_date,
+                    LENGTH(lead_data) as lead_data_len,
+                    lead_data IS NOT NULL as has_lead_data,
+                    subscription_active, remaining_classes
+             FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({ success: false, error: 'Профиль не найден' });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        console.log(`📊 Занятий: ${profile.used_classes}/${profile.total_classes}`);
+        console.log(`📅 Активация: ${profile.activation_date}`);
+        console.log(`📅 Последний визит: ${profile.last_visit_date}`);
+        console.log(`💾 Lead data: ${profile.has_lead_data ? 'Есть' : 'НЕТ'} (${profile.lead_data_len} байт)`);
+        
+        // Если есть lead_data, проверяем посещения
+        let visitsFromProfile = [];
+        if (profile.has_lead_data) {
+            const leadData = JSON.parse(profile.lead_data || '{}');
+            visitsFromProfile = amoCrmService.extractRealVisitsData(leadData);
+            console.log(`🎯 Посещений из lead_data: ${visitsFromProfile.length}`);
+        }
+        
+        res.json({
+            success: true,
+            profile: profile,
+            visits_from_profile: visitsFromProfile,
+            total_visits_found: visitsFromProfile.length
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки профиля:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 // МАРШРУТ ДЛЯ АНАЛИЗА КОНКРЕТНОЙ СДЕЛКИ
 app.get('/api/debug/lead/:leadId', async (req, res) => {
     try {
