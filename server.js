@@ -2187,73 +2187,90 @@ extractRealVisitsData(lead) {
         return '';
     }
 
-    createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
-        console.log(`\n📝 Создание профиля ученика: ${studentInfo.studentName}`);
-        
-        // Определяем email
-        const email = this.findEmail(contact);
-        
-        // Определяем branch - приоритет: из сделки > из контакта
-        const branch = subscriptionInfo.branch || studentInfo.branch || '';
-        
-        // Форматируем тип абонемента
-        let subscriptionType = subscriptionInfo.subscriptionType || 'Без абонемента';
-        if (subscriptionType === 'Без абонемента' && subscriptionInfo.totalClasses > 0) {
-            subscriptionType = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
-        }
-        
-        // Форматируем статус абонемента
-        let subscriptionStatus = subscriptionInfo.subscriptionStatus || 'Нет абонемента';
-        
-        // Создаем профиль
-        const profile = {
-            amocrm_contact_id: contact.id || null,
-            parent_contact_id: contact.id || null,
-            amocrm_lead_id: lead?.id || null,
-            student_name: studentInfo.studentName || 'Ученик',
-            phone_number: phoneNumber,
-            email: email || '',
-            birth_date: studentInfo.birthDate || '',
-            branch: branch,
-            parent_name: studentInfo.parentName || contact.name || '',
-            day_of_week: studentInfo.dayOfWeek || '',
-            time_slot: studentInfo.timeSlot || '',
-            teacher_name: studentInfo.teacherName || '',
-            age_group: studentInfo.ageGroup || subscriptionInfo.ageGroup || '',
-            course: studentInfo.course || '',
-            allergies: studentInfo.allergies || '',
-            
-            // Данные абонемента
-            subscription_type: subscriptionType,
-            subscription_active: subscriptionInfo.subscriptionActive ? 1 : 0,
-            subscription_status: subscriptionStatus,
-            subscription_badge: subscriptionInfo.subscriptionBadge || 'inactive',
-            total_classes: subscriptionInfo.totalClasses || 0,
-            remaining_classes: subscriptionInfo.remainingClasses || 0,
-            used_classes: subscriptionInfo.usedClasses || 0,
-            expiration_date: subscriptionInfo.expirationDate || null,
-            activation_date: subscriptionInfo.activationDate || null,
-            last_visit_date: subscriptionInfo.lastVisitDate || studentInfo.lastVisitDate || null,
-            
-            // Технические данные
-            custom_fields: JSON.stringify(contact.custom_fields_values || []),
-            raw_contact_data: JSON.stringify(contact),
-            lead_data: lead ? JSON.stringify(lead) : '{}',
-            is_demo: 0,
-            source: 'amocrm',
-            is_active: 1
-        };
-        
-        console.log(`✅ Профиль создан:`);
-        console.log(`   👤 ${profile.student_name}`);
-        console.log(`   📍 Филиал: ${profile.branch || 'не указан'}`);
-        console.log(`   🎫 Абонемент: ${profile.subscription_status}`);
-        console.log(`   📊 Занятия: ${profile.used_classes}/${profile.total_classes} (осталось: ${profile.remaining_classes})`);
-        console.log(`   🔵 Активен: ${profile.subscription_active === 1 ? 'Да' : 'Нет'}`);
-        
-        return profile;
+   createStudentProfile(contact, phoneNumber, studentInfo, subscriptionInfo, lead) {
+    console.log(`\n📝 Создание профиля ученика: ${studentInfo.studentName}`);
+    
+    // Определяем email
+    const email = this.findEmail(contact);
+    
+    // Определяем branch - приоритет: из сделки > из контакта
+    const branch = subscriptionInfo.branch || studentInfo.branch || '';
+    
+    // Форматируем тип абонемента
+    let subscriptionType = subscriptionInfo.subscriptionType || 'Без абонемента';
+    if (subscriptionType === 'Без абонемента' && subscriptionInfo.totalClasses > 0) {
+        subscriptionType = `Абонемент на ${subscriptionInfo.totalClasses} занятий`;
     }
-
+    
+    // Форматируем статус абонемента
+    let subscriptionStatus = subscriptionInfo.subscriptionStatus || 'Нет абонемента';
+    
+    // Извлекаем реальные посещения из сделки
+    const realVisits = this.extractRealVisitsData(lead);
+    
+    // Сохраняем посещения в JSON формате
+    const visitsData = JSON.stringify({
+        visits: realVisits,
+        total_visits: realVisits.length,
+        real_visits: realVisits.filter(v => v.source === 'amocrm_real').length,
+        estimated_visits: realVisits.filter(v => v.estimated).length
+    });
+    
+    console.log(`📊 Найдено посещений: ${realVisits.length} (реальных: ${realVisits.filter(v => !v.estimated).length})`);
+    
+    // Создаем профиль
+    const profile = {
+        amocrm_contact_id: contact.id || null,
+        parent_contact_id: contact.id || null,
+        amocrm_lead_id: lead?.id || null,
+        student_name: studentInfo.studentName || 'Ученик',
+        phone_number: phoneNumber,
+        email: email || '',
+        birth_date: studentInfo.birthDate || '',
+        branch: branch,
+        parent_name: studentInfo.parentName || contact.name || '',
+        day_of_week: studentInfo.dayOfWeek || '',
+        time_slot: studentInfo.timeSlot || '',
+        teacher_name: studentInfo.teacherName || '',
+        age_group: studentInfo.ageGroup || subscriptionInfo.ageGroup || '',
+        course: studentInfo.course || '',
+        allergies: studentInfo.allergies || '',
+        
+        // Данные абонемента
+        subscription_type: subscriptionType,
+        subscription_active: subscriptionInfo.subscriptionActive ? 1 : 0,
+        subscription_status: subscriptionStatus,
+        subscription_badge: subscriptionInfo.subscriptionBadge || 'inactive',
+        total_classes: subscriptionInfo.totalClasses || 0,
+        remaining_classes: subscriptionInfo.remainingClasses || 0,
+        used_classes: subscriptionInfo.usedClasses || 0,
+        expiration_date: subscriptionInfo.expirationDate || null,
+        activation_date: subscriptionInfo.activationDate || null,
+        last_visit_date: subscriptionInfo.lastVisitDate || studentInfo.lastVisitDate || null,
+        purchase_date: subscriptionInfo.purchaseDate || null,
+        
+        // Данные о посещениях (сохраняем отдельно)
+        visits_data: visitsData,
+        
+        // Технические данные
+        custom_fields: JSON.stringify(contact.custom_fields_values || []),
+        raw_contact_data: JSON.stringify(contact),
+        lead_data: lead ? JSON.stringify(lead) : '{}',
+        is_demo: 0,
+        source: 'amocrm',
+        is_active: 1
+    };
+    
+    console.log(`✅ Профиль создан:`);
+    console.log(`   👤 ${profile.student_name}`);
+    console.log(`   📍 Филиал: ${profile.branch || 'не указан'}`);
+    console.log(`   🎫 Абонемент: ${profile.subscription_status}`);
+    console.log(`   📊 Занятий: ${profile.used_classes}/${profile.total_classes} (осталось: ${profile.remaining_classes})`);
+    console.log(`   🎯 Посещений: ${realVisits.length} (реальных: ${realVisits.filter(v => !v.estimated).length})`);
+    console.log(`   🔵 Активен: ${profile.subscription_active === 1 ? 'Да' : 'Нет'}`);
+    
+    return profile;
+}
     async getStudentsByPhone(phoneNumber) {
         console.log(`🎯 Получение профилей по телефону: ${phoneNumber}`);
         
@@ -2698,54 +2715,59 @@ const createTables = async () => {
         console.log('\n📊 СОЗДАНИЕ ТАБЛИЦ БАЗЫ ДАННЫХ');
         
         // Существующие таблицы
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS student_profiles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                amocrm_contact_id INTEGER,
-                parent_contact_id INTEGER,
-                amocrm_lead_id INTEGER,
-                
-                -- Основная информация
-                student_name TEXT NOT NULL,
-                phone_number TEXT NOT NULL,
-                email TEXT,
-                birth_date TEXT,
-                branch TEXT,
-                
-                -- Расписание
-                day_of_week TEXT,
-                time_slot TEXT,
-                teacher_name TEXT,
-                age_group TEXT,
-                course TEXT,
-                allergies TEXT,
-                
-                -- Информация о родителе
-                parent_name TEXT,
-                
-                -- Абонемент
-                subscription_type TEXT,
-                subscription_active INTEGER DEFAULT 0,
-                subscription_status TEXT,
-                subscription_badge TEXT,
-                total_classes INTEGER DEFAULT 0,
-                used_classes INTEGER DEFAULT 0,
-                remaining_classes INTEGER DEFAULT 0,
-                expiration_date TEXT,
-                activation_date TEXT,
-                last_visit_date TEXT,
-                
-                -- Технические данные
-                custom_fields TEXT,
-                raw_contact_data TEXT,
-                lead_data TEXT,
-                is_demo INTEGER DEFAULT 0,
-                source TEXT DEFAULT 'amocrm',
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS student_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amocrm_contact_id INTEGER,
+        parent_contact_id INTEGER,
+        amocrm_lead_id INTEGER,
+        
+        -- Основная информация
+        student_name TEXT NOT NULL,
+        phone_number TEXT NOT NULL,
+        email TEXT,
+        birth_date TEXT,
+        branch TEXT,
+        
+        -- Расписание
+        day_of_week TEXT,
+        time_slot TEXT,
+        teacher_name TEXT,
+        age_group TEXT,
+        course TEXT,
+        allergies TEXT,
+        
+        -- Информация о родителе
+        parent_name TEXT,
+        
+        -- Абонемент
+        subscription_type TEXT,
+        subscription_active INTEGER DEFAULT 0,
+        subscription_status TEXT,
+        subscription_badge TEXT,
+        total_classes INTEGER DEFAULT 0,
+        used_classes INTEGER DEFAULT 0,
+        remaining_classes INTEGER DEFAULT 0,
+        expiration_date TEXT,
+        activation_date TEXT,
+        last_visit_date TEXT,
+        purchase_date TEXT,
+        
+        -- Данные о посещениях
+        visits_data TEXT,
+        
+        -- Технические данные
+        custom_fields TEXT,
+        raw_contact_data TEXT,
+        lead_data TEXT,
+        is_demo INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'amocrm',
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+        
         console.log('✅ Таблица student_profiles создана');
 
         await db.run('CREATE INDEX IF NOT EXISTS idx_student_profiles_phone ON student_profiles(phone_number)');
@@ -3033,35 +3055,24 @@ async function saveProfilesToDatabase(profiles) {
         
         for (const profile of profiles) {
             try {
+                // Проверяем существующий профиль
                 const existingProfile = await db.get(
-                    `SELECT id, subscription_type, subscription_status, subscription_active, 
-                            total_classes, used_classes, remaining_classes, updated_at
-                     FROM student_profiles 
+                    `SELECT id, student_name, phone_number FROM student_profiles 
                      WHERE student_name = ? AND phone_number = ?`,
                     [profile.student_name, profile.phone_number]
                 );
                 
-               // ДОБАВЬТЕ сравнение дат:
-const isSameSubscription = existingProfile && 
-    existingProfile.subscription_type === profile.subscription_type &&
-    existingProfile.subscription_status === profile.subscription_status &&
-    existingProfile.subscription_active === profile.subscription_active &&
-    existingProfile.total_classes === profile.total_classes &&
-    existingProfile.used_classes === profile.used_classes &&
-    existingProfile.remaining_classes === profile.remaining_classes &&
-    // Добавьте сравнение дат:
-    existingProfile.activation_date === profile.activation_date &&
-    existingProfile.expiration_date === profile.expiration_date &&
-    existingProfile.last_visit_date === profile.last_visit_date &&
-    existingProfile.purchase_date === profile.purchase_date;
-                
+                // Собираем все поля
                 const columns = [
-                    'amocrm_contact_id', 'parent_contact_id', 'amocrm_lead_id', 'student_name', 'phone_number', 'email',
-                    'birth_date', 'branch', 'day_of_week', 'time_slot', 'teacher_name', 'age_group', 'course', 'allergies',
-                    'parent_name', 'subscription_type', 'subscription_active', 'subscription_status', 'subscription_badge',
-                    'total_classes', 'used_classes', 'remaining_classes', 'expiration_date', 
-                    'activation_date', 'last_visit_date', 'custom_fields', 
-                    'raw_contact_data','purchase_date', 'lead_data', 'is_demo', 'source', 'is_active'
+                    'amocrm_contact_id', 'parent_contact_id', 'amocrm_lead_id', 
+                    'student_name', 'phone_number', 'email', 'birth_date', 'branch',
+                    'day_of_week', 'time_slot', 'teacher_name', 'age_group', 'course', 
+                    'allergies', 'parent_name', 'subscription_type', 'subscription_active', 
+                    'subscription_status', 'subscription_badge', 'total_classes', 
+                    'used_classes', 'remaining_classes', 'expiration_date', 
+                    'activation_date', 'last_visit_date', 'purchase_date',
+                    'visits_data', 'custom_fields', 'raw_contact_data', 'lead_data', 
+                    'is_demo', 'source', 'is_active'
                 ];
                 
                 const values = [
@@ -3090,6 +3101,8 @@ const isSameSubscription = existingProfile &&
                     profile.expiration_date || null,
                     profile.activation_date || null,
                     profile.last_visit_date || null,
+                    profile.purchase_date || null,
+                    profile.visits_data || '{}', // Сохраняем данные о посещениях
                     profile.custom_fields || '{}',
                     profile.raw_contact_data || '{}',
                     profile.lead_data || '{}',
@@ -3118,14 +3131,8 @@ const isSameSubscription = existingProfile &&
                         [...values, existingProfile.id]
                     );
                     
-                    if (isSameSubscription) {
-                        console.log(`   🔄 Обновлен профиль (без изменений абонемента): ${profile.student_name}`);
-                    } else {
-                        console.log(`   🔄 ОБНОВЛЕН АБОНЕМЕНТ: ${profile.student_name}`);
-                        console.log(`      Было: ${existingProfile.subscription_type} (${existingProfile.used_classes}/${existingProfile.total_classes})`);
-                        console.log(`      Стало: ${profile.subscription_type} (${profile.used_classes}/${profile.total_classes})`);
-                        updatedCount++;
-                    }
+                    console.log(`   🔄 Обновлен профиль: ${profile.student_name}`);
+                    updatedCount++;
                 }
             } catch (profileError) {
                 console.error(`⚠️  Ошибка сохранения профиля:`, profileError.message);
@@ -5909,6 +5916,273 @@ app.get('/api/debug/crm-fields-discovery/:leadId', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Ошибка поиска полей'
+        });
+    }
+});
+// Новый API для получения посещений
+app.get('/api/student/visits/:phone', verifyToken, async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`🎯 Получение посещений для: ${phone}`);
+        
+        // Получаем профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        
+        let visits = [];
+        let totalVisits = 0;
+        let realVisits = 0;
+        let estimatedVisits = 0;
+        
+        // 1. Проверяем поле visits_data (если оно есть)
+        if (profile.visits_data && profile.visits_data !== '{}') {
+            try {
+                const visitsData = JSON.parse(profile.visits_data);
+                visits = visitsData.visits || [];
+                totalVisits = visitsData.total_visits || 0;
+                realVisits = visitsData.real_visits || 0;
+                estimatedVisits = visitsData.estimated_visits || 0;
+                
+                console.log(`✅ Посещения из visits_data: ${visits.length}`);
+            } catch (error) {
+                console.error('❌ Ошибка парсинга visits_data:', error.message);
+            }
+        }
+        
+        // 2. Если нет в visits_data, пробуем извлечь из lead_data
+        if (visits.length === 0 && profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                visits = amoCrmService.extractRealVisitsData(leadData);
+                totalVisits = visits.length;
+                realVisits = visits.filter(v => !v.estimated).length;
+                estimatedVisits = visits.filter(v => v.estimated).length;
+                
+                console.log(`✅ Посещения из lead_data: ${visits.length}`);
+                
+                // Обновляем поле visits_data
+                const visitsData = {
+                    visits: visits,
+                    total_visits: totalVisits,
+                    real_visits: realVisits,
+                    estimated_visits: estimatedVisits,
+                    updated_at: new Date().toISOString()
+                };
+                
+                await db.run(
+                    'UPDATE student_profiles SET visits_data = ? WHERE id = ?',
+                    [JSON.stringify(visitsData), profile.id]
+                );
+                
+            } catch (error) {
+                console.error('❌ Ошибка извлечения из lead_data:', error.message);
+            }
+        }
+        
+        // 3. Если все еще нет посещений, создаем на основе used_classes
+        if (visits.length === 0 && profile.used_classes > 0) {
+            console.log(`📊 Создаем посещения на основе used_classes: ${profile.used_classes}`);
+            
+            let baseDate = profile.activation_date || profile.last_visit_date;
+            if (!baseDate) {
+                baseDate = new Date().toISOString().split('T')[0];
+            }
+            
+            const baseDateObj = new Date(baseDate);
+            
+            for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                const visitDate = new Date(baseDateObj);
+                visitDate.setDate(baseDateObj.getDate() - ((profile.used_classes - i) * 7));
+                
+                visits.push({
+                    lesson_number: i,
+                    date: visitDate.toISOString().split('T')[0],
+                    attended: true,
+                    has_date: true,
+                    source: 'estimated_created',
+                    estimated: true,
+                    formatted_date: formatDateForDisplay(visitDate.toISOString().split('T')[0])
+                });
+            }
+            
+            totalVisits = visits.length;
+            realVisits = 0;
+            estimatedVisits = visits.length;
+            
+            // Сохраняем в visits_data
+            const visitsData = {
+                visits: visits,
+                total_visits: totalVisits,
+                real_visits: realVisits,
+                estimated_visits: estimatedVisits,
+                created_at: new Date().toISOString()
+            };
+            
+            await db.run(
+                'UPDATE student_profiles SET visits_data = ? WHERE id = ?',
+                [JSON.stringify(visitsData), profile.id]
+            );
+        }
+        
+        // Обогащаем данные для отображения
+        const enrichedVisits = visits.map(visit => ({
+            ...visit,
+            student_name: profile.student_name,
+            branch: profile.branch,
+            teacher_name: profile.teacher_name || 'Преподаватель не указан',
+            age_group: profile.age_group || '',
+            group_name: profile.course || 'Основная группа',
+            formatted_date: visit.formatted_date || (visit.date ? formatDateForDisplay(visit.date) : 'Дата не указана'),
+            time: '18:00',
+            status: 'attended'
+        }));
+        
+        // Сортируем по номеру занятия (от новых к старым)
+        enrichedVisits.sort((a, b) => b.lesson_number - a.lesson_number);
+        
+        console.log(`📊 Итого посещений: ${enrichedVisits.length}`);
+        console.log(`   Реальных: ${realVisits}, Расчетных: ${estimatedVisits}`);
+        
+        res.json({
+            success: true,
+            data: {
+                student_name: profile.student_name,
+                total_visits: totalVisits,
+                real_visits: realVisits,
+                estimated_visits: estimatedVisits,
+                remaining_classes: profile.remaining_classes || 0,
+                visits: enrichedVisits,
+                summary: {
+                    with_dates: enrichedVisits.filter(v => v.has_date).length,
+                    without_dates: enrichedVisits.filter(v => !v.has_date).length,
+                    estimated: enrichedVisits.filter(v => v.estimated).length,
+                    real: enrichedVisits.filter(v => !v.estimated).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения посещений:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения истории посещений'
+        });
+    }
+});
+// API для синхронизации посещений
+app.post('/api/student/sync-visits/:phone', verifyToken, async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`🔄 Синхронизация посещений для: ${phone}`);
+        
+        // Получаем профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        
+        let visits = [];
+        
+        // Если есть lead_id, получаем свежие данные из amoCRM
+        if (profile.amocrm_lead_id && amoCrmService.isInitialized) {
+            console.log(`🔄 Получение свежих данных из amoCRM для lead ${profile.amocrm_lead_id}`);
+            
+            try {
+                const lead = await amoCrmService.getLeadById(profile.amocrm_lead_id);
+                if (lead) {
+                    visits = amoCrmService.extractRealVisitsData(lead);
+                    
+                    // Обновляем lead_data
+                    await db.run(
+                        'UPDATE student_profiles SET lead_data = ? WHERE id = ?',
+                        [JSON.stringify(lead), profile.id]
+                    );
+                    
+                    console.log(`✅ Получено из amoCRM: ${visits.length} посещений`);
+                }
+            } catch (error) {
+                console.error('❌ Ошибка получения из amoCRM:', error.message);
+            }
+        }
+        
+        // Если не удалось получить из amoCRM, используем существующие данные
+        if (visits.length === 0 && profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                visits = amoCrmService.extractRealVisitsData(leadData);
+                console.log(`✅ Получено из lead_data: ${visits.length} посещений`);
+            } catch (error) {
+                console.error('❌ Ошибка парсинга lead_data:', error.message);
+            }
+        }
+        
+        // Подсчитываем статистику
+        const totalVisits = visits.length;
+        const realVisits = visits.filter(v => !v.estimated).length;
+        const estimatedVisits = visits.filter(v => v.estimated).length;
+        
+        // Сохраняем в visits_data
+        const visitsData = {
+            visits: visits,
+            total_visits: totalVisits,
+            real_visits: realVisits,
+            estimated_visits: estimatedVisits,
+            synced_at: new Date().toISOString()
+        };
+        
+        await db.run(
+            'UPDATE student_profiles SET visits_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [JSON.stringify(visitsData), profile.id]
+        );
+        
+        console.log(`💾 Сохранено посещений: ${totalVisits}`);
+        
+        res.json({
+            success: true,
+            message: `Синхронизировано ${totalVisits} посещений`,
+            data: {
+                total_visits: totalVisits,
+                real_visits: realVisits,
+                estimated_visits: estimatedVisits,
+                synced_at: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка синхронизации посещений:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка синхронизации'
         });
     }
 });
