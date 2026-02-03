@@ -1305,7 +1305,40 @@
             color: white;
             transform: translateX(-5px);
         }
+        /* ИСТОРИЯ ПОСЕЩЕНИЙ */
+        .visits-history-container {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 2px solid var(--blue-primary);
+            box-shadow: var(--shadow);
+        }
 
+        .visits-history-header {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--blue-primary);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--gray-medium);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .visit-item-detailed {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: var(--blue-pale);
+            border-radius: 12px;
+            border-left: 4px solid var(--success);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .visit-item-detailed.estimated {
+            border-left-color: var(--warning);
+        }
         /* ЗАГОЛОВКИ СТРАНИЦ */
         .page-header {
             display: flex;
@@ -1512,6 +1545,16 @@
                 
                 <!-- История посещений -->
                 <div id="visitsHistoryContainer" class="visits-history-container" style="display: none;">
+                    <div class="visits-history-header">
+                        <i class="fas fa-history"></i>
+                        История посещений
+                    </div>
+                    <div id="visitsHistoryContent">
+                        <!-- История посещений будет загружена динамически -->
+                    </div>
+                </div>
+                
+                               <div id="visitsHistoryContainer" class="visits-history-container" style="display: none;">
                     <div class="visits-history-header">
                         <i class="fas fa-history"></i>
                         История посещений
@@ -2194,7 +2237,6 @@
             });
         },
 
-        // РЕНДЕРИНГ АБОНЕМЕНТА
         renderSubscription: function(subscriptionData) {
             const container = document.getElementById('subscriptionContainer');
             
@@ -2286,7 +2328,7 @@
             }
         },
 
-        // ЗАГРУЗКА ИСТОРИИ ПОСЕЩЕНИЙ
+                // ЗАГРУЗКА ИСТОРИИ ПОСЕЩЕНИЙ
         loadVisitsHistory: function() {
             if (!this.config.currentProfile || !this.config.currentProfile.phone_number) {
                 return;
