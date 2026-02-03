@@ -2935,6 +2935,104 @@ function getDateParsingRecommendations(dateString, results, additionalTests) {
     
     return recommendations;
 }
+// Вспомогательные функции для диагностики
+function getFieldNameById(fieldId) {
+    const fieldMap = {
+        850253: 'Дата покупки:',
+        850255: 'Окончание абонемента:',
+        850259: 'Дата последнего визита:',
+        851565: 'Дата активации абонемента:',
+        884899: 'Занятие 1 (чекбокс)',
+        884901: 'Занятие 2 (чекбокс)',
+        884903: 'Занятие 3 (чекбокс)',
+        // ... добавьте остальные 21 чекбокс
+        884931: 'Занятие 1 (дата)',
+        884933: 'Занятие 2 (дата)',
+        884935: 'Занятие 3 (дата)',
+        // ... добавьте остальные 21 дату
+    };
+    
+    return fieldMap[fieldId] || `Поле ${fieldId}`;
+}
+
+function getClassNumberFromFieldId(fieldId) {
+    // Маппинг fieldId -> номер занятия
+    const mapping = {
+        // Чекбоксы
+        884899: 1, 884901: 2, 884903: 3, 884905: 4,
+        884907: 5, 884909: 6, 884911: 7, 884913: 8,
+        884915: 9, 884917: 10, 884919: 11, 884921: 12,
+        884923: 13, 884925: 14, 884927: 15, 884929: 16,
+        892867: 17, 892871: 18, 892875: 19, 892879: 20,
+        892883: 21, 892887: 22, 892893: 23, 892895: 24,
+        // Даты
+        884931: 1, 884933: 2, 884935: 3, 884937: 4,
+        884939: 5, 884941: 6, 884943: 7, 884945: 8,
+        884953: 9, 884955: 10, 884951: 11, 884957: 12,
+        884959: 13, 884961: 14, 884963: 15, 884965: 16,
+        892869: 17, 892873: 18, 892877: 19, 892881: 20,
+        892885: 21, 892889: 22, 892891: 23, 892897: 24
+    };
+    
+    return mapping[fieldId] || 0;
+}
+
+function combineVisits(checkboxes, dates) {
+    const combined = [];
+    
+    for (let i = 1; i <= 24; i++) {
+        if (checkboxes[i] || dates[i]) {
+            combined.push({
+                lesson_number: i,
+                attended: !!checkboxes[i],
+                date: dates[i]?.parsed || dates[i]?.raw || 'Дата не указана',
+                has_date: !!dates[i]
+            });
+        }
+    }
+    
+    return combined;
+}
+
+function getVisitsDisplayRecommendations(diagnosticData) {
+    const recommendations = [];
+    
+    // Проверяем, есть ли данные для отображения
+    const hasCheckboxes = diagnosticData.lead_data_analysis?.visit_checkboxes_found > 0;
+    const hasVisitDates = diagnosticData.lead_data_analysis?.visit_dates_found > 0;
+    const hasCombinedVisits = diagnosticData.lead_data_analysis?.combined_visits?.length > 0;
+    
+    if (!hasCheckboxes && !hasVisitDates) {
+        recommendations.push({
+            level: 'warning',
+            message: 'В amoCRM не найдены данные о посещениях',
+            suggestion: 'Проверьте заполнение чекбоксов и дат занятий в сделке'
+        });
+    } else if (hasCheckboxes && !hasVisitDates) {
+        recommendations.push({
+            level: 'info',
+            message: `Найдено ${diagnosticData.lead_data_analysis.visit_checkboxes_found} посещений без дат`,
+            suggestion: 'Заполните даты занятий в amoCRM для полной истории'
+        });
+    } else if (hasCombinedVisits) {
+        recommendations.push({
+            level: 'success',
+            message: `Найдено ${diagnosticData.lead_data_analysis.combined_visits.length} посещений с датами`,
+            suggestion: 'Можно отображать историю посещений'
+        });
+    }
+    
+    // Проверяем наличие used_classes
+    if (diagnosticData.subscription_info.used_classes > 0) {
+        recommendations.push({
+            level: 'info',
+            message: `Счетчик занятий: ${diagnosticData.subscription_info.used_classes}`,
+            suggestion: 'Можно показать количество посещений, даже без детальной истории'
+        });
+    }
+    
+    return recommendations;
+}
 // Добавить вспомогательную функцию
 function formatDateForDisplay(dateStr) {
     if (!dateStr) return '';
@@ -3033,7 +3131,144 @@ app.get('/api/status', (req, res) => {
         data_source: amoCrmService.isInitialized ? 'Реальные данные из amoCRM' : 'Локальные данные'
     });
 });
+// ==================== API ДЛЯ ИСТОРИИ ПОСЕЩЕНИЙ ====================
 
+app.get('/api/visits/history/:phone', verifyToken, async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`📊 Получение истории посещений для: ${phone}`);
+        
+        // Получаем профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: true,
+                data: {
+                    visits: [],
+                    message: 'Профиль не найден'
+                }
+            });
+        }
+        
+        let visits = [];
+        
+        // 1. Пытаемся извлечь посещения из lead_data
+        if (profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                
+                if (leadData.custom_fields_values) {
+                    const visitCheckboxes = {};
+                    const visitDates = {};
+                    
+                    // Собираем чекбоксы и даты
+                    for (const field of leadData.custom_fields_values) {
+                        const fieldId = field.field_id;
+                        const fieldValue = field.values?.[0]?.value || field.values?.[0]?.enum_id;
+                        
+                        // Чекбоксы посещений
+                        if (fieldId >= 884899 && fieldId <= 892895) {
+                            const classNumber = getClassNumberFromFieldId(fieldId);
+                            if (fieldValue === 'true' || fieldValue === '1' || fieldValue === true) {
+                                visitCheckboxes[classNumber] = true;
+                            }
+                        }
+                        
+                        // Даты посещений
+                        if (fieldId >= 884931 && fieldId <= 892897) {
+                            const classNumber = getClassNumberFromFieldId(fieldId);
+                            if (fieldValue) {
+                                visitDates[classNumber] = amoCrmService.parseDate(fieldValue);
+                            }
+                        }
+                    }
+                    
+                    // Объединяем данные
+                    for (let i = 1; i <= 24; i++) {
+                        if (visitCheckboxes[i] && visitDates[i]) {
+                            visits.push({
+                                id: i,
+                                date: visitDates[i],
+                                lesson_number: i,
+                                status: 'attended',
+                                type: 'regular'
+                            });
+                        } else if (visitCheckboxes[i]) {
+                            visits.push({
+                                id: i,
+                                date: `Занятие ${i}`,
+                                lesson_number: i,
+                                status: 'attended_no_date',
+                                type: 'regular'
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Ошибка парсинга lead_data:', error.message);
+            }
+        }
+        
+        // 2. Если нет данных в lead_data, создаем фиктивную историю на основе used_classes
+        if (visits.length === 0 && profile.used_classes > 0) {
+            console.log(`📊 Создаем историю на основе used_classes: ${profile.used_classes}`);
+            
+            const today = new Date();
+            for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                const visitDate = new Date(today);
+                visitDate.setDate(today.getDate() - (i * 7)); // Каждую неделю
+                
+                visits.push({
+                    id: i,
+                    date: visitDate.toISOString().split('T')[0],
+                    lesson_number: i,
+                    status: 'attended',
+                    type: 'regular',
+                    estimated: true // Помечаем как оценочные данные
+                });
+            }
+        }
+        
+        // 3. Сортируем по дате (новые сначала)
+        visits.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return dateB - dateA;
+        });
+        
+        // Ограничиваем количество
+        visits = visits.slice(0, profile.used_classes || 10);
+        
+        res.json({
+            success: true,
+            data: {
+                student_name: profile.student_name,
+                total_visits: profile.used_classes || 0,
+                visits: visits,
+                has_detailed_history: visits.length > 0 && !visits[0]?.estimated,
+                message: visits.length > 0 
+                    ? `Найдено ${visits.length} посещений` 
+                    : 'История посещений не найдена'
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения истории посещений:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения истории посещений'
+        });
+    }
+});
 // ==================== API ДЛЯ УПРАВЛЕНИЯ НАСТРОЙКАМИ (ЛОГОТИП И ДР.) ====================
 
 // Получение всех настроек для админ-панели
@@ -4058,7 +4293,222 @@ app.get('/api/sync/:phone', async (req, res) => {
         });
     }
 });
+// ==================== ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ ИСТОРИИ ПОСЕЩЕНИЙ ====================
 
+app.get('/api/debug/visits/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`🔍 ДИАГНОСТИКА ИСТОРИИ ПОСЕЩЕНИЙ ДЛЯ: ${formattedPhone}`);
+        
+        // 1. Получаем профиль из БД
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.status(404).json({
+                success: false,
+                error: 'Профиль не найден в БД'
+            });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        console.log(`📅 Даты в БД:`);
+        console.log(`   • Активация: ${profile.activation_date || 'НЕТ'}`);
+        console.log(`   • Окончание: ${profile.expiration_date || 'НЕТ'}`);
+        console.log(`   • Последний визит: ${profile.last_visit_date || 'НЕТ'}`);
+        console.log(`   • Покупка: ${profile.purchase_date || 'НЕТ'}`);
+        console.log(`🎫 Занятия: ${profile.used_classes}/${profile.total_classes}`);
+        
+        const result = {
+            success: true,
+            student_name: profile.student_name,
+            phone: formattedPhone,
+            subscription_info: {
+                total_classes: profile.total_classes,
+                used_classes: profile.used_classes,
+                remaining_classes: profile.remaining_classes,
+                subscription_active: profile.subscription_active === 1
+            },
+            dates_in_db: {
+                activation_date: profile.activation_date,
+                expiration_date: profile.expiration_date,
+                last_visit_date: profile.last_visit_date,
+                purchase_date: profile.purchase_date
+            }
+        };
+        
+        // 2. Анализ raw_data из БД (сырые данные amoCRM)
+        if (profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                console.log(`📊 Данные сделки из БД:`);
+                console.log(`   • Lead ID: ${leadData.id || 'НЕТ'}`);
+                console.log(`   • Название: ${leadData.name || 'НЕТ'}`);
+                
+                // Поиск полей с датами в lead_data
+                if (leadData.custom_fields_values && Array.isArray(leadData.custom_fields_values)) {
+                    const dateFields = {};
+                    const visitCheckboxes = {};
+                    const visitDates = {};
+                    
+                    console.log(`📋 Анализ кастомных полей сделки (${leadData.custom_fields_values.length}):`);
+                    
+                    for (const field of leadData.custom_fields_values) {
+                        const fieldId = field.field_id;
+                        const fieldValue = field.values?.[0]?.value || field.values?.[0]?.enum_id || 'НЕТ';
+                        
+                        // 2.1. Поля с датами
+                        if ([850253, 850255, 850259, 851565].includes(fieldId)) {
+                            const fieldName = getFieldNameById(fieldId);
+                            dateFields[fieldId] = {
+                                name: fieldName,
+                                value: fieldValue,
+                                parsed: amoCrmService.parseDate(fieldValue)
+                            };
+                            console.log(`   📅 ${fieldName} (${fieldId}): ${fieldValue} -> ${dateFields[fieldId].parsed}`);
+                        }
+                        
+                        // 2.2. Чекбоксы посещений (24 занятия)
+                        if (fieldId >= 884899 && fieldId <= 892895) {
+                            const classNumber = getClassNumberFromFieldId(fieldId);
+                            if (fieldValue === 'true' || fieldValue === '1' || fieldValue === true) {
+                                visitCheckboxes[classNumber] = true;
+                            }
+                        }
+                        
+                        // 2.3. Даты посещений (24 занятия)
+                        if (fieldId >= 884931 && fieldId <= 892897) {
+                            const classNumber = getClassNumberFromFieldId(fieldId);
+                            if (fieldValue && fieldValue !== 'НЕТ') {
+                                visitDates[classNumber] = {
+                                    raw: fieldValue,
+                                    parsed: amoCrmService.parseDate(fieldValue)
+                                };
+                            }
+                        }
+                    }
+                    
+                    result.lead_data_analysis = {
+                        total_fields: leadData.custom_fields_values.length,
+                        date_fields: dateFields,
+                        visit_checkboxes_found: Object.keys(visitCheckboxes).length,
+                        visit_dates_found: Object.keys(visitDates).length,
+                        visit_checkboxes: visitCheckboxes,
+                        visit_dates: visitDates,
+                        combined_visits: combineVisits(visitCheckboxes, visitDates)
+                    };
+                    
+                    console.log(`✅ Чекбоксов посещений найдено: ${Object.keys(visitCheckboxes).length}`);
+                    console.log(`✅ Дат посещений найдено: ${Object.keys(visitDates).length}`);
+                }
+                
+            } catch (parseError) {
+                console.error(`❌ Ошибка парсинга lead_data: ${parseError.message}`);
+                result.lead_data_error = parseError.message;
+            }
+        }
+        
+        // 3. Если подключен amoCRM, получаем свежие данные
+        if (amoCrmService.isInitialized && profile.amocrm_lead_id) {
+            console.log(`🔄 Получение свежих данных из amoCRM для lead ${profile.amocrm_lead_id}...`);
+            
+            try {
+                const lead = await amoCrmService.getLeadById(profile.amocrm_lead_id);
+                
+                if (lead && lead.custom_fields_values) {
+                    const amoCrmAnalysis = {
+                        lead_id: lead.id,
+                        lead_name: lead.name,
+                        fields_count: lead.custom_fields_values.length,
+                        dates: {},
+                        checkboxes: {},
+                        visit_dates: {}
+                    };
+                    
+                    for (const field of lead.custom_fields_values) {
+                        const fieldId = field.field_id;
+                        const fieldValue = amoCrmService.getFieldValue(field);
+                        
+                        // Даты
+                        if ([850253, 850255, 850259, 851565].includes(fieldId)) {
+                            amoCrmAnalysis.dates[fieldId] = {
+                                name: amoCrmService.getFieldNameById(fieldId),
+                                value: fieldValue,
+                                parsed: amoCrmService.parseDate(fieldValue)
+                            };
+                        }
+                        
+                        // Чекбоксы
+                        if (fieldId >= 884899 && fieldId <= 892895) {
+                            const classNum = getClassNumberFromFieldId(fieldId);
+                            if (fieldValue === 'true' || fieldValue === '1' || fieldValue === true) {
+                                amoCrmAnalysis.checkboxes[classNum] = true;
+                            }
+                        }
+                        
+                        // Даты занятий
+                        if (fieldId >= 884931 && fieldId <= 892897) {
+                            const classNum = getClassNumberFromFieldId(fieldId);
+                            if (fieldValue) {
+                                amoCrmAnalysis.visit_dates[classNum] = {
+                                    raw: fieldValue,
+                                    parsed: amoCrmService.parseDate(fieldValue)
+                                };
+                            }
+                        }
+                    }
+                    
+                    result.amoCrm_fresh_data = amoCrmAnalysis;
+                    console.log(`✅ Данные из amoCRM получены: ${Object.keys(amoCrmAnalysis.checkboxes).length} посещений`);
+                }
+            } catch (crmError) {
+                console.error(`❌ Ошибка получения данных из amoCRM: ${crmError.message}`);
+                result.amoCrm_error = crmError.message;
+            }
+        }
+        
+        // 4. Проверка таблицы schedule на возможные посещения
+        console.log(`📅 Поиск в расписании для ${profile.branch}...`);
+        
+        const scheduleVisits = await db.all(`
+            SELECT s.date, s.time, s.group_name, t.name as teacher_name
+            FROM schedule s
+            LEFT JOIN teachers t ON s.teacher_id = t.id
+            WHERE s.branch = ? AND s.status = 'completed'
+            ORDER BY s.date DESC
+            LIMIT 10
+        `, [profile.branch || 'Свиблово']);
+        
+        result.schedule_visits = {
+            found: scheduleVisits.length,
+            visits: scheduleVisits
+        };
+        
+        console.log(`✅ В расписании найдено: ${scheduleVisits.length} завершенных занятий`);
+        
+        // 5. Рекомендации по отображению истории
+        const recommendations = getVisitsDisplayRecommendations(result);
+        result.recommendations = recommendations;
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики посещений:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики',
+            details: error.message
+        });
+    }
+});
 // ==================== АДМИН API МАРШРУТЫ ====================
 
 // Аутентификация администратора
