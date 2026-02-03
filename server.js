@@ -5089,7 +5089,78 @@ app.get('/api/debug/lead/:leadId', async (req, res) => {
         });
     }
 });
-
+app.get('/api/debug/profile-data/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        console.log(`🔍 Проверка данных профиля для телефона: ${formattedPhone}`);
+        
+        // Получаем профили из БД
+        const cleanPhone = phone.replace(/\D/g, '');
+        const profiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (profiles.length === 0) {
+            return res.json({
+                success: false,
+                error: 'Профили не найдены в БД'
+            });
+        }
+        
+        console.log(`📊 Найдено профилей в БД: ${profiles.length}`);
+        
+        // Проверяем, какие данные есть в профилях
+        const profileCheck = profiles.map(p => ({
+            student_name: p.student_name,
+            subscription_active: p.subscription_active,
+            // Проверяем наличие дат в БД
+            dates_in_db: {
+                activation_date: p.activation_date || 'НЕТ',
+                last_visit_date: p.last_visit_date || 'НЕТ',
+                expiration_date: p.expiration_date || 'НЕТ',
+                purchase_date: p.purchase_date || 'НЕТ'
+            },
+            // Проверяем данные абонемента
+            subscription: {
+                total_classes: p.total_classes,
+                used_classes: p.used_classes,
+                remaining_classes: p.remaining_classes,
+                subscription_status: p.subscription_status
+            },
+            // Сырые данные для отладки
+            raw_data_length: {
+                lead_data: p.lead_data ? JSON.parse(p.lead_data)?.custom_fields_values?.length || 0 : 0,
+                contact_data: p.raw_contact_data ? JSON.parse(p.raw_contact_data)?.custom_fields_values?.length || 0 : 0
+            }
+        }));
+        
+        res.json({
+            success: true,
+            data: {
+                profiles_count: profiles.length,
+                profiles: profileCheck,
+                summary: {
+                    profiles_with_activation_date: profiles.filter(p => p.activation_date).length,
+                    profiles_with_last_visit_date: profiles.filter(p => p.last_visit_date).length,
+                    profiles_with_expiration_date: profiles.filter(p => p.expiration_date).length,
+                    profiles_with_purchase_date: profiles.filter(p => p.purchase_date).length,
+                    active_subscriptions: profiles.filter(p => p.subscription_active === 1).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки профилей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка проверки профилей'
+        });
+    }
+});
 // МАРШРУТ ДЛЯ ТЕСТИРОВАНИЯ ПАРСИНГА ДАТ
 app.get('/api/debug/parse-date/:dateString', (req, res) => {
     try {
