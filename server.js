@@ -5177,7 +5177,199 @@ app.get('/api/debug/real-lead-visits/:leadId', async (req, res) => {
         });
     }
 });
-
+// В server.js добавь:
+app.get('/api/debug/crm-fields-discovery/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        console.log(`🔍 ПОИСК ВСЕХ ПОЛЕЙ В СДЕЛКЕ ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({ success: false, error: 'CRM не подключен' });
+        }
+        
+        const lead = await amoCrmService.getLeadById(leadId);
+        if (!lead) {
+            return res.json({ success: false, error: 'Сделка не найдена' });
+        }
+        
+        console.log(`📄 Сделка: "${lead.name}" (ID: ${lead.id})`);
+        
+        const result = {
+            lead_id: lead.id,
+            lead_name: lead.name,
+            status_id: lead.status_id,
+            all_fields: [],
+            fields_by_type: {
+                checkbox: [],
+                date: [],
+                select: [],
+                numeric: [],
+                text: [],
+                multiselect: []
+            },
+            visit_related: [],
+            date_fields: [],
+            counter_fields: []
+        };
+        
+        if (lead.custom_fields_values) {
+            console.log(`📊 Анализ ${lead.custom_fields_values.length} полей...`);
+            
+            lead.custom_fields_values.forEach(field => {
+                const fieldId = field.field_id;
+                let fieldValue = null;
+                let fieldType = 'unknown';
+                
+                // Определяем значение
+                if (field.values && field.values.length > 0) {
+                    fieldValue = field.values[0].value !== undefined ? 
+                                field.values[0].value : 
+                                field.values[0].enum_id;
+                }
+                
+                // Определяем тип по field_id
+                if (fieldId >= 884899 && fieldId <= 892895) {
+                    fieldType = 'checkbox_visit';
+                } else if (fieldId >= 884931 && fieldId <= 892897) {
+                    fieldType = 'date_visit';
+                } else if ([850241, 850257, 850255, 851565, 850259, 850253].includes(fieldId)) {
+                    fieldType = 'subscription_main';
+                } else if ([884251, 890163].includes(fieldId)) {
+                    fieldType = 'counter';
+                } else {
+                    // Пробуем определить по значению
+                    if (typeof fieldValue === 'boolean' || fieldValue === 'true' || fieldValue === 'false') {
+                        fieldType = 'checkbox';
+                    } else if (!isNaN(parseInt(fieldValue)) && fieldValue.length < 10) {
+                        fieldType = 'numeric';
+                    } else if (fieldValue && fieldValue.includes('-') || fieldValue && fieldValue.includes('.')) {
+                        fieldType = 'date_possible';
+                    } else {
+                        fieldType = 'text';
+                    }
+                }
+                
+                const fieldInfo = {
+                    field_id: fieldId,
+                    value: fieldValue,
+                    type: fieldType,
+                    raw: field.values || []
+                };
+                
+                result.all_fields.push(fieldInfo);
+                result.fields_by_type[fieldType.split('_')[0]].push(fieldInfo);
+                
+                // Собираем посещения
+                if (fieldType === 'checkbox_visit') {
+                    const lessonNum = getLessonNumberFromFieldId(fieldId);
+                    const isChecked = fieldValue === true || fieldValue === 'true' || fieldValue === '1' || fieldValue === 1;
+                    
+                    result.visit_related.push({
+                        ...fieldInfo,
+                        lesson_number: lessonNum,
+                        is_checked: isChecked,
+                        field_name: `CLASS_${lessonNum}`
+                    });
+                    
+                    if (isChecked) {
+                        console.log(`   ✅ Чекбокс занятия ${lessonNum} (${fieldId}): ОТМЕЧЕНО`);
+                    }
+                }
+                
+                // Собираем даты
+                if (fieldType === 'date_visit') {
+                    const lessonNum = getLessonNumberFromFieldId(fieldId);
+                    
+                    result.date_fields.push({
+                        ...fieldInfo,
+                        lesson_number: lessonNum,
+                        parsed_date: fieldValue ? amoCrmService.parseDate(fieldValue) : null,
+                        field_name: `CLASS_DATE_${lessonNum}`
+                    });
+                    
+                    if (fieldValue) {
+                        console.log(`   📅 Дата занятия ${lessonNum} (${fieldId}): ${fieldValue}`);
+                    }
+                }
+                
+                // Счетчики
+                if (fieldType === 'counter') {
+                    result.counter_fields.push({
+                        ...fieldInfo,
+                        numeric_value: parseInt(fieldValue) || 0
+                    });
+                    
+                    console.log(`   🔢 Счетчик (${fieldId}): ${fieldValue}`);
+                }
+            });
+        }
+        
+        // Группируем посещения по номерам
+        const groupedVisits = {};
+        result.visit_related.forEach(visit => {
+            if (!groupedVisits[visit.lesson_number]) {
+                groupedVisits[visit.lesson_number] = {
+                    lesson_number: visit.lesson_number,
+                    checkbox_id: null,
+                    checkbox_checked: false,
+                    date_id: null,
+                    date_value: null,
+                    parsed_date: null
+                };
+            }
+            
+            if (visit.type === 'checkbox_visit') {
+                groupedVisits[visit.lesson_number].checkbox_id = visit.field_id;
+                groupedVisits[visit.lesson_number].checkbox_checked = visit.is_checked;
+            }
+        });
+        
+        result.date_fields.forEach(dateField => {
+            if (groupedVisits[dateField.lesson_number]) {
+                groupedVisits[dateField.lesson_number].date_id = dateField.field_id;
+                groupedVisits[dateField.lesson_number].date_value = dateField.value;
+                groupedVisits[dateField.lesson_number].parsed_date = dateField.parsed_date;
+            }
+        });
+        
+        // Формируем итоговый список посещений
+        const finalVisits = [];
+        for (let i = 1; i <= 24; i++) {
+            if (groupedVisits[i] && groupedVisits[i].checkbox_checked) {
+                finalVisits.push({
+                    lesson_number: i,
+                    attended: true,
+                    date: groupedVisits[i].parsed_date,
+                    has_date: !!groupedVisits[i].parsed_date,
+                    checkbox_field: groupedVisits[i].checkbox_id,
+                    date_field: groupedVisits[i].date_id,
+                    raw_date_value: groupedVisits[i].date_value
+                });
+            }
+        }
+        
+        result.final_visits = finalVisits;
+        
+        res.json({
+            success: true,
+            data: result,
+            summary: {
+                total_fields: result.all_fields.length,
+                visit_checkboxes: result.visit_related.filter(v => v.is_checked).length,
+                date_fields: result.date_fields.filter(d => d.value).length,
+                final_visits_count: finalVisits.length,
+                counter_values: result.counter_fields.map(c => c.numeric_value)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска полей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка поиска полей'
+        });
+    }
+});
 // ==================== ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ АНАЛИЗА ДАТ В AMOCRM ====================
 app.get('/api/debug/amocrm-dates/:phone', async (req, res) => {
     try {
