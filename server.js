@@ -410,10 +410,10 @@ function getLessonNumberFromFieldId(fieldId) {
         892893: 23, // CLASS_23
         892895: 24, // CLASS_24
         
-        // Даты посещений - ВАЖНО: исправь это!
+        // Даты посещений - ИСПРАВЬ ЭТО СРОЧНО!
         884931: 1,  // CLASS_DATE_1
         884933: 2,  // CLASS_DATE_2
-        884935: 3,  // CLASS_DATE_3 ← ИСПРАВЬ: было 884933, должно быть 884935
+        884935: 3,  // CLASS_DATE_3 ← ОШИБКА: дублируется 884933: 3
         884937: 4,  // CLASS_DATE_4
         884939: 5,  // CLASS_DATE_5
         884941: 6,  // CLASS_DATE_6
@@ -439,7 +439,6 @@ function getLessonNumberFromFieldId(fieldId) {
     
     return mapping[fieldId] || 0;
 }
-
 function isVisitCheckboxField(fieldId) {
     return (fieldId >= 884899 && fieldId <= 892895);
 }
@@ -7029,7 +7028,32 @@ app.post('/api/admin/teachers', verifyAdminToken, async (req, res) => {
         });
     }
 });
-
+app.get('/api/test-visits/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.json({ success: false, error: 'Lead not found' });
+        }
+        
+        // Используем метод из AmoCrmService
+        const visits = amoCrmService.extractRealVisitsData(lead);
+        
+        res.json({
+            success: true,
+            data: {
+                lead_name: lead.name,
+                total_visits: visits.length,
+                visits: visits
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Получение списка преподавателей для админ-панели
 app.get('/api/admin/teachers', verifyAdminToken, async (req, res) => {
     try {
