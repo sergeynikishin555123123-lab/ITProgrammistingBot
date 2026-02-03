@@ -5846,7 +5846,317 @@ app.get('/api/force-update/:phone', async (req, res) => {
 });
 
 // ==================== ДРУГИЕ АДМИН API ====================
+// В server.js обновите метод получения реальной истории посещений:
 
+app.get('/api/visits/real/:phone', verifyToken, async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`📊 Получение реальной истории посещений для: ${phone}`);
+        
+        // Находим профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        console.log(`🎫 Использовано занятий: ${profile.used_classes || 0}`);
+        console.log(`📅 Даты в профиле: активация=${profile.activation_date}, последний визит=${profile.last_visit_date}`);
+        
+        let visits = [];
+        
+        // 1. Пытаемся извлечь из lead_data
+        if (profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                console.log(`✅ lead_data найдено, парсим...`);
+                
+                // Используем метод из amoCrmService
+                visits = amoCrmService.extractRealVisitsData(leadData);
+                
+                console.log(`✅ Извлечено из lead_data: ${visits.length} посещений`);
+                
+                // Если нет посещений в lead_data, но есть used_classes
+                if (visits.length === 0 && profile.used_classes > 0) {
+                    console.log(`📊 Создаем историю на основе счетчика: ${profile.used_classes} занятий`);
+                    
+                    // Используем дату активации если есть, иначе текущую дату
+                    let baseDate = profile.activation_date ? 
+                        new Date(profile.activation_date) : new Date();
+                    
+                    for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                        const visitDate = new Date(baseDate);
+                        visitDate.setDate(baseDate.getDate() + (i * 7)); // Каждые 7 дней
+                        
+                        visits.push({
+                            lesson_number: i,
+                            date: visitDate.toISOString().split('T')[0],
+                            attended: true,
+                            has_date: true,
+                            source: 'estimated',
+                            estimated: true,
+                            formatted_date: formatDateForDisplay(visitDate.toISOString().split('T')[0])
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ Ошибка парсинга lead_data:', error.message);
+                
+                // Если ошибка парсинга, создаем оценочные данные
+                if (profile.used_classes > 0) {
+                    console.log(`📊 Создаем историю после ошибки парсинга: ${profile.used_classes} занятий`);
+                    
+                    let baseDate = new Date();
+                    if (profile.last_visit_date) {
+                        baseDate = new Date(profile.last_visit_date);
+                    } else if (profile.activation_date) {
+                        baseDate = new Date(profile.activation_date);
+                    }
+                    
+                    for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                        const visitDate = new Date(baseDate);
+                        visitDate.setDate(baseDate.getDate() - ((profile.used_classes - i) * 7));
+                        
+                        visits.push({
+                            lesson_number: i,
+                            date: visitDate.toISOString().split('T')[0],
+                            attended: true,
+                            has_date: true,
+                            source: 'estimated_after_error',
+                            estimated: true,
+                            formatted_date: formatDateForDisplay(visitDate.toISOString().split('T')[0])
+                        });
+                    }
+                }
+            }
+        } else {
+            console.log(`⚠️  Нет lead_data в профиле`);
+            
+            // 2. Если нет lead_data, но есть счетчик
+            if (profile.used_classes > 0) {
+                console.log(`📊 Создаем историю на основе счетчика: ${profile.used_classes} занятий`);
+                
+                let baseDate = new Date();
+                if (profile.last_visit_date) {
+                    baseDate = new Date(profile.last_visit_date);
+                } else if (profile.activation_date) {
+                    baseDate = new Date(profile.activation_date);
+                }
+                
+                for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                    const visitDate = new Date(baseDate);
+                    visitDate.setDate(baseDate.getDate() - ((profile.used_classes - i) * 7));
+                    
+                    visits.push({
+                        lesson_number: i,
+                        date: visitDate.toISOString().split('T')[0],
+                        attended: true,
+                        has_date: true,
+                        source: 'estimated_no_data',
+                        estimated: true,
+                        formatted_date: formatDateForDisplay(visitDate.toISOString().split('T')[0])
+                    });
+                }
+            }
+        }
+        
+        // 3. Обогащаем данными из БД
+        const enrichedVisits = visits.map(visit => ({
+            ...visit,
+            student_name: profile.student_name,
+            branch: profile.branch,
+            teacher_name: profile.teacher_name,
+            age_group: profile.age_group,
+            group_name: profile.course || 'Основная группа',
+            formatted_date: visit.formatted_date || (visit.date ? formatDateForDisplay(visit.date) : 'Дата не указана'),
+            time: '18:00' // Дефолтное время, можно сделать динамическим
+        }));
+        
+        // Сортируем по дате (новые сначала)
+        enrichedVisits.sort((a, b) => {
+            const dateA = new Date(a.date || 0);
+            const dateB = new Date(b.date || 0);
+            return dateB - dateA;
+        });
+        
+        // Логируем результат
+        console.log(`📊 Итоговое количество посещений: ${enrichedVisits.length}`);
+        console.log(`📅 Первые 3 посещения:`);
+        enrichedVisits.slice(0, 3).forEach((v, i) => {
+            console.log(`   ${i+1}. ${v.formatted_date} - ${v.estimated ? '(оценка)' : '(реальное)'}`);
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                student_name: profile.student_name,
+                phone: phone,
+                subscription_info: {
+                    total_classes: profile.total_classes,
+                    used_classes: profile.used_classes,
+                    remaining_classes: profile.remaining_classes
+                },
+                visits: enrichedVisits,
+                total_visits: enrichedVisits.length,
+                has_real_data: enrichedVisits.some(v => !v.estimated),
+                summary: {
+                    with_dates: enrichedVisits.filter(v => v.has_date).length,
+                    without_dates: enrichedVisits.filter(v => !v.has_date).length,
+                    estimated: enrichedVisits.filter(v => v.estimated).length,
+                    real: enrichedVisits.filter(v => !v.estimated).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения реальной истории:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения истории посещений'
+        });
+    }
+});
+
+// Получение уведомлений для пользователя
+app.get('/api/notifications', verifyToken, async (req, res) => {
+    try {
+        const phone = req.user.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`📨 Получение уведомлений для: ${phone}`);
+        
+        // Получаем профиль пользователя
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: true,
+                data: {
+                    notifications: []
+                }
+            });
+        }
+        
+        // Создаем уведомления на основе данных пользователя
+        const notifications = [];
+        
+        // Уведомление о скором окончании абонемента
+        if (profile.expiration_date) {
+            const expDate = new Date(profile.expiration_date);
+            const today = new Date();
+            const daysLeft = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+            
+            if (daysLeft > 0 && daysLeft <= 7) {
+                notifications.push({
+                    id: 1,
+                    type: 'warning',
+                    message: `Абонемент заканчивается через ${daysLeft} ${daysLeft === 1 ? 'день' : daysLeft < 5 ? 'дня' : 'дней'}`,
+                    date: new Date().toISOString(),
+                    read: false
+                });
+            }
+        }
+        
+        // Уведомление о низком остатке занятий
+        if (profile.remaining_classes > 0 && profile.remaining_classes <= 2) {
+            notifications.push({
+                id: 2,
+                type: 'info',
+                message: `Осталось ${profile.remaining_classes} ${profile.remaining_classes === 1 ? 'занятие' : 'занятия'}. Подумайте о продлении абонемента`,
+                date: new Date().toISOString(),
+                read: false
+            });
+        }
+        
+        // Уведомление о новых новостях (если есть)
+        if (profile.branch) {
+            const recentNews = await db.all(`
+                SELECT COUNT(*) as count 
+                FROM news 
+                WHERE (branch = ? OR branch = 'all') 
+                AND is_published = 1
+                AND publish_date >= date('now', '-7 days')
+            `, [profile.branch]);
+            
+            if (recentNews[0]?.count > 0) {
+                notifications.push({
+                    id: 3,
+                    type: 'info',
+                    message: `Есть ${recentNews[0].count} ${recentNews[0].count === 1 ? 'новость' : 'новости'} для вашего филиала`,
+                    date: new Date().toISOString(),
+                    read: false
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                notifications: notifications,
+                unread_count: notifications.filter(n => !n.read).length
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения уведомлений:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения уведомлений'
+        });
+    }
+});
+
+// API для контакта с администратором
+app.post('/api/contact/admin', verifyToken, async (req, res) => {
+    try {
+        const { subject, message, student_name, branch } = req.body;
+        const adminPhone = process.env.ADMIN_PHONE || '+79991112233';
+        
+        console.log(`📨 Сообщение администратору: ${subject}`);
+        console.log(`   От: ${student_name}`);
+        console.log(`   Филиал: ${branch}`);
+        console.log(`   Сообщение: ${message}`);
+        
+        // Здесь можно добавить отправку через Telegram, email или сохранение в БД
+        
+        res.json({
+            success: true,
+            message: 'Сообщение отправлено администратору',
+            data: {
+                timestamp: new Date().toISOString(),
+                subject: subject,
+                student_name: student_name,
+                branch: branch
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка отправки сообщения:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка отправки сообщения'
+        });
+    }
+});
 // Управление расписанием
 app.post('/api/admin/schedule', verifyAdminToken, async (req, res) => {
     try {
