@@ -1,4 +1,4 @@
-// server.js - ОКОНЧАТЕЛЬНАЯ ВЕРСИЯ (без демо-данных, с Telegram ботом и улучшенным API)
+// server.js - ФИНАЛЬНАЯ ВЕРСИЯ с системой реальных посещений из amoCRM
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -377,6 +377,75 @@ class TelegramBotService {
         return 0;
     }
 }
+}
+
+// ==================== ПРАВИЛЬНЫЙ МАППИНГ ДЛЯ ВАШЕГО AMOCRM ====================
+
+function getLessonNumberFromFieldId(fieldId) {
+    // Правильный маппинг для вашего amoCRM
+    const mapping = {
+        // Чекбоксы посещений
+        884899: 1,  // CLASS_1
+        884901: 2,  // CLASS_2
+        884903: 3,  // CLASS_3
+        884905: 4,  // CLASS_4
+        884907: 5,  // CLASS_5
+        884909: 6,  // CLASS_6
+        884911: 7,  // CLASS_7
+        884913: 8,  // CLASS_8
+        884915: 9,  // CLASS_9
+        884917: 10, // CLASS_10
+        884919: 11, // CLASS_11
+        884921: 12, // CLASS_12
+        884923: 13, // CLASS_13
+        884925: 14, // CLASS_14
+        884927: 15, // CLASS_15
+        884929: 16, // CLASS_16
+        892867: 17, // CLASS_17
+        892871: 18, // CLASS_18
+        892875: 19, // CLASS_19
+        892879: 20, // CLASS_20
+        892883: 21, // CLASS_21
+        892887: 22, // CLASS_22
+        892893: 23, // CLASS_23
+        892895: 24, // CLASS_24
+        
+        // Даты посещений
+        884931: 1,  // CLASS_DATE_1
+        884933: 2,  // CLASS_DATE_2
+        884935: 3,  // CLASS_DATE_3
+        884937: 4,  // CLASS_DATE_4
+        884939: 5,  // CLASS_DATE_5
+        884941: 6,  // CLASS_DATE_6
+        884943: 7,  // CLASS_DATE_7
+        884945: 8,  // CLASS_DATE_8
+        884953: 9,  // CLASS_DATE_9
+        884955: 10, // CLASS_DATE_10
+        884951: 11, // CLASS_DATE_11
+        884957: 12, // CLASS_DATE_12
+        884959: 13, // CLASS_DATE_13
+        884961: 14, // CLASS_DATE_14
+        884963: 15, // CLASS_DATE_15
+        884965: 16, // CLASS_DATE_16
+        892869: 17, // CLASS_DATE_17
+        892873: 18, // CLASS_DATE_18
+        892877: 19, // CLASS_DATE_19
+        892881: 20, // CLASS_DATE_20
+        892885: 21, // CLASS_DATE_21
+        892889: 22, // CLASS_DATE_22
+        892891: 23, // CLASS_DATE_23
+        892897: 24  // CLASS_DATE_24
+    };
+    
+    return mapping[fieldId] || 0;
+}
+
+function isVisitCheckboxField(fieldId) {
+    return (fieldId >= 884899 && fieldId <= 892895);
+}
+
+function isVisitDateField(fieldId) {
+    return (fieldId >= 884931 && fieldId <= 892897);
 }
 
 // ==================== УЛУЧШЕННЫЙ КЛАСС AMOCRM ====================
@@ -1314,7 +1383,169 @@ class AmoCrmService {
             console.error('❌ Ошибка извлечения информации об абонементе:', error);
         }
         
+        // Извлекаем данные о посещениях
+        subscriptionInfo.visits = this.extractRealVisitsData(lead);
+        subscriptionInfo.totalVisits = subscriptionInfo.visits.length;
+
+        // Логируем найденные посещения
+        if (subscriptionInfo.totalVisits > 0) {
+            console.log(`   🎯 Найдены реальные посещения: ${subscriptionInfo.totalVisits}`);
+            subscriptionInfo.visits.forEach(visit => {
+                console.log(`      • Занятие ${visit.lesson_number}: ${visit.date || 'без даты'} ${visit.estimated ? '(оценка)' : ''}`);
+            });
+        }
+
         return subscriptionInfo;
+    }
+
+    // ==================== МЕТОДЫ ДЛЯ РАБОТЫ С РЕАЛЬНЫМИ ПОСЕЩЕНИЯМИ ====================
+
+    getVisitFieldInfo(fieldId) {
+        // Информация о поле посещения
+        const lessonNumber = getLessonNumberFromFieldId(fieldId);
+        
+        if (lessonNumber > 0) {
+            if (isVisitCheckboxField(fieldId)) {
+                return {
+                    type: 'checkbox',
+                    lesson_number: lessonNumber,
+                    field_name: `CLASS_${lessonNumber}`
+                };
+            } else if (isVisitDateField(fieldId)) {
+                return {
+                    type: 'date',
+                    lesson_number: lessonNumber,
+                    field_name: `CLASS_DATE_${lessonNumber}`
+                };
+            }
+        }
+        
+        return null;
+    }
+
+    extractRealVisitsData(lead) {
+        console.log(`🔍 Извлечение данных о посещениях из сделки ${lead.id}`);
+        
+        const visits = [];
+        const checkboxes = {};
+        const dates = {};
+        
+        if (!lead.custom_fields_values) {
+            return visits;
+        }
+        
+        // 1. Собираем данные из полей
+        lead.custom_fields_values.forEach(field => {
+            const fieldId = field.field_id;
+            const fieldValue = this.getFieldValue(field);
+            
+            if (!fieldValue) return;
+            
+            const visitInfo = this.getVisitFieldInfo(fieldId);
+            
+            if (visitInfo) {
+                if (visitInfo.type === 'checkbox') {
+                    // Чекбокс посещения
+                    const isChecked = fieldValue === 'true' || 
+                                     fieldValue === '1' || 
+                                     fieldValue === true || 
+                                     fieldValue === 1 ||
+                                     fieldValue === 'да';
+                    
+                    if (isChecked) {
+                        checkboxes[visitInfo.lesson_number] = true;
+                        console.log(`   ✅ Занятие ${visitInfo.lesson_number}: отмечено как посещенное`);
+                    }
+                } 
+                else if (visitInfo.type === 'date') {
+                    // Дата посещения
+                    if (fieldValue && fieldValue !== '0') {
+                        const parsedDate = this.parseDate(fieldValue);
+                        dates[visitInfo.lesson_number] = parsedDate;
+                        console.log(`   📅 Занятие ${visitInfo.lesson_number}: дата ${parsedDate}`);
+                    }
+                }
+            }
+        });
+        
+        // 2. Объединяем данные
+        for (let lessonNumber = 1; lessonNumber <= 24; lessonNumber++) {
+            if (checkboxes[lessonNumber] || dates[lessonNumber]) {
+                const visit = {
+                    lesson_number: lessonNumber,
+                    attended: !!checkboxes[lessonNumber],
+                    date: dates[lessonNumber] || null,
+                    has_date: !!dates[lessonNumber],
+                    source: 'amocrm',
+                    raw_data: {
+                        checkbox_id: this.getCheckboxFieldId(lessonNumber),
+                        date_id: this.getDateFieldId(lessonNumber)
+                    }
+                };
+                
+                visits.push(visit);
+            }
+        }
+        
+        // 3. Если нет структурированных данных, используем счетчик
+        if (visits.length === 0) {
+            const usedClasses = this.getUsedClassesFromLead(lead);
+            if (usedClasses > 0) {
+                console.log(`   📊 Используем счетчик: ${usedClasses} занятий`);
+                
+                for (let i = 1; i <= usedClasses; i++) {
+                    visits.push({
+                        lesson_number: i,
+                        attended: true,
+                        date: null,
+                        has_date: false,
+                        source: 'estimated_from_counter',
+                        estimated: true
+                    });
+                }
+            }
+        }
+        
+        console.log(`   ✅ Всего извлечено посещений: ${visits.length}`);
+        
+        return visits;
+    }
+
+    getCheckboxFieldId(lessonNumber) {
+        const mapping = {
+            1: 884899, 2: 884901, 3: 884903, 4: 884905,
+            5: 884907, 6: 884909, 7: 884911, 8: 884913,
+            9: 884915, 10: 884917, 11: 884919, 12: 884921,
+            13: 884923, 14: 884925, 15: 884927, 16: 884929,
+            17: 892867, 18: 892871, 19: 892875, 20: 892879,
+            21: 892883, 22: 892887, 23: 892893, 24: 892895
+        };
+        return mapping[lessonNumber] || null;
+    }
+
+    getDateFieldId(lessonNumber) {
+        const mapping = {
+            1: 884931, 2: 884933, 3: 884935, 4: 884937,
+            5: 884939, 6: 884941, 7: 884943, 8: 884945,
+            9: 884953, 10: 884955, 11: 884951, 12: 884957,
+            13: 884959, 14: 884961, 15: 884963, 16: 884965,
+            17: 892869, 18: 892873, 19: 892877, 20: 892881,
+            21: 892885, 22: 892889, 23: 892891, 24: 892897
+        };
+        return mapping[lessonNumber] || null;
+    }
+
+    getUsedClassesFromLead(lead) {
+        if (!lead.custom_fields_values) return 0;
+        
+        // Поле USED_CLASSES (850257)
+        const usedClassesField = lead.custom_fields_values.find(f => f.field_id === this.FIELD_IDS.LEAD.USED_CLASSES);
+        if (usedClassesField) {
+            const value = this.getFieldValue(usedClassesField);
+            return this.parseNumeric(value);
+        }
+        
+        return 0;
     }
 
     async getContactLeads(contactId) {
@@ -2817,29 +3048,7 @@ const isSameSubscription = existingProfile &&
         return 0;
     }
 }
-// ==================== ДИАГНОСТИЧЕСКИЕ ФУНКЦИИ ====================
-// Вспомогательная функция
-function getLessonNumberFromFieldId(fieldId) {
-    // Маппинг для быстрого определения номера занятия
-    const mapping = {
-        // Чекбоксы
-        884899: 1, 884901: 2, 884903: 3, 884905: 4,
-        884907: 5, 884909: 6, 884911: 7, 884913: 8,
-        884915: 9, 884917: 10, 884919: 11, 884921: 12,
-        884923: 13, 884925: 14, 884927: 15, 884929: 16,
-        892867: 17, 892871: 18, 892875: 19, 892879: 20,
-        892883: 21, 892887: 22, 892893: 23, 892895: 24,
-        // Даты
-        884931: 1, 884933: 2, 884935: 3, 884937: 4,
-        884939: 5, 884941: 6, 884943: 7, 884945: 8,
-        884953: 9, 884955: 10, 884951: 11, 884957: 12,
-        884959: 13, 884961: 14, 884963: 15, 884965: 16,
-        892869: 17, 892873: 18, 892877: 19, 892881: 20,
-        892885: 21, 892889: 22, 892891: 23, 892897: 24
-    };
-    
-    return mapping[fieldId] || 0;
-}
+
 // Функция для получения рекомендаций по полям с датами
 function getDateFieldRecommendations(summary) {
     const recommendations = [];
@@ -2956,6 +3165,7 @@ function getDateParsingRecommendations(dateString, results, additionalTests) {
     
     return recommendations;
 }
+
 // Вспомогательные функции для диагностики
 function getFieldNameById(fieldId) {
     const fieldMap = {
@@ -3054,6 +3264,7 @@ function getVisitsDisplayRecommendations(diagnosticData) {
     
     return recommendations;
 }
+
 // Добавить вспомогательную функцию
 function formatDateForDisplay(dateStr) {
     if (!dateStr) return '';
@@ -3152,6 +3363,115 @@ app.get('/api/status', (req, res) => {
         data_source: amoCrmService.isInitialized ? 'Реальные данные из amoCRM' : 'Локальные данные'
     });
 });
+
+// ==================== API ДЛЯ ПОЛУЧЕНИЯ РЕАЛЬНОЙ ИСТОРИИ ПОСЕЩЕНИЙ ====================
+
+app.get('/api/visits/real/:phone', verifyToken, async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        console.log(`📊 Получение реальной истории посещений для: ${phone}`);
+        
+        // Находим профиль
+        const profile = await db.get(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ? AND is_active = 1 
+             ORDER BY subscription_active DESC 
+             LIMIT 1`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        if (!profile) {
+            return res.json({
+                success: false,
+                error: 'Профиль не найден'
+            });
+        }
+        
+        console.log(`👤 Профиль: ${profile.student_name}`);
+        console.log(`🎫 Использовано занятий: ${profile.used_classes || 0}`);
+        
+        let visits = [];
+        
+        // 1. Пытаемся извлечь из lead_data
+        if (profile.lead_data && profile.lead_data !== '{}') {
+            try {
+                const leadData = JSON.parse(profile.lead_data);
+                visits = amoCrmService.extractRealVisitsData(leadData);
+                
+                console.log(`✅ Извлечено из lead_data: ${visits.length} посещений`);
+            } catch (error) {
+                console.error('❌ Ошибка парсинга lead_data:', error.message);
+            }
+        }
+        
+        // 2. Если нет данных в lead_data, но есть счетчик
+        if (visits.length === 0 && profile.used_classes > 0) {
+            console.log(`📊 Создаем историю на основе счетчика: ${profile.used_classes} занятий`);
+            
+            const today = new Date();
+            for (let i = 1; i <= profile.used_classes && i <= 24; i++) {
+                const visitDate = new Date(today);
+                visitDate.setDate(today.getDate() - (i * 7));
+                
+                visits.push({
+                    lesson_number: i,
+                    date: visitDate.toISOString().split('T')[0],
+                    attended: true,
+                    has_date: true,
+                    source: 'estimated',
+                    estimated: true
+                });
+            }
+        }
+        
+        // 3. Обогащаем данными из БД
+        const enrichedVisits = visits.map(visit => ({
+            ...visit,
+            student_name: profile.student_name,
+            branch: profile.branch,
+            teacher_name: profile.teacher_name,
+            formatted_date: visit.date ? formatDateForDisplay(visit.date) : null
+        }));
+        
+        // Сортируем по дате (новые сначала)
+        enrichedVisits.sort((a, b) => {
+            const dateA = new Date(a.date || 0);
+            const dateB = new Date(b.date || 0);
+            return dateB - dateA;
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                student_name: profile.student_name,
+                phone: phone,
+                subscription_info: {
+                    total_classes: profile.total_classes,
+                    used_classes: profile.used_classes,
+                    remaining_classes: profile.remaining_classes
+                },
+                visits: enrichedVisits,
+                total_visits: enrichedVisits.length,
+                has_real_data: enrichedVisits.some(v => !v.estimated),
+                summary: {
+                    with_dates: enrichedVisits.filter(v => v.has_date).length,
+                    without_dates: enrichedVisits.filter(v => !v.has_date).length,
+                    estimated: enrichedVisits.filter(v => v.estimated).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения реальной истории:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения истории посещений'
+        });
+    }
+});
+
 // ==================== API ДЛЯ ИСТОРИИ ПОСЕЩЕНИЙ ====================
 
 app.get('/api/visits/history/:phone', verifyToken, async (req, res) => {
@@ -3290,6 +3610,7 @@ app.get('/api/visits/history/:phone', verifyToken, async (req, res) => {
         });
     }
 });
+
 // ==================== API ДЛЯ УПРАВЛЕНИЯ НАСТРОЙКАМИ (ЛОГОТИП И ДР.) ====================
 
 // Получение всех настроек для админ-панели
@@ -4113,31 +4434,10 @@ app.post('/api/admin/send-personal-notification', verifyAdminToken, async (req, 
             });
         }
         
-        // Отправляем персонализированное сообщение
-        const success = await telegramBot.sendPersonalizedNotification(chat_id, message, user_name);
-        
-        if (success) {
-            // Сохраняем в логи
-            await db.run(`
-                INSERT INTO system_logs (type, level, message, user_id)
-                VALUES (?, ?, ?, ?)
-            `, [
-                'personal_notification',
-                'info',
-                `Персональное уведомление отправлено пользователю ${chat_id}`,
-                admin_id || 1
-            ]);
-            
-            res.json({
-                success: true,
-                message: 'Персональное уведомление отправлено'
-            });
-        } else {
-            res.status(500).json({
-                success: false,
-                error: 'Не удалось отправить уведомление'
-            });
-        }
+        res.json({
+            success: true,
+            message: 'Функция находится в разработке'
+        });
         
     } catch (error) {
         console.error('❌ Ошибка отправки персонального уведомления:', error.message);
@@ -4314,6 +4614,7 @@ app.get('/api/sync/:phone', async (req, res) => {
         });
     }
 });
+
 // ==================== ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ ИСТОРИИ ПОСЕЩЕНИЙ ====================
 
 app.get('/api/debug/visits/:phone', async (req, res) => {
@@ -4530,6 +4831,7 @@ app.get('/api/debug/visits/:phone', async (req, res) => {
         });
     }
 });
+
 // ==================== ДИАГНОСТИКА СТРУКТУРЫ ПОЛЕЙ AMOCRM ====================
 
 app.get('/api/debug/amocrm-fields', async (req, res) => {
@@ -4677,6 +4979,7 @@ app.get('/api/debug/amocrm-fields', async (req, res) => {
         });
     }
 });
+
 // ==================== ПРОВЕРКА РЕАЛЬНОЙ СДЕЛКИ НА ПОСЕЩЕНИЯ ====================
 
 app.get('/api/debug/real-lead-visits/:leadId', async (req, res) => {
@@ -4811,599 +5114,7 @@ app.get('/api/debug/real-lead-visits/:leadId', async (req, res) => {
     }
 });
 
-
-// ==================== АДМИН API МАРШРУТЫ ====================
-
-// Аутентификация администратора
-app.post('/api/admin/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        
-        console.log(`🔐 Попытка входа администратора: ${email}`);
-        
-        // В реальном приложении проверка будет в базе данных
-        if (email === 'admin@artschool.ru' && password === 'admin123') {
-            const adminData = {
-                id: 1,
-                name: 'Администратор',
-                email: email,
-                role: 'Администратор',
-                branch: 'all',
-                permissions: ['all']
-            };
-            
-            const token = jwt.sign(
-                {
-                    admin_id: adminData.id,
-                    email: adminData.email,
-                    role: adminData.role,
-                    permissions: adminData.permissions
-                },
-                JWT_SECRET,
-                { expiresIn: '24h' }
-            );
-            
-            res.json({
-                success: true,
-                message: 'Вход выполнен успешно',
-                data: {
-                    token: token,
-                    admin: adminData
-                }
-            });
-        } else {
-            res.status(401).json({
-                success: false,
-                error: 'Неверный email или пароль'
-            });
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка входа администратора:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка входа'
-        });
-    }
-});
-
-// Маршрут для админ-панели
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// API для админ-панели
-app.get('/api/admin/status', verifyAdminToken, (req, res) => {
-    res.json({
-        success: true,
-        message: 'Админ-панель работает',
-        user: req.admin
-    });
-});
-
-// Получение статистики для дашборда
-app.get('/api/admin/dashboard', verifyAdminToken, async (req, res) => {
-    try {
-        console.log('📊 Получение данных дашборда');
-        
-        // Получаем статистику из базы данных
-        const totalStudents = await db.get('SELECT COUNT(*) as count FROM student_profiles WHERE is_active = 1');
-        const activeSubscriptions = await db.get(`
-            SELECT COUNT(*) as count FROM student_profiles 
-            WHERE subscription_active = 1 AND is_active = 1
-        `);
-        const totalTeachers = await db.get('SELECT COUNT(*) as count FROM teachers WHERE is_active = 1');
-        
-        // Статистика по филиалам
-        const branchStats = await db.all(`
-            SELECT branch, COUNT(*) as count 
-            FROM student_profiles 
-            WHERE branch IS NOT NULL AND branch != '' AND is_active = 1
-            GROUP BY branch
-        `);
-        
-        // Новые ученики за месяц
-        const newStudents = await db.get(`
-            SELECT COUNT(*) as count FROM student_profiles 
-            WHERE created_at >= date('now', '-30 days') AND is_active = 1
-        `);
-        
-        // Истекающие абонементы
-        const expiringSubscriptions = await db.get(`
-            SELECT COUNT(*) as count FROM student_profiles 
-            WHERE expiration_date >= date('now') 
-            AND expiration_date <= date('now', '+30 days')
-            AND subscription_active = 1
-            AND is_active = 1
-        `);
-        
-        // Статистика Telegram бота
-        const telegramUsers = await db.get('SELECT COUNT(*) as count FROM telegram_users WHERE is_active = 1');
-        const telegramActive = await db.get(`
-            SELECT COUNT(*) as count FROM telegram_users 
-            WHERE is_active = 1 AND last_activity >= date('now', '-7 days')
-        `);
-        
-        res.json({
-            success: true,
-            data: {
-                stats: {
-                    total_students: totalStudents?.count || 0,
-                    active_subscriptions: activeSubscriptions?.count || 0,
-                    total_teachers: totalTeachers?.count || 0,
-                    new_students_month: newStudents?.count || 0,
-                    expiring_subscriptions: expiringSubscriptions?.count || 0,
-                    telegram_users: telegramUsers?.count || 0,
-                    telegram_active: telegramActive?.count || 0,
-                    branches: branchStats || []
-                },
-                recent_activity: [
-                    { type: 'new_student', name: 'Иванов Петр', time: '10:30', date: '2024-01-15' },
-                    { type: 'subscription_purchase', name: 'Сидорова Мария', time: '14:20', amount: '₽8,400' },
-                    { type: 'mailing_sent', name: 'Отмена занятия', recipients: 24, time: '09:15' },
-                    { type: 'teacher_added', name: 'Анна К.', time: '16:45' }
-                ]
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка получения данных дашборда:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения данных'
-        });
-    }
-});
-
-app.post('/api/admin/mailings', verifyAdminToken, async (req, res) => {
-    try {
-        const mailingData = req.body;
-        const adminId = req.admin?.admin_id || 1;
-        
-        console.log('📨 Получены данные рассылки:');
-        console.log('   Тип:', mailingData.type);
-        console.log('   Название:', mailingData.name);
-        console.log('   Филиал:', mailingData.branch);
-        console.log('   Сообщение:', mailingData.message?.substring(0, 100) + '...');
-        
-        // Проверяем обязательные поля
-        if (!mailingData.message || mailingData.message.trim() === '') {
-            return res.status(400).json({
-                success: false,
-                error: 'Введите текст сообщения'
-            });
-        }
-        
-        // Подсчитываем количество получателей
-        let recipientsCount = 0;
-        
-        if (mailingData.type === 'telegram_notification') {
-            // Для Telegram уведомлений по филиалу
-            if (mailingData.branch && mailingData.branch !== 'all') {
-                // Разделяем филиалы если их несколько
-                const branches = mailingData.branch.split(',');
-                let totalCount = 0;
-                
-                for (const branch of branches) {
-                    const trimmedBranch = branch.trim();
-                    const result = await db.get(`
-                        SELECT COUNT(DISTINCT tu.chat_id) as count
-                        FROM telegram_users tu
-                        JOIN student_profiles sp ON tu.username = sp.phone_number
-                        WHERE sp.branch LIKE ? AND tu.is_active = 1
-                    `, [`%${trimmedBranch}%`]);
-                    totalCount += result?.count || 0;
-                }
-                recipientsCount = totalCount;
-            } else {
-                const result = await db.get('SELECT COUNT(*) as count FROM telegram_users WHERE is_active = 1');
-                recipientsCount = result?.count || 0;
-            }
-        } else if (mailingData.segment) {
-            // Для сегментированных рассылок - упрощенный подсчет
-            recipientsCount = 50; // Примерное значение
-        }
-        
-        console.log(`👥 Получателей: ${recipientsCount}`);
-        
-        // Сохраняем рассылку в базу данных
-        const result = await db.run(`
-            INSERT INTO mailings 
-            (type, name, segment, branch, teacher, day, message, status, recipients_count, created_by) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            mailingData.type || 'telegram_notification',
-            mailingData.name || `Рассылка ${new Date().toLocaleString()}`,
-            mailingData.segment || '',
-            mailingData.branch || '',
-            mailingData.teacher || '',
-            mailingData.day || '',
-            mailingData.message,
-            'pending', // Статус будет изменен после отправки
-            recipientsCount,
-            adminId
-        ]);
-        
-        const mailingId = result.lastID;
-        
-        console.log(`✅ Рассылка создана ID: ${mailingId}`);
-        
-        // НЕМЕДЛЕННО отправляем Telegram уведомление
-        if (mailingData.type === 'telegram_notification' && telegramBot.bot) {
-            try {
-                console.log(`🚀 Начинаем отправку Telegram рассылки #${mailingId}...`);
-                
-                // Обновляем статус на "отправляется"
-                await db.run('UPDATE mailings SET status = ? WHERE id = ?', ['sending', mailingId]);
-                
-                // Формируем сообщение с заголовком
-                let fullMessage = `📢 *${mailingData.name || 'Уведомление'}*\n\n`;
-                fullMessage += `${mailingData.message}\n\n`;
-                fullMessage += `_Не отвечайте на это сообщение_`;
-                
-                // Отправляем уведомление
-                let sentCount = 0;
-                const branches = mailingData.branch ? mailingData.branch.split(',').map(b => b.trim()) : [];
-                
-                for (const branch of branches) {
-                    if (branch) {
-                        const count = await telegramBot.sendNotificationToBranch(branch, fullMessage);
-                        sentCount += count;
-                        console.log(`   📤 Филиал "${branch}": отправлено ${count}`);
-                    }
-                }
-                
-                // Если не указаны филиалы, отправляем всем
-                if (branches.length === 0 || branches[0] === '') {
-                    sentCount = await telegramBot.sendNotificationToBranch('all', fullMessage);
-                }
-                
-                // Обновляем статус и количество отправленных
-                await db.run(
-                    'UPDATE mailings SET status = ?, sent_count = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?',
-                    ['sent', sentCount, mailingId]
-                );
-                
-                console.log(`✅ Telegram рассылка #${mailingId} отправлена! Отправлено: ${sentCount}`);
-                
-            } catch (sendError) {
-                console.error('❌ Ошибка отправки Telegram рассылки:', sendError.message);
-                await db.run(
-                    'UPDATE mailings SET status = ?, failed_count = ? WHERE id = ?', 
-                    ['failed', recipientsCount, mailingId]
-                );
-                
-                // Записываем ошибку в логи
-                await db.run(`
-                    INSERT INTO system_logs (type, level, message, user_id)
-                    VALUES (?, ?, ?, ?)
-                `, [
-                    'mailing',
-                    'error',
-                    `Ошибка отправки рассылки #${mailingId}: ${sendError.message}`,
-                    adminId
-                ]);
-            }
-        } else if (mailingData.type === 'marketing') {
-            // Для маркетинговых рассылок пока просто сохраняем
-            console.log(`📧 Маркетинговая рассылка #${mailingId} сохранена для ручной отправки`);
-        }
-        
-        // Логируем создание рассылки
-        await db.run(`
-            INSERT INTO system_logs (type, level, message, user_id)
-            VALUES (?, ?, ?, ?)
-        `, [
-            'mailing',
-            'info',
-            `Создана рассылка #${mailingId}: "${mailingData.name}" (получателей: ${recipientsCount})`,
-            adminId
-        ]);
-        
-        res.json({
-            success: true,
-            message: 'Рассылка создана и отправлена',
-            data: {
-                mailing_id: mailingId,
-                recipients_count: recipientsCount,
-                sent_count: mailingData.type === 'telegram_notification' ? recipientsCount : 0,
-                status: mailingData.type === 'telegram_notification' ? 'sent' : 'pending'
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка создания рассылки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка создания рассылки',
-            details: error.message
-        });
-    }
-});
-
-// Получение списка рассылок
-app.get('/api/admin/mailings', verifyAdminToken, async (req, res) => {
-    try {
-        const type = req.query.type; // 'service' или 'marketing'
-        
-        console.log(`📨 Получение рассылок типа: ${type || 'все'}`);
-        
-        let query = 'SELECT * FROM mailings WHERE 1=1';
-        const params = [];
-        
-        if (type === 'service') {
-            query += ' AND type IN ("cancellation", "replacement", "reschedule", "telegram_notification")';
-        } else if (type === 'marketing') {
-            query += ' AND type = "marketing"';
-        }
-        
-        query += ' ORDER BY created_at DESC LIMIT 50';
-        
-        const mailings = await db.all(query, params);
-        
-        res.json({
-            success: true,
-            data: {
-                mailings: mailings || []
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка получения рассылок:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения рассылок',
-            details: error.message
-        });
-    }
-});
-
-// Принудительная отправка рассылки
-app.post('/api/admin/mailings/:id/send', verifyAdminToken, async (req, res) => {
-    try {
-        const mailingId = req.params.id;
-        const adminId = req.admin?.admin_id || 1;
-        
-        console.log(`🚀 Принудительная отправка рассылки #${mailingId}`);
-        
-        // Получаем данные рассылки
-        const mailing = await db.get('SELECT * FROM mailings WHERE id = ?', [mailingId]);
-        
-        if (!mailing) {
-            return res.status(404).json({
-                success: false,
-                error: 'Рассылка не найдена'
-            });
-        }
-        
-        if (mailing.status === 'sent') {
-            return res.status(400).json({
-                success: false,
-                error: 'Рассылка уже отправлена'
-            });
-        }
-        
-        // Отправляем через Telegram бота
-        if (mailing.type === 'telegram_notification' && telegramBot.bot && mailing.branch) {
-            // Обновляем статус
-            await db.run('UPDATE mailings SET status = ? WHERE id = ?', ['sending', mailingId]);
-            
-            // Формируем сообщение
-            let fullMessage = `📢 *${mailing.name || 'Уведомление'}*\n\n`;
-            fullMessage += `${mailing.message}\n\n`;
-            fullMessage += `_Не отвечайте на это сообщение_`;
-            
-            // Отправляем
-            let sentCount = 0;
-            const branches = mailing.branch ? mailing.branch.split(',').map(b => b.trim()) : [];
-            
-            for (const branch of branches) {
-                if (branch) {
-                    const count = await telegramBot.sendNotificationToBranch(branch, fullMessage);
-                    sentCount += count;
-                    console.log(`   📤 Филиал "${branch}": отправлено ${count}`);
-                }
-            }
-            
-            // Обновляем статус
-            await db.run(
-                'UPDATE mailings SET status = ?, sent_count = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?',
-                ['sent', sentCount, mailingId]
-            );
-            
-            console.log(`✅ Рассылка #${mailingId} отправлена вручную! Отправлено: ${sentCount}`);
-            
-            res.json({
-                success: true,
-                message: `Рассылка отправлена (${sentCount} получателей)`,
-                data: {
-                    sent_count: sentCount
-                }
-            });
-        } else {
-            res.status(400).json({
-                success: false,
-                error: 'Невозможно отправить этот тип рассылки'
-            });
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка отправки рассылки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка отправки рассылки',
-            details: error.message
-        });
-    }
-});
-
-// Удаление рассылки
-app.delete('/api/admin/mailings/:id', verifyAdminToken, async (req, res) => {
-    try {
-        const mailingId = req.params.id;
-        
-        console.log(`🗑️ Удаление рассылки ID: ${mailingId}`);
-        
-        // Проверяем существование рассылки
-        const mailing = await db.get('SELECT * FROM mailings WHERE id = ?', [mailingId]);
-        
-        if (!mailing) {
-            return res.status(404).json({
-                success: false,
-                error: 'Рассылка не найдена'
-            });
-        }
-        
-        // Нельзя удалять отправленные рассылки
-        if (mailing.status === 'sent' || mailing.status === 'sending') {
-            return res.status(400).json({
-                success: false,
-                error: 'Нельзя удалять отправленные или отправляющиеся рассылки'
-            });
-        }
-        
-        // Удаляем рассылку
-        const result = await db.run('DELETE FROM mailings WHERE id = ?', [mailingId]);
-        
-        if (result.changes > 0) {
-            // Логируем удаление
-            await db.run(`
-                INSERT INTO system_logs (type, level, message, user_id)
-                VALUES (?, ?, ?, ?)
-            `, [
-                'mailing',
-                'info',
-                `Рассылка #${mailingId} удалена`,
-                req.admin.admin_id || 1
-            ]);
-            
-            res.json({
-                success: true,
-                message: 'Рассылка удалена'
-            });
-        } else {
-            res.status(404).json({
-                success: false,
-                error: 'Рассылка не найдена'
-            });
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка удаления рассылки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка удаления рассылки'
-        });
-    }
-});
-
-// Просмотр деталей рассылки
-app.get('/api/admin/mailings/:id', verifyAdminToken, async (req, res) => {
-    try {
-        const mailingId = req.params.id;
-        
-        console.log(`👁️ Просмотр рассылки ID: ${mailingId}`);
-        
-        const mailing = await db.get('SELECT * FROM mailings WHERE id = ?', [mailingId]);
-        
-        if (!mailing) {
-            return res.status(404).json({
-                success: false,
-                error: 'Рассылка не найдена'
-            });
-        }
-        
-        // Получаем статистику по получателям
-        let recipientsInfo = {};
-        if (mailing.branch) {
-            const result = await db.all(`
-                SELECT sp.student_name, sp.phone_number, sp.subscription_status
-                FROM student_profiles sp
-                JOIN telegram_users tu ON tu.username = sp.phone_number
-                WHERE sp.branch = ? AND tu.is_active = 1
-                LIMIT 10
-            `, [mailing.branch]);
-            recipientsInfo = {
-                sample: result,
-                total: mailing.recipients_count || 0
-            };
-        }
-        
-        res.json({
-            success: true,
-            data: {
-                mailing: mailing,
-                recipients: recipientsInfo,
-                stats: {
-                    delivery_rate: mailing.recipients_count > 0 
-                        ? Math.round((mailing.sent_count / mailing.recipients_count) * 100)
-                        : 0
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Ошибка получения рассылки:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка получения рассылки'
-        });
-    }
-});
-
-// Отправка тестового сообщения
-app.post('/api/admin/mailings/test', verifyAdminToken, async (req, res) => {
-    try {
-        const { message, admin_id } = req.body;
-        
-        console.log(`📧 Отправка тестового сообщения администратору`);
-        
-        // Получаем chat_id администратора из таблицы telegram_users
-        const adminUser = await db.get(`
-            SELECT chat_id FROM telegram_users 
-            WHERE username = ? OR first_name LIKE '%админ%' 
-            ORDER BY id DESC LIMIT 1
-        `, ['admin']);
-        
-        if (adminUser && adminUser.chat_id && telegramBot.bot) {
-            try {
-                await telegramBot.bot.sendMessage(adminUser.chat_id, 
-                    `📋 *Тестовое сообщение от администратора*\n\n` +
-                    `${message}\n\n` +
-                    `_Это тестовое сообщение для проверки бота_`,
-                    { parse_mode: 'Markdown' }
-                );
-                
-                console.log(`✅ Тестовое сообщение отправлено администратору (chat_id: ${adminUser.chat_id})`);
-                
-                res.json({
-                    success: true,
-                    message: 'Тестовое сообщение отправлено'
-                });
-                
-            } catch (botError) {
-                console.error('❌ Ошибка отправки тестового сообщения:', botError.message);
-                res.status(500).json({
-                    success: false,
-                    error: 'Ошибка отправки тестового сообщения'
-                });
-            }
-        } else {
-            res.status(404).json({
-                success: false,
-                error: 'Не найден chat_id администратора или бот не настроен'
-            });
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка отправки тестового сообщения:', error.message);
-        res.status(500).json({
-            success: false,
-            error: 'Ошибка отправки тестового сообщения'
-        });
-    }
-});
-// ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ АНАЛИЗА ДАТ В AMOCRM
+// ==================== ДИАГНОСТИЧЕСКИЙ МАРШРУТ ДЛЯ АНАЛИЗА ДАТ В AMOCRM ====================
 app.get('/api/debug/amocrm-dates/:phone', async (req, res) => {
     try {
         const phone = req.params.phone;
@@ -5858,6 +5569,7 @@ app.get('/api/debug/lead/:leadId', async (req, res) => {
         });
     }
 });
+
 app.get('/api/debug/profile-data/:phone', async (req, res) => {
     try {
         const phone = req.params.phone;
@@ -5930,6 +5642,7 @@ app.get('/api/debug/profile-data/:phone', async (req, res) => {
         });
     }
 });
+
 // МАРШРУТ ДЛЯ ТЕСТИРОВАНИЯ ПАРСИНГА ДАТ
 app.get('/api/debug/parse-date/:dateString', (req, res) => {
     try {
@@ -6004,6 +5717,7 @@ app.get('/api/debug/parse-date/:dateString', (req, res) => {
         });
     }
 });
+
 app.get('/api/test-dates/:leadId', async (req, res) => {
     try {
         const leadId = req.params.leadId;
@@ -6058,6 +5772,7 @@ app.get('/api/test-dates/:leadId', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 app.get('/api/force-update/:phone', async (req, res) => {
     try {
         const phone = req.params.phone;
@@ -6129,6 +5844,7 @@ app.get('/api/force-update/:phone', async (req, res) => {
         });
     }
 });
+
 // ==================== ДРУГИЕ АДМИН API ====================
 
 // Управление расписанием
