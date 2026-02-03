@@ -2362,7 +2362,7 @@
             
             this.showLoading('Загрузка истории посещений...');
             
-            fetch(`/api/visits/real/${encodeURIComponent(phone)}`, {
+            fetch(`/api/visits/fixed/${encodeURIComponent(phone)}`, {
                 headers: {
                     'Authorization': `Bearer ${this.config.token}`
                 }
