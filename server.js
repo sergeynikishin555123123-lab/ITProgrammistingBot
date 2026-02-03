@@ -1014,40 +1014,45 @@ class AmoCrmService {
         }
     }
 
-    parseDate(value) {
-        if (!value) return null;
+  parseDate(value) {
+    if (!value) return null;
+    
+    try {
+        const dateStr = String(value).trim();
         
-        try {
-            const dateStr = String(value).trim();
-            const cleanStr = dateStr.replace(/[^\d\.\-T:+]/g, '');
+        // 1. Если это timestamp в секундах
+        if (/^\d{9,10}$/.test(dateStr)) {
+            const timestamp = parseInt(dateStr);
             
-            // Если это timestamp в секундах
-            if (/^\d{9,10}$/.test(cleanStr)) {
-                const timestamp = parseInt(cleanStr);
-                if (timestamp > 1000000000 && timestamp < 2000000000) {
-                    const date = new Date(timestamp * 1000);
-                    return date.toISOString().split('T')[0];
-                }
-            }
+            // Учитываем московское время (UTC+3)
+            // В amoCRM даты часто хранятся как полночь московского времени
+            const date = new Date(timestamp * 1000);
             
-            // Формат DD.MM.YYYY
-            if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(cleanStr)) {
-                const [day, month, year] = cleanStr.split('.');
-                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
+            // Корректируем на московское время
+            const mskOffset = 3 * 60 * 60 * 1000; // +3 часа в миллисекундах
+            const mskDate = new Date(date.getTime() + mskOffset);
             
-            // Формат YYYY-MM-DD
-            if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(cleanStr)) {
-                const [year, month, day] = cleanStr.split('-');
-                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-            
-            return cleanStr;
-            
-        } catch (error) {
-            return value;
+            return mskDate.toISOString().split('T')[0]; // YYYY-MM-DD
         }
+        
+        // 2. Формат DD.MM.YYYY (из интерфейса amoCRM)
+        if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(dateStr)) {
+            const [day, month, year] = dateStr.split('.');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        
+        // 3. Формат YYYY-MM-DD
+        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+            return dateStr;
+        }
+        
+        return dateStr;
+        
+    } catch (error) {
+        console.error(`❌ Ошибка парсинга даты "${value}":`, error.message);
+        return value;
     }
+}
 
     parseNumeric(value) {
         if (!value) return 0;
