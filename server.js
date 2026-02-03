@@ -5240,6 +5240,60 @@ app.get('/api/debug/parse-date/:dateString', (req, res) => {
         });
     }
 });
+app.get('/api/test-dates/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`🧪 Тест дат для сделки ${leadId}`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({ error: 'amoCRM не подключен' });
+        }
+        
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.json({ error: 'Сделка не найдена' });
+        }
+        
+        const dates = {};
+        
+        if (lead.custom_fields_values) {
+            lead.custom_fields_values.forEach(field => {
+                if ([850253, 850255, 850259, 851565].includes(field.field_id)) {
+                    const value = amoCrmService.getFieldValue(field);
+                    const parsed = amoCrmService.parseDate(value);
+                    const formatted = formatDateForDisplay(parsed);
+                    
+                    dates[field.field_id] = {
+                        field_name: amoCrmService.getFieldNameById(field.field_id),
+                        raw_value: value,
+                        parsed: parsed,
+                        formatted: formatted
+                    };
+                }
+            });
+        }
+        
+        // Также получим информацию об абонементе
+        const subscriptionInfo = amoCrmService.extractSubscriptionInfo(lead);
+        
+        res.json({
+            success: true,
+            dates: dates,
+            subscription_info: {
+                activation_date: subscriptionInfo.activationDate,
+                expiration_date: subscriptionInfo.expirationDate,
+                last_visit_date: subscriptionInfo.lastVisitDate,
+                purchase_date: subscriptionInfo.purchaseDate
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка теста дат:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // ==================== ДРУГИЕ АДМИН API ====================
 
 // Управление расписанием
