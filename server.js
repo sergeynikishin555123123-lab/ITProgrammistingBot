@@ -382,27 +382,62 @@ class TelegramBotService {
 // ==================== ПРАВИЛЬНЫЙ МАППИНГ ДЛЯ ВАШЕГО AMOCRM ====================
 
 function getLessonNumberFromFieldId(fieldId) {
-    // Маппинг для чекбоксов
-    const checkboxMapping = {
-        884899: 1, 884901: 2, 884903: 3, 884905: 4,
-        884907: 5, 884909: 6, 884911: 7, 884913: 8,
-        884915: 9, 884917: 10, 884919: 11, 884921: 12,
-        884923: 13, 884925: 14, 884927: 15, 884929: 16,
-        892867: 17, 892871: 18, 892875: 19, 892879: 20,
-        892883: 21, 892887: 22, 892893: 23, 892895: 24
+    // Правильный маппинг для вашего amoCRM
+    const mapping = {
+        // Чекбоксы посещений
+        884899: 1,  // CLASS_1
+        884901: 2,  // CLASS_2
+        884903: 3,  // CLASS_3
+        884905: 4,  // CLASS_4
+        884907: 5,  // CLASS_5
+        884909: 6,  // CLASS_6
+        884911: 7,  // CLASS_7
+        884913: 8,  // CLASS_8
+        884915: 9,  // CLASS_9
+        884917: 10, // CLASS_10
+        884919: 11, // CLASS_11
+        884921: 12, // CLASS_12
+        884923: 13, // CLASS_13
+        884925: 14, // CLASS_14
+        884927: 15, // CLASS_15
+        884929: 16, // CLASS_16
+        892867: 17, // CLASS_17
+        892871: 18, // CLASS_18
+        892875: 19, // CLASS_19
+        892879: 20, // CLASS_20
+        892883: 21, // CLASS_21
+        892887: 22, // CLASS_22
+        892893: 23, // CLASS_23
+        892895: 24, // CLASS_24
+        
+        // Даты посещений - ВАЖНО: исправь это!
+        884931: 1,  // CLASS_DATE_1
+        884933: 2,  // CLASS_DATE_2
+        884935: 3,  // CLASS_DATE_3 ← ИСПРАВЬ: было 884933, должно быть 884935
+        884937: 4,  // CLASS_DATE_4
+        884939: 5,  // CLASS_DATE_5
+        884941: 6,  // CLASS_DATE_6
+        884943: 7,  // CLASS_DATE_7
+        884945: 8,  // CLASS_DATE_8
+        884953: 9,  // CLASS_DATE_9
+        884955: 10, // CLASS_DATE_10
+        884951: 11, // CLASS_DATE_11
+        884957: 12, // CLASS_DATE_12
+        884959: 13, // CLASS_DATE_13
+        884961: 14, // CLASS_DATE_14
+        884963: 15, // CLASS_DATE_15
+        884965: 16, // CLASS_DATE_16
+        892869: 17, // CLASS_DATE_17
+        892873: 18, // CLASS_DATE_18
+        892877: 19, // CLASS_DATE_19
+        892881: 20, // CLASS_DATE_20
+        892885: 21, // CLASS_DATE_21
+        892889: 22, // CLASS_DATE_22
+        892891: 23, // CLASS_DATE_23
+        892897: 24  // CLASS_DATE_24
     };
     
-    // Маппинг для дат
-    const dateMapping = {
-        884931: 1, 884933: 2, 884935: 3, 884937: 4,
-        884939: 5, 884941: 6, 884943: 7, 884945: 8,
-        884953: 9, 884955: 10, 884951: 11, 884957: 12,
-        884959: 13, 884961: 14, 884963: 15, 884965: 16,
-        892869: 17, 892873: 18, 892877: 19, 892881: 20,
-        892885: 21, 892889: 22, 892891: 23, 892897: 24
-    };
-    
-    return checkboxMapping[fieldId] || dateMapping[fieldId] || 0;
+    return mapping[fieldId] || 0;
 }
 
 function isVisitCheckboxField(fieldId) {
@@ -1048,39 +1083,49 @@ class AmoCrmService {
         }
     }
 
-  parseDate(value) {
+ parseDate: function(value) {
     if (!value) return null;
     
     try {
-        const dateStr = String(value).trim();
+        const strValue = String(value).trim();
         
-        // 1. Если это timestamp в секундах
-        if (/^\d{9,10}$/.test(dateStr)) {
-            const timestamp = parseInt(dateStr);
-            
-            // Учитываем московское время (UTC+3)
-            // В amoCRM даты часто хранятся как полночь московского времени
+        // Если это текст (не число), возвращаем как есть
+        if (isNaN(strValue) && !/^\d+$/.test(strValue)) {
+            return strValue;
+        }
+        
+        // Если это timestamp в секундах (9-10 цифр)
+        if (/^\d{9,10}$/.test(strValue)) {
+            const timestamp = parseInt(strValue);
             const date = new Date(timestamp * 1000);
             
-            // Корректируем на московское время
-            const mskOffset = 3 * 60 * 60 * 1000; // +3 часа в миллисекундах
+            // Корректируем на московское время (UTC+3)
+            const mskOffset = 3 * 60 * 60 * 1000;
             const mskDate = new Date(date.getTime() + mskOffset);
             
             return mskDate.toISOString().split('T')[0]; // YYYY-MM-DD
         }
         
-        // 2. Формат DD.MM.YYYY (из интерфейса amoCRM)
-        if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(dateStr)) {
-            const [day, month, year] = dateStr.split('.');
+        // Если это timestamp в миллисекундах (13 цифр)
+        if (/^\d{13}$/.test(strValue)) {
+            const timestamp = parseInt(strValue);
+            const date = new Date(timestamp);
+            return date.toISOString().split('T')[0];
+        }
+        
+        // Формат DD.MM.YYYY
+        if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(strValue)) {
+            const [day, month, year] = strValue.split('.');
             return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
         
-        // 3. Формат YYYY-MM-DD
-        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
-            return dateStr;
+        // Формат YYYY-MM-DD
+        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(strValue)) {
+            return strValue;
         }
         
-        return dateStr;
+        // Если это просто число (не timestamp), возвращаем как есть
+        return strValue;
         
     } catch (error) {
         console.error(`❌ Ошибка парсинга даты "${value}":`, error.message);
@@ -4841,15 +4886,19 @@ app.get('/api/debug/visits/:phone', async (req, res) => {
                         }
                         
                         // Даты занятий
-                        if (fieldId >= 884931 && fieldId <= 892897) {
-                            const classNum = getClassNumberFromFieldId(fieldId);
-                            if (fieldValue) {
-                                amoCrmAnalysis.visit_dates[classNum] = {
-                                    raw: fieldValue,
-                                    parsed: amoCrmService.parseDate(fieldValue)
-                                };
-                            }
-                        }
+if (fieldId >= 884931 && fieldId <= 892897) {
+    if (field.value && /^\d{9,13}$/.test(String(field.value))) { // Только timestamp
+        const lessonNum = getLessonNumberFromFieldId(fieldId);
+        const parsedDate = amoCrmService.parseDate(field.value);
+        
+        visitDates.push({
+            field_id: fieldId,
+            value: field.value,
+            lesson_number: lessonNum,
+            parsed_date: parsedDate
+        });
+    }
+}
                     }
                     
                     result.amoCrm_fresh_data = amoCrmAnalysis;
