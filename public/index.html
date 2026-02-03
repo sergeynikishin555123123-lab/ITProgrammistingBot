@@ -1374,6 +1374,219 @@
             font-weight: 600;
             margin-bottom: 20px;
         }
+        /* ОКОШКО ИСТОРИИ ПОСЕЩЕНИЙ НА СТРАНИЦЕ АБОНЕМЕНТА */
+.visits-history-window {
+    background: var(--white);
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 20px;
+    border: 2px solid var(--blue-primary);
+    box-shadow: var(--shadow);
+}
+
+.visits-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--gray-medium);
+}
+
+.visits-history-header i {
+    color: var(--blue-primary);
+    font-size: 1.3rem;
+    margin-right: 10px;
+}
+
+.visits-history-header span {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--blue-primary);
+}
+
+/* СТАТИСТИКА ПОСЕЩЕНИЙ */
+.visits-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.visit-stat-card {
+    background: var(--blue-pale);
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    border: 1px solid var(--blue-primary);
+}
+
+.visit-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--blue-primary);
+    margin-bottom: 5px;
+}
+
+.visit-stat-label {
+    font-size: 0.8rem;
+    color: var(--blue-dark);
+    font-weight: 600;
+}
+
+/* СПИСОК ПОСЕЩЕНИЙ */
+.visits-list-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.visits-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.visits-list-container::-webkit-scrollbar-track {
+    background: var(--gray-light);
+    border-radius: 3px;
+}
+
+.visits-list-container::-webkit-scrollbar-thumb {
+    background: var(--blue-primary);
+    border-radius: 3px;
+}
+
+.visit-item {
+    background: var(--blue-pale);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--success);
+    transition: all 0.3s ease;
+}
+
+.visit-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.visit-item.estimated {
+    border-left-color: var(--warning);
+}
+
+.visit-date {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--blue-primary);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.visit-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.visit-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--blue-dark);
+}
+
+.visit-detail i {
+    color: var(--blue-primary);
+    width: 16px;
+    text-align: center;
+}
+
+/* ПАГИНАЦИЯ */
+.visits-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--gray-medium);
+}
+
+.pagination-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 2px solid var(--blue-primary);
+    background: var(--white);
+    color: var(--blue-primary);
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: var(--blue-primary);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#visitsPageInfo {
+    font-size: 0.9rem;
+    color: var(--gray-dark);
+    font-weight: 600;
+}
+
+/* АДАПТИВНОСТЬ */
+@media (max-width: 768px) {
+    .visits-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .visit-details {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .visits-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .visits-history-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    .visits-history-header button {
+        align-self: stretch;
+    }
+}
+
+/* ПУСТОЕ СОСТОЯНИЕ */
+.visits-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--gray-dark);
+}
+
+.visits-empty-state i {
+    font-size: 3rem;
+    color: var(--blue-primary);
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
     </style>
 </head>
 <body>
@@ -1528,49 +1741,62 @@
             </section>
             
             <!-- АБОНЕМЕНТ -->
-            <section id="subscriptionPage" class="page-section">
-                <div class="page-header">
-                    <div class="back-button" onclick="BanyaApp.navigateTo('home')">
-                        <i class="fas fa-arrow-left"></i> Назад
-                    </div>
-                    <h2 class="page-title">Мой абонемент</h2>
-                    <button class="btn btn-secondary" onclick="BanyaApp.refreshSubscription()" style="width: auto; padding: 10px 20px;">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                </div>
-                
-                <div id="subscriptionContainer">
-                    <!-- Абонемент будет загружен динамически -->
-                </div>
-                
-                <!-- История посещений -->
-                <div id="visitsHistoryContainer" class="visits-history-container" style="display: none;">
-                    <div class="visits-history-header">
-                        <i class="fas fa-history"></i>
-                        История посещений
-                    </div>
-                    <div id="visitsHistoryContent">
-                        <!-- История посещений будет загружена динамически -->
-                    </div>
-                </div>
-                
-                               <div id="visitsHistoryContainer" class="visits-history-container" style="display: none;">
-                    <div class="visits-history-header">
-                        <i class="fas fa-history"></i>
-                        История посещений
-                    </div>
-                    <div id="visitsHistoryContent">
-                        <!-- История посещений будет загружена динамически -->
-                    </div>
-                </div>
-                
-                <div class="mt-30">
-                    <button class="btn btn-pink w-100" onclick="BanyaApp.contactAdmin('Продлить абонемент')">
-                        <i class="fas fa-credit-card"></i>
-                        Продлить абонемент
-                    </button>
-                </div>
-            </section>
+<section id="subscriptionPage" class="page-section">
+    <div class="page-header">
+        <div class="back-button" onclick="BanyaApp.navigateTo('home')">
+            <i class="fas fa-arrow-left"></i> Назад
+        </div>
+        <h2 class="page-title">Мой абонемент</h2>
+        <button class="btn btn-secondary" onclick="BanyaApp.refreshSubscription()" style="width: auto; padding: 10px 20px;">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+    
+    <div id="subscriptionContainer">
+        <!-- Абонемент будет загружен динамически -->
+    </div>
+    
+    <!-- ИСТОРИЯ ПОСЕЩЕНИЙ - ОКОШКО НА СТРАНИЦЕ АБОНЕМЕНТА -->
+    <div class="visits-history-window" id="visitsHistoryWindow" style="display: none;">
+        <div class="visits-history-header">
+            <div>
+                <i class="fas fa-history"></i>
+                <span>История посещений</span>
+            </div>
+            <button class="btn btn-secondary" onclick="BanyaApp.refreshVisitsHistory()" style="width: auto; padding: 8px 12px; font-size: 0.9rem;">
+                <i class="fas fa-sync-alt"></i> Обновить
+            </button>
+        </div>
+        
+        <!-- Статистика посещений -->
+        <div class="visits-stats" id="visitsStats">
+            <!-- Статистика будет загружена здесь -->
+        </div>
+        
+        <!-- Список посещений -->
+        <div class="visits-list-container" id="visitsListContainer">
+            <!-- Посещения будут загружены здесь -->
+        </div>
+        
+        <!-- Пагинация (если много посещений) -->
+        <div class="visits-pagination" id="visitsPagination" style="display: none;">
+            <button class="pagination-btn" onclick="BanyaApp.prevVisitsPage()" id="prevVisitsPageBtn">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span id="visitsPageInfo">Страница 1 из 1</span>
+            <button class="pagination-btn" onclick="BanyaApp.nextVisitsPage()" id="nextVisitsPageBtn">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div class="mt-30">
+        <button class="btn btn-pink w-100" onclick="BanyaApp.contactAdmin('Продлить абонемент')">
+            <i class="fas fa-credit-card"></i>
+            Продлить абонемент
+        </button>
+    </div>
+</section>
             
             <!-- ПРЕПОДАВАТЕЛИ -->
             <section id="teachersPage" class="page-section">
@@ -1726,6 +1952,13 @@
             },
             notificationInterval: null
         },
+visitsHistory: {
+            visits: [],
+            currentPage: 1,
+            itemsPerPage: 5, // Показываем по 5 посещений на странице
+            totalPages: 1
+        }
+    },
 
         // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
         init: function() {
@@ -2141,7 +2374,7 @@
         },
 
         // ЗАГРУЗКА СТРАНИЦЫ АБОНЕМЕНТА
-        loadSubscriptionPage: function() {
+                loadSubscriptionPage: function() {
             const container = document.getElementById('subscriptionContainer');
             
             if (!this.config.currentProfile) {
@@ -2156,6 +2389,10 @@
             
             if (this.config.subscriptionData) {
                 this.renderSubscription(this.config.subscriptionData);
+                // ЗАГРУЖАЕМ ИСТОРИЮ ПОСЕЩЕНИЙ ПОСЛЕ ОТРИСОВКИ АБОНЕМЕНТА
+                setTimeout(() => {
+                    this.loadVisitsHistoryForWindow();
+                }, 100);
                 return;
             }
             
@@ -2236,7 +2473,266 @@
                 this.showNotification('Ошибка загрузки данных', 'error');
             });
         },
+        // ЗАГРУЗКА ИСТОРИИ ПОСЕЩЕНИЙ ДЛЯ ОКОШКА
+        loadVisitsHistoryForWindow: function() {
+            if (!this.config.currentProfile || !this.config.currentProfile.phone_number) {
+                this.showNoVisitsMessageInWindow();
+                return;
+            }
+            
+            const phone = this.config.currentProfile.phone_number;
+            
+            this.showLoading('Загрузка истории посещений...');
+            
+            fetch(`/api/visits/real/${encodeURIComponent(phone)}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.visits.length > 0) {
+                    this.config.visitsHistory.visits = data.data.visits;
+                    this.config.visitsHistory.totalPages = Math.ceil(
+                        data.data.visits.length / this.config.visitsHistory.itemsPerPage
+                    );
+                    
+                    this.showVisitsWindow();
+                    this.updateVisitsStats(data.data);
+                    this.renderVisitsForCurrentPage();
+                    this.updateVisitsPagination();
+                } else {
+                    this.showNoVisitsMessageInWindow();
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки истории:', error);
+                this.showVisitsError(error);
+            })
+            .finally(() => {
+                this.hideLoading();
+            });
+        },
 
+        // ПОКАЗАТЬ ОКОШКО ИСТОРИИ
+        showVisitsWindow: function() {
+            const windowElement = document.getElementById('visitsHistoryWindow');
+            if (windowElement) {
+                windowElement.style.display = 'block';
+            }
+        },
+
+        // ОБНОВИТЬ СТАТИСТИКУ ПОСЕЩЕНИЙ
+        updateVisitsStats: function(data) {
+            const statsContainer = document.getElementById('visitsStats');
+            if (!statsContainer) return;
+            
+            const totalVisits = data.visits.length;
+            const realVisits = data.visits.filter(v => !v.estimated && v.source !== 'estimated').length;
+            const estimatedVisits = data.visits.filter(v => v.estimated || v.source === 'estimated').length;
+            const remainingClasses = this.config.subscriptionData?.subscription?.classes?.remaining || 0;
+            
+            statsContainer.innerHTML = `
+                <div class="visit-stat-card">
+                    <div class="visit-stat-value">${totalVisits}</div>
+                    <div class="visit-stat-label">Всего посещений</div>
+                </div>
+                <div class="visit-stat-card">
+                    <div class="visit-stat-value">${realVisits}</div>
+                    <div class="visit-stat-label">Подтверждённых</div>
+                </div>
+                <div class="visit-stat-card">
+                    <div class="visit-stat-value">${estimatedVisits}</div>
+                    <div class="visit-stat-label">Расчётных</div>
+                </div>
+                <div class="visit-stat-card">
+                    <div class="visit-stat-value">${remainingClasses}</div>
+                    <div class="visit-stat-label">Осталось занятий</div>
+                </div>
+            `;
+        },
+
+        // РЕНДЕРИНГ ПОСЕЩЕНИЙ ДЛЯ ТЕКУЩЕЙ СТРАНИЦЫ
+        renderVisitsForCurrentPage: function() {
+            const container = document.getElementById('visitsListContainer');
+            if (!container) return;
+            
+            const startIndex = (this.config.visitsHistory.currentPage - 1) * this.config.visitsHistory.itemsPerPage;
+            const endIndex = startIndex + this.config.visitsHistory.itemsPerPage;
+            const currentVisits = this.config.visitsHistory.visits.slice(startIndex, endIndex);
+            
+            if (currentVisits.length === 0) {
+                this.showNoVisitsMessageInWindow();
+                return;
+            }
+            
+            let html = '';
+            
+            currentVisits.forEach((visit, index) => {
+                const globalIndex = startIndex + index + 1;
+                const dateDisplay = visit.formatted_date || 'Дата не указана';
+                const isEstimated = visit.estimated || visit.source === 'estimated';
+                const timeDisplay = visit.time || 'Время не указано';
+                const teacherName = visit.teacher_name || 'Преподаватель не указан';
+                const branchName = visit.branch || 'Филиал не указан';
+                const groupName = visit.group_name || 'Группа не указана';
+                const lessonNumber = visit.lesson_number ? `Занятие ${visit.lesson_number}` : '';
+                
+                html += `
+                    <div class="visit-item ${isEstimated ? 'estimated' : ''}">
+                        <div class="visit-date">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>${dateDisplay}</span>
+                            ${isEstimated ? 
+                              '<span class="badge badge-warning" style="margin-left: auto; font-size: 0.7rem; padding: 2px 8px;">оценка</span>' : 
+                              '<span class="badge badge-success" style="margin-left: auto; font-size: 0.7rem; padding: 2px 8px;">подтверждено</span>'}
+                        </div>
+                        
+                        <div style="font-size: 0.9rem; color: var(--gray-dark); margin-bottom: 5px;">
+                            <i class="fas fa-clock"></i> ${timeDisplay}
+                        </div>
+                        
+                        <div class="visit-details">
+                            <div class="visit-detail">
+                                <i class="fas fa-chalkboard-teacher"></i>
+                                <span>${teacherName}</span>
+                            </div>
+                            <div class="visit-detail">
+                                <i class="fas fa-school"></i>
+                                <span>${branchName}</span>
+                            </div>
+                            ${groupName ? `
+                            <div class="visit-detail">
+                                <i class="fas fa-users"></i>
+                                <span>${groupName}</span>
+                            </div>
+                            ` : ''}
+                            ${lessonNumber ? `
+                            <div class="visit-detail">
+                                <i class="fas fa-graduation-cap"></i>
+                                <span>${lessonNumber}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        },
+
+        // ОБНОВИТЬ ПАГИНАЦИЮ
+        updateVisitsPagination: function() {
+            const pagination = document.getElementById('visitsPagination');
+            const prevBtn = document.getElementById('prevVisitsPageBtn');
+            const nextBtn = document.getElementById('nextVisitsPageBtn');
+            const pageInfo = document.getElementById('visitsPageInfo');
+            
+            if (!pagination || !prevBtn || !nextBtn || !pageInfo) return;
+            
+            const totalPages = this.config.visitsHistory.totalPages;
+            
+            if (totalPages > 1) {
+                pagination.style.display = 'flex';
+                prevBtn.disabled = this.config.visitsHistory.currentPage <= 1;
+                nextBtn.disabled = this.config.visitsHistory.currentPage >= totalPages;
+                pageInfo.textContent = `Страница ${this.config.visitsHistory.currentPage} из ${totalPages}`;
+            } else {
+                pagination.style.display = 'none';
+            }
+        },
+
+        // ПРЕДЫДУЩАЯ СТРАНИЦА ПОСЕЩЕНИЙ
+        prevVisitsPage: function() {
+            if (this.config.visitsHistory.currentPage > 1) {
+                this.config.visitsHistory.currentPage--;
+                this.renderVisitsForCurrentPage();
+                this.updateVisitsPagination();
+            }
+        },
+
+        // СЛЕДУЮЩАЯ СТРАНИЦА ПОСЕЩЕНИЙ
+        nextVisitsPage: function() {
+            if (this.config.visitsHistory.currentPage < this.config.visitsHistory.totalPages) {
+                this.config.visitsHistory.currentPage++;
+                this.renderVisitsForCurrentPage();
+                this.updateVisitsPagination();
+            }
+        },
+
+        // ОБНОВИТЬ ИСТОРИЮ ПОСЕЩЕНИЙ
+        refreshVisitsHistory: function() {
+            this.showNotification('Обновление истории посещений...', 'success');
+            this.config.visitsHistory.currentPage = 1;
+            this.loadVisitsHistoryForWindow();
+        },
+
+        // СООБЩЕНИЕ "НЕТ ПОСЕЩЕНИЙ"
+        showNoVisitsMessageInWindow: function() {
+            const container = document.getElementById('visitsListContainer');
+            const windowElement = document.getElementById('visitsHistoryWindow');
+            const statsContainer = document.getElementById('visitsStats');
+            
+            if (container) {
+                container.innerHTML = `
+                    <div class="visits-empty-state">
+                        <i class="fas fa-history"></i>
+                        <p>История посещений пока пуста</p>
+                        <p style="font-size: 0.9rem; margin-top: 10px;">
+                            Здесь будут отображаться все посещённые занятия
+                        </p>
+                    </div>
+                `;
+            }
+            
+            if (statsContainer) {
+                const remaining = this.config.subscriptionData?.subscription?.classes?.remaining || 0;
+                statsContainer.innerHTML = `
+                    <div class="visit-stat-card">
+                        <div class="visit-stat-value">0</div>
+                        <div class="visit-stat-label">Всего посещений</div>
+                    </div>
+                    <div class="visit-stat-card">
+                        <div class="visit-stat-value">0</div>
+                        <div class="visit-stat-label">Подтверждённых</div>
+                    </div>
+                    <div class="visit-stat-card">
+                        <div class="visit-stat-value">0</div>
+                        <div class="visit-stat-label">Расчётных</div>
+                    </div>
+                    <div class="visit-stat-card">
+                        <div class="visit-stat-value">${remaining}</div>
+                        <div class="visit-stat-label">Осталось занятий</div>
+                    </div>
+                `;
+            }
+            
+            if (windowElement) {
+                windowElement.style.display = 'block';
+            }
+        },
+
+        // СООБЩЕНИЕ ОБ ОШИБКЕ
+        showVisitsError: function(error) {
+            const container = document.getElementById('visitsListContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div class="visits-empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Ошибка загрузки истории</p>
+                        <p style="font-size: 0.8rem; margin-top: 10px;">${error.message || 'Неизвестная ошибка'}</p>
+                        <button class="btn btn-secondary mt-20" onclick="BanyaApp.refreshVisitsHistory()">
+                            <i class="fas fa-redo"></i> Попробовать снова
+                        </button>
+                    </div>
+                `;
+            }
+            
+            const windowElement = document.getElementById('visitsHistoryWindow');
+            if (windowElement) {
+                windowElement.style.display = 'block';
+            }
+        },
         renderSubscription: function(subscriptionData) {
             const container = document.getElementById('subscriptionContainer');
             
@@ -2322,12 +2818,11 @@
                 </div>
             `;
             
-            // Загружаем историю посещений
-            if (used > 0) {
-                this.loadVisitsHistory();
-            }
+           // После отрисовки абонемента загружаем историю посещений
+            setTimeout(() => {
+                this.loadVisitsHistoryForWindow();
+            }, 100);
         },
-
                 // ЗАГРУЗКА ИСТОРИИ ПОСЕЩЕНИЙ
         loadVisitsHistory: function() {
             if (!this.config.currentProfile || !this.config.currentProfile.phone_number) {
