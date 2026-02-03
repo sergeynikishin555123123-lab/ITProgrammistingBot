@@ -2818,7 +2818,28 @@ const isSameSubscription = existingProfile &&
     }
 }
 // ==================== ДИАГНОСТИЧЕСКИЕ ФУНКЦИИ ====================
-
+// Вспомогательная функция
+function getLessonNumberFromFieldId(fieldId) {
+    // Маппинг для быстрого определения номера занятия
+    const mapping = {
+        // Чекбоксы
+        884899: 1, 884901: 2, 884903: 3, 884905: 4,
+        884907: 5, 884909: 6, 884911: 7, 884913: 8,
+        884915: 9, 884917: 10, 884919: 11, 884921: 12,
+        884923: 13, 884925: 14, 884927: 15, 884929: 16,
+        892867: 17, 892871: 18, 892875: 19, 892879: 20,
+        892883: 21, 892887: 22, 892893: 23, 892895: 24,
+        // Даты
+        884931: 1, 884933: 2, 884935: 3, 884937: 4,
+        884939: 5, 884941: 6, 884943: 7, 884945: 8,
+        884953: 9, 884955: 10, 884951: 11, 884957: 12,
+        884959: 13, 884961: 14, 884963: 15, 884965: 16,
+        892869: 17, 892873: 18, 892877: 19, 892881: 20,
+        892885: 21, 892889: 22, 892891: 23, 892897: 24
+    };
+    
+    return mapping[fieldId] || 0;
+}
 // Функция для получения рекомендаций по полям с датами
 function getDateFieldRecommendations(summary) {
     const recommendations = [];
@@ -4509,6 +4530,288 @@ app.get('/api/debug/visits/:phone', async (req, res) => {
         });
     }
 });
+// ==================== ДИАГНОСТИКА СТРУКТУРЫ ПОЛЕЙ AMOCRM ====================
+
+app.get('/api/debug/amocrm-fields', async (req, res) => {
+    try {
+        console.log('🔍 Диагностика структуры полей amoCRM');
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const result = await amoCrmService.getAllFieldsInfo();
+        
+        // Фильтруем поля, которые могут содержать данные о посещениях
+        const visitRelatedFields = {
+            leads: [],
+            contacts: []
+        };
+        
+        // Поиск полей со словами "занятие", "посещение", "чек", "check", "visit" и т.д.
+        const visitKeywords = ['занятие', 'посещение', 'чек', 'check', 'visit', 'урок', 'lesson', 'класс'];
+        
+        // Поля сделок (leads)
+        if (result.lead_fields && Array.isArray(result.lead_fields)) {
+            result.lead_fields.forEach(field => {
+                if (field && field.name) {
+                    const fieldName = field.name.toLowerCase();
+                    const isVisitField = visitKeywords.some(keyword => fieldName.includes(keyword));
+                    
+                    if (isVisitField || field.type === 'checkbox' || field.type === 'date') {
+                        visitRelatedFields.leads.push({
+                            id: field.id,
+                            name: field.name,
+                            type: field.type,
+                            enums: field.enums || [],
+                            enum_count: field.enums ? field.enums.length : 0
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Поля контактов (contacts)
+        if (result.contact_fields && Array.isArray(result.contact_fields)) {
+            result.contact_fields.forEach(field => {
+                if (field && field.name) {
+                    const fieldName = field.name.toLowerCase();
+                    const isVisitField = visitKeywords.some(keyword => fieldName.includes(keyword));
+                    
+                    if (isVisitField || field.type === 'checkbox' || field.type === 'date') {
+                        visitRelatedFields.contacts.push({
+                            id: field.id,
+                            name: field.name,
+                            type: field.type,
+                            enums: field.enums || [],
+                            enum_count: field.enums ? field.enums.length : 0
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Проверяем известные поля посещений
+        const knownVisitFields = {
+            checkboxes: [],
+            dates: []
+        };
+        
+        // Известные ID полей для чекбоксов (24 занятия)
+        const knownCheckboxIds = [
+            884899, 884901, 884903, 884905, 884907, 884909, 884911, 884913,
+            884915, 884917, 884919, 884921, 884923, 884925, 884927, 884929,
+            892867, 892871, 892875, 892879, 892883, 892887, 892893, 892895
+        ];
+        
+        // Известные ID полей для дат (24 занятия)
+        const knownDateIds = [
+            884931, 884933, 884935, 884937, 884939, 884941, 884943, 884945,
+            884953, 884955, 884951, 884957, 884959, 884961, 884963, 884965,
+            892869, 892873, 892877, 892881, 892885, 892889, 892891, 892897
+        ];
+        
+        // Проверяем какие из известных полей существуют
+        knownCheckboxIds.forEach(fieldId => {
+            const field = result.field_mappings.find(f => f.id === fieldId);
+            if (field) {
+                knownVisitFields.checkboxes.push({
+                    id: fieldId,
+                    exists: true,
+                    name: field.name || `Поле ${fieldId}`,
+                    enum_count: field.enum_count || 0
+                });
+            } else {
+                knownVisitFields.checkboxes.push({
+                    id: fieldId,
+                    exists: false,
+                    name: `Поле ${fieldId} (не найдено)`
+                });
+            }
+        });
+        
+        knownDateIds.forEach(fieldId => {
+            const field = result.field_mappings.find(f => f.id === fieldId);
+            if (field) {
+                knownVisitFields.dates.push({
+                    id: fieldId,
+                    exists: true,
+                    name: field.name || `Поле ${fieldId}`,
+                    enum_count: field.enum_count || 0
+                });
+            } else {
+                knownVisitFields.dates.push({
+                    id: fieldId,
+                    exists: false,
+                    name: `Поле ${fieldId} (не найдено)`
+                });
+            }
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                account_info: result.account,
+                visit_related_fields: visitRelatedFields,
+                known_fields_status: knownVisitFields,
+                summary: {
+                    total_lead_fields: result.lead_fields.length,
+                    total_contact_fields: result.contact_fields.length,
+                    visit_related_leads: visitRelatedFields.leads.length,
+                    visit_related_contacts: visitRelatedFields.contacts.length,
+                    known_checkboxes_found: knownVisitFields.checkboxes.filter(f => f.exists).length,
+                    known_dates_found: knownVisitFields.dates.filter(f => f.exists).length
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка диагностики полей:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка диагностики полей',
+            details: error.message
+        });
+    }
+});
+// ==================== ПРОВЕРКА РЕАЛЬНОЙ СДЕЛКИ НА ПОСЕЩЕНИЯ ====================
+
+app.get('/api/debug/real-lead-visits/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        
+        console.log(`🔍 Проверка реальной сделки ${leadId} на посещения`);
+        
+        if (!amoCrmService.isInitialized) {
+            return res.json({
+                success: false,
+                error: 'amoCRM не подключен'
+            });
+        }
+        
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.json({
+                success: false,
+                error: 'Сделка не найдена'
+            });
+        }
+        
+        console.log(`📄 Сделка: "${lead.name}" (ID: ${lead.id})`);
+        
+        const analysis = {
+            lead_id: lead.id,
+            lead_name: lead.name,
+            total_fields: lead.custom_fields_values ? lead.custom_fields_values.length : 0,
+            all_fields: [],
+            visit_checkboxes: [],
+            visit_dates: [],
+            subscription_fields: [],
+            other_visit_related: []
+        };
+        
+        if (lead.custom_fields_values && Array.isArray(lead.custom_fields_values)) {
+            console.log(`📋 Анализ ${lead.custom_fields_values.length} полей сделки...`);
+            
+            lead.custom_fields_values.forEach(field => {
+                const fieldId = field.field_id;
+                const fieldValue = field.values?.[0]?.value || field.values?.[0]?.enum_id;
+                const fieldName = amoCrmService.getFieldNameById(fieldId);
+                
+                const fieldInfo = {
+                    id: fieldId,
+                    name: fieldName,
+                    value: fieldValue,
+                    type: 'unknown'
+                };
+                
+                analysis.all_fields.push(fieldInfo);
+                
+                // Определяем тип поля
+                if (fieldId >= 884899 && fieldId <= 892895) {
+                    fieldInfo.type = 'visit_checkbox';
+                    analysis.visit_checkboxes.push({
+                        ...fieldInfo,
+                        lesson_number: getLessonNumberFromFieldId(fieldId),
+                        is_checked: fieldValue === 'true' || fieldValue === '1' || fieldValue === true || fieldValue === 1
+                    });
+                } 
+                else if (fieldId >= 884931 && fieldId <= 892897) {
+                    fieldInfo.type = 'visit_date';
+                    analysis.visit_dates.push({
+                        ...fieldInfo,
+                        lesson_number: getLessonNumberFromFieldId(fieldId),
+                        parsed_date: fieldValue ? amoCrmService.parseDate(fieldValue) : null
+                    });
+                }
+                else if ([850241, 850257, 850255, 851565, 850259, 850253].includes(fieldId)) {
+                    fieldInfo.type = 'subscription';
+                    analysis.subscription_fields.push(fieldInfo);
+                }
+                else if (fieldName && (
+                    fieldName.toLowerCase().includes('занятие') ||
+                    fieldName.toLowerCase().includes('посещение') ||
+                    fieldName.toLowerCase().includes('чек') ||
+                    fieldName.toLowerCase().includes('check') ||
+                    fieldName.toLowerCase().includes('visit')
+                )) {
+                    fieldInfo.type = 'visit_related';
+                    analysis.other_visit_related.push(fieldInfo);
+                }
+            });
+        }
+        
+        // Анализируем найденные данные
+        const checkedCheckboxes = analysis.visit_checkboxes.filter(cb => cb.is_checked);
+        const filledDates = analysis.visit_dates.filter(d => d.value);
+        
+        console.log(`✅ Найдено:`);
+        console.log(`   • Всего полей: ${analysis.total_fields}`);
+        console.log(`   • Чекбоксов посещений: ${analysis.visit_checkboxes.length}`);
+        console.log(`   • Отмеченных чекбоксов: ${checkedCheckboxes.length}`);
+        console.log(`   • Полей с датами: ${analysis.visit_dates.length}`);
+        console.log(`   • Заполненных дат: ${filledDates.length}`);
+        console.log(`   • Других полей о посещениях: ${analysis.other_visit_related.length}`);
+        
+        // Показываем первые 5 найденных посещений
+        if (checkedCheckboxes.length > 0) {
+            console.log(`\n📊 Найденные посещения:`);
+            checkedCheckboxes.slice(0, 5).forEach(cb => {
+                const dateField = analysis.visit_dates.find(d => d.lesson_number === cb.lesson_number);
+                console.log(`   • Занятие ${cb.lesson_number}: ${dateField ? dateField.parsed_date : 'без даты'}`);
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: analysis,
+            summary: {
+                total_fields: analysis.total_fields,
+                visit_checkboxes_total: analysis.visit_checkboxes.length,
+                visit_checkboxes_checked: checkedCheckboxes.length,
+                visit_dates_total: analysis.visit_dates.length,
+                visit_dates_filled: filledDates.length,
+                subscription_fields: analysis.subscription_fields.length,
+                other_visit_fields: analysis.other_visit_related.length,
+                has_visits_data: checkedCheckboxes.length > 0 || filledDates.length > 0
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка проверки сделки:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка проверки сделки',
+            details: error.message
+        });
+    }
+});
+
+
 // ==================== АДМИН API МАРШРУТЫ ====================
 
 // Аутентификация администратора
