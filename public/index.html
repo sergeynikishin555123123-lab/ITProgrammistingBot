@@ -1889,9 +1889,9 @@
                             Math.round((profile.used_classes / profile.total_classes) * 100) : 0
                     },
                     dates: {
-                        activation: profile.activation_date,
-                        expiration: profile.expiration_date,
-                        last_visit: profile.last_visit_date
+                    activation: profile.activation_date,  // ← ЭТО ПОЛЕ
+                    expiration: profile.expiration_date,
+                    last_visit: profile.last_visit_date
                     }
                 }
             };
@@ -2774,22 +2774,27 @@
         },
 
         // РАБОТА С СЕССИЕЙ
-        saveSession: function() {
-            try {
-                const sessionData = {
-                    token: this.config.token,
-                    currentUser: this.config.currentUser,
-                    currentProfile: this.config.currentProfile,
-                    profiles: this.config.profiles,
-                    subscriptionData: this.config.subscriptionData,
-                    timestamp: Date.now()
-                };
-                localStorage.setItem('banyaSchoolSession', JSON.stringify(sessionData));
-                console.log('💾 Сессия сохранена');
-            } catch (error) {
-                console.error('Ошибка сохранения сессии:', error);
-            }
-        },
+saveSession: function() {
+    try {
+        const sessionData = {
+            token: this.config.token,
+            currentUser: this.config.currentUser,
+            currentProfile: this.config.currentProfile,
+            profiles: this.config.profiles,
+            subscriptionData: this.config.subscriptionData,
+            timestamp: Date.now()
+        };
+        
+        console.log('💾 Сохраняем в сессию:', {
+            has_activation_date: !!this.config.currentProfile?.activation_date,
+            currentProfile: this.config.currentProfile
+        });
+        
+        localStorage.setItem('banyaSchoolSession', JSON.stringify(sessionData));
+    } catch (error) {
+        console.error('Ошибка сохранения сессии:', error);
+    }
+},
 
         loadSession: function() {
             try {
