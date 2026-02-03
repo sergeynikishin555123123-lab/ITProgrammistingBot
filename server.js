@@ -1083,55 +1083,55 @@ class AmoCrmService {
         }
     }
 
-parseDate: function(value) {
-    if (!value) return null;
-    
-    try {
-        const strValue = String(value).trim();
+ parseDate(value) {
+        if (!value) return null;
         
-        // Если это текст (не число), возвращаем как есть
-        if (isNaN(strValue) && !/^\d+$/.test(strValue)) {
-            return strValue;
-        }
-        
-        // Если это timestamp в секундах (9-10 цифр)
-        if (/^\d{9,10}$/.test(strValue)) {
-            const timestamp = parseInt(strValue);
-            const date = new Date(timestamp * 1000);
+        try {
+            const strValue = String(value).trim();
             
-            // Корректируем на московское время (UTC+3)
-            const mskOffset = 3 * 60 * 60 * 1000;
-            const mskDate = new Date(date.getTime() + mskOffset);
+            // Если это текст (не число), возвращаем как есть
+            if (isNaN(strValue) && !/^\d+$/.test(strValue)) {
+                return strValue;
+            }
             
-            return mskDate.toISOString().split('T')[0]; // YYYY-MM-DD
-        }
-        
-        // Если это timestamp в миллисекундах (13 цифр)
-        if (/^\d{13}$/.test(strValue)) {
-            const timestamp = parseInt(strValue);
-            const date = new Date(timestamp);
-            return date.toISOString().split('T')[0];
-        }
-        
-        // Формат DD.MM.YYYY
-        if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(strValue)) {
-            const [day, month, year] = strValue.split('.');
-            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-        }
-        
-        // Формат YYYY-MM-DD
-        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(strValue)) {
+            // Если это timestamp в секундах (9-10 цифр)
+            if (/^\d{9,10}$/.test(strValue)) {
+                const timestamp = parseInt(strValue);
+                const date = new Date(timestamp * 1000);
+                
+                // Корректируем на московское время (UTC+3)
+                const mskOffset = 3 * 60 * 60 * 1000;
+                const mskDate = new Date(date.getTime() + mskOffset);
+                
+                return mskDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            }
+            
+            // Если это timestamp в миллисекундах (13 цифр)
+            if (/^\d{13}$/.test(strValue)) {
+                const timestamp = parseInt(strValue);
+                const date = new Date(timestamp);
+                return date.toISOString().split('T')[0];
+            }
+            
+            // Формат DD.MM.YYYY
+            if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(strValue)) {
+                const [day, month, year] = strValue.split('.');
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            
+            // Формат YYYY-MM-DD
+            if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(strValue)) {
+                return strValue;
+            }
+            
+            // Если это просто число (не timestamp), возвращаем как есть
             return strValue;
+            
+        } catch (error) {
+            console.error(`❌ Ошибка парсинга даты "${value}":`, error.message);
+            return value;
         }
-        
-        // Если это просто число (не timestamp), возвращаем как есть
-        return strValue;
-        
-    } catch (error) {
-        console.error(`❌ Ошибка парсинга даты "${value}":`, error.message);
-        return value;
     }
-},
 
     parseNumeric(value) {
         if (!value) return 0;
