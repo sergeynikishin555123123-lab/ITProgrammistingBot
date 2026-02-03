@@ -3301,8 +3301,9 @@ app.post('/api/auth/phone', async (req, res) => {
             total_classes: p.total_classes,
             remaining_classes: p.remaining_classes || 0,
             used_classes: p.used_classes || 0,
-            expiration_date: p.expiration_date,
-            last_visit_date: p.last_visit_date,
+             activation_date: p.activation_date,                    // ← ДОБАВИТЬ
+    expiration_date: p.expiration_date,
+    last_visit_date: p.last_visit_date,
             parent_name: p.parent_name,
             is_demo: p.is_demo === 1,
             source: p.source,
