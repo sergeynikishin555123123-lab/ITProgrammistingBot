@@ -5045,7 +5045,279 @@ app.get('/api/debug/amocrm-fields', async (req, res) => {
 });
 
 // ==================== ПРОВЕРКА РЕАЛЬНОЙ СДЕЛКИ НА ПОСЕЩЕНИЯ ====================
-
+// В server.js добавь этот маршрут
+app.get('/api/find-all-fields/:leadId', async (req, res) => {
+    try {
+        const leadId = req.params.leadId;
+        console.log(`🔍 ПОИСК ВСЕХ ПОЛЕЙ В СДЕЛКЕ ${leadId}`);
+        
+        // 1. Прямой запрос к amoCRM
+        const lead = await amoCrmService.getLeadById(leadId);
+        
+        if (!lead) {
+            return res.json({ 
+                success: false, 
+                error: `Сделка ${leadId} не найдена в amoCRM` 
+            });
+        }
+        
+        console.log(`✅ Сделка найдена: "${lead.name}"`);
+        
+        const allFields = [];
+        const checkboxFields = [];
+        const dateFields = [];
+        const numericFields = [];
+        const textFields = [];
+        
+        if (lead.custom_fields_values && lead.custom_fields_values.length > 0) {
+            console.log(`📊 Найдено кастомных полей: ${lead.custom_fields_values.length}`);
+            
+            for (const field of lead.custom_fields_values) {
+                const fieldId = field.field_id;
+                let fieldValue = null;
+                let valueType = 'unknown';
+                
+                // Получаем значение
+                if (field.values && field.values.length > 0) {
+                    const firstValue = field.values[0];
+                    
+                    // Проверяем все возможные варианты
+                    if (firstValue.value !== undefined) {
+                        fieldValue = firstValue.value;
+                        
+                        // Определяем тип значения
+                        if (typeof fieldValue === 'boolean') {
+                            valueType = 'boolean';
+                        } else if (typeof fieldValue === 'number') {
+                            valueType = 'number';
+                        } else if (fieldValue === 'true' || fieldValue === 'false') {
+                            valueType = 'boolean_string';
+                        } else if (!isNaN(fieldValue) && fieldValue.trim() !== '') {
+                            valueType = 'number_string';
+                        } else if (fieldValue.includes('-') || fieldValue.includes('.')) {
+                            // Проверяем формат даты
+                            if (/^\d{4}-\d{2}-\d{2}/.test(fieldValue) || 
+                                /^\d{1,2}\.\d{1,2}\.\d{4}/.test(fieldValue) ||
+                                /^\d{9,10}$/.test(fieldValue)) {
+                                valueType = 'date_string';
+                            } else {
+                                valueType = 'text';
+                            }
+                        } else {
+                            valueType = 'text';
+                        }
+                        
+                    } else if (firstValue.enum_id !== undefined) {
+                        fieldValue = String(firstValue.enum_id);
+                        valueType = 'enum_id';
+                    }
+                }
+                
+                const fieldInfo = {
+                    field_id: fieldId,
+                    value: fieldValue,
+                    value_type: valueType,
+                    values: field.values || []
+                };
+                
+                allFields.push(fieldInfo);
+                
+                // Группируем по типам
+                if (valueType.includes('boolean')) {
+                    checkboxFields.push(fieldInfo);
+                } else if (valueType.includes('date')) {
+                    dateFields.push(fieldInfo);
+                } else if (valueType.includes('number')) {
+                    numericFields.push(fieldInfo);
+                } else if (valueType === 'text') {
+                    textFields.push(fieldInfo);
+                }
+                
+                // Выводим важные поля
+                if (valueType.includes('boolean') || valueType.includes('date') || 
+                    valueType.includes('number') || fieldId >= 884899) {
+                    console.log(`   ${fieldId}: ${fieldValue} (${valueType})`);
+                }
+            }
+        } else {
+            console.log('⚠️  Нет кастомных полей в сделке');
+        }
+        
+        // 2. Также получаем информацию о стандартных полях сделки
+        const standardFields = {
+            id: lead.id,
+            name: lead.name,
+            price: lead.price,
+            status_id: lead.status_id,
+            pipeline_id: lead.pipeline_id,
+            created_at: lead.created_at,
+            updated_at: lead.updated_at,
+            closed_at: lead.closed_at
+        };
+        
+        // 3. Формируем отчет
+        const report = {
+            success: true,
+            lead_info: standardFields,
+            fields_summary: {
+                total_custom_fields: allFields.length,
+                checkbox_fields: checkboxFields.length,
+                date_fields: dateFields.length,
+                numeric_fields: numericFields.length,
+                text_fields: textFields.length
+            },
+            all_custom_fields: allFields.map(f => ({
+                id: f.field_id,
+                value: f.value,
+                type: f.value_type
+            })),
+            checkbox_fields: checkboxFields.map(f => ({
+                id: f.field_id,
+                value: f.value,
+                is_true: f.value === true || f.value === 'true' || f.value === '1'
+            })),
+            date_fields: dateFields.map(f => ({
+                id: f.field_id,
+                value: f.value,
+                parsed: f.value ? amoCrmService.parseDate(f.value) : null
+            })),
+            numeric_fields: numericFields.map(f => ({
+                id: f.field_id,
+                value: f.value,
+                numeric: parseInt(f.value) || 0
+            }))
+        };
+        
+        console.log('\n📋 ИТОГОВЫЙ ОТЧЕТ:');
+        console.log(`   Всего полей: ${allFields.length}`);
+        console.log(`   Чекбоксов: ${checkboxFields.length}`);
+        console.log(`   Дат: ${dateFields.length}`);
+        console.log(`   Числовых: ${numericFields.length}`);
+        
+        // 4. Ищем поля посещений (по известным ID или паттернам)
+        const visitCheckboxes = [];
+        const visitDates = [];
+        
+        allFields.forEach(field => {
+            const fieldId = field.field_id;
+            
+            // Чекбоксы посещений (диапазон 884899-892895)
+            if (fieldId >= 884899 && fieldId <= 892895) {
+                const isChecked = field.value === true || field.value === 'true' || 
+                                 field.value === '1' || field.value === 1;
+                if (isChecked) {
+                    visitCheckboxes.push({
+                        field_id: fieldId,
+                        value: field.value,
+                        lesson_number: getLessonNumberFromFieldId(fieldId)
+                    });
+                }
+            }
+            
+            // Даты посещений (диапазон 884931-892897)
+            if (fieldId >= 884931 && fieldId <= 892897) {
+                if (field.value) {
+                    visitDates.push({
+                        field_id: fieldId,
+                        value: field.value,
+                        lesson_number: getLessonNumberFromFieldId(fieldId),
+                        parsed_date: amoCrmService.parseDate(field.value)
+                    });
+                }
+            }
+        });
+        
+        console.log(`\n🎯 НАЙДЕНЫ ПОСЕЩЕНИЯ:`);
+        console.log(`   Чекбоксов отмеченных: ${visitCheckboxes.length}`);
+        console.log(`   Дат заполненных: ${visitDates.length}`);
+        
+        // 5. Группируем посещения
+        const groupedVisits = {};
+        
+        visitCheckboxes.forEach(cb => {
+            const lessonNum = cb.lesson_number;
+            if (!groupedVisits[lessonNum]) {
+                groupedVisits[lessonNum] = {};
+            }
+            groupedVisits[lessonNum].attended = true;
+            groupedVisits[lessonNum].checkbox_id = cb.field_id;
+        });
+        
+        visitDates.forEach(date => {
+            const lessonNum = date.lesson_number;
+            if (!groupedVisits[lessonNum]) {
+                groupedVisits[lessonNum] = {};
+            }
+            groupedVisits[lessonNum].date = date.parsed_date;
+            groupedVisits[lessonNum].date_id = date.field_id;
+            groupedVisits[lessonNum].raw_date = date.value;
+        });
+        
+        // Формируем финальный список посещений
+        const finalVisits = [];
+        for (let i = 1; i <= 24; i++) {
+            if (groupedVisits[i] && groupedVisits[i].attended) {
+                finalVisits.push({
+                    lesson_number: i,
+                    attended: true,
+                    date: groupedVisits[i].date || null,
+                    has_date: !!groupedVisits[i].date,
+                    checkbox_field: groupedVisits[i].checkbox_id,
+                    date_field: groupedVisits[i].date_id,
+                    raw_date: groupedVisits[i].raw_date
+                });
+            }
+        }
+        
+        report.visits_discovery = {
+            checkboxes_found: visitCheckboxes,
+            dates_found: visitDates,
+            grouped_visits: groupedVisits,
+            final_visits: finalVisits,
+            total_visits: finalVisits.length
+        };
+        
+        // 6. Проверяем поля счетчиков
+        const usedClassesField = allFields.find(f => f.field_id === 850257); // "Счетчик занятий:"
+        const usedClassesNumField = allFields.find(f => f.field_id === 884251); // "Кол-во отхоженных занятий"
+        const remainingClassesField = allFields.find(f => f.field_id === 890163); // "Остаток занятий"
+        
+        report.counters = {
+            used_classes_select: usedClassesField ? {
+                id: 850257,
+                value: usedClassesField.value,
+                numeric: amoCrmService.parseNumeric(usedClassesField.value)
+            } : null,
+            used_classes_numeric: usedClassesNumField ? {
+                id: 884251,
+                value: usedClassesNumField.value,
+                numeric: parseInt(usedClassesNumField.value) || 0
+            } : null,
+            remaining_classes: remainingClassesField ? {
+                id: 890163,
+                value: remainingClassesField.value,
+                numeric: parseInt(remainingClassesField.value) || 0
+            } : null
+        };
+        
+        console.log(`\n🔢 СЧЕТЧИКИ:`);
+        console.log(`   USED_CLASSES (850257): ${usedClassesField?.value || 'НЕТ'}`);
+        console.log(`   USED_CLASSES_NUM (884251): ${usedClassesNumField?.value || 'НЕТ'}`);
+        console.log(`   REMAINING_CLASSES (890163): ${remainingClassesField?.value || 'НЕТ'}`);
+        
+        res.json(report);
+        
+    } catch (error) {
+        console.error('❌ Ошибка поиска полей:', error.message);
+        console.error('Stack:', error.stack);
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
 app.get('/api/debug/real-lead-visits/:leadId', async (req, res) => {
     try {
         const leadId = req.params.leadId;
