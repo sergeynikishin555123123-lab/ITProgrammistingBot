@@ -1173,6 +1173,11 @@ class AmoCrmService {
                     subscriptionInfo.freezeStatus = displayValue;
                     console.log(`   ❄️  Заморозка: ${fieldValue} -> "${displayValue}"`);
                 }
+                else if (fieldId === this.FIELD_IDS.LEAD.PURCHASE_DATE) {
+                   subscriptionInfo.hasSubscription = true;
+                   subscriptionInfo.purchaseDate = this.parseDate(fieldValue);
+                   console.log(`   💰 Дата покупки: ${fieldValue} -> ${subscriptionInfo.purchaseDate}`);
+                }
                 else if (fieldId === this.FIELD_IDS.LEAD.BRANCH) {
                     subscriptionInfo.branch = displayValue;
                     console.log(`   📍 Филиал: ${fieldValue} -> "${displayValue}"`);
@@ -2713,14 +2718,19 @@ async function saveProfilesToDatabase(profiles) {
                     [profile.student_name, profile.phone_number]
                 );
                 
-                // Сравниваем данные абонемента
-                const isSameSubscription = existingProfile && 
-                    existingProfile.subscription_type === profile.subscription_type &&
-                    existingProfile.subscription_status === profile.subscription_status &&
-                    existingProfile.subscription_active === profile.subscription_active &&
-                    existingProfile.total_classes === profile.total_classes &&
-                    existingProfile.used_classes === profile.used_classes &&
-                    existingProfile.remaining_classes === profile.remaining_classes;
+               // ДОБАВЬТЕ сравнение дат:
+const isSameSubscription = existingProfile && 
+    existingProfile.subscription_type === profile.subscription_type &&
+    existingProfile.subscription_status === profile.subscription_status &&
+    existingProfile.subscription_active === profile.subscription_active &&
+    existingProfile.total_classes === profile.total_classes &&
+    existingProfile.used_classes === profile.used_classes &&
+    existingProfile.remaining_classes === profile.remaining_classes &&
+    // Добавьте сравнение дат:
+    existingProfile.activation_date === profile.activation_date &&
+    existingProfile.expiration_date === profile.expiration_date &&
+    existingProfile.last_visit_date === profile.last_visit_date &&
+    existingProfile.purchase_date === profile.purchase_date;
                 
                 const columns = [
                     'amocrm_contact_id', 'parent_contact_id', 'amocrm_lead_id', 'student_name', 'phone_number', 'email',
@@ -2728,7 +2738,7 @@ async function saveProfilesToDatabase(profiles) {
                     'parent_name', 'subscription_type', 'subscription_active', 'subscription_status', 'subscription_badge',
                     'total_classes', 'used_classes', 'remaining_classes', 'expiration_date', 
                     'activation_date', 'last_visit_date', 'custom_fields', 
-                    'raw_contact_data', 'lead_data', 'is_demo', 'source', 'is_active'
+                    'raw_contact_data','purchase_date', 'lead_data', 'is_demo', 'source', 'is_active'
                 ];
                 
                 const values = [
@@ -5292,6 +5302,77 @@ app.get('/api/test-dates/:leadId', async (req, res) => {
     } catch (error) {
         console.error('❌ Ошибка теста дат:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+app.get('/api/force-update/:phone', async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const formattedPhone = formatPhoneNumber(phone);
+        
+        console.log(`🔄 Принудительное обновление профилей для: ${formattedPhone}`);
+        
+        // Удаляем старые данные
+        const cleanPhone = phone.replace(/\D/g, '');
+        await db.run(
+            `DELETE FROM student_profiles WHERE phone_number LIKE ?`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        console.log('🧹 Старые данные удалены');
+        
+        // Получаем новые данные из amoCRM
+        const profiles = await amoCrmService.getStudentsByPhone(formattedPhone);
+        console.log(`📊 Найдено в amoCRM: ${profiles.length} профилей`);
+        
+        if (profiles.length === 0) {
+            return res.json({
+                success: false,
+                error: 'Профили не найдены в amoCRM'
+            });
+        }
+        
+        // Сохраняем в БД
+        const savedCount = await saveProfilesToDatabase(profiles);
+        
+        // Получаем обновленные данные
+        const updatedProfiles = await db.all(
+            `SELECT * FROM student_profiles 
+             WHERE phone_number LIKE ?`,
+            [`%${cleanPhone.slice(-10)}%`]
+        );
+        
+        // Проверяем, что даты сохранились
+        const profileCheck = updatedProfiles.map(p => ({
+            student_name: p.student_name,
+            dates: {
+                activation: p.activation_date || 'НЕТ',
+                expiration: p.expiration_date || 'НЕТ',
+                last_visit: p.last_visit_date || 'НЕТ',
+                purchase: p.purchase_date || 'НЕТ'
+            }
+        }));
+        
+        res.json({
+            success: true,
+            message: `Принудительно обновлено ${savedCount} профилей`,
+            saved_count: savedCount,
+            profiles: updatedProfiles.map(p => ({
+                id: p.id,
+                student_name: p.student_name,
+                activation_date: p.activation_date,
+                expiration_date: p.expiration_date,
+                last_visit_date: p.last_visit_date,
+                purchase_date: p.purchase_date,
+                subscription_active: p.subscription_active
+            })),
+            date_check: profileCheck
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка принудительного обновления:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 // ==================== ДРУГИЕ АДМИН API ====================
