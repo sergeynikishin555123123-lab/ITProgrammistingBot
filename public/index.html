@@ -228,38 +228,54 @@
             box-shadow: 0 2px 10px rgba(0, 102, 255, 0.2);
         }
 
-        .logo-small {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--white);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--blue-primary);
-            font-weight: bold;
-            font-size: 1.2rem;
-        }
-
         .logo-text {
             font-family: 'BanyaFont';
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--white);
-            margin-left: 10px;
         }
 
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--white);
-            color: var(--blue-primary);
+        .top-bar-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .top-bar-btn {
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 8px;
+            padding: 8px 15px;
+            border-radius: 8px;
             font-weight: 600;
+            font-size: 0.9rem;
             cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .top-bar-change-student {
+            background: var(--white);
+            color: var(--blue-primary);
+            border-color: var(--white);
+        }
+
+        .top-bar-change-student:hover {
+            background: var(--blue-dark);
+            color: var(--white);
+            border-color: var(--white);
+        }
+
+        .top-bar-logout {
+            background: transparent;
+            color: var(--white);
+            border-color: var(--white);
+        }
+
+        .top-bar-logout:hover {
+            background: var(--white);
+            color: var(--error);
         }
 
         /* НИЖНЯЯ НАВИГАЦИЯ */
@@ -268,7 +284,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: 70px;
+            height: 65px;
             background: var(--white);
             border-top: 2px solid var(--blue-primary);
             display: flex;
@@ -285,59 +301,94 @@
             justify-content: center;
             color: var(--gray-dark);
             text-decoration: none;
-            padding: 10px 15px;
-            border-radius: 12px;
+            padding: 8px 10px;
+            border-radius: 10px;
             transition: all 0.3s ease;
-            width: 80px;
-            height: 60px;
+            width: 70px;
+            height: 55px;
+            min-width: 0;
         }
 
         .nav-item.active {
             color: var(--blue-primary);
             background: var(--blue-pale);
-            transform: translateY(-5px);
+            transform: translateY(-3px);
         }
 
         .nav-item i {
-            font-size: 1.5rem;
-            margin-bottom: 5px;
+            font-size: 1.3rem;
+            margin-bottom: 4px;
         }
 
         .nav-item span {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
 
         /* ОСНОВНОЙ КОНТЕНТ */
         .main-content {
             flex: 1;
             padding: 20px;
-            padding-bottom: 90px;
+            padding-bottom: 80px;
             overflow-y: auto;
             background: var(--white);
         }
 
-        /* ВЫБОР УЧЕНИКА */
-        .student-selector {
-            background: var(--white);
-            border-radius: 15px;
+        /* ВЫБОР УЧЕНИКА - МОДАЛЬНОЕ ОКНО */
+        .student-selector-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
             padding: 20px;
-            margin-bottom: 20px;
-            border: 2px solid var(--blue-primary);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .student-selector-modal.active {
+            display: flex;
+        }
+
+        .student-selector-container {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 3px solid var(--blue-primary);
             box-shadow: var(--shadow);
         }
 
         .selector-title {
-            font-size: 1.2rem;
+            font-size: 1.4rem;
             font-weight: 600;
             color: var(--blue-primary);
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
             gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--gray-medium);
         }
 
-        .student-item {
+        .students-list-modal {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .student-item-modal {
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -345,30 +396,30 @@
             background: var(--blue-pale);
             border-radius: 12px;
             border: 2px solid var(--blue-primary);
-            margin-bottom: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
-        .student-item:hover {
+        .student-item-modal:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow);
         }
 
-        .student-item.active {
+        .student-item-modal.active {
             background: var(--blue-primary);
             color: var(--white);
         }
 
-        .student-info {
+        .student-info-modal {
             display: flex;
             align-items: center;
             gap: 15px;
+            flex: 1;
         }
 
-        .student-avatar {
-            width: 50px;
-            height: 50px;
+        .student-avatar-modal {
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
             background: var(--blue-primary);
             color: var(--white);
@@ -376,43 +427,77 @@
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 1.2rem;
+            font-size: 1rem;
+            flex-shrink: 0;
         }
 
-        .student-details {
+        .student-item-modal.active .student-avatar-modal {
+            background: var(--white);
+            color: var(--blue-primary);
+        }
+
+        .student-details-modal {
             flex: 1;
+            min-width: 0;
         }
 
-        .student-name {
-            font-size: 1.2rem;
+        .student-name-modal {
+            font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .student-branch {
-            font-size: 0.9rem;
+        .student-branch-modal {
+            font-size: 0.85rem;
             color: var(--blue-dark);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .student-item.active .student-branch {
+        .student-item-modal.active .student-branch-modal {
             color: var(--blue-pale);
         }
 
-        .student-status {
-            font-size: 0.8rem;
-            padding: 4px 10px;
-            border-radius: 20px;
+        .student-status-modal {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 15px;
             font-weight: 600;
+            white-space: nowrap;
+            margin-left: 10px;
         }
 
-        .status-active {
+        .status-active-modal {
             background: var(--success);
             color: white;
         }
 
-        .status-expired {
+        .status-expired-modal {
             background: var(--error);
             color: white;
+        }
+
+        .close-selector-btn {
+            margin-top: 20px;
+            padding: 12px;
+            background: var(--white);
+            color: var(--blue-primary);
+            border: 2px solid var(--blue-primary);
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            text-align: center;
+        }
+
+        .close-selector-btn:hover {
+            background: var(--blue-primary);
+            color: var(--white);
         }
 
         /* ГЛАВНАЯ СТРАНИЦА */
@@ -710,6 +795,41 @@
             font-size: 0.9rem;
         }
 
+        /* ИСТОРИЯ ПОСЕЩЕНИЙ */
+        .visits-history-container {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 2px solid var(--blue-primary);
+            box-shadow: var(--shadow);
+        }
+
+        .visits-history-header {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--blue-primary);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--gray-medium);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .visit-item-detailed {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: var(--blue-pale);
+            border-radius: 12px;
+            border-left: 4px solid var(--success);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .visit-item-detailed.estimated {
+            border-left-color: var(--warning);
+        }
+
         /* СТРАНИЦА ПРЕПОДАВАТЕЛЕЙ */
         .teachers-grid {
             display: grid;
@@ -997,13 +1117,31 @@
             
             .main-content {
                 padding: 15px;
-                padding-bottom: 90px;
+                padding-bottom: 75px;
             }
             
             .notification {
                 width: calc(100% - 40px);
                 right: 20px;
                 left: 20px;
+            }
+            
+            .bottom-nav {
+                height: 60px;
+            }
+            
+            .nav-item {
+                width: 65px;
+                height: 50px;
+                padding: 6px 8px;
+            }
+            
+            .nav-item i {
+                font-size: 1.2rem;
+            }
+            
+            .nav-item span {
+                font-size: 0.65rem;
             }
         }
 
@@ -1024,6 +1162,35 @@
                 flex-direction: column;
                 gap: 10px;
                 padding: 15px;
+            }
+            
+            .bottom-nav {
+                height: 55px;
+            }
+            
+            .nav-item {
+                width: 60px;
+                height: 45px;
+            }
+            
+            .nav-item i {
+                font-size: 1.1rem;
+                margin-bottom: 3px;
+            }
+            
+            .nav-item span {
+                font-size: 0.6rem;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .nav-item {
+                width: 55px;
+                padding: 5px;
+            }
+            
+            .nav-item span {
+                font-size: 0.55rem;
             }
         }
 
@@ -1218,26 +1385,19 @@
     <div class="app-container" id="appContainer">
         <!-- ВЕРХНИЙ БАР -->
         <nav class="top-bar">
-            <div style="display: flex; align-items: center;">
-                <div class="logo-small" id="headerLogo">Б</div>
-                <div class="logo-text">БАНЯ</div>
-            </div>
+            <div class="logo-text">БАНЯ</div>
             
-            <div class="user-avatar" id="userAvatar" onclick="BanyaApp.showProfileMenu()">
-                <i class="fas fa-user"></i>
+            <div class="top-bar-buttons">
+                <button class="top-bar-btn top-bar-change-student" onclick="BanyaApp.showStudentsSelectorModal()">
+                    <i class="fas fa-users"></i>
+                    <span class="hide-on-mobile">Сменить ученика</span>
+                </button>
+                <button class="top-bar-btn top-bar-logout" onclick="BanyaApp.logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span class="hide-on-mobile">Выйти</span>
+                </button>
             </div>
         </nav>
-        
-        <!-- ВЫБОР УЧЕНИКА -->
-        <div id="studentSelector" class="student-selector d-none">
-            <div class="selector-title">
-                <i class="fas fa-users"></i>
-                Выберите ученика
-            </div>
-            <div class="students-list" id="studentsList">
-                <!-- Список учеников будет здесь -->
-            </div>
-        </div>
         
         <!-- ОСНОВНОЙ КОНТЕНТ -->
         <main class="main-content" id="mainContent">
@@ -1348,6 +1508,17 @@
                 
                 <div id="subscriptionContainer">
                     <!-- Абонемент будет загружен динамически -->
+                </div>
+                
+                <!-- История посещений -->
+                <div id="visitsHistoryContainer" class="visits-history-container" style="display: none;">
+                    <div class="visits-history-header">
+                        <i class="fas fa-history"></i>
+                        История посещений
+                    </div>
+                    <div id="visitsHistoryContent">
+                        <!-- История посещений будет загружена динамически -->
+                    </div>
                 </div>
                 
                 <div class="mt-30">
@@ -1476,25 +1647,19 @@
         </nav>
     </div>
     
-    <!-- МЕНЮ ПОЛЬЗОВАТЕЛЯ -->
-    <div id="userMenu" class="d-none" style="position: fixed; top: 70px; right: 20px; background: var(--white); border: 2px solid var(--blue-primary); border-radius: 12px; padding: 20px; width: 250px; z-index: 2000; box-shadow: var(--shadow);">
-        <div style="font-weight: 600; color: var(--blue-primary); margin-bottom: 15px;">
-            <i class="fas fa-user-circle"></i> Аккаунт
-        </div>
-        <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 2px solid var(--gray-medium);">
-            <div style="font-weight: 600;" id="userMenuName">Загрузка...</div>
-            <div style="font-size: 0.9rem; color: var(--gray-dark);" id="userMenuPhone">Загрузка...</div>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button class="btn btn-secondary" onclick="BanyaApp.navigateTo('home')">
-                <i class="fas fa-home"></i> Главная
-            </button>
-            <button class="btn btn-secondary" onclick="BanyaApp.showStudentsSelector()">
-                <i class="fas fa-users"></i> Сменить ученика
-            </button>
-            <button class="btn btn-secondary" style="border-color: var(--error); color: var(--error);" onclick="BanyaApp.logout()">
-                <i class="fas fa-sign-out-alt"></i> Выйти
-            </button>
+    <!-- МОДАЛЬНОЕ ОКНО ВЫБОРА УЧЕНИКА -->
+    <div id="studentSelectorModal" class="student-selector-modal">
+        <div class="student-selector-container">
+            <div class="selector-title">
+                <i class="fas fa-users"></i>
+                Выберите ученика
+            </div>
+            <div class="students-list-modal" id="studentsListModal">
+                <!-- Список учеников будет здесь -->
+            </div>
+            <div class="close-selector-btn" onclick="BanyaApp.hideStudentsSelectorModal()">
+                Закрыть
+            </div>
         </div>
     </div>
     
@@ -1549,25 +1714,65 @@
         showMainInterface: function() {
             document.getElementById('auth-page').style.display = 'none';
             document.getElementById('appContainer').style.display = 'flex';
-            
-            if (this.config.currentUser) {
-                const initials = this.getInitials(this.config.currentUser.name || this.config.currentUser.phone);
-                document.getElementById('userAvatar').innerHTML = initials;
-            }
         },
 
-        // ПОКАЗАТЬ МЕНЮ ПОЛЬЗОВАТЕЛЯ
-        showProfileMenu: function() {
-            const menu = document.getElementById('userMenu');
-            if (menu.classList.contains('d-none')) {
-                if (this.config.currentProfile) {
-                    document.getElementById('userMenuName').textContent = this.config.currentProfile.student_name;
-                    document.getElementById('userMenuPhone').textContent = this.config.currentProfile.phone_number;
-                }
-                menu.classList.remove('d-none');
-            } else {
-                menu.classList.add('d-none');
+        // ПОКАЗАТЬ МОДАЛЬНОЕ ОКНО ВЫБОРА УЧЕНИКА
+        showStudentsSelectorModal: function() {
+            const modal = document.getElementById('studentSelectorModal');
+            const container = document.getElementById('studentsListModal');
+            
+            if (!this.config.profiles || this.config.profiles.length === 0) {
+                this.showNotification('Нет данных об учениках', 'warning');
+                return;
             }
+            
+            if (this.config.profiles.length === 1) {
+                this.showNotification('У вас только один ученик', 'info');
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            this.config.profiles.forEach((profile, index) => {
+                const isActive = this.config.currentProfile && 
+                               this.config.currentProfile.student_name === profile.student_name;
+                
+                const studentItem = document.createElement('div');
+                studentItem.className = `student-item-modal ${isActive ? 'active' : ''}`;
+                studentItem.dataset.studentName = profile.student_name;
+                
+                studentItem.innerHTML = `
+                    <div class="student-info-modal">
+                        <div class="student-avatar-modal">
+                            ${this.getInitials(profile.student_name)}
+                        </div>
+                        <div class="student-details-modal">
+                            <div class="student-name-modal">${profile.student_name || 'Не указано'}</div>
+                            <div class="student-branch-modal">${profile.branch || 'Филиал не указан'}</div>
+                        </div>
+                    </div>
+                    <div class="student-status-modal ${profile.subscription_active === 1 ? 'status-active-modal' : 'status-expired-modal'}">
+                        ${profile.subscription_active === 1 ? 'Активен' : 'Не активен'}
+                    </div>
+                `;
+                
+                studentItem.addEventListener('click', () => {
+                    this.selectStudent(profile.student_name);
+                    this.hideStudentsSelectorModal();
+                });
+                
+                container.appendChild(studentItem);
+            });
+            
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        },
+
+        // СКРЫТЬ МОДАЛЬНОЕ ОКНО ВЫБОРА УЧЕНИКА
+        hideStudentsSelectorModal: function() {
+            const modal = document.getElementById('studentSelectorModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto';
         },
 
         // ВХОД ПО ТЕЛЕФОНУ
@@ -1715,20 +1920,12 @@
 
         updateLogoInUI: function(logoData) {
             const authLogo = document.getElementById('authLogo');
-            const headerLogo = document.getElementById('headerLogo');
             const logoTexts = document.querySelectorAll('.logo-text, .auth-logo-text');
             
             if (logoData.logo && logoData.logo.startsWith('data:image')) {
-                const logoImg = `<img src="${logoData.logo}" alt="${logoData.name || 'БАНЯ'}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-                
                 if (authLogo) {
-                    authLogo.innerHTML = logoImg;
+                    authLogo.innerHTML = `<img src="${logoData.logo}" alt="${logoData.name || 'БАНЯ'}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
                     authLogo.style.background = 'none';
-                }
-                
-                if (headerLogo) {
-                    headerLogo.innerHTML = logoImg;
-                    headerLogo.style.background = 'none';
                 }
             }
             
@@ -1797,63 +1994,6 @@
             }
             
             this.updateUserInfo();
-            this.loadStudentsList();
-        },
-
-        // ЗАГРУЗКА СПИСКА УЧЕНИКОВ
-        loadStudentsList: function() {
-            const container = document.getElementById('studentsList');
-            const selector = document.getElementById('studentSelector');
-            
-            if (!this.config.profiles || this.config.profiles.length === 0) {
-                selector.classList.add('d-none');
-                return;
-            }
-            
-            if (this.config.profiles.length === 1) {
-                selector.classList.add('d-none');
-                return;
-            }
-            
-            selector.classList.remove('d-none');
-            container.innerHTML = '';
-            
-            this.config.profiles.forEach((profile, index) => {
-                const isActive = this.config.currentProfile && 
-                               this.config.currentProfile.student_name === profile.student_name;
-                
-                const studentItem = document.createElement('div');
-                studentItem.className = `student-item ${isActive ? 'active' : ''}`;
-                studentItem.dataset.studentName = profile.student_name;
-                
-                studentItem.innerHTML = `
-                    <div class="student-info">
-                        <div class="student-avatar">
-                            ${this.getInitials(profile.student_name)}
-                        </div>
-                        <div class="student-details">
-                            <div class="student-name">${profile.student_name || 'Не указано'}</div>
-                            <div class="student-branch">${profile.branch || 'Филиал не указан'}</div>
-                        </div>
-                    </div>
-                    <div class="student-status ${profile.subscription_active === 1 ? 'status-active' : 'status-expired'}">
-                        ${profile.subscription_active === 1 ? 'Активен' : 'Не активен'}
-                    </div>
-                `;
-                
-                studentItem.addEventListener('click', () => {
-                    this.selectStudent(profile.student_name);
-                });
-                
-                container.appendChild(studentItem);
-            });
-        },
-
-        // ПОКАЗАТЬ ВЫБОР УЧЕНИКА
-        showStudentsSelector: function() {
-            const selector = document.getElementById('studentSelector');
-            selector.classList.remove('d-none');
-            this.showNotification('Выберите ученика из списка', 'success');
         },
 
         // ВЫБОР УЧЕНИКА
@@ -1889,17 +2029,14 @@
                             Math.round((profile.used_classes / profile.total_classes) * 100) : 0
                     },
                     dates: {
-                    activation: profile.activation_date,  // ← ЭТО ПОЛЕ
-                    expiration: profile.expiration_date,
-                    last_visit: profile.last_visit_date
+                        activation: profile.activation_date,
+                        expiration: profile.expiration_date,
+                        last_visit: profile.last_visit_date
                     }
                 }
             };
             
             this.updateUserInfo();
-            this.loadStudentsList();
-            this.hideProfileMenu();
-            
             this.showNotification(`Выбран ученик: ${profile.student_name}`, 'success');
             this.saveSession();
             
@@ -1924,8 +2061,6 @@
                     item.classList.add('active');
                 }
             });
-            
-            this.hideProfileMenu();
             
             const pageElement = document.getElementById(`${pageName}Page`);
             if (pageElement) {
@@ -2143,17 +2278,120 @@
                     </div>
                     ` : ''}
                 </div>
+            `;
+            
+            // Загружаем историю посещений
+            if (used > 0) {
+                this.loadVisitsHistory();
+            }
+        },
+
+        // ЗАГРУЗКА ИСТОРИИ ПОСЕЩЕНИЙ
+        loadVisitsHistory: function() {
+            if (!this.config.currentProfile || !this.config.currentProfile.phone_number) {
+                return;
+            }
+            
+            const container = document.getElementById('visitsHistoryContainer');
+            const contentContainer = document.getElementById('visitsHistoryContent');
+            
+            if (!container || !contentContainer) return;
+            
+            const phone = this.config.currentProfile.phone_number;
+            
+            // Используем новый API для реальных данных
+            fetch(`/api/visits/real/${encodeURIComponent(phone)}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.config.token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.visits.length > 0) {
+                    this.renderRealVisitsHistory(data.data, contentContainer);
+                    container.style.display = 'block';
+                } else if (data.data.subscription_info.used_classes > 0) {
+                    this.renderSimpleVisitsCount(data.data.subscription_info.used_classes, contentContainer);
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('❌ Ошибка загрузки реальной истории:', error);
+                container.style.display = 'none';
+            });
+        },
+
+        // РЕНДЕРИНГ РЕАЛЬНОЙ ИСТОРИИ ПОСЕЩЕНИЙ
+        renderRealVisitsHistory: function(data, container) {
+            let html = '';
+            
+            data.visits.forEach((visit, index) => {
+                let dateDisplay = visit.formatted_date || 'Дата не указана';
+                if (visit.estimated) {
+                    dateDisplay += ' (примерно)';
+                }
                 
-                ${used > 0 ? `
-                <div class="visits-list">
-                    <h3 style="color: var(--blue-primary); margin-bottom: 15px; font-size: 1.2rem;">
-                        <i class="fas fa-history"></i> История посещений
-                    </h3>
-                    <div style="text-align: center; padding: 20px; color: var(--gray-dark);">
-                        <i class="fas fa-info-circle"></i> История посещений будет отображаться здесь
+                html += `
+                    <div class="visit-item-detailed ${visit.source === 'estimated' ? 'estimated' : ''}" style="animation-delay: ${index * 0.1}s;">
+                        <div>
+                            <div class="visit-date">
+                                <i class="fas fa-calendar-day"></i> ${dateDisplay}
+                                ${visit.source === 'estimated' ? 
+                                  '<span class="badge badge-warning" style="margin-left: 8px; font-size: 0.7rem;">оценка</span>' : 
+                                  '<span class="badge badge-success" style="margin-left: 8px; font-size: 0.7rem;">реальные данные</span>'}
+                            </div>
+                            <div class="visit-time">
+                                <i class="fas fa-graduation-cap"></i> Занятие ${visit.lesson_number}
+                                ${visit.teacher_name ? ` • ${visit.teacher_name}` : ''}
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--gray-dark); margin-top: 3px;">
+                                <i class="fas fa-school"></i> ${visit.branch || 'Филиал не указан'}
+                            </div>
+                        </div>
+                        <div class="badge badge-success" style="font-size: 0.8rem;">
+                            <i class="fas fa-check-circle"></i> Посещено
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Итоговая информация
+            html += `
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--gray-medium);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: 0.9rem; color: var(--gray-dark);">
+                            <i class="fas fa-chart-bar"></i> 
+                            Всего посещений: ${data.total_visits} 
+                            <span style="margin-left: 10px; color: var(--success);">
+                                <i class="fas fa-check"></i> ${data.summary.with_dates} с датами
+                            </span>
+                            ${data.summary.estimated > 0 ? 
+                              `<span style="margin-left: 10px; color: var(--warning);">
+                                <i class="fas fa-clock"></i> ${data.summary.estimated} оценочных
+                              </span>` : ''}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--blue-primary);">
+                            Абонемент: ${data.subscription_info.used_classes}/${data.subscription_info.total_classes}
+                        </div>
                     </div>
                 </div>
-                ` : ''}
+            `;
+            
+            container.innerHTML = html;
+        },
+
+        // РЕНДЕРИНГ ПРОСТОГО СЧЕТЧИКА ПОСЕЩЕНИЙ
+        renderSimpleVisitsCount: function(usedClasses, container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--gray-dark);">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Вы посетили ${usedClasses} занятий</p>
+                    <p style="font-size: 0.9rem; margin-top: 10px;">
+                        Детальная история посещений будет доступна в ближайшее время
+                    </p>
+                </div>
             `;
         },
 
@@ -2719,13 +2957,7 @@
                 this.clearSession();
                 this.showAuthPage();
                 this.showNotification('Вы успешно вышли из системы', 'success');
-                this.hideProfileMenu();
             }
-        },
-
-        // СКРЫТЬ МЕНЮ ПОЛЬЗОВАТЕЛЯ
-        hideProfileMenu: function() {
-            document.getElementById('userMenu').classList.add('d-none');
         },
 
         // ОЧИСТКА ИНТЕРВАЛА УВЕДОМЛЕНИЙ
@@ -2774,27 +3006,27 @@
         },
 
         // РАБОТА С СЕССИЕЙ
-saveSession: function() {
-    try {
-        const sessionData = {
-            token: this.config.token,
-            currentUser: this.config.currentUser,
-            currentProfile: this.config.currentProfile,
-            profiles: this.config.profiles,
-            subscriptionData: this.config.subscriptionData,
-            timestamp: Date.now()
-        };
-        
-        console.log('💾 Сохраняем в сессию:', {
-            has_activation_date: !!this.config.currentProfile?.activation_date,
-            currentProfile: this.config.currentProfile
-        });
-        
-        localStorage.setItem('banyaSchoolSession', JSON.stringify(sessionData));
-    } catch (error) {
-        console.error('Ошибка сохранения сессии:', error);
-    }
-},
+        saveSession: function() {
+            try {
+                const sessionData = {
+                    token: this.config.token,
+                    currentUser: this.config.currentUser,
+                    currentProfile: this.config.currentProfile,
+                    profiles: this.config.profiles,
+                    subscriptionData: this.config.subscriptionData,
+                    timestamp: Date.now()
+                };
+                
+                console.log('💾 Сохраняем в сессию:', {
+                    has_activation_date: !!this.config.currentProfile?.activation_date,
+                    currentProfile: this.config.currentProfile
+                });
+                
+                localStorage.setItem('banyaSchoolSession', JSON.stringify(sessionData));
+            } catch (error) {
+                console.error('Ошибка сохранения сессии:', error);
+            }
+        },
 
         loadSession: function() {
             try {
@@ -2904,17 +3136,6 @@ saveSession: function() {
                     self.handlePhoneLogin();
                 });
             }
-            
-            document.addEventListener('click', (e) => {
-                const userMenu = document.getElementById('userMenu');
-                const userAvatar = document.getElementById('userAvatar');
-                
-                if (userMenu && !userMenu.classList.contains('d-none') && 
-                    !userMenu.contains(e.target) && 
-                    userAvatar && !userAvatar.contains(e.target)) {
-                    userMenu.classList.add('d-none');
-                }
-            });
         }
     };
 
