@@ -2400,17 +2400,18 @@ public/admin.html - <!DOCTYPE html>
         // Реализация редактирования
     },
     
-    // Сохранение занятия (обновленный метод)
-    saveClass: function() {
-        const activeTab = document.querySelector('#modal-new-class .tab.active');
-        const tabId = activeTab.getAttribute('data-tab');
-        
-        if (tabId === 'single-class') {
-            this.saveSingleClass();
-        } else {
-            this.saveRecurringClass();
-        }
-    },
+saveClass: function() {
+    const activeTab = document.querySelector('#modal-new-class .tab.active');
+    const tabId = activeTab.getAttribute('data-tab');
+    
+    console.log(`💾 Сохранение занятия, тип: ${tabId}`);
+    
+    if (tabId === 'single-class') {
+        this.saveSingleClass();
+    } else if (tabId === 'recurring-class') {
+        this.saveRecurringClass();
+    }
+},
     
     // Сохранение одного занятия
     saveSingleClass: function() {
