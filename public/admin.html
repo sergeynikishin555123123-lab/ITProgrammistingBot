@@ -1986,22 +1986,23 @@ public/admin.html - <!DOCTYPE html>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
     <script>
     const AdminApp = {
-        config: {
-            apiBase: '/api/admin',
-            currentUser: null,
-            currentPage: 'dashboard'
-        },
+    config: {
+        apiBase: '/api/admin',
+        currentUser: null,
+        currentPage: 'dashboard'
+    },
 
-        // ИНИЦИАЛИЗАЦИЯ
-        init: function() {
-            console.log('🛠️ Инициализация админ-панели...');
-            this.setupEventListeners();
-            this.checkAuth();
-            this.initDatePickers();
-        },
+    // ИНИЦИАЛИЗАЦИЯ
+    init: function() {
+        console.log('🛠️ Инициализация админ-панели...');
+        this.setupEventListeners();
+        this.checkAuth();
+        this.initDatePickers();
+    },
 
-        // ИНИЦИАЛИЗАЦИЯ КАЛЕНДАРЕЙ
-        initDatePickers: function() {
+    // ИНИЦИАЛИЗАЦИЯ КАЛЕНДАРЕЙ
+    initDatePickers: function() {
+        if (typeof flatpickr !== 'undefined') {
             flatpickr.localize(flatpickr.l10ns.ru);
             
             document.querySelectorAll('input[type="date"]').forEach(input => {
@@ -2010,89 +2011,1984 @@ public/admin.html - <!DOCTYPE html>
                     locale: "ru"
                 });
             });
-            
-            document.querySelectorAll('input[type="time"]').forEach(input => {
-                flatpickr(input, {
-                    enableTime: true,
-                    noCalendar: true,
-                    dateFormat: "H:i",
-                    time_24hr: true,
-                    locale: "ru"
-                });
-            });
-        },
+        }
+    },
 
-        // Получение преподавателей для select
-        loadTeachersForSelect: function() {
-            fetch('/api/admin/teachers', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+    // Получение преподавателей для select
+    loadTeachersForSelect: function() {
+        fetch('/api/admin/teachers', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data.teachers) {
+                const select = document.getElementById('mailing-teacher');
+                const classSelect = document.getElementById('class-teacher');
+                
+                if (select) {
+                    select.innerHTML = '<option value="">Все преподаватели</option>';
+                    data.data.teachers.forEach(teacher => {
+                        if (teacher.is_active === 1) {
+                            select.innerHTML += `<option value="${teacher.name}">${teacher.name}</option>`;
+                        }
+                    });
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data.teachers) {
-                    const select = document.getElementById('mailing-teacher');
-                    const classSelect = document.getElementById('class-teacher');
-                    
-                    if (select) {
-                        select.innerHTML = '<option value="">Все преподаватели</option>';
-                        data.data.teachers.forEach(teacher => {
-                            if (teacher.is_active === 1) {
-                                select.innerHTML += `<option value="${teacher.name}">${teacher.name}</option>`;
-                            }
-                        });
-                    }
-                    
-                    if (classSelect) {
-                        classSelect.innerHTML = '<option value="">Выберите преподавателя</option>';
-                        data.data.teachers.forEach(teacher => {
-                            if (teacher.is_active === 1) {
-                                classSelect.innerHTML += `<option value="${teacher.id}">${teacher.name}</option>`;
-                            }
-                        });
-                    }
+                
+                if (classSelect) {
+                    classSelect.innerHTML = '<option value="">Выберите преподавателя</option>';
+                    data.data.teachers.forEach(teacher => {
+                        if (teacher.is_active === 1) {
+                            classSelect.innerHTML += `<option value="${teacher.id}">${teacher.name}</option>`;
+                        }
+                    });
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки преподавателей:', error);
-            });
-        },
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки преподавателей:', error);
+        });
+    },
 
-        // Сохранение занятия
-        saveClass: function() {
-            const classData = {
-                date: document.getElementById('class-date').value,
-                time: document.getElementById('class-time').value,
-                branch: document.getElementById('class-branch').value,
-                teacher_id: document.getElementById('class-teacher').value,
-                group_name: document.getElementById('class-group').value,
-                age_group: document.getElementById('class-age-group').value,
-                status: document.getElementById('class-status').value
-            };
+    // Сохранение занятия
+    saveClass: function() {
+        const classData = {
+            date: document.getElementById('class-date').value,
+            time: document.getElementById('class-time').value,
+            branch: document.getElementById('class-branch').value,
+            teacher_id: document.getElementById('class-teacher').value,
+            group_name: document.getElementById('class-group').value,
+            age_group: document.getElementById('class-age-group').value,
+            status: document.getElementById('class-status').value
+        };
+        
+        if (!classData.date || !classData.time || !classData.branch) {
+            this.showToast('Заполните обязательные поля: дата, время, филиал', 'warning');
+            return;
+        }
+        
+        this.showLoading('Сохранение занятия...');
+        
+        fetch('/api/admin/schedule', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(classData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            this.hideModal('new-class');
             
-            if (!classData.date || !classData.time || !classData.branch) {
-                this.showToast('Заполните обязательные поля', 'warning');
-                return;
+            if (data.success) {
+                this.showToast('Занятие успешно добавлено', 'success');
+                this.loadScheduleData();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка сохранения: ' + error.message, 'error');
+        });
+    },
+
+    // ПРОВЕРКА АВТОРИЗАЦИИ
+    checkAuth: function() {
+        const token = localStorage.getItem('admin_token');
+        const userData = localStorage.getItem('admin_user');
+        
+        if (token && userData) {
+            try {
+                this.config.currentUser = JSON.parse(userData);
+                this.showAdminPanel();
+                this.loadDashboardData();
+            } catch (e) {
+                console.error('Ошибка парсинга данных пользователя:', e);
+                this.showLogin();
+            }
+        } else {
+            this.showLogin();
+        }
+    },
+
+    // ПОКАЗАТЬ СТРАНИЦУ ВХОДА
+    showLogin: function() {
+        document.getElementById('login-page').style.display = 'flex';
+        document.getElementById('admin-panel').classList.add('d-none');
+    },
+
+    // ПОКАЗАТЬ АДМИН-ПАНЕЛЬ
+    showAdminPanel: function() {
+        document.getElementById('login-page').style.display = 'none';
+        document.getElementById('admin-panel').classList.remove('d-none');
+        
+        if (this.config.currentUser) {
+            document.getElementById('user-name').textContent = this.config.currentUser.name || 'Администратор';
+            document.getElementById('user-email').textContent = this.config.currentUser.email || 'admin@artschool.ru';
+            document.getElementById('user-role').textContent = this.config.currentUser.role || 'Администратор';
+            
+            // Аватар с инициалами
+            const initials = this.getInitials(this.config.currentUser.name);
+            document.getElementById('user-avatar').textContent = initials;
+        }
+    },
+
+    // ВХОД В СИСТЕМУ
+    login: function(email, password) {
+        if (!email || !password) {
+            this.showToast('Заполните все поля', 'warning');
+            return;
+        }
+        
+        this.showLoading('Выполняется вход...');
+        
+        fetch('/api/admin/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                email: email,
+                password: password
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.data) {
+                // Сохраняем токен и данные пользователя
+                localStorage.setItem('admin_token', data.data.token);
+                localStorage.setItem('admin_user', JSON.stringify(data.data.admin));
+                
+                this.config.currentUser = data.data.admin;
+                this.showAdminPanel();
+                this.showToast('Вход выполнен успешно!', 'success');
+                this.loadDashboardData();
+            } else {
+                throw new Error(data.error || 'Ошибка входа');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка входа:', error);
+            this.showToast('Ошибка входа: ' + error.message, 'error');
+        })
+        .finally(() => {
+            this.hideLoading();
+        });
+    },
+
+    // ВЫХОД ИЗ СИСТЕМЫ
+    logout: function() {
+        if (confirm('Вы уверены, что хотите выйти?')) {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_user');
+            this.config.currentUser = null;
+            this.showLogin();
+            this.showToast('Вы вышли из системы', 'info');
+        }
+    },
+
+    // НАВИГАЦИЯ
+    navigateTo: function(pageId) {
+        console.log(`📍 Навигация: ${pageId}`);
+        
+        // Скрываем все страницы
+        document.querySelectorAll('.page-content').forEach(page => {
+            page.classList.add('d-none');
+        });
+        
+        // Обновляем активный пункт меню
+        document.querySelectorAll('.sidebar-menu a').forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === `#${pageId}`) {
+                link.classList.add('active');
+            }
+        });
+        
+        // Показываем выбранную страницу
+        const page = document.getElementById(`${pageId}-page`);
+        if (page) {
+            page.classList.remove('d-none');
+            this.config.currentPage = pageId;
+            
+            // Обновляем заголовок
+            this.updatePageTitle(pageId);
+            
+            // Загружаем данные для страницы
+            this.loadPageData(pageId);
+        }
+    },
+
+    // ОБНОВЛЕНИЕ ЗАГОЛОВКА СТРАНИЦЫ
+    updatePageTitle: function(pageId) {
+        const titles = {
+            'dashboard': { title: 'Дашборд', subtitle: 'Обзор системы' },
+            'mailings': { title: 'Рассылки', subtitle: 'Управление рассылками' },
+            'schedule': { title: 'Расписание', subtitle: 'Управление занятиями' },
+            'teachers': { title: 'Преподаватели', subtitle: 'Управление преподавателями' },
+            'faq': { title: 'FAQ', subtitle: 'Часто задаваемые вопросы' },
+            'news': { title: 'Новости', subtitle: 'Управление новостями' },
+            'logs': { title: 'Логи', subtitle: 'История событий системы' },
+            'sync': { title: 'Синхронизация', subtitle: 'Синхронизация с amoCRM' },
+            'settings': { title: 'Настройки', subtitle: 'Настройки системы' }
+        };
+        
+        const titleData = titles[pageId] || { title: 'Страница', subtitle: '' };
+        document.getElementById('page-title').textContent = titleData.title;
+        document.getElementById('page-subtitle').textContent = titleData.subtitle;
+    },
+
+    // ЗАГРУЗКА ДАННЫХ ДЛЯ СТРАНИЦЫ
+    loadPageData: function(pageId) {
+        switch(pageId) {
+            case 'dashboard':
+                this.loadDashboardData();
+                break;
+            case 'mailings':
+                this.loadMailingsData();
+                break;
+            case 'schedule':
+                this.loadScheduleData();
+                break;
+            case 'teachers':
+                this.loadTeachersData();
+                break;
+            case 'faq':
+                this.loadFaqData();
+                break;
+            case 'news':
+                this.loadNewsData();
+                break;
+            case 'logs':
+                this.loadLogsData();
+                break;
+            case 'sync':
+                this.loadSyncData();
+                break;
+            case 'settings':
+                this.loadSettingsPage();
+                break;
+        }
+    },
+
+    // ЗАГРУЗКА ДАННЫХ ДАШБОРДА
+    loadDashboardData: function() {
+        const container = document.getElementById('stats-container');
+        container.innerHTML = `
+            <div class="text-center">
+                <div class="spinner"></div>
+                <p class="mt-20">Загрузка статистики...</p>
+            </div>
+        `;
+        
+        fetch('/api/admin/dashboard', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                this.renderDashboard(data.data);
+            } else {
+                throw new Error(data.error || 'Ошибка загрузки данных');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки дашборда:', error);
+            container.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-exclamation-circle" style="font-size: 48px; color: var(--error); margin-bottom: 10px;"></i>
+                    <p>Ошибка загрузки данных</p>
+                    <p style="font-size: 0.8rem; color: var(--gray-dark);">${error.message}</p>
+                </div>
+            `;
+        });
+    },
+
+    // РЕНДЕРИНГ ДАШБОРДА
+    renderDashboard: function(data) {
+        const container = document.getElementById('stats-container');
+        
+        if (!data || !data.stats) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-chart-line"></i>
+                    <p>Нет данных для отображения</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const stats = data.stats;
+        
+        let html = `
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--blue-primary);">
+                        ${stats.total_students || 0}
+                    </div>
+                    <div class="stat-label">Всего учеников</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--success);">
+                        ${stats.active_subscriptions || 0}
+                    </div>
+                    <div class="stat-label">Активных абонементов</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--warning);">
+                        ${stats.new_students_month || 0}
+                    </div>
+                    <div class="stat-label">Новых учеников (месяц)</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--pink);">
+                        ${stats.expiring_subscriptions || 0}
+                    </div>
+                    <div class="stat-label">Истекающих абонементов</div>
+                </div>
+            </div>
+        `;
+        
+        // Статистика по филиалам
+        if (stats.branches && stats.branches.length > 0) {
+            html += `
+                <div style="margin-top: 30px;">
+                    <h4 style="color: var(--blue-primary); margin-bottom: 15px; font-size: 1.1rem;">
+                        <i class="fas fa-map-marker-alt"></i> По филиалам:
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+            `;
+            
+            stats.branches.forEach(branch => {
+                html += `
+                    <div style="background: var(--white); padding: 15px; border-radius: 8px; border: 2px solid var(--blue-primary);">
+                        <div style="font-weight: 600; color: var(--blue-primary);">${branch.branch || 'Филиал'}</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--blue-primary);">${branch.count || 0}</div>
+                    </div>
+                `;
+            });
+            
+            html += `</div></div>`;
+        }
+        
+        container.innerHTML = html;
+    },
+
+    // ОБНОВЛЕНИЕ СТАТИСТИКИ
+    refreshStats: function() {
+        this.showToast('Обновление статистики...', 'info');
+        this.loadDashboardData();
+    },
+
+    // Загрузка данных рассылок
+    loadMailingsData: function() {
+        this.showLoading('Загрузка рассылок...');
+        
+        // Загружаем сервисные рассылки
+        fetch('/api/admin/mailings?type=telegram_notification', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderServiceMailings(data.data.mailings);
+            } else {
+                throw new Error(data.error || 'Ошибка загрузки рассылок');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки сервисных рассылок:', error);
+            document.getElementById('service-mailings-table').innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center">
+                        <div style="color: var(--error); padding: 20px;">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <p>Ошибка загрузки: ${error.message}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        // Загружаем рекламные рассылки
+        fetch('/api/admin/mailings?type=marketing', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderMarketingMailings(data.data.mailings);
+                this.hideLoading();
+            } else {
+                throw new Error(data.error || 'Ошибка загрузки рассылок');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки рекламных рассылок:', error);
+            document.getElementById('marketing-mailings-table').innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center">
+                        <div style="color: var(--error); padding: 20px;">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <p>Ошибка загрузки: ${error.message}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            this.hideLoading();
+        });
+    },
+
+    // Рендеринг сервисных рассылок
+    renderServiceMailings: function(mailings) {
+        const table = document.getElementById('service-mailings-table');
+        
+        if (!mailings || mailings.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <p>Нет сервисных рассылок</p>
+                            <button class="btn btn-primary mt-10" onclick="AdminApp.showModal('new-mailing')">
+                                <i class="fas fa-plus"></i> Создать первую рассылку
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = mailings.map(mailing => `
+            <tr>
+                <td>
+                    <div style="font-weight: 600;">${this.getMailingTypeName(mailing.type)}</div>
+                    <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.name || 'Без названия'}</div>
+                </td>
+                <td>${mailing.branch || 'Все филиалы'}</td>
+                <td>${mailing.teacher || 'Все'}</td>
+                <td>
+                    <div>${this.formatDateTime(mailing.created_at)}</div>
+                    ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
+                </td>
+                <td>
+                    <div>${mailing.recipients_count || 0} чел.</div>
+                    ${mailing.sent_count > 0 ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
+                </td>
+                <td>
+                    <span class="badge ${this.getMailingStatusClass(mailing.status)}">
+                        ${this.getMailingStatusText(mailing.status)}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
+                        <i class="fas fa-eye"></i> Детали
+                    </button>
+                    
+                    ${mailing.status === 'pending' || mailing.status === 'failed' ? `
+                    <button class="btn btn-success btn-small" onclick="AdminApp.sendMailingNow('${mailing.id}')" 
+                            title="Отправить сейчас">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                    ` : ''}
+                    
+                    ${mailing.status === 'pending' ? `
+                    <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')"
+                            title="Удалить">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // Рендеринг рекламных рассылок
+    renderMarketingMailings: function(mailings) {
+        const table = document.getElementById('marketing-mailings-table');
+        
+        if (!mailings || mailings.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <p>Нет рекламных рассылок</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = mailings.map(mailing => `
+            <tr>
+                <td>
+                    <div style="font-weight: 600;">${mailing.name || 'Без названия'}</div>
+                    <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.type === 'marketing' ? 'Рекламная' : 'Уведомление'}</div>
+                </td>
+                <td>${this.getSegmentName(mailing.segment)}</td>
+                <td>
+                    <div>${this.formatDateTime(mailing.created_at)}</div>
+                    ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
+                </td>
+                <td>
+                    <div>${mailing.recipients_count || 0} чел.</div>
+                    ${mailing.sent_count !== undefined ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
+                </td>
+                <td>
+                    <span class="badge ${this.getMailingStatusClass(mailing.status)}">
+                        ${this.getMailingStatusText(mailing.status)}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
+                        <i class="fas fa-eye"></i> Детали
+                    </button>
+                    ${mailing.status === 'pending' ? `
+                    <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // Получение класса статуса для бейджа
+    getMailingStatusClass: function(status) {
+        switch(status) {
+            case 'sent': return 'active';
+            case 'sending': return 'pending';
+            case 'failed': return 'inactive';
+            case 'pending': return 'info';
+            default: return 'info';
+        }
+    },
+
+    // Получение текста статуса
+    getMailingStatusText: function(status) {
+        switch(status) {
+            case 'sent': return 'Отправлено';
+            case 'sending': return 'Отправляется';
+            case 'failed': return 'Ошибка';
+            case 'pending': return 'В ожидании';
+            default: return status;
+        }
+    },
+
+    // Просмотр деталей рассылки
+    viewMailing: function(id) {
+        this.showLoading('Загрузка деталей рассылки...');
+        
+        fetch(`/api/admin/mailings/${id}`, {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            if (data.success) {
+                this.showMailingDetails(data.data);
+            } else {
+                throw new Error(data.error || 'Ошибка загрузки');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка загрузки: ' + error.message, 'error');
+        });
+    },
+
+    // Показ деталей рассылки в модальном окне
+    showMailingDetails: function(mailingData) {
+        const mailing = mailingData.mailing;
+        
+        // Создаем модальное окно для показа деталей
+        const modalId = 'mailing-details-modal';
+        let modal = document.getElementById(modalId);
+        
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = modalId;
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-info-circle"></i> Детали рассылки</h3>
+                        <button class="modal-close" onclick="AdminApp.hideModal('${modalId}')">&times;</button>
+                    </div>
+                    <div class="modal-body" id="${modalId}-content">
+                        <!-- Контент загружается динамически -->
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick="AdminApp.hideModal('${modalId}')">Закрыть</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        // Заполняем контент
+        const content = document.getElementById(`${modalId}-content`);
+        content.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                    <div>
+                        <div style="font-weight: 600; color: var(--blue-primary); font-size: 1.1rem;">
+                            ${mailing.name || this.getMailingTypeName(mailing.type)}
+                        </div>
+                        <div style="font-size: 0.9rem; color: var(--gray-dark);">
+                            Создана: ${this.formatDateTime(mailing.created_at)}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge ${this.getMailingStatusClass(mailing.status)}">
+                            ${this.getMailingStatusText(mailing.status)}
+                        </span>
+                    </div>
+                </div>
+                
+                <div style="background: var(--blue-pale); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div style="font-weight: 600; margin-bottom: 8px; color: var(--blue-primary);">Текст сообщения:</div>
+                    <div style="white-space: pre-wrap;">${mailing.message || 'Текст отсутствует'}</div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Тип:</div>
+                        <div>${this.getMailingTypeName(mailing.type)}</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Филиал:</div>
+                        <div>${mailing.branch || 'Все филиалы'}</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Получатели:</div>
+                        <div>${mailing.recipients_count || 0} человек</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Отправлено:</div>
+                        <div>${mailing.sent_count || 0} из ${mailing.recipients_count || 0}</div>
+                    </div>
+                </div>
+                
+                ${mailing.sent_at ? `
+                <div style="background: var(--success); color: white; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                    <i class="fas fa-check-circle"></i> Отправлено: ${this.formatDateTime(mailing.sent_at)}
+                </div>
+                ` : ''}
+                
+                ${mailing.status === 'failed' ? `
+                <div style="background: var(--error); color: white; padding: 10px; border-radius: 8px;">
+                    <i class="fas fa-exclamation-circle"></i> Рассылка завершилась с ошибкой
+                </div>
+                ` : ''}
+                
+                ${mailingData.recipients?.sample?.length > 0 ? `
+                <div style="margin-top: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: var(--blue-primary);">Пример получателей:</div>
+                    <div style="max-height: 200px; overflow-y: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Ученик</th>
+                                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Телефон</th>
+                                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${mailingData.recipients.sample.map(recipient => `
+                                    <tr>
+                                        <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.student_name || '-'}</td>
+                                        <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.phone_number || '-'}</td>
+                                        <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.subscription_status || '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+        
+        // Показываем модальное окно
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    },
+
+    // Удаление рассылки
+    deleteMailing: function(id) {
+        if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) {
+            return;
+        }
+        
+        this.showLoading('Удаление рассылки...');
+        
+        fetch(`/api/admin/mailings/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            if (data.success) {
+                this.showToast('Рассылка удалена', 'success');
+                this.loadMailingsData(); // Обновляем список
+            } else {
+                throw new Error(data.error || 'Ошибка удаления');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка удаления: ' + error.message, 'error');
+        });
+    },
+
+    // Скрытие модального окна
+    hideModal: function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    },
+
+    // ЗАГРУЗКА ДАННЫХ РАСПИСАНИЯ
+    loadScheduleData: function() {
+        const branch = document.getElementById('schedule-branch-filter').value;
+        
+        fetch(`/api/admin/schedule${branch !== 'all' ? '?branch=' + encodeURIComponent(branch) : ''}`, {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderSchedule(data.data.schedule);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки расписания:', error);
+        });
+    },
+
+    // РЕНДЕРИНГ РАСПИСАНИЯ
+    renderSchedule: function(schedule) {
+        const table = document.getElementById('schedule-table');
+        
+        if (!schedule || schedule.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-calendar"></i>
+                            <p>Нет данных о расписании</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = schedule.map(lesson => `
+            <tr>
+                <td>${this.formatDate(lesson.date)}</td>
+                <td>${lesson.time || '-'}</td>
+                <td>${lesson.branch || '-'}</td>
+                <td>${lesson.group_name || '-'}</td>
+                <td>${lesson.age_group || '-'}</td>
+                <td>
+                    <span class="badge ${lesson.status === 'active' ? 'active' : lesson.status === 'cancelled' ? 'inactive' : 'pending'}">
+                        ${this.getLessonStatusName(lesson.status)}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-secondary btn-small" onclick="AdminApp.editLesson('${lesson.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="AdminApp.cancelLesson('${lesson.id}')">
+                        <i class="fas fa-ban"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // ЗАГРУЗКА ДАННЫХ ПРЕПОДАВАТЕЛЕЙ
+    loadTeachersData: function() {
+        fetch('/api/admin/teachers', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderTeachers(data.data.teachers);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки преподавателей:', error);
+        });
+    },
+
+    // РЕНДЕРИНГ ПРЕПОДАВАТЕЛЕЙ
+    renderTeachers: function(teachers) {
+        const table = document.getElementById('teachers-table');
+        
+        if (!teachers || teachers.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>Нет данных о преподавателях</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = teachers.map(teacher => `
+            <tr>
+                <td>${teacher.name || '-'}</td>
+                <td>${teacher.branch || '-'}</td>
+                <td>${teacher.specialization || '-'}</td>
+                <td>
+                    <span class="badge ${teacher.is_active === 1 ? 'active' : 'inactive'}">
+                        ${teacher.is_active === 1 ? 'Активен' : 'Неактивен'}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-secondary btn-small" onclick="AdminApp.editTeacher('${teacher.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="AdminApp.deleteTeacher('${teacher.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // ЗАГРУЗКА ДАННЫХ FAQ
+    loadFaqData: function() {
+        fetch('/api/admin/faq', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderFaq(data.data.faq);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки FAQ:', error);
+        });
+    },
+
+    // РЕНДЕРИНГ FAQ
+    renderFaq: function(faq) {
+        const table = document.getElementById('faq-table');
+        
+        if (!faq || faq.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-question-circle"></i>
+                            <p>Нет данных в FAQ</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = faq.map(item => `
+            <tr>
+                <td>${item.question || '-'}</td>
+                <td>${(item.answer || '').length > 100 ? (item.answer || '').substring(0, 100) + '...' : item.answer || '-'}</td>
+                <td>${this.getCategoryName(item.category)}</td>
+                <td>
+                    <span class="badge ${item.is_active === 1 ? 'active' : 'inactive'}">
+                        ${item.is_active === 1 ? 'Активен' : 'Скрыт'}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-secondary btn-small" onclick="AdminApp.editFaq('${item.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="AdminApp.deleteFaq('${item.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // ЗАГРУЗКА ДАННЫХ НОВОСТЕЙ
+    loadNewsData: function() {
+        fetch('/api/admin/news', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderNews(data.data.news);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки новостей:', error);
+        });
+    },
+
+    // РЕНДЕРИНГ НОВОСТЕЙ
+    renderNews: function(news) {
+        const table = document.getElementById('news-table');
+        
+        if (!news || news.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-newspaper"></i>
+                            <p>Нет данных о новостях</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = news.map(item => `
+            <tr>
+                <td>${item.title || '-'}</td>
+                <td>${(item.content || '').length > 100 ? (item.content || '').substring(0, 100) + '...' : item.content || '-'}</td>
+                <td>${item.branch === 'all' ? 'Оба филиала' : item.branch || '-'}</td>
+                <td>${this.formatDate(item.publish_date)}</td>
+                <td>
+                    <span class="badge ${item.is_published === 1 ? 'active' : 'inactive'}">
+                        ${item.is_published === 1 ? 'Опубликовано' : 'Черновик'}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-secondary btn-small" onclick="AdminApp.editNews('${item.id}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="AdminApp.deleteNews('${item.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    // ЗАГРУЗКА ДАННЫХ ЛОГОВ
+    loadLogsData: function() {
+        const level = document.getElementById('log-level').value;
+        let url = '/api/admin/logs';
+        if (level) {
+            url += '?level=' + encodeURIComponent(level);
+        }
+        
+        fetch(url, {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.renderLogs(data.data.logs);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки логов:', error);
+        });
+    },
+
+    // РЕНДЕРИНГ ЛОГОВ
+    renderLogs: function(logs) {
+        const table = document.getElementById('logs-table');
+        
+        if (!logs || logs.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center">
+                        <div class="empty-state">
+                            <i class="fas fa-history"></i>
+                            <p>Нет данных в логах</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        table.innerHTML = logs.map(log => `
+            <tr>
+                <td>${this.formatDateTime(log.created_at)}</td>
+                <td>
+                    <span class="badge ${log.level === 'error' ? 'inactive' : log.level === 'warning' ? 'pending' : 'info'}">
+                        ${log.level || 'info'}
+                    </span>
+                </td>
+                <td>${log.message || '-'}</td>
+                <td>${log.user_id || 'Система'}</td>
+            </tr>
+        `).join('');
+    },
+
+    // ЗАГРУЗКА ДАННЫХ СИНХРОНИЗАЦИИ
+    loadSyncData: function() {
+        const statusContainer = document.getElementById('sync-status');
+        
+        // Проверка статуса подключения
+        fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.amocrm_connected) {
+                statusContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 15px; color: var(--success);">
+                        <i class="fas fa-check-circle" style="font-size: 2rem;"></i>
+                        <div>
+                            <div style="font-weight: 700; font-size: 1.1rem;">amoCRM подключен</div>
+                            <div style="font-size: 0.9rem; color: var(--gray-dark);">${data.amocrm_account || 'Аккаунт'}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                statusContainer.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 15px; color: var(--error);">
+                        <i class="fas fa-times-circle" style="font-size: 2rem;"></i>
+                        <div>
+                            <div style="font-weight: 700; font-size: 1.1rem;">amoCRM не подключен</div>
+                            <div style="font-size: 0.9rem; color: var(--gray-dark);">${data.data_source || 'Данные из локальной БД'}</div>
+                        </div>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка проверки подключения:', error);
+            statusContainer.innerHTML = `
+                <div style="color: var(--error);">
+                    <i class="fas fa-exclamation-circle"></i> Ошибка проверки подключения
+                </div>
+            `;
+        });
+    },
+
+    // СИНХРОНИЗАЦИЯ ПО ТЕЛЕФОНУ
+    syncByPhone: function() {
+        const phone = document.getElementById('sync-phone').value;
+        if (!phone) {
+            this.showToast('Введите номер телефона', 'warning');
+            return;
+        }
+        
+        this.showLoading('Синхронизация...');
+        const resultsContainer = document.getElementById('sync-results');
+        
+        fetch(`/api/sync/${phone}?force=true`)
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            
+            if (data.success) {
+                resultsContainer.innerHTML = `
+                    <div style="background: var(--success); color: white; padding: 20px; border-radius: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                            <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
+                            <div style="font-weight: 700; font-size: 1.1rem;">Синхронизация завершена</div>
+                        </div>
+                        <div style="margin-bottom: 10px;">${data.message}</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9;">
+                            Найдено профилей: ${data.sync_details?.amocrm_profiles || 0}<br>
+                            Сохранено в БД: ${data.sync_details?.saved_to_db || 0}
+                        </div>
+                    </div>
+                `;
+                this.showToast('Синхронизация завершена', 'success');
+            } else {
+                throw new Error(data.error || 'Ошибка синхронизации');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            resultsContainer.innerHTML = `
+                <div style="background: var(--error); color: white; padding: 20px; border-radius: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 1.5rem;"></i>
+                        <div style="font-weight: 700;">Ошибка синхронизации</div>
+                    </div>
+                    <div style="margin-top: 10px;">${error.message}</div>
+                </div>
+            `;
+            this.showToast('Ошибка синхронизации: ' + error.message, 'error');
+        });
+    },
+
+    // ==================== УПРАВЛЕНИЕ НАСТРОЙКАМИ ====================
+
+    // Загрузка страницы настроек
+    loadSettingsPage: function() {
+        this.showLoading('Загрузка настроек...');
+        
+        fetch('/api/admin/settings', {
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            if (data.success) {
+                this.renderSettings(data.data.settings);
+            } else {
+                throw new Error(data.error || 'Ошибка загрузки');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка загрузки настроек: ' + error.message, 'error');
+        });
+    },
+
+    // Рендеринг настроек
+    renderSettings: function(settings) {
+        const settingsMap = {};
+        settings.forEach(s => {
+            settingsMap[s.setting_key] = s.setting_value;
+        });
+        
+        // Заполняем поля
+        document.getElementById('school-name').value = settingsMap['school_name'] || 'БАНЯ';
+        document.getElementById('school-subtitle').value = settingsMap['school_subtitle'] || 'Художественная школа';
+        document.getElementById('primary-color').value = settingsMap['primary_color'] || '#ff6b35';
+        document.getElementById('primary-color-hex').value = settingsMap['primary_color'] || '#ff6b35';
+        document.getElementById('button-color').value = settingsMap['secondary_color'] || '#0066FF';
+        document.getElementById('button-color-hex').value = settingsMap['secondary_color'] || '#0066FF';
+        
+        // Логотип
+        const logo = settingsMap['logo_image'];
+        this.updateLogoPreview(logo);
+        
+        // Контакты
+        document.getElementById('phone-sviblovo').value = settingsMap['phone_sviblovo'] || '+7 (999) 123-45-67';
+        document.getElementById('phone-chertanovo').value = settingsMap['phone_chertanovo'] || '+7 (999) 987-65-43';
+        document.getElementById('phone-general').value = settingsMap['phone_general'] || '+7 (999) 111-22-33';
+        document.getElementById('email-contact').value = settingsMap['email'] || 'info@bania-school.ru';
+    },
+
+    // Обновление превью логотипа
+    updateLogoPreview: function(logoData) {
+        const previewImg = document.getElementById('logo-preview-img');
+        const placeholder = document.getElementById('logo-placeholder');
+        const removeBtn = document.getElementById('remove-logo-btn');
+        
+        if (logoData && logoData.trim() !== '') {
+            // Если это data URL
+            if (logoData.startsWith('data:image')) {
+                previewImg.src = logoData;
+            } else {
+                previewImg.src = 'data:image/png;base64,' + logoData;
             }
             
-            this.showLoading('Сохранение занятия...');
-            
-            fetch('/api/admin/schedule', {
+            previewImg.style.display = 'block';
+            placeholder.style.display = 'none';
+            removeBtn.style.display = 'inline-block';
+        } else {
+            previewImg.style.display = 'none';
+            placeholder.style.display = 'block';
+            removeBtn.style.display = 'none';
+        }
+    },
+
+    // Загрузка логотипа
+    handleLogoUpload: function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Проверка размера (макс 2MB)
+        if (file.size > 2 * 1024 * 1024) {
+            this.showToast('Файл слишком большой (макс 2MB)', 'error');
+            return;
+        }
+        
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            const base64 = e.target.result;
+            this.updateLogoPreview(base64);
+            this.showToast('Логотип загружен', 'success');
+        };
+        
+        reader.onerror = () => {
+            this.showToast('Ошибка чтения файла', 'error');
+        };
+        
+        reader.readAsDataURL(file);
+    },
+
+    // Удаление логотипа
+    removeLogo: function() {
+        if (!confirm('Удалить логотип?')) return;
+        
+        document.getElementById('logo-upload').value = '';
+        this.updateLogoPreview('');
+        this.showToast('Логотип удален', 'success');
+    },
+
+    // Сохранение всех настроек
+    saveSettings: function() {
+        this.showLoading('Сохранение настроек...');
+        
+        const settings = [
+            { key: 'school_name', value: document.getElementById('school-name').value, type: 'text' },
+            { key: 'school_subtitle', value: document.getElementById('school-subtitle').value, type: 'text' },
+            { key: 'primary_color', value: document.getElementById('primary-color-hex').value, type: 'color' },
+            { key: 'secondary_color', value: document.getElementById('button-color-hex').value, type: 'color' },
+            { key: 'phone_sviblovo', value: document.getElementById('phone-sviblovo').value, type: 'text' },
+            { key: 'phone_chertanovo', value: document.getElementById('phone-chertanovo').value, type: 'text' },
+            { key: 'phone_general', value: document.getElementById('phone-general').value, type: 'text' },
+            { key: 'email', value: document.getElementById('email-contact').value, type: 'text' }
+        ];
+        
+        // Добавляем логотип если есть
+        const previewImg = document.getElementById('logo-preview-img');
+        if (previewImg.src && previewImg.style.display !== 'none') {
+            settings.push({
+                key: 'logo_image',
+                value: previewImg.src,
+                type: 'image'
+            });
+        }
+        
+        // Отправляем настройки по одной
+        const savePromises = settings.map(setting => 
+            fetch('/api/admin/settings', {
                 method: 'POST',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(classData)
+                body: JSON.stringify(setting)
+            })
+        );
+        
+        Promise.all(savePromises)
+        .then(responses => Promise.all(responses.map(r => r.json())))
+        .then(results => {
+            this.hideLoading();
+            const allSuccess = results.every(r => r.success);
+            
+            if (allSuccess) {
+                this.showToast('Все настройки сохранены!', 'success');
+                
+                // Принудительно обновляем кэш в приложении
+                fetch('/api/logo?refresh=' + Date.now())
+                .then(() => console.log('✅ Логотип обновлен'));
+                
+            } else {
+                throw new Error('Не все настройки сохранены');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            console.error('❌ Ошибка сохранения настроек:', error);
+            this.showToast('Ошибка сохранения настроек', 'error');
+        });
+    },
+
+    // МОДАЛЬНЫЕ ОКНА
+    showModal: function(modalId) {
+        const modal = document.getElementById(`modal-${modalId}`);
+        if (modal) {
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Дополнительные действия для конкретных модалок
+            if (modalId === 'new-class') {
+                this.loadTeachersForSelect();
+                this.initDatePickers(); // Переинициализируем календари
+            }
+        }
+    },
+
+    hideModal: function(modalId) {
+        const modal = document.getElementById(`modal-${modalId}`);
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    },
+
+    // РАССЫЛКИ
+    previewMailing: function() {
+        const activeTab = document.querySelector('#modal-new-mailing .tab.active');
+        const tabId = activeTab.getAttribute('data-tab');
+        
+        let text = '';
+        let title = '';
+        
+        if (tabId === 'mailing-service') {
+            text = document.getElementById('mailing-text').value;
+            const type = document.getElementById('mailing-type').value;
+            title = this.getMailingTypeName(type);
+        } else {
+            text = document.getElementById('mailing-marketing-text').value;
+            title = document.getElementById('mailing-name').value;
+        }
+        
+        if (!text) {
+            this.showToast('Введите текст сообщения', 'warning');
+            return;
+        }
+        
+        // Создаем предпросмотр
+        const previewContent = document.getElementById('preview-content');
+        previewContent.innerHTML = `
+            <div style="font-family: 'ArtisticSoul', sans-serif;">
+                <div style="font-size: 0.9rem; color: var(--blue-primary); margin-bottom: 10px; font-weight: 600;">
+                    ${title || 'Сообщение'}:
+                </div>
+                <div style="font-size: 1rem; line-height: 1.6; color: #333; margin-bottom: 20px;">
+                    ${text.replace(/\n/g, '<br>')}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--gray-dark); border-top: 2px solid rgba(0, 102, 255, 0.1); padding-top: 10px;">
+                    Баня | Не отвечайте на это сообщение
+                </div>
+            </div>
+        `;
+        
+        this.showModal('preview');
+    },
+
+    sendTestMailing: function() {
+        const activeTab = document.querySelector('#modal-new-mailing .tab.active');
+        const tabId = activeTab.getAttribute('data-tab');
+        
+        let mailingData = {};
+        
+        if (tabId === 'mailing-service') {
+            mailingData = {
+                type: document.getElementById('mailing-type').value,
+                branch: Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value).join(','),
+                teacher: document.getElementById('mailing-teacher').value,
+                day: document.getElementById('mailing-day').value,
+                message: document.getElementById('mailing-text').value,
+                test: true
+            };
+        } else {
+            mailingData = {
+                type: 'marketing',
+                name: document.getElementById('mailing-name').value,
+                segment: document.getElementById('mailing-segment').value,
+                message: document.getElementById('mailing-marketing-text').value,
+                test: true
+            };
+        }
+        
+        if (!mailingData.message) {
+            this.showToast('Введите текст сообщения', 'warning');
+            return;
+        }
+        
+        this.showLoading('Отправка тестового сообщения...');
+        
+        fetch('/api/admin/mailings/test', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mailingData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            if (data.success) {
+                this.showToast('Тестовое сообщение отправлено администратору', 'success');
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка отправки: ' + error.message, 'error');
+        });
+    },
+
+    sendMailing: function() {
+        const activeTab = document.querySelector('#modal-new-mailing .tab.active');
+        const tabId = activeTab.getAttribute('data-tab');
+        
+        let mailingData = {};
+        
+        if (tabId === 'mailing-service') {
+            // Собираем данные для сервисной рассылки
+            const type = document.getElementById('mailing-type').value;
+            if (!type) {
+                this.showToast('Выберите тип уведомления', 'warning');
+                return;
+            }
+            
+            const branches = Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value);
+            if (branches.length === 0) {
+                this.showToast('Выберите хотя бы один филиал', 'warning');
+                return;
+            }
+            
+            mailingData = {
+                type: 'telegram_notification',
+                name: `Уведомление: ${this.getMailingTypeName(type)}`,
+                branch: branches.join(','),
+                teacher: document.getElementById('mailing-teacher').value || '',
+                day: document.getElementById('mailing-day').value || '',
+                message: document.getElementById('mailing-text').value
+            };
+            
+            if (!mailingData.message) {
+                this.showToast('Введите текст сообщения', 'warning');
+                return;
+            }
+            
+        } else {
+            // Собираем данные для рекламной рассылки
+            mailingData = {
+                type: 'marketing',
+                name: document.getElementById('mailing-name').value,
+                segment: document.getElementById('mailing-segment').value,
+                message: document.getElementById('mailing-marketing-text').value
+            };
+            
+            if (!mailingData.name || !mailingData.message) {
+                this.showToast('Заполните название и текст рассылки', 'warning');
+                return;
+            }
+            
+            if (!mailingData.segment) {
+                this.showToast('Выберите сегмент получателей', 'warning');
+                return;
+            }
+        }
+        
+        console.log('📤 Отправка данных рассылки:', mailingData);
+        
+        if (!confirm(`Отправить рассылку "${mailingData.name}"?`)) {
+            return;
+        }
+        
+        this.showLoading('Создание и отправка рассылки...');
+        
+        fetch('/api/admin/mailings', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mailingData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            this.hideModal('new-mailing');
+            
+            if (data.success) {
+                this.showToast(`Рассылка создана! Получателей: ${data.data.recipients_count || 0}`, 'success');
+                this.loadMailingsData(); // Обновляем список рассылок
+            } else {
+                throw new Error(data.error || 'Неизвестная ошибка');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            console.error('❌ Ошибка отправки:', error);
+            this.showToast('Ошибка отправки: ' + error.message, 'error');
+        });
+    },
+
+    saveScheduleChange: function() {
+        const changeData = {
+            date: document.getElementById('change-date').value,
+            branch: document.getElementById('change-branch').value,
+            time: document.getElementById('change-time').value,
+            type: document.getElementById('change-type').value,
+            reason: document.getElementById('change-reason').value,
+            send_notification: document.getElementById('send-notification').checked
+        };
+        
+        if (!changeData.date || !changeData.branch || !changeData.time || !changeData.reason) {
+            this.showToast('Заполните все обязательные поля', 'warning');
+            return;
+        }
+        
+        this.showLoading('Сохранение изменений...');
+        
+        fetch('/api/admin/schedule/change', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(changeData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            this.hideModal('schedule-change');
+            
+            if (data.success) {
+                let message = 'Изменения сохранены';
+                if (changeData.send_notification) {
+                    message += '. Уведомление отправлено клиентам.';
+                }
+                this.showToast(message, 'success');
+                this.loadScheduleData();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка сохранения: ' + error.message, 'error');
+        });
+    },
+
+    saveTeacher: function() {
+        const teacherData = {
+            name: document.getElementById('teacher-name').value,
+            branch: document.getElementById('teacher-branch').value,
+            experience: document.getElementById('teacher-experience').value,
+            specialization: document.getElementById('teacher-specialization').value,
+            education: document.getElementById('teacher-education').value
+        };
+        
+        if (!teacherData.name) {
+            this.showToast('Введите имя преподавателя', 'warning');
+            return;
+        }
+        
+        this.showLoading('Сохранение преподавателя...');
+        
+        fetch('/api/admin/teachers', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(teacherData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            this.hideModal('new-teacher');
+            
+            if (data.success) {
+                this.showToast('Преподаватель успешно добавлен', 'success');
+                this.loadTeachersData();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка сохранения: ' + error.message, 'error');
+        });
+    },
+
+    saveFaq: function() {
+        const faqData = {
+            question: document.getElementById('faq-question').value,
+            answer: document.getElementById('faq-answer').value,
+            category: document.getElementById('faq-category').value
+        };
+        
+        if (!faqData.question || !faqData.answer) {
+            this.showToast('Заполните вопрос и ответ', 'warning');
+            return;
+        }
+        
+        this.showLoading('Сохранение вопроса...');
+        
+        fetch('/api/admin/faq', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(faqData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            this.hideModal('new-faq');
+            
+            if (data.success) {
+                this.showToast('Вопрос успешно добавлен в FAQ', 'success');
+                this.loadFaqData();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка сохранения: ' + error.message, 'error');
+        });
+    },
+
+    // ЛОГИ
+    clearLogs: function() {
+        if (!confirm('Очистить все логи системы? Это действие нельзя отменить.')) {
+            return;
+        }
+        
+        this.showLoading('Очистка логов...');
+        
+        fetch('/api/admin/logs/clear', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideLoading();
+            if (data.success) {
+                this.showToast('Логи успешно очищены', 'success');
+                this.loadLogsData();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            this.showToast('Ошибка очистки: ' + error.message, 'error');
+        });
+    },
+
+    // ==================== УПРАВЛЕНИЕ РАССЫЛКАМИ ====================
+
+    // Принудительная отправка рассылки
+    sendMailingNow: function(mailingId) {
+        if (!confirm('Отправить эту рассылку сейчас?')) {
+            return;
+        }
+        
+        this.showLoading('Отправка рассылки...');
+        
+        fetch(`/api/admin/mailings/${mailingId}/send`, {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            this.hideLoading();
+            if (data.success) {
+                this.showToast(`✅ Рассылка отправлена! Отправлено: ${data.data?.sent_count || 0} получателей`, 'success');
+                // Обновляем список рассылок
+                this.loadMailingsData();
+            } else {
+                throw new Error(data.error || 'Неизвестная ошибка отправки');
+            }
+        })
+        .catch(error => {
+            this.hideLoading();
+            console.error('❌ Ошибка отправки рассылки:', error);
+            this.showToast('❌ Ошибка отправки: ' + error.message, 'error');
+        });
+    },
+
+    // ==================== УТИЛИТЫ ====================
+    getMailingTypeName: function(type) {
+        const types = {
+            'cancellation': 'Отмена занятия',
+            'replacement': 'Замена преподавателя',
+            'reschedule': 'Перенос занятия',
+            'marketing': 'Рекламная рассылка'
+        };
+        return types[type] || type;
+    },
+
+    getMailingStatusName: function(status) {
+        const statuses = {
+            'pending': 'В ожидании',
+            'sent': 'Отправлено',
+            'failed': 'Ошибка',
+            'draft': 'Черновик'
+        };
+        return statuses[status] || status;
+    },
+
+    getSegmentName: function(segment) {
+        const segments = {
+            'active': 'Активные абонементы',
+            'expiring': 'Истекающие абонементы',
+            'expired': 'Истекшие абонементы',
+            'inactive': 'Неактивные',
+            'branch_sviblovo': 'Только Свиблово',
+            'branch_chertanovo': 'Только Чертаново',
+            'all': 'Все пользователи'
+        };
+        return segments[segment] || segment;
+    },
+
+    getLessonStatusName: function(status) {
+        const statuses = {
+            'active': 'Активно',
+            'cancelled': 'Отменено',
+            'rescheduled': 'Перенесено',
+            'completed': 'Завершено'
+        };
+        return statuses[status] || status;
+    },
+
+    getCategoryName: function(category) {
+        const categories = {
+            'general': 'Общие',
+            'subscription': 'Абонементы',
+            'schedule': 'Расписание',
+            'payment': 'Оплата',
+            'other': 'Другое'
+        };
+        return categories[category] || category;
+    },
+
+    formatDate: function(dateString) {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ru-RU');
+        } catch (e) {
+            return dateString;
+        }
+    },
+
+    formatDateTime: function(dateString) {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString('ru-RU');
+        } catch (e) {
+            return dateString;
+        }
+    },
+
+    showToast: function(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        const icons = {
+            'success': 'check-circle',
+            'error': 'exclamation-circle',
+            'warning': 'exclamation-triangle',
+            'info': 'info-circle'
+        };
+        
+        const titles = {
+            'success': 'Успешно',
+            'error': 'Ошибка',
+            'warning': 'Внимание',
+            'info': 'Информация'
+        };
+        
+        toast.innerHTML = `
+            <div class="toast-header">
+                <i class="fas fa-${icons[type] || 'info-circle'}"></i>
+                <div class="toast-title">${titles[type] || 'Информация'}</div>
+            </div>
+            <div class="toast-message">${message}</div>
+        `;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 5000);
+    },
+
+    showLoading: function(text = 'Загрузка...') {
+        document.getElementById('loading-text').textContent = text;
+        document.getElementById('loading-overlay').classList.add('active');
+    },
+
+    hideLoading: function() {
+        document.getElementById('loading-overlay').classList.remove('active');
+    },
+
+    getInitials: function(name) {
+        if (!name || typeof name !== 'string') return 'АД';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    },
+
+    // НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
+    setupEventListeners: function() {
+        const self = this;
+        
+        // Вход
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            self.login(email, password);
+        });
+        
+        // Выход
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            self.logout();
+        });
+        
+        // Навигация в сайдбаре
+        document.querySelectorAll('.sidebar-menu a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const pageId = this.getAttribute('href').substring(1);
+                self.navigateTo(pageId);
+            });
+        });
+        
+        // Табы
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabId = this.getAttribute('data-tab');
+                
+                // Убираем активный класс у всех табов
+                this.parentNode.querySelectorAll('.tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                
+                // Добавляем активный класс текущему табу
+                this.classList.add('active');
+                
+                // Скрываем все содержимое табов
+                const tabContents = this.closest('.modal') 
+                    ? this.closest('.modal-body').querySelectorAll('.tab-content')
+                    : document.querySelectorAll('.tab-content');
+                
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === tabId) {
+                        content.classList.add('active');
+                    }
+                });
+            });
+        });
+        
+        // Фильтр расписания
+        document.getElementById('schedule-branch-filter')?.addEventListener('change', function() {
+            self.loadScheduleData();
+        });
+        
+        // Фильтр логов
+        document.getElementById('log-level')?.addEventListener('change', function() {
+            self.loadLogsData();
+        });
+        
+        // Обработка Enter на форме логина
+        document.getElementById('login-password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('login-form').dispatchEvent(new Event('submit'));
+            }
+        });
+        
+        // Закрытие модальных окон по клику вне их
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            });
+        });
+        
+        // Привязка цветовых инпутов
+        document.getElementById('primary-color')?.addEventListener('change', function() {
+            document.getElementById('primary-color-hex').value = this.value;
+        });
+        
+        document.getElementById('primary-color-hex')?.addEventListener('input', function() {
+            document.getElementById('primary-color').value = this.value;
+        });
+        
+        document.getElementById('button-color')?.addEventListener('change', function() {
+            document.getElementById('button-color-hex').value = this.value;
+        });
+        
+        document.getElementById('button-color-hex')?.addEventListener('input', function() {
+            document.getElementById('button-color').value = this.value;
+        });
+    },
+
+    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ (заглушки для API)
+    editLesson: function(id) {
+        this.showToast(`Редактирование занятия #${id}`, 'info');
+        // Реализация редактирования занятия
+    },
+
+    cancelLesson: function(id) {
+        if (confirm(`Отменить занятие #${id}?`)) {
+            // API запрос для отмены занятия
+            this.showLoading('Отмена занятия...');
+            
+            fetch(`/api/admin/schedule/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: 'cancelled' })
             })
             .then(response => response.json())
             .then(data => {
                 this.hideLoading();
-                this.hideModal('new-class');
-                
                 if (data.success) {
-                    this.showToast('Занятие успешно добавлено', 'success');
+                    this.showToast(`Занятие #${id} отменено`, 'success');
                     this.loadScheduleData();
                 } else {
                     throw new Error(data.error);
@@ -2100,665 +3996,19 @@ public/admin.html - <!DOCTYPE html>
             })
             .catch(error => {
                 this.hideLoading();
-                this.showToast('Ошибка сохранения: ' + error.message, 'error');
+                this.showToast('Ошибка отмены занятия: ' + error.message, 'error');
             });
-        },
+        }
+    },
 
-        // ПРОВЕРКА АВТОРИЗАЦИИ
-        checkAuth: function() {
-            const token = localStorage.getItem('admin_token');
-            const userData = localStorage.getItem('admin_user');
-            
-            if (token && userData) {
-                try {
-                    this.config.currentUser = JSON.parse(userData);
-                    this.showAdminPanel();
-                    this.loadDashboardData();
-                } catch (e) {
-                    console.error('Ошибка парсинга данных пользователя:', e);
-                    this.showLogin();
-                }
-            } else {
-                this.showLogin();
-            }
-        },
+    editTeacher: function(id) {
+        this.showToast(`Редактирование преподавателя #${id}`, 'info');
+        // Реализация редактирования преподавателя
+    },
 
-        // ПОКАЗАТЬ СТРАНИЦУ ВХОДА
-        showLogin: function() {
-            document.getElementById('login-page').style.display = 'flex';
-            document.getElementById('admin-panel').classList.add('d-none');
-        },
-
-        // ПОКАЗАТЬ АДМИН-ПАНЕЛЬ
-        showAdminPanel: function() {
-            document.getElementById('login-page').style.display = 'none';
-            document.getElementById('admin-panel').classList.remove('d-none');
-            
-            if (this.config.currentUser) {
-                document.getElementById('user-name').textContent = this.config.currentUser.name || 'Администратор';
-                document.getElementById('user-email').textContent = this.config.currentUser.email || 'admin@artschool.ru';
-                document.getElementById('user-role').textContent = this.config.currentUser.role || 'Администратор';
-                
-                // Аватар с инициалами
-                const initials = this.getInitials(this.config.currentUser.name);
-                document.getElementById('user-avatar').textContent = initials;
-            }
-        },
-
-        // ВХОД В СИСТЕМУ
-        login: function(email, password) {
-            if (!email || !password) {
-                this.showToast('Заполните все поля', 'warning');
-                return;
-            }
-            
-            this.showLoading('Выполняется вход...');
-            
-            fetch('/api/admin/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    email: email,
-                    password: password
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success && data.data) {
-                    // Сохраняем токен и данные пользователя
-                    localStorage.setItem('admin_token', data.data.token);
-                    localStorage.setItem('admin_user', JSON.stringify(data.data.admin));
-                    
-                    this.config.currentUser = data.data.admin;
-                    this.showAdminPanel();
-                    this.showToast('Вход выполнен успешно!', 'success');
-                    this.loadDashboardData();
-                } else {
-                    throw new Error(data.error || 'Ошибка входа');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка входа:', error);
-                this.showToast('Ошибка входа: ' + error.message, 'error');
-            })
-            .finally(() => {
-                this.hideLoading();
-            });
-        },
-
-        // ВЫХОД ИЗ СИСТЕМЫ
-        logout: function() {
-            if (confirm('Вы уверены, что хотите выйти?')) {
-                localStorage.removeItem('admin_token');
-                localStorage.removeItem('admin_user');
-                this.config.currentUser = null;
-                this.showLogin();
-                this.showToast('Вы вышли из системы', 'info');
-            }
-        },
-
-        // НАВИГАЦИЯ
-        navigateTo: function(pageId) {
-            console.log(`📍 Навигация: ${pageId}`);
-            
-            // Скрываем все страницы
-            document.querySelectorAll('.page-content').forEach(page => {
-                page.classList.add('d-none');
-            });
-            
-            // Обновляем активный пункт меню
-            document.querySelectorAll('.sidebar-menu a').forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('href') === `#${pageId}`) {
-                    link.classList.add('active');
-                }
-            });
-            
-            // Показываем выбранную страницу
-            const page = document.getElementById(`${pageId}-page`);
-            if (page) {
-                page.classList.remove('d-none');
-                this.config.currentPage = pageId;
-                
-                // Обновляем заголовок
-                this.updatePageTitle(pageId);
-                
-                // Загружаем данные для страницы
-                this.loadPageData(pageId);
-            }
-        },
-
-        // ОБНОВЛЕНИЕ ЗАГОЛОВКА СТРАНИЦЫ
-        updatePageTitle: function(pageId) {
-            const titles = {
-                'dashboard': { title: 'Дашборд', subtitle: 'Обзор системы' },
-                'mailings': { title: 'Рассылки', subtitle: 'Управление рассылками' },
-                'schedule': { title: 'Расписание', subtitle: 'Управление занятиями' },
-                'teachers': { title: 'Преподаватели', subtitle: 'Управление преподавателями' },
-                'faq': { title: 'FAQ', subtitle: 'Часто задаваемые вопросы' },
-                'news': { title: 'Новости', subtitle: 'Управление новостями' },
-                'logs': { title: 'Логи', subtitle: 'История событий системы' },
-                'sync': { title: 'Синхронизация', subtitle: 'Синхронизация с amoCRM' },
-                'settings': { title: 'Настройки', subtitle: 'Настройки системы' }
-            };
-            
-            const titleData = titles[pageId] || { title: 'Страница', subtitle: '' };
-            document.getElementById('page-title').textContent = titleData.title;
-            document.getElementById('page-subtitle').textContent = titleData.subtitle;
-        },
-
-        // ЗАГРУЗКА ДАННЫХ ДЛЯ СТРАНИЦЫ
-        loadPageData: function(pageId) {
-            switch(pageId) {
-                case 'dashboard':
-                    this.loadDashboardData();
-                    break;
-                case 'mailings':
-                    this.loadMailingsData();
-                    break;
-                case 'schedule':
-                    this.loadScheduleData();
-                    break;
-                case 'teachers':
-                    this.loadTeachersData();
-                    break;
-                case 'faq':
-                    this.loadFaqData();
-                    break;
-                case 'news':
-                    this.loadNewsData();
-                    break;
-                case 'logs':
-                    this.loadLogsData();
-                    break;
-                case 'sync':
-                    this.loadSyncData();
-                    break;
-                case 'settings':
-                    this.loadSettingsPage();
-                    break;
-            }
-        },
-
-        // ЗАГРУЗКА ДАННЫХ ДАШБОРДА
-        loadDashboardData: function() {
-            const container = document.getElementById('stats-container');
-            container.innerHTML = `
-                <div class="text-center">
-                    <div class="spinner"></div>
-                    <p class="mt-20">Загрузка статистики...</p>
-                </div>
-            `;
-            
-            fetch('/api/admin/dashboard', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    this.renderDashboard(data.data);
-                } else {
-                    throw new Error(data.error || 'Ошибка загрузки данных');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки дашборда:', error);
-                container.innerHTML = `
-                    <div class="text-center">
-                        <i class="fas fa-exclamation-circle" style="font-size: 48px; color: var(--error); margin-bottom: 10px;"></i>
-                        <p>Ошибка загрузки данных</p>
-                        <p style="font-size: 0.8rem; color: var(--gray-dark);">${error.message}</p>
-                    </div>
-                `;
-            });
-        },
-
-        // РЕНДЕРИНГ ДАШБОРДА
-        renderDashboard: function(data) {
-            const container = document.getElementById('stats-container');
-            
-            if (!data || !data.stats) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-chart-line"></i>
-                        <p>Нет данных для отображения</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            const stats = data.stats;
-            
-            let html = `
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: var(--blue-primary);">
-                            ${stats.total_students || 0}
-                        </div>
-                        <div class="stat-label">Всего учеников</div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: var(--success);">
-                            ${stats.active_subscriptions || 0}
-                        </div>
-                        <div class="stat-label">Активных абонементов</div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: var(--warning);">
-                            ${stats.new_students_month || 0}
-                        </div>
-                        <div class="stat-label">Новых учеников (месяц)</div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: var(--pink);">
-                            ${stats.expiring_subscriptions || 0}
-                        </div>
-                        <div class="stat-label">Истекающих абонементов</div>
-                    </div>
-                </div>
-            `;
-            
-            // Статистика по филиалам
-            if (stats.branches && stats.branches.length > 0) {
-                html += `
-                    <div style="margin-top: 30px;">
-                        <h4 style="color: var(--blue-primary); margin-bottom: 15px; font-size: 1.1rem;">
-                            <i class="fas fa-map-marker-alt"></i> По филиалам:
-                        </h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-                `;
-                
-                stats.branches.forEach(branch => {
-                    html += `
-                        <div style="background: var(--white); padding: 15px; border-radius: 8px; border: 2px solid var(--blue-primary);">
-                            <div style="font-weight: 600; color: var(--blue-primary);">${branch.branch || 'Филиал'}</div>
-                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--blue-primary);">${branch.count || 0}</div>
-                        </div>
-                    `;
-                });
-                
-                html += `</div></div>`;
-            }
-            
-            container.innerHTML = html;
-        },
-
-        // ОБНОВЛЕНИЕ СТАТИСТИКИ
-        refreshStats: function() {
-            this.showToast('Обновление статистики...', 'info');
-            this.loadDashboardData();
-        },
-
-        // Загрузка данных рассылок
-        loadMailingsData: function() {
-            this.showLoading('Загрузка рассылок...');
-            
-            // Загружаем сервисные рассылки
-            fetch('/api/admin/mailings?type=service', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderServiceMailings(data.data.mailings);
-                } else {
-                    throw new Error(data.error || 'Ошибка загрузки рассылок');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки сервисных рассылок:', error);
-                document.getElementById('service-mailings-table').innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center">
-                            <div style="color: var(--error); padding: 20px;">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <p>Ошибка загрузки: ${error.message}</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            // Загружаем рекламные рассылки
-            fetch('/api/admin/mailings?type=marketing', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderMarketingMailings(data.data.mailings);
-                    this.hideLoading();
-                } else {
-                    throw new Error(data.error || 'Ошибка загрузки рассылок');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки рекламных рассылок:', error);
-                document.getElementById('marketing-mailings-table').innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center">
-                            <div style="color: var(--error); padding: 20px;">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <p>Ошибка загрузки: ${error.message}</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                this.hideLoading();
-            });
-        },
-
-        // Рендеринг сервисных рассылок
-        renderServiceMailings: function(mailings) {
-            const table = document.getElementById('service-mailings-table');
-            
-            if (!mailings || mailings.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-inbox"></i>
-                                <p>Нет сервисных рассылок</p>
-                                <button class="btn btn-primary mt-10" onclick="AdminApp.showModal('new-mailing')">
-                                    <i class="fas fa-plus"></i> Создать первую рассылку
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = mailings.map(mailing => `
-                <tr>
-                    <td>
-                        <div style="font-weight: 600;">${this.getMailingTypeName(mailing.type)}</div>
-                        <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.name || 'Без названия'}</div>
-                    </td>
-                    <td>${mailing.branch || 'Все филиалы'}</td>
-                    <td>${mailing.teacher || 'Все'}</td>
-                    <td>
-                        <div>${this.formatDateTime(mailing.created_at)}</div>
-                        ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
-                    </td>
-                    <td>
-                        <div>${mailing.recipients_count || 0} чел.</div>
-                        ${mailing.sent_count > 0 ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
-                    </td>
-                    <td>
-                        <span class="badge ${this.getMailingStatusClass(mailing.status)}">
-                            ${this.getMailingStatusText(mailing.status)}
-                        </span>
-                    </td>
-                    <td class="actions">
-                        <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
-                            <i class="fas fa-eye"></i> Детали
-                        </button>
-                        
-                        ${mailing.status === 'pending' || mailing.status === 'failed' ? `
-                        <button class="btn btn-success btn-small" onclick="AdminApp.sendMailingNow('${mailing.id}')" 
-                                title="Отправить сейчас">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                        ` : ''}
-                        
-                        ${mailing.status === 'pending' ? `
-                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')"
-                                title="Удалить">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                        ` : ''}
-                    </td>
-                </tr>
-            `).join('');
-        },
-
-        // Рендеринг рекламных рассылок
-        renderMarketingMailings: function(mailings) {
-            const table = document.getElementById('marketing-mailings-table');
-            
-            if (!mailings || mailings.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-inbox"></i>
-                                <p>Нет рекламных рассылок</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = mailings.map(mailing => `
-                <tr>
-                    <td>
-                        <div style="font-weight: 600;">${mailing.name || 'Без названия'}</div>
-                        <div style="font-size: 0.8rem; color: var(--gray-dark);">${mailing.type === 'marketing' ? 'Рекламная' : 'Уведомление'}</div>
-                    </td>
-                    <td>${this.getSegmentName(mailing.segment)}</td>
-                    <td>
-                        <div>${this.formatDateTime(mailing.created_at)}</div>
-                        ${mailing.sent_at ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${this.formatDateTime(mailing.sent_at)}</div>` : ''}
-                    </td>
-                    <td>
-                        <div>${mailing.recipients_count || 0} чел.</div>
-                        ${mailing.sent_count !== undefined ? `<div style="font-size: 0.8rem; color: var(--gray-dark);">Отправлено: ${mailing.sent_count}</div>` : ''}
-                    </td>
-                    <td>
-                        <span class="badge ${this.getMailingStatusClass(mailing.status)}">
-                            ${this.getMailingStatusText(mailing.status)}
-                        </span>
-                    </td>
-                    <td class="actions">
-                        <button class="btn btn-secondary btn-small" onclick="AdminApp.viewMailing('${mailing.id}')">
-                            <i class="fas fa-eye"></i> Детали
-                        </button>
-                        ${mailing.status === 'pending' ? `
-                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteMailing('${mailing.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                        ` : ''}
-                    </td>
-                </tr>
-            `).join('');
-        },
-
-        // Получение класса статуса для бейджа
-        getMailingStatusClass: function(status) {
-            switch(status) {
-                case 'sent': return 'active';
-                case 'sending': return 'pending';
-                case 'failed': return 'inactive';
-                case 'pending': return 'info';
-                default: return 'info';
-            }
-        },
-
-        // Получение текста статуса
-        getMailingStatusText: function(status) {
-            switch(status) {
-                case 'sent': return 'Отправлено';
-                case 'sending': return 'Отправляется';
-                case 'failed': return 'Ошибка';
-                case 'pending': return 'В ожидании';
-                default: return status;
-            }
-        },
-
-        // Просмотр деталей рассылки
-        viewMailing: function(id) {
-            this.showLoading('Загрузка деталей рассылки...');
-            
-            fetch(`/api/admin/mailings/${id}`, {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                if (data.success) {
-                    this.showMailingDetails(data.data);
-                } else {
-                    throw new Error(data.error || 'Ошибка загрузки');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка загрузки: ' + error.message, 'error');
-            });
-        },
-
-        // Показ деталей рассылки в модальном окне
-        showMailingDetails: function(mailingData) {
-            const mailing = mailingData.mailing;
-            
-            // Создаем модальное окно для показа деталей
-            const modalId = 'mailing-details-modal';
-            let modal = document.getElementById(modalId);
-            
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = modalId;
-                modal.className = 'modal-overlay';
-                modal.innerHTML = `
-                    <div class="modal" style="max-width: 700px;">
-                        <div class="modal-header">
-                            <h3><i class="fas fa-info-circle"></i> Детали рассылки</h3>
-                            <button class="modal-close" onclick="AdminApp.hideModal('${modalId}')">&times;</button>
-                        </div>
-                        <div class="modal-body" id="${modalId}-content">
-                            <!-- Контент загружается динамически -->
-                        </div>
-                        <div class="modal-footer">
-                            <button class="btn btn-primary" onclick="AdminApp.hideModal('${modalId}')">Закрыть</button>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-            }
-            
-            // Заполняем контент
-            const content = document.getElementById(`${modalId}-content`);
-            content.innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                        <div>
-                            <div style="font-weight: 600; color: var(--blue-primary); font-size: 1.1rem;">
-                                ${mailing.name || this.getMailingTypeName(mailing.type)}
-                            </div>
-                            <div style="font-size: 0.9rem; color: var(--gray-dark);">
-                                Создана: ${this.formatDateTime(mailing.created_at)}
-                            </div>
-                        </div>
-                        <div>
-                            <span class="badge ${this.getMailingStatusClass(mailing.status)}">
-                                ${this.getMailingStatusText(mailing.status)}
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <div style="background: var(--blue-pale); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                        <div style="font-weight: 600; margin-bottom: 8px; color: var(--blue-primary);">Текст сообщения:</div>
-                        <div style="white-space: pre-wrap;">${mailing.message || 'Текст отсутствует'}</div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
-                        <div>
-                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Тип:</div>
-                            <div>${this.getMailingTypeName(mailing.type)}</div>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Филиал:</div>
-                            <div>${mailing.branch || 'Все филиалы'}</div>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Получатели:</div>
-                            <div>${mailing.recipients_count || 0} человек</div>
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; margin-bottom: 5px; color: var(--blue-primary);">Отправлено:</div>
-                            <div>${mailing.sent_count || 0} из ${mailing.recipients_count || 0}</div>
-                        </div>
-                    </div>
-                    
-                    ${mailing.sent_at ? `
-                    <div style="background: var(--success); color: white; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-                        <i class="fas fa-check-circle"></i> Отправлено: ${this.formatDateTime(mailing.sent_at)}
-                    </div>
-                    ` : ''}
-                    
-                    ${mailing.status === 'failed' ? `
-                    <div style="background: var(--error); color: white; padding: 10px; border-radius: 8px;">
-                        <i class="fas fa-exclamation-circle"></i> Рассылка завершилась с ошибкой
-                    </div>
-                    ` : ''}
-                    
-                    ${mailingData.recipients?.sample?.length > 0 ? `
-                    <div style="margin-top: 20px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: var(--blue-primary);">Пример получателей:</div>
-                        <div style="max-height: 200px; overflow-y: auto;">
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <thead>
-                                    <tr>
-                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Ученик</th>
-                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Телефон</th>
-                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--gray-medium);">Статус</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${mailingData.recipients.sample.map(recipient => `
-                                        <tr>
-                                            <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.student_name || '-'}</td>
-                                            <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.phone_number || '-'}</td>
-                                            <td style="padding: 8px; border-bottom: 1px solid var(--gray-medium);">${recipient.subscription_status || '-'}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    ` : ''}
-                </div>
-            `;
-            
-            // Показываем модальное окно
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        },
-
-        // Удаление рассылки
-        deleteMailing: function(id) {
-            if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) {
-                return;
-            }
-            
-            this.showLoading('Удаление рассылки...');
-            
-            fetch(`/api/admin/mailings/${id}`, {
+    deleteTeacher: function(id) {
+        if (confirm(`Удалить преподавателя #${id}?`)) {
+            fetch(`/api/admin/teachers/${id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
@@ -2766,1357 +4016,84 @@ public/admin.html - <!DOCTYPE html>
             })
             .then(response => response.json())
             .then(data => {
-                this.hideLoading();
                 if (data.success) {
-                    this.showToast('Рассылка удалена', 'success');
-                    this.loadMailingsData(); // Обновляем список
-                } else {
-                    throw new Error(data.error || 'Ошибка удаления');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка удаления: ' + error.message, 'error');
-            });
-        },
-
-        // Скрытие модального окна
-        hideModal: function(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        },
-
-        // ЗАГРУЗКА ДАННЫХ РАСПИСАНИЯ
-        loadScheduleData: function() {
-            const branch = document.getElementById('schedule-branch-filter').value;
-            
-            fetch(`/api/admin/schedule${branch !== 'all' ? '?branch=' + encodeURIComponent(branch) : ''}`, {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderSchedule(data.data.schedule);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки расписания:', error);
-            });
-        },
-
-        // РЕНДЕРИНГ РАСПИСАНИЯ
-        renderSchedule: function(schedule) {
-            const table = document.getElementById('schedule-table');
-            
-            if (!schedule || schedule.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-calendar"></i>
-                                <p>Нет данных о расписании</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = schedule.map(lesson => `
-                <tr>
-                    <td>${this.formatDate(lesson.date)}</td>
-                    <td>${lesson.time || '-'}</td>
-                    <td>${lesson.branch || '-'}</td>
-                    <td>${lesson.group_name || '-'}</td>
-                    <td>${lesson.age_group || '-'}</td>
-                    <td>
-                        <span class="badge ${lesson.status === 'active' ? 'active' : lesson.status === 'cancelled' ? 'inactive' : 'pending'}">
-                            ${this.getLessonStatusName(lesson.status)}
-                        </span>
-                    </td>
-                    <td class="actions">
-                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editLesson('${lesson.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="AdminApp.cancelLesson('${lesson.id}')">
-                            <i class="fas fa-ban"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        },
-
-        // ЗАГРУЗКА ДАННЫХ ПРЕПОДАВАТЕЛЕЙ
-        loadTeachersData: function() {
-            fetch('/api/admin/teachers', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderTeachers(data.data.teachers);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки преподавателей:', error);
-            });
-        },
-
-        // РЕНДЕРИНГ ПРЕПОДАВАТЕЛЕЙ
-        renderTeachers: function(teachers) {
-            const table = document.getElementById('teachers-table');
-            
-            if (!teachers || teachers.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-users"></i>
-                                <p>Нет данных о преподавателях</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = teachers.map(teacher => `
-                <tr>
-                    <td>${teacher.name || '-'}</td>
-                    <td>${teacher.branch || '-'}</td>
-                    <td>${teacher.specialization || '-'}</td>
-                    <td>
-                        <span class="badge ${teacher.is_active === 1 ? 'active' : 'inactive'}">
-                            ${teacher.is_active === 1 ? 'Активен' : 'Неактивен'}
-                        </span>
-                    </td>
-                    <td class="actions">
-                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editTeacher('${teacher.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteTeacher('${teacher.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        },
-
-        // ЗАГРУЗКА ДАННЫХ FAQ
-        loadFaqData: function() {
-            fetch('/api/admin/faq', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderFaq(data.data.faq);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки FAQ:', error);
-            });
-        },
-
-        // РЕНДЕРИНГ FAQ
-        renderFaq: function(faq) {
-            const table = document.getElementById('faq-table');
-            
-            if (!faq || faq.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-question-circle"></i>
-                                <p>Нет данных в FAQ</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = faq.map(item => `
-                <tr>
-                    <td>${item.question || '-'}</td>
-                    <td>${(item.answer || '').length > 100 ? (item.answer || '').substring(0, 100) + '...' : item.answer || '-'}</td>
-                    <td>${this.getCategoryName(item.category)}</td>
-                    <td>
-                        <span class="badge ${item.is_active === 1 ? 'active' : 'inactive'}">
-                            ${item.is_active === 1 ? 'Активен' : 'Скрыт'}
-                        </span>
-                    </td>
-                    <td class="actions">
-                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editFaq('${item.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteFaq('${item.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        },
-
-        // ЗАГРУЗКА ДАННЫХ НОВОСТЕЙ
-        loadNewsData: function() {
-            fetch('/api/admin/news', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderNews(data.data.news);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки новостей:', error);
-            });
-        },
-
-        // РЕНДЕРИНГ НОВОСТЕЙ
-        renderNews: function(news) {
-            const table = document.getElementById('news-table');
-            
-            if (!news || news.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-newspaper"></i>
-                                <p>Нет данных о новостях</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = news.map(item => `
-                <tr>
-                    <td>${item.title || '-'}</td>
-                    <td>${(item.content || '').length > 100 ? (item.content || '').substring(0, 100) + '...' : item.content || '-'}</td>
-                    <td>${item.branch === 'all' ? 'Оба филиала' : item.branch || '-'}</td>
-                    <td>${this.formatDate(item.publish_date)}</td>
-                    <td>
-                        <span class="badge ${item.is_published === 1 ? 'active' : 'inactive'}">
-                            ${item.is_published === 1 ? 'Опубликовано' : 'Черновик'}
-                        </span>
-                    </td>
-                    <td class="actions">
-                        <button class="btn btn-secondary btn-small" onclick="AdminApp.editNews('${item.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="AdminApp.deleteNews('${item.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        },
-
-        // ЗАГРУЗКА ДАННЫХ ЛОГОВ
-        loadLogsData: function() {
-            const level = document.getElementById('log-level').value;
-            let url = '/api/admin/logs';
-            if (level) {
-                url += '?level=' + encodeURIComponent(level);
-            }
-            
-            fetch(url, {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    this.renderLogs(data.data.logs);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки логов:', error);
-            });
-        },
-
-        // РЕНДЕРИНГ ЛОГОВ
-        renderLogs: function(logs) {
-            const table = document.getElementById('logs-table');
-            
-            if (!logs || logs.length === 0) {
-                table.innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center">
-                            <div class="empty-state">
-                                <i class="fas fa-history"></i>
-                                <p>Нет данных в логах</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            table.innerHTML = logs.map(log => `
-                <tr>
-                    <td>${this.formatDateTime(log.created_at)}</td>
-                    <td>
-                        <span class="badge ${log.level === 'error' ? 'inactive' : log.level === 'warning' ? 'pending' : 'info'}">
-                            ${log.level || 'info'}
-                        </span>
-                    </td>
-                    <td>${log.message || '-'}</td>
-                    <td>${log.user_id || 'Система'}</td>
-                </tr>
-            `).join('');
-        },
-
-        // ЗАГРУЗКА ДАННЫХ СИНХРОНИЗАЦИИ
-        loadSyncData: function() {
-            const statusContainer = document.getElementById('sync-status');
-            
-            // Проверка статуса подключения
-            fetch('/api/status')
-            .then(response => response.json())
-            .then(data => {
-                if (data.amocrm_connected) {
-                    statusContainer.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 15px; color: var(--success);">
-                            <i class="fas fa-check-circle" style="font-size: 2rem;"></i>
-                            <div>
-                                <div style="font-weight: 700; font-size: 1.1rem;">amoCRM подключен</div>
-                                <div style="font-size: 0.9rem; color: var(--gray-dark);">${data.amocrm_account || 'Аккаунт'}</div>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    statusContainer.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 15px; color: var(--error);">
-                            <i class="fas fa-times-circle" style="font-size: 2rem;"></i>
-                            <div>
-                                <div style="font-weight: 700; font-size: 1.1rem;">amoCRM не подключен</div>
-                                <div style="font-size: 0.9rem; color: var(--gray-dark);">${data.data_source || 'Данные из локальной БД'}</div>
-                            </div>
-                        </div>
-                    `;
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка проверки подключения:', error);
-                statusContainer.innerHTML = `
-                    <div style="color: var(--error);">
-                        <i class="fas fa-exclamation-circle"></i> Ошибка проверки подключения
-                    </div>
-                `;
-            });
-        },
-
-        // СИНХРОНИЗАЦИЯ ПО ТЕЛЕФОНУ
-        syncByPhone: function() {
-            const phone = document.getElementById('sync-phone').value;
-            if (!phone) {
-                this.showToast('Введите номер телефона', 'warning');
-                return;
-            }
-            
-            this.showLoading('Синхронизация...');
-            const resultsContainer = document.getElementById('sync-results');
-            
-            fetch(`/api/sync/${phone}?force=true`)
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                
-                if (data.success) {
-                    resultsContainer.innerHTML = `
-                        <div style="background: var(--success); color: white; padding: 20px; border-radius: 12px;">
-                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
-                                <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
-                                <div style="font-weight: 700; font-size: 1.1rem;">Синхронизация завершена</div>
-                            </div>
-                            <div style="margin-bottom: 10px;">${data.message}</div>
-                            <div style="font-size: 0.9rem; opacity: 0.9;">
-                                Найдено профилей: ${data.sync_details?.amocrm_profiles || 0}<br>
-                                Сохранено в БД: ${data.sync_details?.saved_to_db || 0}
-                            </div>
-                        </div>
-                    `;
-                    this.showToast('Синхронизация завершена', 'success');
-                } else {
-                    throw new Error(data.error || 'Ошибка синхронизации');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                resultsContainer.innerHTML = `
-                    <div style="background: var(--error); color: white; padding: 20px; border-radius: 12px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <i class="fas fa-exclamation-circle" style="font-size: 1.5rem;"></i>
-                            <div style="font-weight: 700;">Ошибка синхронизации</div>
-                        </div>
-                        <div style="margin-top: 10px;">${error.message}</div>
-                    </div>
-                `;
-                this.showToast('Ошибка синхронизации: ' + error.message, 'error');
-            });
-        },
-
-        // ПОЛНАЯ СИНХРОНИЗАЦИЯ
-        fullSync: function() {
-            if (!confirm('Выполнить полную синхронизацию всех данных? Это может занять несколько минут.')) {
-                return;
-            }
-            
-            this.showLoading('Выполняется полная синхронизация...');
-            
-            // API запрос для полной синхронизации
-            fetch('/api/sync/all', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                
-                if (data.success) {
-                    this.showToast('Полная синхронизация завершена', 'success');
-                    
-                    const resultsContainer = document.getElementById('sync-results');
-                    resultsContainer.innerHTML = `
-                        <div style="background: var(--success); color: white; padding: 20px; border-radius: 12px;">
-                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
-                                <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
-                                <div style="font-weight: 700; font-size: 1.1rem;">Полная синхронизация завершена</div>
-                            </div>
-                            <div>${data.message}</div>
-                            ${data.sync_details ? `
-                            <div style="margin-top: 15px; font-size: 0.9rem; opacity: 0.9;">
-                                Обработано записей: ${data.sync_details.processed || 0}<br>
-                                Обновлено: ${data.sync_details.updated || 0}<br>
-                                Добавлено: ${data.sync_details.added || 0}
-                            </div>
-                            ` : ''}
-                        </div>
-                    `;
-                } else {
-                    throw new Error(data.error || 'Ошибка синхронизации');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка синхронизации: ' + error.message, 'error');
-            });
-        },
-
-        // ==================== УПРАВЛЕНИЕ НАСТРОЙКАМИ ====================
-
-        // Загрузка страницы настроек
-        loadSettingsPage: function() {
-            this.showLoading('Загрузка настроек...');
-            
-            fetch('/api/admin/settings', {
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                if (data.success) {
-                    this.renderSettings(data.data.settings);
-                } else {
-                    throw new Error(data.error || 'Ошибка загрузки');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка загрузки настроек: ' + error.message, 'error');
-            });
-        },
-
-        // Рендеринг настроек
-        renderSettings: function(settings) {
-            const settingsMap = {};
-            settings.forEach(s => {
-                settingsMap[s.setting_key] = s.setting_value;
-            });
-            
-            // Заполняем поля
-            document.getElementById('school-name').value = settingsMap['school_name'] || 'БАНЯ';
-            document.getElementById('school-subtitle').value = settingsMap['school_subtitle'] || 'Художественная школа';
-            document.getElementById('primary-color').value = settingsMap['primary_color'] || '#ff6b35';
-            document.getElementById('primary-color-hex').value = settingsMap['primary_color'] || '#ff6b35';
-            document.getElementById('button-color').value = settingsMap['button_color'] || '#0066FF';
-            document.getElementById('button-color-hex').value = settingsMap['button_color'] || '#0066FF';
-            
-            // Логотип
-            const logo = settingsMap['logo_image'];
-            this.updateLogoPreview(logo);
-            
-            // Контакты
-            document.getElementById('phone-sviblovo').value = settingsMap['phone_sviblovo'] || '+7 (999) 123-45-67';
-            document.getElementById('phone-chertanovo').value = settingsMap['phone_chertanovo'] || '+7 (999) 987-65-43';
-            document.getElementById('phone-general').value = settingsMap['phone_general'] || '+7 (999) 111-22-33';
-            document.getElementById('email-contact').value = settingsMap['email'] || 'info@bania-school.ru';
-        },
-
-        // Обновление превью логотипа
-        updateLogoPreview: function(logoData) {
-            const previewImg = document.getElementById('logo-preview-img');
-            const placeholder = document.getElementById('logo-placeholder');
-            const removeBtn = document.getElementById('remove-logo-btn');
-            
-            if (logoData && logoData.trim() !== '') {
-                // Если это data URL
-                if (logoData.startsWith('data:image')) {
-                    previewImg.src = logoData;
-                } else {
-                    previewImg.src = 'data:image/png;base64,' + logoData;
-                }
-                
-                previewImg.style.display = 'block';
-                placeholder.style.display = 'none';
-                removeBtn.style.display = 'inline-block';
-            } else {
-                previewImg.style.display = 'none';
-                placeholder.style.display = 'block';
-                removeBtn.style.display = 'none';
-            }
-        },
-
-        // Загрузка логотипа
-        handleLogoUpload: function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            // Проверка размера (макс 2MB)
-            if (file.size > 2 * 1024 * 1024) {
-                this.showToast('Файл слишком большой (макс 2MB)', 'error');
-                return;
-            }
-            
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                const base64 = e.target.result;
-                this.updateLogoPreview(base64);
-                this.showToast('Логотип загружен', 'success');
-            };
-            
-            reader.onerror = () => {
-                this.showToast('Ошибка чтения файла', 'error');
-            };
-            
-            reader.readAsDataURL(file);
-        },
-
-        // Удаление логотипа
-        removeLogo: function() {
-            if (!confirm('Удалить логотип?')) return;
-            
-            document.getElementById('logo-upload').value = '';
-            this.updateLogoPreview('');
-            this.showToast('Логотип удален', 'success');
-        },
-
-        // Сохранение всех настроек
-        saveSettings: function() {
-            this.showLoading('Сохранение настроек...');
-            
-            const settings = [
-                { key: 'school_name', value: document.getElementById('school-name').value, type: 'text' },
-                { key: 'school_subtitle', value: document.getElementById('school-subtitle').value, type: 'text' },
-                { key: 'primary_color', value: document.getElementById('primary-color-hex').value, type: 'color' },
-                { key: 'button_color', value: document.getElementById('button-color-hex').value, type: 'color' },
-                { key: 'phone_sviblovo', value: document.getElementById('phone-sviblovo').value, type: 'text' },
-                { key: 'phone_chertanovo', value: document.getElementById('phone-chertanovo').value, type: 'text' },
-                { key: 'phone_general', value: document.getElementById('phone-general').value, type: 'text' },
-                { key: 'email', value: document.getElementById('email-contact').value, type: 'text' }
-            ];
-            
-            // Добавляем логотип если есть
-            const previewImg = document.getElementById('logo-preview-img');
-            if (previewImg.src && previewImg.style.display !== 'none') {
-                settings.push({
-                    key: 'logo_image',
-                    value: previewImg.src,
-                    type: 'image'
-                });
-            }
-            
-            // Отправляем настройки по одной
-            const savePromises = settings.map(setting => 
-                fetch('/api/admin/settings', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(setting)
-                })
-            );
-            
-            Promise.all(savePromises)
-            .then(responses => Promise.all(responses.map(r => r.json())))
-            .then(results => {
-                this.hideLoading();
-                const allSuccess = results.every(r => r.success);
-                
-                if (allSuccess) {
-                    this.showToast('Все настройки сохранены!', 'success');
-                    
-                    // Принудительно обновляем кэш в приложении
-                    fetch('/api/logo?refresh=' + Date.now())
-                    .then(() => console.log('✅ Логотип обновлен'));
-                    
-                } else {
-                    throw new Error('Не все настройки сохранены');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                console.error('❌ Ошибка сохранения настроек:', error);
-                this.showToast('Ошибка сохранения настроек', 'error');
-            });
-        },
-
-        // МОДАЛЬНЫЕ ОКНА
-        showModal: function(modalId) {
-            const modal = document.getElementById(`modal-${modalId}`);
-            if (modal) {
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-                
-                // Дополнительные действия для конкретных модалок
-                if (modalId === 'new-class') {
-                    this.loadTeachersForSelect();
-                    this.initDatePickers(); // Переинициализируем календари
-                }
-            }
-        },
-
-        hideModal: function(modalId) {
-            const modal = document.getElementById(`modal-${modalId}`);
-            if (modal) {
-                modal.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        },
-
-        // РАССЫЛКИ
-        previewMailing: function() {
-            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-            const tabId = activeTab.getAttribute('data-tab');
-            
-            let text = '';
-            let title = '';
-            
-            if (tabId === 'mailing-service') {
-                text = document.getElementById('mailing-text').value;
-                const type = document.getElementById('mailing-type').value;
-                title = this.getMailingTypeName(type);
-            } else {
-                text = document.getElementById('mailing-marketing-text').value;
-                title = document.getElementById('mailing-name').value;
-            }
-            
-            if (!text) {
-                this.showToast('Введите текст сообщения', 'warning');
-                return;
-            }
-            
-            // Создаем предпросмотр
-            const previewContent = document.getElementById('preview-content');
-            previewContent.innerHTML = `
-                <div style="font-family: 'ArtisticSoul', sans-serif;">
-                    <div style="font-size: 0.9rem; color: var(--blue-primary); margin-bottom: 10px; font-weight: 600;">
-                        ${title || 'Сообщение'}:
-                    </div>
-                    <div style="font-size: 1rem; line-height: 1.6; color: #333; margin-bottom: 20px;">
-                        ${text.replace(/\n/g, '<br>')}
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--gray-dark); border-top: 2px solid rgba(0, 102, 255, 0.1); padding-top: 10px;">
-                        Баня | Не отвечайте на это сообщение
-                    </div>
-                </div>
-            `;
-            
-            this.showModal('preview');
-        },
-
-        sendTestMailing: function() {
-            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-            const tabId = activeTab.getAttribute('data-tab');
-            
-            let mailingData = {};
-            
-            if (tabId === 'mailing-service') {
-                mailingData = {
-                    type: document.getElementById('mailing-type').value,
-                    branch: Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value).join(','),
-                    teacher: document.getElementById('mailing-teacher').value,
-                    day: document.getElementById('mailing-day').value,
-                    message: document.getElementById('mailing-text').value,
-                    test: true
-                };
-            } else {
-                mailingData = {
-                    type: 'marketing',
-                    name: document.getElementById('mailing-name').value,
-                    segment: document.getElementById('mailing-segment').value,
-                    message: document.getElementById('mailing-marketing-text').value,
-                    test: true
-                };
-            }
-            
-            if (!mailingData.message) {
-                this.showToast('Введите текст сообщения', 'warning');
-                return;
-            }
-            
-            this.showLoading('Отправка тестового сообщения...');
-            
-            fetch('/api/admin/mailings/test', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(mailingData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                if (data.success) {
-                    this.showToast('Тестовое сообщение отправлено администратору', 'success');
-                } else {
-                    throw new Error(data.error);
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка отправки: ' + error.message, 'error');
-            });
-        },
-
-        sendMailing: function() {
-            const activeTab = document.querySelector('#modal-new-mailing .tab.active');
-            const tabId = activeTab.getAttribute('data-tab');
-            
-            let mailingData = {};
-            
-            if (tabId === 'mailing-service') {
-                // Собираем данные для сервисной рассылки
-                const type = document.getElementById('mailing-type').value;
-                if (!type) {
-                    this.showToast('Выберите тип уведомления', 'warning');
-                    return;
-                }
-                
-                const branches = Array.from(document.querySelectorAll('input[name="branch"]:checked')).map(cb => cb.value);
-                if (branches.length === 0) {
-                    this.showToast('Выберите хотя бы один филиал', 'warning');
-                    return;
-                }
-                
-                mailingData = {
-                    type: 'telegram_notification', // ВАЖНО: отправляем именно это значение
-                    name: `Уведомление: ${this.getMailingTypeName(type)}`,
-                    branch: branches.join(','),
-                    teacher: document.getElementById('mailing-teacher').value || '',
-                    day: document.getElementById('mailing-day').value || '',
-                    message: document.getElementById('mailing-text').value
-                };
-                
-                if (!mailingData.message) {
-                    this.showToast('Введите текст сообщения', 'warning');
-                    return;
-                }
-                
-            } else {
-                // Собираем данные для рекламной рассылки
-                mailingData = {
-                    type: 'marketing',
-                    name: document.getElementById('mailing-name').value,
-                    segment: document.getElementById('mailing-segment').value,
-                    message: document.getElementById('mailing-marketing-text').value
-                };
-                
-                if (!mailingData.name || !mailingData.message) {
-                    this.showToast('Заполните название и текст рассылки', 'warning');
-                    return;
-                }
-                
-                if (!mailingData.segment) {
-                    this.showToast('Выберите сегмент получателей', 'warning');
-                    return;
-                }
-            }
-            
-            // Логируем данные для отладки
-            console.log('📤 Отправка данных рассылки:', mailingData);
-            
-            if (!confirm(`Отправить рассылку "${mailingData.name}"?`)) {
-                return;
-            }
-            
-            this.showLoading('Создание и отправка рассылки...');
-            
-            fetch('/api/admin/mailings', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(mailingData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                this.hideModal('new-mailing');
-                
-                if (data.success) {
-                    this.showToast(`Рассылка создана! Получателей: ${data.data.recipients_count || 0}`, 'success');
-                    this.loadMailingsData(); // Обновляем список рассылок
-                } else {
-                    throw new Error(data.error || 'Неизвестная ошибка');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                console.error('❌ Ошибка отправки:', error);
-                this.showToast('Ошибка отправки: ' + error.message, 'error');
-            });
-        },
-
-        saveScheduleChange: function() {
-            const changeData = {
-                date: document.getElementById('change-date').value,
-                branch: document.getElementById('change-branch').value,
-                time: document.getElementById('change-time').value,
-                type: document.getElementById('change-type').value,
-                reason: document.getElementById('change-reason').value,
-                send_notification: document.getElementById('send-notification').checked
-            };
-            
-            if (!changeData.date || !changeData.branch || !changeData.time || !changeData.reason) {
-                this.showToast('Заполните все обязательные поля', 'warning');
-                return;
-            }
-            
-            this.showLoading('Сохранение изменений...');
-            
-            fetch('/api/admin/schedule/change', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(changeData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                this.hideModal('schedule-change');
-                
-                if (data.success) {
-                    let message = 'Изменения сохранены';
-                    if (changeData.send_notification) {
-                        message += '. Уведомление отправлено клиентам.';
-                    }
-                    this.showToast(message, 'success');
-                    this.loadScheduleData();
-                } else {
-                    throw new Error(data.error);
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка сохранения: ' + error.message, 'error');
-            });
-        },
-
-        saveTeacher: function() {
-            const teacherData = {
-                name: document.getElementById('teacher-name').value,
-                branch: document.getElementById('teacher-branch').value,
-                experience: document.getElementById('teacher-experience').value,
-                specialization: document.getElementById('teacher-specialization').value,
-                education: document.getElementById('teacher-education').value
-            };
-            
-            if (!teacherData.name) {
-                this.showToast('Введите имя преподавателя', 'warning');
-                return;
-            }
-            
-            this.showLoading('Сохранение преподавателя...');
-            
-            fetch('/api/admin/teachers', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(teacherData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideLoading();
-                this.hideModal('new-teacher');
-                
-                if (data.success) {
-                    this.showToast('Преподаватель успешно добавлен', 'success');
+                    this.showToast(`Преподаватель #${id} удален`, 'success');
                     this.loadTeachersData();
                 } else {
                     throw new Error(data.error);
                 }
             })
             .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка сохранения: ' + error.message, 'error');
+                this.showToast('Ошибка удаления: ' + error.message, 'error');
             });
-        },
+        }
+    },
 
-        saveFaq: function() {
-            const faqData = {
-                question: document.getElementById('faq-question').value,
-                answer: document.getElementById('faq-answer').value,
-                category: document.getElementById('faq-category').value
-            };
-            
-            if (!faqData.question || !faqData.answer) {
-                this.showToast('Заполните вопрос и ответ', 'warning');
-                return;
-            }
-            
-            this.showLoading('Сохранение вопроса...');
-            
-            fetch('/api/admin/faq', {
-                method: 'POST',
+    editFaq: function(id) {
+        this.showToast(`Редактирование вопроса #${id}`, 'info');
+        // Реализация редактирования FAQ
+    },
+
+    deleteFaq: function(id) {
+        if (confirm(`Удалить вопрос #${id}?`)) {
+            fetch(`/api/admin/faq/${id}`, {
+                method: 'DELETE',
                 headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token'),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(faqData)
+                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
+                }
             })
             .then(response => response.json())
             .then(data => {
-                this.hideLoading();
-                this.hideModal('new-faq');
-                
                 if (data.success) {
-                    this.showToast('Вопрос успешно добавлен в FAQ', 'success');
+                    this.showToast(`Вопрос #${id} удален`, 'success');
                     this.loadFaqData();
                 } else {
                     throw new Error(data.error);
                 }
             })
             .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка сохранения: ' + error.message, 'error');
+                this.showToast('Ошибка удаления: ' + error.message, 'error');
             });
-        },
+        }
+    },
 
-        // ЛОГИ
-        clearLogs: function() {
-            if (!confirm('Очистить все логи системы? Это действие нельзя отменить.')) {
-                return;
-            }
-            
-            this.showLoading('Очистка логов...');
-            
-            fetch('/api/admin/logs/clear', {
-                method: 'POST',
+    editNews: function(id) {
+        this.showToast(`Редактирование новости #${id}`, 'info');
+        // Реализация редактирования новости
+    },
+
+    deleteNews: function(id) {
+        if (confirm(`Удалить новость #${id}?`)) {
+            fetch(`/api/admin/news/${id}`, {
+                method: 'DELETE',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
                 }
             })
             .then(response => response.json())
             .then(data => {
-                this.hideLoading();
                 if (data.success) {
-                    this.showToast('Логи успешно очищены', 'success');
-                    this.loadLogsData();
+                    this.showToast(`Новость #${id} удалена`, 'success');
+                    this.loadNewsData();
                 } else {
                     throw new Error(data.error);
                 }
             })
             .catch(error => {
-                this.hideLoading();
-                this.showToast('Ошибка очистки: ' + error.message, 'error');
+                this.showToast('Ошибка удаления: ' + error.message, 'error');
             });
-        },
-
-        // ==================== УПРАВЛЕНИЕ РАССЫЛКАМИ ====================
-
-        // Принудительная отправка рассылки
-        sendMailingNow: function(mailingId) {
-            if (!confirm('Отправить эту рассылку сейчас?')) {
-                return;
-            }
-            
-            this.showLoading('Отправка рассылки...');
-            
-            fetch(`/api/admin/mailings/${mailingId}/send`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                this.hideLoading();
-                if (data.success) {
-                    this.showToast(`✅ Рассылка отправлена! Отправлено: ${data.data?.sent_count || 0} получателей`, 'success');
-                    // Обновляем список рассылок
-                    this.loadMailingsData();
-                } else {
-                    throw new Error(data.error || 'Неизвестная ошибка отправки');
-                }
-            })
-            .catch(error => {
-                this.hideLoading();
-                console.error('❌ Ошибка отправки рассылки:', error);
-                this.showToast('❌ Ошибка отправки: ' + error.message, 'error');
-            });
-        },
-
-        // ==================== УТИЛИТЫ ====================
-        getMailingTypeName: function(type) {
-            const types = {
-                'cancellation': 'Отмена занятия',
-                'replacement': 'Замена преподавателя',
-                'reschedule': 'Перенос занятия',
-                'marketing': 'Рекламная рассылка'
-            };
-            return types[type] || type;
-        },
-
-        getMailingStatusName: function(status) {
-            const statuses = {
-                'pending': 'В ожидании',
-                'sent': 'Отправлено',
-                'failed': 'Ошибка',
-                'draft': 'Черновик'
-            };
-            return statuses[status] || status;
-        },
-
-        getSegmentName: function(segment) {
-            const segments = {
-                'active': 'Активные абонементы',
-                'expiring': 'Истекающие абонементы',
-                'expired': 'Истекшие абонементы',
-                'inactive': 'Неактивные',
-                'branch_sviblovo': 'Только Свиблово',
-                'branch_chertanovo': 'Только Чертаново',
-                'all': 'Все пользователи'
-            };
-            return segments[segment] || segment;
-        },
-
-        getLessonStatusName: function(status) {
-            const statuses = {
-                'active': 'Активно',
-                'cancelled': 'Отменено',
-                'rescheduled': 'Перенесено',
-                'completed': 'Завершено'
-            };
-            return statuses[status] || status;
-        },
-
-        getCategoryName: function(category) {
-            const categories = {
-                'general': 'Общие',
-                'subscription': 'Абонементы',
-                'schedule': 'Расписание',
-                'payment': 'Оплата',
-                'other': 'Другое'
-            };
-            return categories[category] || category;
-        },
-
-        formatDate: function(dateString) {
-            if (!dateString) return '-';
-            try {
-                const date = new Date(dateString);
-                return date.toLocaleDateString('ru-RU');
-            } catch (e) {
-                return dateString;
-            }
-        },
-
-        formatDateTime: function(dateString) {
-            if (!dateString) return '-';
-            try {
-                const date = new Date(dateString);
-                return date.toLocaleString('ru-RU');
-            } catch (e) {
-                return dateString;
-            }
-        },
-
-        showToast: function(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            
-            const icons = {
-                'success': 'check-circle',
-                'error': 'exclamation-circle',
-                'warning': 'exclamation-triangle',
-                'info': 'info-circle'
-            };
-            
-            const titles = {
-                'success': 'Успешно',
-                'error': 'Ошибка',
-                'warning': 'Внимание',
-                'info': 'Информация'
-            };
-            
-            toast.innerHTML = `
-                <div class="toast-header">
-                    <i class="fas fa-${icons[type] || 'info-circle'}"></i>
-                    <div class="toast-title">${titles[type] || 'Информация'}</div>
-                </div>
-                <div class="toast-message">${message}</div>
-            `;
-            
-            container.appendChild(toast);
-            
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.remove();
-                }
-            }, 5000);
-        },
-
-        showLoading: function(text = 'Загрузка...') {
-            document.getElementById('loading-text').textContent = text;
-            document.getElementById('loading-overlay').classList.add('active');
-        },
-
-        hideLoading: function() {
-            document.getElementById('loading-overlay').classList.remove('active');
-        },
-
-        getInitials: function(name) {
-            if (!name || typeof name !== 'string') return 'АД';
-            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-        },
-
-        // НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ
-        setupEventListeners: function() {
-            const self = this;
-            
-            // Вход
-            document.getElementById('login-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const email = document.getElementById('login-email').value;
-                const password = document.getElementById('login-password').value;
-                self.login(email, password);
-            });
-            
-            // Выход
-            document.getElementById('logout-btn').addEventListener('click', function() {
-                self.logout();
-            });
-            
-            // Навигация в сайдбаре
-            document.querySelectorAll('.sidebar-menu a').forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const pageId = this.getAttribute('href').substring(1);
-                    self.navigateTo(pageId);
-                });
-            });
-            
-            // Табы
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-                    
-                    // Убираем активный класс у всех табов
-                    this.parentNode.querySelectorAll('.tab').forEach(t => {
-                        t.classList.remove('active');
-                    });
-                    
-                    // Добавляем активный класс текущему табу
-                    this.classList.add('active');
-                    
-                    // Скрываем все содержимое табов
-                    const tabContents = this.closest('.modal') 
-                        ? this.closest('.modal-body').querySelectorAll('.tab-content')
-                        : document.querySelectorAll('.tab-content');
-                    
-                    tabContents.forEach(content => {
-                        content.classList.remove('active');
-                        if (content.id === tabId) {
-                            content.classList.add('active');
-                        }
-                    });
-                });
-            });
-            
-            // Фильтр расписания
-            document.getElementById('schedule-branch-filter')?.addEventListener('change', function() {
-                self.loadScheduleData();
-            });
-            
-            // Фильтр логов
-            document.getElementById('log-level')?.addEventListener('change', function() {
-                self.loadLogsData();
-            });
-            
-            // Обработка Enter на форме логина
-            document.getElementById('login-password').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    document.getElementById('login-form').dispatchEvent(new Event('submit'));
-                }
-            });
-            
-            // Закрытие модальных окон по клику вне их
-            document.querySelectorAll('.modal-overlay').forEach(modal => {
-                modal.addEventListener('click', function(e) {
-                    if (e.target === this) {
-                        this.classList.remove('active');
-                        document.body.style.overflow = '';
-                    }
-                });
-            });
-        },
-
-        // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ (заглушки для API)
-        viewMailing: function(id) {
-            this.showToast(`Просмотр рассылки #${id}`, 'info');
-            // Реализация просмотра рассылки
-        },
-
-        editLesson: function(id) {
-            this.showToast(`Редактирование занятия #${id}`, 'info');
-            // Реализация редактирования занятия
-        },
-
-        cancelLesson: function(id) {
-            if (confirm(`Отменить занятие #${id}?`)) {
-                this.showToast(`Занятие #${id} отменено`, 'success');
-                // API запрос для отмены занятия
-            }
-        },
-
-        editTeacher: function(id) {
-            this.showToast(`Редактирование преподавателя #${id}`, 'info');
-            // Реализация редактирования преподавателя
-        },
-
-        deleteTeacher: function(id) {
-            if (confirm(`Удалить преподавателя #${id}?`)) {
-                fetch(`/api/admin/teachers/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.showToast(`Преподаватель #${id} удален`, 'success');
-                        this.loadTeachersData();
-                    } else {
-                        throw new Error(data.error);
-                    }
-                })
-                .catch(error => {
-                    this.showToast('Ошибка удаления: ' + error.message, 'error');
-                });
-            }
-        },
-
-        editFaq: function(id) {
-            this.showToast(`Редактирование вопроса #${id}`, 'info');
-            // Реализация редактирования FAQ
-        },
-
-        deleteFaq: function(id) {
-            if (confirm(`Удалить вопрос #${id}?`)) {
-                fetch(`/api/admin/faq/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.showToast(`Вопрос #${id} удален`, 'success');
-                        this.loadFaqData();
-                    } else {
-                        throw new Error(data.error);
-                    }
-                })
-                .catch(error => {
-                    this.showToast('Ошибка удаления: ' + error.message, 'error');
-                });
-            }
-        },
-
-        editNews: function(id) {
-            this.showToast(`Редактирование новости #${id}`, 'info');
-            // Реализация редактирования новости
-        },
-
-        deleteNews: function(id) {
-            if (confirm(`Удалить новость #${id}?`)) {
-                fetch(`/api/admin/news/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        this.showToast(`Новость #${id} удалена`, 'success');
-                        this.loadNewsData();
-                    } else {
-                        throw new Error(data.error);
-                    }
-                })
-                .catch(error => {
-                    this.showToast('Ошибка удаления: ' + error.message, 'error');
-                });
-            }
         }
-    };
+    }
+};
 
-    // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Админ-панель Artistic Soul загружена');
-        AdminApp.init();
-    });
-    
-    // ГЛОБАЛЬНЫЙ ДОСТУП
-    window.AdminApp = AdminApp;
+// ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Админ-панель загружена');
+    AdminApp.init();
+});
+
+// ГЛОБАЛЬНЫЙ ДОСТУП
+window.AdminApp = AdminApp;
     </script>
 </body>
 </html>
