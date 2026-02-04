@@ -6,7 +6,7 @@
     <title>БАНЯ | Личный кабинет</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Стили остаются без изменений */
+        
         :root {
             --blue-primary: #0066FF;
             --blue-dark: #0052CC;
@@ -796,8 +796,8 @@
             color: var(--blue-primary);
         }
 
-        /* СТАТИСТИКА ПОСЕЩЕНИЙ */
-        .visits-stats {
+        /* СТАТИСТИКА ПОСЕЩЕНИЙ - УБРАТЬ ЭТОТ БЛОК */
+        /* .visits-stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 10px;
@@ -823,7 +823,7 @@
             font-size: 0.8rem;
             color: var(--blue-dark);
             font-weight: 600;
-        }
+        } */
 
         /* СПИСОК ПОСЕЩЕНИЙ */
         .visits-list-container {
@@ -1213,9 +1213,9 @@
                 grid-template-columns: repeat(2, 1fr);
             }
             
-            .visits-stats {
+            /* .visits-stats {
                 grid-template-columns: repeat(2, 1fr);
-            }
+            } */
             
             .top-bar {
                 padding: 12px 15px;
@@ -1264,9 +1264,9 @@
                 grid-template-columns: 1fr;
             }
             
-            .visits-stats {
+            /* .visits-stats {
                 grid-template-columns: 1fr;
-            }
+            } */
             
             .top-bar {
                 flex-direction: column;
@@ -1646,10 +1646,7 @@
                         </button>
                     </div>
                     
-                    <!-- Статистика посещений -->
-                    <div class="visits-stats" id="visitsStats">
-                        <!-- Статистика будет загружена здесь -->
-                    </div>
+                    <!-- Статистика посещений - БЛОК УБРАН -->
                     
                     <!-- Список посещений -->
                     <div class="visits-list-container" id="visitsListContainer">
@@ -1676,7 +1673,7 @@
                 </div>
             </section>
             
-            <!-- ПРЕПОДАВАТЕЛИ -->
+            <!-- ПРЕПОДАВАТЕЛЕЙ -->
             <section id="teachersPage" class="page-section">
                 <div class="page-header">
                     <div class="back-button" onclick="BanyaApp.navigateTo('home')">
@@ -2376,7 +2373,7 @@
                     );
                     
                     this.showVisitsWindow();
-                    this.updateVisitsStats(data.data);
+                    // Убрана статистика, поэтому не вызываем updateVisitsStats
                     this.renderVisitsForCurrentPage();
                     this.updateVisitsPagination();
                 } else {
@@ -2400,36 +2397,8 @@
             }
         },
 
-        // ОБНОВИТЬ СТАТИСТИКУ ПОСЕЩЕНИЙ
-        updateVisitsStats: function(data) {
-            const statsContainer = document.getElementById('visitsStats');
-            if (!statsContainer) return;
-            
-            const totalVisits = data.visits.length;
-            const realVisits = data.visits.filter(v => !v.estimated && v.source !== 'estimated').length;
-            const estimatedVisits = data.visits.filter(v => v.estimated || v.source === 'estimated').length;
-            const remainingClasses = this.config.subscriptionData?.subscription?.classes?.remaining || 0;
-            
-            statsContainer.innerHTML = `
-                <div class="visit-stat-card">
-                    <div class="visit-stat-value">${totalVisits}</div>
-                    <div class="visit-stat-label">Всего посещений</div>
-                </div>
-                <div class="visit-stat-card">
-                    <div class="visit-stat-value">${realVisits}</div>
-                    <div class="visit-stat-label">Подтверждённых</div>
-                </div>
-                <div class="visit-stat-card">
-                    <div class="visit-stat-value">${estimatedVisits}</div>
-                    <div class="visit-stat-label">Расчётных</div>
-                </div>
-                <div class="visit-stat-card">
-                    <div class="visit-stat-value">${remainingClasses}</div>
-                    <div class="visit-stat-label">Осталось занятий</div>
-                </div>
-            `;
-        },
-
+        // ОБНОВИТЬ СТАТИСТИКУ ПОСЕЩЕНИЙ - ФУНКЦИЯ УБРАНА, ТАК КАК БЛОК УДАЛЕН
+        
         // РЕНДЕРИНГ ПОСЕЩЕНИЙ ДЛЯ ТЕКУЩЕЙ СТРАНИЦЫ
         renderVisitsForCurrentPage: function() {
             const container = document.getElementById('visitsListContainer');
@@ -2549,7 +2518,6 @@
         showNoVisitsMessageInWindow: function() {
             const container = document.getElementById('visitsListContainer');
             const windowElement = document.getElementById('visitsHistoryWindow');
-            const statsContainer = document.getElementById('visitsStats');
             
             if (container) {
                 container.innerHTML = `
@@ -2559,28 +2527,6 @@
                         <p style="font-size: 0.9rem; margin-top: 10px;">
                             Здесь будут отображаться все посещённые занятия
                         </p>
-                    </div>
-                `;
-            }
-            
-            if (statsContainer) {
-                const remaining = this.config.subscriptionData?.subscription?.classes?.remaining || 0;
-                statsContainer.innerHTML = `
-                    <div class="visit-stat-card">
-                        <div class="visit-stat-value">0</div>
-                        <div class="visit-stat-label">Всего посещений</div>
-                    </div>
-                    <div class="visit-stat-card">
-                        <div class="visit-stat-value">0</div>
-                        <div class="visit-stat-label">Подтверждённых</div>
-                    </div>
-                    <div class="visit-stat-card">
-                        <div class="visit-stat-value">0</div>
-                        <div class="visit-stat-label">Расчётных</div>
-                    </div>
-                    <div class="visit-stat-card">
-                        <div class="visit-stat-value">${remaining}</div>
-                        <div class="visit-stat-label">Осталось занятий</div>
                     </div>
                 `;
             }
