@@ -3067,7 +3067,7 @@ async function createRecurringClassesTable() {
                 FOREIGN KEY (teacher_id) REFERENCES teachers(id)
             )
         `);
-        console.log('✅ Таблица recurring_classes_templates создана');
+        console.log('✅ Таблица recurring_classes_templates создана/проверена');
         
         // Индексы для быстрого поиска
         await db.run('CREATE INDEX IF NOT EXISTS idx_recurring_day ON recurring_classes_templates(day_of_week)');
@@ -3078,7 +3078,6 @@ async function createRecurringClassesTable() {
         console.error('❌ Ошибка создания таблицы повторяющихся занятий:', error.message);
     }
 }
-
 // Инициализация таблицы при старте
 createRecurringClassesTable();
 // Функция генерации занятий из шаблона
@@ -3097,8 +3096,10 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
             return 0;
         }
         
+        console.log(`📋 Найден шаблон: день ${template.day_of_week}, время ${template.time}, филиал ${template.branch}`);
+        
         // Рассчитываем даты для генерации
-        const startDate = new Date(template.start_date);
+        const startDate = new Date(template.start_date || new Date());
         const endDate = template.end_date ? new Date(template.end_date) : null;
         const currentDate = new Date();
         
@@ -3107,6 +3108,8 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
             0: 'Воскресенье', 1: 'Понедельник', 2: 'Вторник', 
             3: 'Среда', 4: 'Четверг', 5: 'Пятница', 6: 'Суббота'
         };
+        
+        console.log(`📅 Генерация на ${weeks} недель, начиная с: ${currentDate.toISOString().split('T')[0]}`);
         
         // Генерируем занятия на указанное количество недель
         for (let week = 0; week < weeks; week++) {
@@ -3120,6 +3123,13 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
             if (targetDayOfWeek == template.day_of_week) {
                 // Проверяем, не выходит ли дата за пределы end_date
                 if (endDate && targetDate > endDate) {
+                    console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - после end_date`);
+                    continue;
+                }
+                
+                // Проверяем, что дата не раньше start_date
+                if (targetDate < startDate) {
+                    console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - раньше start_date`);
                     continue;
                 }
                 
@@ -3136,28 +3146,31 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
                 if (!existingClass) {
                     // Создаем занятие
                     await db.run(`
-                        INSERT INTO schedule (date, time, branch, teacher_id, group_name, age_group, status)
-                        VALUES (?, ?, ?, ?, ?, ?, 'active')
+                        INSERT INTO schedule (date, time, branch, teacher_id, group_name, age_group, status, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     `, [
                         targetDate.toISOString().split('T')[0],
                         template.time,
                         template.branch,
                         template.teacher_id,
-                        template.group_name,
-                        template.age_group
+                        template.group_name || '',
+                        template.age_group || ''
                     ]);
                     
                     createdCount++;
-                    console.log(`   ✅ Создано занятие: ${targetDate.toISOString().split('T')[0]} ${template.time}`);
+                    console.log(`   ✅ Создано занятие: ${targetDate.toISOString().split('T')[0]} ${template.time} (${template.branch})`);
+                } else {
+                    console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - уже существует`);
                 }
             }
         }
         
-        console.log(`✅ Создано занятий: ${createdCount}`);
+        console.log(`✅ Всего создано занятий: ${createdCount}`);
         return createdCount;
         
     } catch (error) {
         console.error('❌ Ошибка генерации занятий:', error.message);
+        console.error('Stack trace:', error.stack);
         return 0;
     }
 }
@@ -3932,7 +3945,7 @@ app.get('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => {
 app.post('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => {
     try {
         const templateData = req.body;
-        const adminId = req.admin.admin_id;
+        const adminId = req.admin?.admin_id;
         
         console.log('📝 Создание шаблона повторяющихся занятий:', templateData);
         
@@ -3949,6 +3962,9 @@ app.post('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => 
             templateData.start_date = new Date().toISOString().split('T')[0];
         }
         
+        // Проверяем и преобразуем значения
+        const teacherId = templateData.teacher_id ? parseInt(templateData.teacher_id) : null;
+        
         // Сохраняем шаблон
         const result = await db.run(`
             INSERT INTO recurring_classes_templates 
@@ -3956,10 +3972,10 @@ app.post('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => 
              frequency, start_date, end_date, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         `, [
-            templateData.day_of_week,
+            parseInt(templateData.day_of_week),
             templateData.time,
             templateData.branch,
-            templateData.teacher_id || null,
+            teacherId,
             templateData.group_name || '',
             templateData.age_group || '',
             templateData.frequency || 'weekly',
@@ -3972,7 +3988,7 @@ app.post('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => 
         // Если указано количество занятий для генерации, создаем их
         let createdCount = 0;
         if (templateData.generate_count && templateData.generate_count > 0) {
-            createdCount = await generateClassesFromTemplate(templateId, templateData.generate_count);
+            createdCount = await generateClassesFromTemplate(templateId, parseInt(templateData.generate_count));
         }
         
         // Логируем действие
@@ -3983,7 +3999,7 @@ app.post('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => 
             'schedule',
             'info',
             `Создан шаблон повторяющихся занятий #${templateId}. Создано занятий: ${createdCount}`,
-            adminId
+            adminId || 1
         ]);
         
         res.json({
@@ -3997,9 +4013,10 @@ app.post('/api/admin/schedule/recurring', verifyAdminToken, async (req, res) => 
         
     } catch (error) {
         console.error('❌ Ошибка создания шаблона:', error.message);
+        console.error('Stack trace:', error.stack);
         res.status(500).json({
             success: false,
-            error: 'Ошибка создания шаблона'
+            error: 'Ошибка создания шаблона: ' + error.message
         });
     }
 });
