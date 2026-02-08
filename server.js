@@ -2827,7 +2827,25 @@ await db.exec(`
             )
         `);
         console.log('✅ Таблица teachers создана');
-
+// В createTables() добавьте после других таблиц:
+await db.exec(`
+    CREATE TABLE IF NOT EXISTS recurring_classes_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        day_of_week INTEGER NOT NULL,
+        time TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        teacher_id INTEGER,
+        group_name TEXT,
+        age_group TEXT,
+        frequency TEXT DEFAULT 'weekly',
+        start_date DATE,
+        end_date DATE,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+console.log('✅ Таблица recurring_classes_templates создана');
         await db.exec(`
             CREATE TABLE IF NOT EXISTS schedule (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -4504,16 +4522,30 @@ app.post('/api/admin/faq', verifyAdminToken, async (req, res) => {
     }
 });
 
-// Управление новостями
+// Получение новостей для админ-панели
 app.get('/api/admin/news', verifyAdminToken, async (req, res) => {
     try {
-        console.log('📰 Получение новостей');
+        const { limit = 50, offset = 0, branch, is_published } = req.query;
         
-        const news = await db.all(`
-            SELECT * FROM news 
-            ORDER BY publish_date DESC 
-            LIMIT 50
-        `);
+        console.log('📰 Получение новостей для админ-панели');
+        
+        let query = 'SELECT * FROM news WHERE 1=1';
+        const params = [];
+        
+        if (branch && branch !== 'all') {
+            query += ' AND (branch = ? OR branch = "all")';
+            params.push(branch);
+        }
+        
+        if (is_published !== undefined) {
+            query += ' AND is_published = ?';
+            params.push(is_published === 'true' ? 1 : 0);
+        }
+        
+        query += ' ORDER BY publish_date DESC, created_at DESC LIMIT ? OFFSET ?';
+        params.push(parseInt(limit), parseInt(offset));
+        
+        const news = await db.all(query, params);
         
         res.json({
             success: true,
@@ -4537,7 +4569,7 @@ app.post('/api/admin/news', verifyAdminToken, async (req, res) => {
         const newsData = req.body;
         const adminId = req.admin.admin_id;
         
-        console.log('📰 Сохранение новости:', newsData.title);
+        console.log('📰 Сохранение новости:', newsData.title?.substring(0, 50));
         
         if (!newsData.title || !newsData.content) {
             return res.status(400).json({
@@ -4546,36 +4578,45 @@ app.post('/api/admin/news', verifyAdminToken, async (req, res) => {
             });
         }
         
+        // Проверяем наличие image_url
+        if (!newsData.image_url) {
+            newsData.image_url = '';
+        }
+        
         let result;
         
         if (newsData.id) {
             // Обновление существующей новости
             result = await db.run(`
                 UPDATE news SET 
-                    title = ?, content = ?, branch = ?, 
+                    title = ?, content = ?, image_url = ?, branch = ?, 
                     publish_date = ?, is_published = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `, [
                 newsData.title,
                 newsData.content,
+                newsData.image_url || '',
                 newsData.branch || 'all',
                 newsData.publish_date || new Date().toISOString().split('T')[0],
-                newsData.is_published || 0,
+                newsData.is_published ? 1 : 0,
                 newsData.id
             ]);
         } else {
             // Создание новой новости
             result = await db.run(`
-                INSERT INTO news (title, content, branch, publish_date, is_published)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO news (title, content, image_url, branch, publish_date, is_published, views)
+                VALUES (?, ?, ?, ?, ?, ?, 0)
             `, [
                 newsData.title,
                 newsData.content,
+                newsData.image_url || '',
                 newsData.branch || 'all',
                 newsData.publish_date || new Date().toISOString().split('T')[0],
-                newsData.is_published || 0
+                newsData.is_published ? 1 : 0
             ]);
         }
+        
+        const newsId = newsData.id || result.lastID;
         
         // Логируем действие
         await db.run(`
@@ -4593,15 +4634,93 @@ app.post('/api/admin/news', verifyAdminToken, async (req, res) => {
             success: true,
             message: newsData.id ? 'Новость обновлена' : 'Новость добавлена',
             data: {
-                news_id: newsData.id || result.lastID
+                news_id: newsId
             }
         });
         
     } catch (error) {
         console.error('❌ Ошибка сохранения новости:', error.message);
+        console.error('Stack trace:', error.stack);
         res.status(500).json({
             success: false,
             error: 'Ошибка сохранения новости'
+        });
+    }
+});
+
+// Удаление новости
+app.delete('/api/admin/news/:id', verifyAdminToken, async (req, res) => {
+    try {
+        const newsId = req.params.id;
+        const adminId = req.admin.admin_id;
+        
+        console.log(`🗑️ Удаление новости #${newsId}`);
+        
+        // Сначала проверяем существование новости
+        const news = await db.get('SELECT * FROM news WHERE id = ?', [newsId]);
+        
+        if (!news) {
+            return res.status(404).json({
+                success: false,
+                error: 'Новость не найдена'
+            });
+        }
+        
+        const result = await db.run('DELETE FROM news WHERE id = ?', [newsId]);
+        
+        // Логируем действие
+        await db.run(`
+            INSERT INTO system_logs (type, level, message, user_id)
+            VALUES (?, ?, ?, ?)
+        `, [
+            'news',
+            'warning',
+            `Удалена новость "${news.title.substring(0, 30)}..." (ID: ${newsId})`,
+            adminId
+        ]);
+        
+        res.json({
+            success: true,
+            message: 'Новость удалена'
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка удаления новости:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка удаления новости'
+        });
+    }
+});
+
+// Получение одной новости для редактирования
+app.get('/api/admin/news/:id', verifyAdminToken, async (req, res) => {
+    try {
+        const newsId = req.params.id;
+        
+        console.log(`🔍 Получение новости для редактирования: ${newsId}`);
+        
+        const news = await db.get('SELECT * FROM news WHERE id = ?', [newsId]);
+        
+        if (!news) {
+            return res.status(404).json({
+                success: false,
+                error: 'Новость не найдена'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: {
+                news: news
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка получения новости:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка получения новости'
         });
     }
 });
