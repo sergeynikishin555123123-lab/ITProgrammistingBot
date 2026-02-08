@@ -1498,40 +1498,53 @@ public/admin.html - <!DOCTYPE html>
                     </div>
                 </div>
                 
-                <!-- Новости -->
-                <div id="news-page" class="page-content d-none">
-                    <div class="section-header justify-between align-center">
-                        <h3><i class="fas fa-newspaper"></i> Управление новостями</h3>
-                        <button class="btn btn-success" onclick="AdminApp.showModal('new-news')">
-                            <i class="fas fa-plus"></i> Добавить новость
-                        </button>
-                    </div>
-                    
-                    <div class="table-container">
-                        <div class="table-responsive">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Заголовок</th>
-                                        <th>Текст</th>
-                                        <th>Филиал</th>
-                                        <th>Дата публикации</th>
-                                        <th>Статус</th>
-                                        <th>Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="news-table">
-                                    <tr>
-                                        <td colspan="6" class="text-center">
-                                            <div class="spinner"></div>
-                                            <p class="mt-20">Загрузка новостей...</p>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+               <!-- В admin.html в секции новостей -->
+<div id="news-page" class="page-content d-none">
+    <div class="section-header justify-between align-center">
+        <h3><i class="fas fa-newspaper"></i> Управление новостями</h3>
+        <div class="d-flex gap-10">
+            <select id="news-filter-branch" class="form-control select" onchange="AdminApp.loadNewsData()">
+                <option value="all">Все филиалы</option>
+                <option value="Свиблово">Свиблово</option>
+                <option value="Чертаново">Чертаново</option>
+            </select>
+            <select id="news-filter-status" class="form-control select" onchange="AdminApp.loadNewsData()">
+                <option value="all">Все статусы</option>
+                <option value="published">Опубликованные</option>
+                <option value="draft">Черновики</option>
+            </select>
+            <button class="btn btn-success" onclick="AdminApp.showModal('new-news')">
+                <i class="fas fa-plus"></i> Добавить новость
+            </button>
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Заголовок</th>
+                        <th>Текст</th>
+                        <th>Филиал</th>
+                        <th>Дата публикации</th>
+                        <th>Просмотры</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="news-table">
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <div class="spinner"></div>
+                            <p class="mt-20">Загрузка новостей...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
                 
                 <!-- Логи системы -->
                 <div id="logs-page" class="page-content d-none">
@@ -1834,7 +1847,71 @@ public/admin.html - <!DOCTYPE html>
             </div>
         </div>
     </div>
-    
+    <!-- Новое модальное окно для новостей -->
+<div id="modal-new-news" class="modal-overlay">
+    <div class="modal" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-newspaper"></i> <span id="modal-news-title">Добавление новости</span></h3>
+            <button class="modal-close" onclick="AdminApp.hideModal('new-news')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="news-id">
+            
+            <div class="form-group">
+                <label class="required">Заголовок</label>
+                <input type="text" id="news-title" class="form-control" placeholder="Введите заголовок новости">
+            </div>
+            
+            <div class="form-group">
+                <label class="required">Текст новости</label>
+                <textarea id="news-content" class="form-control form-textarea" 
+                          placeholder="Введите текст новости..." rows="8"></textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Изображение (URL)</label>
+                    <input type="text" id="news-image" class="form-control" 
+                           placeholder="https://example.com/image.jpg">
+                    <small class="text-muted">Оставьте пустым, если изображения нет</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Филиал</label>
+                    <select id="news-branch" class="form-control select">
+                        <option value="all">Оба филиала</option>
+                        <option value="Свиблово">Свиблово</option>
+                        <option value="Чертаново">Чертаново</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Дата публикации</label>
+                    <input type="date" id="news-publish-date" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label>Статус</label>
+                    <select id="news-status" class="form-control select">
+                        <option value="0">Черновик</option>
+                        <option value="1">Опубликовано</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="AdminApp.hideModal('new-news')">Отмена</button>
+            <button class="btn btn-primary" onclick="AdminApp.previewNews()">
+                <i class="fas fa-eye"></i> Предпросмотр
+            </button>
+            <button class="btn btn-success" onclick="AdminApp.saveNews()">
+                <i class="fas fa-save"></i> Сохранить новость
+            </button>
+        </div>
+    </div>
+</div>
     <!-- Отмена/изменение занятия -->
     <div id="modal-schedule-change" class="modal-overlay">
         <div class="modal">
