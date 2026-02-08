@@ -3098,7 +3098,7 @@ async function createRecurringClassesTable() {
 }
 // Инициализация таблицы при старте
 createRecurringClassesTable();
-// Функция генерации занятий из шаблона
+// Обновленная функция генерации занятий
 async function generateClassesFromTemplate(templateId, weeks = 4) {
     try {
         console.log(`🔄 Генерация занятий из шаблона ${templateId} на ${weeks} недель`);
@@ -3114,7 +3114,7 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
             return 0;
         }
         
-        console.log(`📋 Найден шаблон: день ${template.day_of_week}, время ${template.time}, филиал ${template.branch}`);
+        console.log(`📋 Шаблон: ${template.day_of_week} (${getDayName(template.day_of_week)}), ${template.time}, ${template.branch}`);
         
         // Рассчитываем даты для генерации
         const startDate = new Date(template.start_date || new Date());
@@ -3127,59 +3127,67 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
             3: 'Среда', 4: 'Четверг', 5: 'Пятница', 6: 'Суббота'
         };
         
-        console.log(`📅 Генерация на ${weeks} недель, начиная с: ${currentDate.toISOString().split('T')[0]}`);
+        // Преобразуем день недели из шаблона (SQL: 0-6) в JavaScript (0-6)
+        const targetDayOfWeek = parseInt(template.day_of_week);
+        
+        console.log(`📅 Генерация на ${weeks} недель`);
+        console.log(`   Начальная дата: ${startDate.toISOString().split('T')[0]}`);
+        console.log(`   Искомая дата недели: ${targetDayOfWeek} (${dayMapping[targetDayOfWeek]})`);
+        
+        // Находим ближайшую дату с нужным днем недели
+        let startDay = new Date(startDate);
+        while (startDay.getDay() !== targetDayOfWeek) {
+            startDay.setDate(startDay.getDate() + 1);
+        }
+        
+        console.log(`   Первое занятие: ${startDay.toISOString().split('T')[0]}`);
         
         // Генерируем занятия на указанное количество недель
         for (let week = 0; week < weeks; week++) {
-            const targetDate = new Date(currentDate);
-            targetDate.setDate(currentDate.getDate() + (week * 7));
+            const targetDate = new Date(startDay);
+            targetDate.setDate(startDay.getDate() + (week * 7));
             
-            // Находим день недели для этой даты
-            const targetDayOfWeek = targetDate.getDay(); // 0-воскресенье, 1-понедельник...
+            // Проверяем, не выходит ли дата за пределы end_date
+            if (endDate && targetDate > endDate) {
+                console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - после end_date`);
+                continue;
+            }
             
-            // Проверяем совпадение дня недели
-            if (targetDayOfWeek == template.day_of_week) {
-                // Проверяем, не выходит ли дата за пределы end_date
-                if (endDate && targetDate > endDate) {
-                    console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - после end_date`);
-                    continue;
-                }
-                
-                // Проверяем, что дата не раньше start_date
-                if (targetDate < startDate) {
-                    console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - раньше start_date`);
-                    continue;
-                }
-                
-                // Проверяем, существует ли уже такое занятие
-                const existingClass = await db.get(`
-                    SELECT id FROM schedule 
-                    WHERE date = ? AND time = ? AND branch = ?
+            // Проверяем, что дата не в прошлом (можно раскомментировать при необходимости)
+            // if (targetDate < new Date()) {
+            //     console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - в прошлом`);
+            //     continue;
+            // }
+            
+            // Проверяем, существует ли уже такое занятие
+            const existingClass = await db.get(`
+                SELECT id FROM schedule 
+                WHERE date = ? AND time = ? AND branch = ? AND teacher_id = ?
+            `, [
+                targetDate.toISOString().split('T')[0],
+                template.time,
+                template.branch,
+                template.teacher_id
+            ]);
+            
+            if (!existingClass) {
+                // Создаем занятие
+                await db.run(`
+                    INSERT INTO schedule (date, time, branch, teacher_id, group_name, age_group, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 `, [
                     targetDate.toISOString().split('T')[0],
                     template.time,
-                    template.branch
+                    template.branch,
+                    template.teacher_id,
+                    template.group_name || '',
+                    template.age_group || ''
                 ]);
                 
-                if (!existingClass) {
-                    // Создаем занятие
-                    await db.run(`
-                        INSERT INTO schedule (date, time, branch, teacher_id, group_name, age_group, status, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    `, [
-                        targetDate.toISOString().split('T')[0],
-                        template.time,
-                        template.branch,
-                        template.teacher_id,
-                        template.group_name || '',
-                        template.age_group || ''
-                    ]);
-                    
-                    createdCount++;
-                    console.log(`   ✅ Создано занятие: ${targetDate.toISOString().split('T')[0]} ${template.time} (${template.branch})`);
-                } else {
-                    console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - уже существует`);
-                }
+                createdCount++;
+                console.log(`   ✅ Создано занятие: ${targetDate.toISOString().split('T')[0]} ${template.time} (${template.branch})`);
+            } else {
+                console.log(`   ⏭️ Пропускаем ${targetDate.toISOString().split('T')[0]} - уже существует (ID: ${existingClass.id})`);
             }
         }
         
@@ -3191,6 +3199,12 @@ async function generateClassesFromTemplate(templateId, weeks = 4) {
         console.error('Stack trace:', error.stack);
         return 0;
     }
+}
+
+// Вспомогательная функция для получения имени дня недели
+function getDayName(dayNumber) {
+    const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+    return days[dayNumber] || 'Неизвестный день';
 }
 async function saveProfilesToDatabase(profiles) {
     try {
